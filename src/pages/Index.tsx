@@ -1,45 +1,122 @@
-import { useState, useMemo } from "react";
-import { Search, Edit, Settings, Users, MessageCircle } from "lucide-react";
-import { ChatContact, Message } from "@/types/chat";
-import { mockContacts, mockMessages, mockStories } from "@/data/mockData";
+import { useState, useEffect, useRef } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useConversations, useMessages, useSendMessage } from "@/hooks/useChat";
 import { StoriesBar } from "@/components/chat/StoriesBar";
 import { ChatListItem } from "@/components/chat/ChatListItem";
-import { ChatView } from "@/components/chat/ChatView";
+import { MessageBubble } from "@/components/chat/MessageBubble";
+import { MessageInput } from "@/components/chat/MessageInput";
+import { Search, Edit, Settings, Users, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, Plus, Camera, ImageIcon } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+import { Tables } from "@/integrations/supabase/types";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 
+type Story = Tables<"stories"> & { profile?: Tables<"profiles"> };
+
 const Index = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [messages, setMessages] = useState<Record<string, Message[]>>(mockMessages);
   const [showSidebar, setShowSidebar] = useState(true);
+  const [stories, setStories] = useState<Story[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const filteredContacts = useMemo(
-    () => mockContacts.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
-    [search]
-  );
+  const { conversations, loading: convosLoading, refetch: refetchConversations } = useConversations();
+  const { messages, loading: msgsLoading } = useMessages(activeChat);
+  const { sendMessage } = useSendMessage();
 
-  const activeContact = mockContacts.find((c) => c.id === activeChat);
+  // Fetch stories
+  useEffect(() => {
+    const fetchStories = async () => {
+      const { data } = await supabase
+        .from("stories")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-  const handleSend = (text: string) => {
-    if (!activeChat) return;
-    const newMsg: Message = {
-      id: `m${Date.now()}`,
-      senderId: "me",
-      text,
-      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      status: "sent",
-      type: "text",
+      if (data) {
+        // Enrich with profiles
+        const enriched = await Promise.all(
+          data.map(async (story) => {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("user_id", story.user_id)
+              .single();
+            return { ...story, profile };
+          })
+        );
+        setStories(enriched);
+      }
     };
-    setMessages((prev) => ({
-      ...prev,
-      [activeChat]: [...(prev[activeChat] || []), newMsg],
-    }));
+    fetchStories();
+  }, []);
+
+  // Auto-scroll messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleSend = async (text: string) => {
+    if (!activeChat) return;
+    await sendMessage(activeChat, text);
   };
 
   const handleSelectChat = (id: string) => {
     setActiveChat(id);
     setShowSidebar(false);
   };
+
+  const handleUploadStory = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    const filePath = `${user.id}/${Date.now()}.${file.name.split('.').pop()}`;
+    const { error: uploadError } = await supabase.storage
+      .from("stories")
+      .upload(filePath, file);
+
+    if (uploadError) {
+      toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
+      return;
+    }
+
+    const { data: { publicUrl } } = supabase.storage.from("stories").getPublicUrl(filePath);
+
+    await supabase.from("stories").insert({
+      user_id: user.id,
+      image_url: publicUrl,
+    });
+
+    toast({ title: "Story posted! 📸" });
+  };
+
+  const activeConvo = conversations.find((c) => c.id === activeChat);
+
+  const filteredConversations = conversations.filter((c) => {
+    const name = c.otherProfile?.display_name || c.name || "";
+    return name.toLowerCase().includes(search.toLowerCase());
+  });
+
+  // Map stories to the StoriesBar format
+  const storyBarData = [
+    {
+      id: "add",
+      userId: "me",
+      userName: "Your Story",
+      avatar: "➕",
+      viewed: false,
+    },
+    ...stories.map((s) => ({
+      id: s.id,
+      userId: s.user_id,
+      userName: s.profile?.display_name || "User",
+      avatar: (s.profile?.display_name || "U").slice(0, 2).toUpperCase(),
+      viewed: false,
+    })),
+  ];
 
   return (
     <div className="h-screen flex overflow-hidden bg-background">
@@ -58,13 +135,14 @@ const Index = () => {
             </h1>
           </div>
           <div className="flex items-center gap-1">
-            <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary">
-              <Users className="w-4 h-4" />
-            </button>
-            <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary">
-              <Edit className="w-4 h-4" />
-            </button>
-            <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-foreground">
+            <label className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary cursor-pointer">
+              <Camera className="w-4 h-4" />
+              <input type="file" accept="image/*" onChange={handleUploadStory} className="hidden" />
+            </label>
+            <button
+              onClick={() => navigate("/settings")}
+              className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-foreground"
+            >
               <Settings className="w-4 h-4" />
             </button>
           </div>
@@ -84,30 +162,106 @@ const Index = () => {
         </div>
 
         {/* Stories */}
-        <StoriesBar stories={mockStories} />
+        <StoriesBar stories={storyBarData} />
 
         {/* Chat List */}
         <div className="flex-1 overflow-y-auto scrollbar-thin">
-          {filteredContacts.map((contact) => (
-            <ChatListItem
-              key={contact.id}
-              contact={contact}
-              isActive={activeChat === contact.id}
-              onClick={() => handleSelectChat(contact.id)}
-            />
-          ))}
+          {convosLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : filteredConversations.length === 0 ? (
+            <div className="text-center py-20 px-4">
+              <MessageCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">No conversations yet</p>
+              <p className="text-xs text-muted-foreground mt-1">Start a new chat to get going!</p>
+            </div>
+          ) : (
+            filteredConversations.map((convo) => (
+              <ChatListItem
+                key={convo.id}
+                contact={{
+                  id: convo.id,
+                  name: convo.otherProfile?.display_name || convo.name || "Chat",
+                  avatar: (convo.otherProfile?.display_name || "C").slice(0, 2).toUpperCase(),
+                  lastMessage: convo.lastMessage?.content || "No messages yet",
+                  time: convo.lastMessage
+                    ? new Date(convo.lastMessage.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                    : "",
+                  unread: convo.unreadCount,
+                  online: convo.otherProfile?.is_online || false,
+                }}
+                isActive={activeChat === convo.id}
+                onClick={() => handleSelectChat(convo.id)}
+              />
+            ))
+          )}
         </div>
       </div>
 
       {/* Chat Area */}
       <div className={`${!showSidebar ? "flex" : "hidden"} md:flex flex-1 flex-col`}>
-        {activeContact ? (
-          <ChatView
-            contact={activeContact}
-            messages={messages[activeChat!] || []}
-            onBack={() => setShowSidebar(true)}
-            onSend={handleSend}
-          />
+        {activeConvo ? (
+          <div className="flex flex-col h-full">
+            {/* Chat Header */}
+            <div className="flex items-center gap-3 px-4 py-3 glass border-b border-border/50">
+              <button onClick={() => setShowSidebar(true)} className="md:hidden p-1 hover:bg-surface-hover rounded-full transition-colors">
+                <ArrowLeft className="w-5 h-5 text-foreground" />
+              </button>
+              <div className="relative">
+                <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-sm font-semibold text-secondary-foreground">
+                  {(activeConvo.otherProfile?.display_name || "C").slice(0, 2).toUpperCase()}
+                </div>
+                {activeConvo.otherProfile?.is_online && (
+                  <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-sm text-foreground">
+                  {activeConvo.otherProfile?.display_name || activeConvo.name || "Chat"}
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  {activeConvo.otherProfile?.is_online ? (
+                    <span className="text-primary">online</span>
+                  ) : (
+                    "last seen recently"
+                  )}
+                </p>
+              </div>
+              <div className="flex items-center gap-1">
+                <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary">
+                  <Phone className="w-4 h-4" />
+                </button>
+                <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary">
+                  <Video className="w-4 h-4" />
+                </button>
+                <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-foreground">
+                  <MoreVertical className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-1">
+              {messages.map((msg) => (
+                <MessageBubble
+                  key={msg.id}
+                  message={{
+                    id: msg.id,
+                    senderId: msg.sender_id === user?.id ? "me" : msg.sender_id,
+                    text: msg.content || "",
+                    time: new Date(msg.created_at!).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                    status: msg.is_read ? "read" : "delivered",
+                    type: msg.message_type as "text" | "image" | "voice",
+                  }}
+                />
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input */}
+            <MessageInput onSend={handleSend} />
+          </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-8">
             <img src={tigerLogo} alt="TIGERCHATS" className="w-24 h-24 opacity-30" width={512} height={512} />
