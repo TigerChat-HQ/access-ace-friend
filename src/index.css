@@ -84,10 +84,8 @@
     @apply bg-background text-foreground;
   }
 
-  html {
-    @apply dark;
-  }
 }
+
 
 @layer utilities {
   .neon-glow {
