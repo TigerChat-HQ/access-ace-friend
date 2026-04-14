@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Mail, Lock, User, Eye, EyeOff, ArrowRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 
 const Auth = () => {
@@ -14,6 +15,7 @@ const Auth = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,6 +127,16 @@ const Auth = () => {
             {loading ? "Please wait..." : isLogin ? "Sign In" : "Create Account"}
             <ArrowRight className="w-4 h-4" />
           </Button>
+
+          {isLogin && (
+            <button
+              type="button"
+              onClick={() => navigate("/forgot-password")}
+              className="w-full text-center text-sm text-primary hover:underline"
+            >
+              Forgot Password?
+            </button>
+          )}
 
           <p className="text-center text-sm text-muted-foreground">
             {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
