@@ -6,7 +6,8 @@ import { StoriesBar } from "@/components/chat/StoriesBar";
 import { ChatListItem } from "@/components/chat/ChatListItem";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { MessageInput } from "@/components/chat/MessageInput";
-import { Search, Edit, Settings, Users, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, Plus, Camera, ImageIcon } from "lucide-react";
+import { Search, Settings, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, Camera, Users } from "lucide-react";
+import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
@@ -135,6 +136,7 @@ const Index = () => {
             </h1>
           </div>
           <div className="flex items-center gap-1">
+            <NewGroupDialog onCreated={() => refetchConversations()} />
             <label className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary cursor-pointer">
               <Camera className="w-4 h-4" />
               <input type="file" accept="image/*" onChange={handleUploadStory} className="hidden" />
