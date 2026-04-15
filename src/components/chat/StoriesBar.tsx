@@ -3,12 +3,14 @@ import { Plus } from "lucide-react";
 
 interface StoriesBarProps {
   stories: Story[];
+  onStoryClick?: (index: number) => void;
+  onAddStory?: () => void;
 }
 
-const StoryCircle = ({ story }: { story: Story }) => {
+const StoryCircle = ({ story, onClick }: { story: Story; onClick: () => void }) => {
   const isMyStory = story.userId === "me";
   return (
-    <div className="flex flex-col items-center gap-1 min-w-[68px]">
+    <button onClick={onClick} className="flex flex-col items-center gap-1 min-w-[68px]">
       <div className={`relative w-14 h-14 rounded-full p-[2px] ${
         story.viewed
           ? "bg-muted"
@@ -25,15 +27,25 @@ const StoryCircle = ({ story }: { story: Story }) => {
       <span className="text-[10px] text-muted-foreground truncate w-full text-center">
         {story.userName}
       </span>
-    </div>
+    </button>
   );
 };
 
-export const StoriesBar = ({ stories }: StoriesBarProps) => {
+export const StoriesBar = ({ stories, onStoryClick, onAddStory }: StoriesBarProps) => {
   return (
     <div className="flex gap-3 px-4 py-3 overflow-x-auto scrollbar-thin border-b border-border/50">
-      {stories.map((story) => (
-        <StoryCircle key={story.id} story={story} />
+      {stories.map((story, i) => (
+        <StoryCircle
+          key={story.id}
+          story={story}
+          onClick={() => {
+            if (story.userId === "me") {
+              onAddStory?.();
+            } else {
+              onStoryClick?.(i - 1 >= 0 ? i - 1 : 0); // offset for "add" story
+            }
+          }}
+        />
       ))}
     </div>
   );
