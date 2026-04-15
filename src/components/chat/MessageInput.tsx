@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { Send, Smile, Paperclip, Mic } from "lucide-react";
+import { VoiceRecorder } from "./VoiceRecorder";
 
 interface MessageInputProps {
   onSend: (text: string) => void;
+  onSendVoice?: (blob: Blob, duration: number) => void;
 }
 
-export const MessageInput = ({ onSend }: MessageInputProps) => {
+export const MessageInput = ({ onSend, onSendVoice }: MessageInputProps) => {
   const [text, setText] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
 
   const handleSend = () => {
     if (text.trim()) {
@@ -14,6 +17,18 @@ export const MessageInput = ({ onSend }: MessageInputProps) => {
       setText("");
     }
   };
+
+  if (isRecording) {
+    return (
+      <VoiceRecorder
+        onSend={(blob, duration) => {
+          onSendVoice?.(blob, duration);
+          setIsRecording(false);
+        }}
+        onCancel={() => setIsRecording(false)}
+      />
+    );
+  }
 
   return (
     <div className="p-3 border-t border-border/50 glass">
@@ -39,7 +54,10 @@ export const MessageInput = ({ onSend }: MessageInputProps) => {
             <Send className="w-4 h-4" />
           </button>
         ) : (
-          <button className="p-2.5 rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-all neon-glow">
+          <button
+            onClick={() => setIsRecording(true)}
+            className="p-2.5 rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-all neon-glow"
+          >
             <Mic className="w-4 h-4" />
           </button>
         )}
