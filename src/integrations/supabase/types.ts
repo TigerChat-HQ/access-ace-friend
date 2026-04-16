@@ -79,6 +79,7 @@ export type Database = {
           is_read: boolean | null
           media_url: string | null
           message_type: string
+          reply_to_id: string | null
           sender_id: string
         }
         Insert: {
@@ -89,6 +90,7 @@ export type Database = {
           is_read?: boolean | null
           media_url?: string | null
           message_type?: string
+          reply_to_id?: string | null
           sender_id: string
         }
         Update: {
@@ -99,6 +101,7 @@ export type Database = {
           is_read?: boolean | null
           media_url?: string | null
           message_type?: string
+          reply_to_id?: string | null
           sender_id?: string
         }
         Relationships: [
