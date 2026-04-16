@@ -21,8 +21,7 @@ export const useNotifications = () => {
       icon: icon || "/pwa-icon-192.png",
       badge: "/pwa-icon-192.png",
       tag: "tigerchats-msg",
-      renotify: true,
-    });
+    } as NotificationOptions);
     n.onclick = () => {
       window.focus();
       n.close();
