@@ -15,7 +15,7 @@ export interface Message {
   text: string;
   time: string;
   status: "sent" | "delivered" | "read";
-  type: "text" | "image" | "voice";
+  type: "text" | "image" | "voice" | "file";
   mediaUrl?: string;
 }
 
