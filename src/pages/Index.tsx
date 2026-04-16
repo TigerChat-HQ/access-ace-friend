@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useConversations, useMessages, useSendMessage } from "@/hooks/useChat";
+import { useTypingIndicator } from "@/hooks/useTypingIndicator";
+import { useNotifications } from "@/hooks/useNotifications";
 import { StoriesBar } from "@/components/chat/StoriesBar";
 import { ChatListItem } from "@/components/chat/ChatListItem";
 import { MessageBubble } from "@/components/chat/MessageBubble";
@@ -9,7 +11,7 @@ import { MessageInput } from "@/components/chat/MessageInput";
 import { StoryViewer } from "@/components/chat/StoryViewer";
 import { CallDialog } from "@/components/chat/CallDialog";
 import { InviteMembersDialog } from "@/components/chat/InviteMembersDialog";
-import { Search, Settings, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, Camera, Users } from "lucide-react";
+import { Search, Settings, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, Camera } from "lucide-react";
 import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -34,6 +36,8 @@ const Index = () => {
   const { conversations, loading: convosLoading, refetch: refetchConversations } = useConversations();
   const { messages, loading: msgsLoading } = useMessages(activeChat);
   const { sendMessage } = useSendMessage();
+  const { typingUsers, notifyTyping } = useTypingIndicator(activeChat);
+  useNotifications();
 
   // Fetch stories
   useEffect(() => {
@@ -89,6 +93,26 @@ const Index = () => {
     });
   };
 
+  const handleSendFile = async (file: File) => {
+    if (!activeChat || !user) return;
+    const ext = file.name.split(".").pop();
+    const filePath = `${user.id}/${Date.now()}.${ext}`;
+    const { error: uploadError } = await supabase.storage.from("chat-media").upload(filePath, file);
+    if (uploadError) {
+      toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
+      return;
+    }
+    const { data: { publicUrl } } = supabase.storage.from("chat-media").getPublicUrl(filePath);
+    const msgType = file.type.startsWith("image/") ? "image" : "file";
+    await supabase.from("messages").insert({
+      conversation_id: activeChat,
+      sender_id: user.id,
+      content: msgType === "image" ? "" : file.name,
+      message_type: msgType,
+      media_url: publicUrl,
+    });
+  };
+
   const handleSelectChat = (id: string) => {
     setActiveChat(id);
     setShowSidebar(false);
@@ -137,6 +161,7 @@ const Index = () => {
   const activeConvoName = activeConvo?.otherProfile?.display_name || activeConvo?.name || "Chat";
   const activeConvoAvatar = (activeConvo?.otherProfile?.display_name || "C").slice(0, 2).toUpperCase();
   const isGroup = activeConvo?.type === "group";
+  const isTyping = typingUsers.length > 0;
 
   const startCall = (isVideo: boolean) => {
     if (!activeConvo) return;
@@ -256,7 +281,9 @@ const Index = () => {
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-sm text-foreground">{activeConvoName}</h3>
                 <p className="text-[11px] text-muted-foreground">
-                  {isGroup ? (
+                  {isTyping ? (
+                    <span className="text-primary animate-pulse">typing...</span>
+                  ) : isGroup ? (
                     <span className="text-muted-foreground">Group</span>
                   ) : activeConvo.otherProfile?.is_online ? (
                     <span className="text-primary">online</span>
@@ -296,7 +323,7 @@ const Index = () => {
                     text: msg.content || "",
                     time: new Date(msg.created_at!).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
                     status: msg.is_read ? "read" : "delivered",
-                    type: msg.message_type as "text" | "image" | "voice",
+                    type: msg.message_type as "text" | "image" | "voice" | "file",
                     mediaUrl: msg.media_url || undefined,
                   }}
                 />
@@ -305,7 +332,12 @@ const Index = () => {
             </div>
 
             {/* Input */}
-            <MessageInput onSend={handleSend} onSendVoice={handleSendVoice} />
+            <MessageInput
+              onSend={handleSend}
+              onSendVoice={handleSendVoice}
+              onSendFile={handleSendFile}
+              onTyping={notifyTyping}
+            />
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-8">
