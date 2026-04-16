@@ -1,13 +1,23 @@
 import { useState, useRef, useMemo } from "react";
 import { Message } from "@/types/chat";
 import { cn } from "@/lib/utils";
-import { Check, CheckCheck, Play, Pause, FileText, Download } from "lucide-react";
+import { Check, CheckCheck, Play, Pause, FileText, Download, Reply, Forward, Trash2, MoreVertical } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface MessageBubbleProps {
   message: Message;
+  replyMessage?: Message | null;
+  onReply?: (message: Message) => void;
+  onForward?: (message: Message) => void;
+  onDelete?: (messageId: string) => void;
 }
 
-export const MessageBubble = ({ message }: MessageBubbleProps) => {
+export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDelete }: MessageBubbleProps) => {
   const isMe = message.senderId === "me";
   const [playing, setPlaying] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
@@ -30,7 +40,31 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
   const isVoice = message.type === "voice";
 
   return (
-    <div className={cn("flex mb-2 animate-fade-in", isMe ? "justify-end" : "justify-start")}>
+    <div className={cn("flex mb-2 animate-fade-in group", isMe ? "justify-end" : "justify-start")}>
+      {/* Actions menu - appears on hover */}
+      {isMe && (
+        <div className="flex items-center mr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-1 rounded-full hover:bg-surface-hover text-muted-foreground">
+                <MoreVertical className="w-3.5 h-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-card border-border/50 min-w-[140px]">
+              <DropdownMenuItem onClick={() => onReply?.(message)} className="text-xs gap-2">
+                <Reply className="w-3.5 h-3.5" /> Reply
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onForward?.(message)} className="text-xs gap-2">
+                <Forward className="w-3.5 h-3.5" /> Forward
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onDelete?.(message.id)} className="text-xs gap-2 text-destructive focus:text-destructive">
+                <Trash2 className="w-3.5 h-3.5" /> Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+
       <div
         className={cn(
           "max-w-[75%] rounded-2xl text-sm leading-relaxed",
@@ -40,6 +74,19 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
             : "glass text-foreground rounded-bl-md"
         )}
       >
+        {/* Reply preview */}
+        {replyMessage && (
+          <div className={cn(
+            "mb-2 px-3 py-1.5 rounded-lg border-l-2 text-[11px]",
+            isMe ? "bg-primary-foreground/10 border-primary-foreground/40" : "bg-surface border-primary/40"
+          )}>
+            <p className="font-medium opacity-70 truncate">
+              {replyMessage.senderId === "me" ? "You" : "Them"}
+            </p>
+            <p className="opacity-60 truncate">{replyMessage.text || (replyMessage.type === "image" ? "📷 Image" : "📎 File")}</p>
+          </div>
+        )}
+
         {isVoice && message.mediaUrl ? (
           <div className="flex items-center gap-3 min-w-[160px]">
             <audio ref={audioRef} src={message.mediaUrl} onEnded={() => setPlaying(false)} className="hidden" />
@@ -96,6 +143,27 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
           )}
         </div>
       </div>
+
+      {/* Actions for other's messages */}
+      {!isMe && (
+        <div className="flex items-center ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-1 rounded-full hover:bg-surface-hover text-muted-foreground">
+                <MoreVertical className="w-3.5 h-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="bg-card border-border/50 min-w-[140px]">
+              <DropdownMenuItem onClick={() => onReply?.(message)} className="text-xs gap-2">
+                <Reply className="w-3.5 h-3.5" /> Reply
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onForward?.(message)} className="text-xs gap-2">
+                <Forward className="w-3.5 h-3.5" /> Forward
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
     </div>
   );
 };

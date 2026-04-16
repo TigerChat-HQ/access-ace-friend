@@ -1,15 +1,19 @@
 import { useState, useRef } from "react";
-import { Send, Smile, Paperclip, Mic, Image, X, FileText } from "lucide-react";
+import { Send, Smile, Paperclip, Mic, X, FileText, Reply } from "lucide-react";
 import { VoiceRecorder } from "./VoiceRecorder";
+import { Message } from "@/types/chat";
+import { cn } from "@/lib/utils";
 
 interface MessageInputProps {
   onSend: (text: string) => void;
   onSendVoice?: (blob: Blob, duration: number) => void;
   onSendFile?: (file: File) => void;
   onTyping?: () => void;
+  replyTo?: Message | null;
+  onCancelReply?: () => void;
 }
 
-export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping }: MessageInputProps) => {
+export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyTo, onCancelReply }: MessageInputProps) => {
   const [text, setText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -33,8 +37,7 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping }: Mess
     if (!file) return;
     setAttachedFile(file);
     if (file.type.startsWith("image/")) {
-      const url = URL.createObjectURL(file);
-      setPreview(url);
+      setPreview(URL.createObjectURL(file));
     } else {
       setPreview(null);
     }
@@ -66,6 +69,24 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping }: Mess
 
   return (
     <div className="p-3 border-t border-border/50 glass">
+      {/* Reply preview */}
+      {replyTo && (
+        <div className="flex items-center gap-2 mb-2 p-2 bg-surface rounded-lg border-l-2 border-primary">
+          <Reply className="w-4 h-4 text-primary shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] text-primary font-medium">
+              {replyTo.senderId === "me" ? "You" : "Them"}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">
+              {replyTo.text || (replyTo.type === "image" ? "📷 Image" : replyTo.type === "voice" ? "🎤 Voice" : "📎 File")}
+            </p>
+          </div>
+          <button onClick={onCancelReply} className="p-1 rounded-full hover:bg-surface-hover">
+            <X className="w-3.5 h-3.5 text-muted-foreground" />
+          </button>
+        </div>
+      )}
+
       {/* Attachment preview */}
       {attachedFile && (
         <div className="flex items-center gap-2 mb-2 p-2 bg-surface rounded-lg">

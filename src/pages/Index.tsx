@@ -11,11 +11,14 @@ import { MessageInput } from "@/components/chat/MessageInput";
 import { StoryViewer } from "@/components/chat/StoryViewer";
 import { CallDialog } from "@/components/chat/CallDialog";
 import { InviteMembersDialog } from "@/components/chat/InviteMembersDialog";
+import { ForwardDialog } from "@/components/chat/ForwardDialog";
+import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { Search, Settings, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, Camera } from "lucide-react";
 import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
+import { Message } from "@/types/chat";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 
 type Story = Tables<"stories"> & { profile?: Tables<"profiles"> };
@@ -30,6 +33,8 @@ const Index = () => {
   const [stories, setStories] = useState<Story[]>([]);
   const [storyViewerIndex, setStoryViewerIndex] = useState<number | null>(null);
   const [callState, setCallState] = useState<{ name: string; avatar: string; isVideo: boolean } | null>(null);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [forwardMsg, setForwardMsg] = useState<{ content: string; type: string; mediaUrl?: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const storyInputRef = useRef<HTMLInputElement>(null);
 
@@ -46,7 +51,6 @@ const Index = () => {
         .from("stories")
         .select("*")
         .order("created_at", { ascending: false });
-
       if (data) {
         const enriched = await Promise.all(
           data.map(async (story) => {
@@ -69,8 +73,17 @@ const Index = () => {
   }, [messages]);
 
   const handleSend = async (text: string) => {
-    if (!activeChat) return;
-    await sendMessage(activeChat, text);
+    if (!activeChat || !user) return;
+    const replyId = replyTo?.id;
+    setReplyTo(null);
+
+    await supabase.from("messages").insert({
+      conversation_id: activeChat,
+      sender_id: user.id,
+      content: text,
+      message_type: "text",
+      reply_to_id: replyId || null,
+    });
   };
 
   const handleSendVoice = async (blob: Blob, duration: number) => {
@@ -113,9 +126,17 @@ const Index = () => {
     });
   };
 
+  const handleDeleteMessage = async (messageId: string) => {
+    const { error } = await supabase.from("messages").delete().eq("id", messageId);
+    if (error) {
+      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
+    }
+  };
+
   const handleSelectChat = (id: string) => {
     setActiveChat(id);
     setShowSidebar(false);
+    setReplyTo(null);
   };
 
   const handleUploadStory = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,6 +152,22 @@ const Index = () => {
     await supabase.from("stories").insert({ user_id: user.id, image_url: publicUrl });
     toast({ title: "Story posted! 📸" });
   };
+
+  // Build message map for reply lookups
+  const messageMap = new Map<string, Message>();
+  const uiMessages = messages.map((msg) => {
+    const m: Message = {
+      id: msg.id,
+      senderId: msg.sender_id === user?.id ? "me" : msg.sender_id,
+      text: msg.content || "",
+      time: new Date(msg.created_at!).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      status: msg.is_read ? "read" : "delivered",
+      type: msg.message_type as Message["type"],
+      mediaUrl: msg.media_url || undefined,
+    };
+    messageMap.set(msg.id, m);
+    return { ui: m, replyToId: (msg as any).reply_to_id as string | null };
+  });
 
   const activeConvo = conversations.find((c) => c.id === activeChat);
   const filteredConversations = conversations.filter((c) => {
@@ -170,7 +207,6 @@ const Index = () => {
 
   return (
     <div className="h-screen flex overflow-hidden bg-background">
-      {/* Story viewer */}
       {storyViewerIndex !== null && storyViewerData.length > 0 && (
         <StoryViewer
           stories={storyViewerData}
@@ -180,7 +216,6 @@ const Index = () => {
         />
       )}
 
-      {/* Call dialog */}
       {callState && (
         <CallDialog
           contactName={callState.name}
@@ -190,7 +225,16 @@ const Index = () => {
         />
       )}
 
-      {/* Hidden story input */}
+      {forwardMsg && (
+        <ForwardDialog
+          open={!!forwardMsg}
+          onClose={() => setForwardMsg(null)}
+          messageContent={forwardMsg.content}
+          messageType={forwardMsg.type}
+          mediaUrl={forwardMsg.mediaUrl}
+        />
+      )}
+
       <input ref={storyInputRef} type="file" accept="image/*" onChange={handleUploadStory} className="hidden" />
 
       {/* Sidebar */}
@@ -203,6 +247,7 @@ const Index = () => {
             </h1>
           </div>
           <div className="flex items-center gap-1">
+            <NewDmDialog onStarted={(id) => { handleSelectChat(id); refetchConversations(); }} />
             <NewGroupDialog onCreated={() => refetchConversations()} />
             <label className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary cursor-pointer">
               <Camera className="w-4 h-4" />
@@ -236,7 +281,7 @@ const Index = () => {
             <div className="text-center py-20 px-4">
               <MessageCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">No conversations yet</p>
-              <p className="text-xs text-muted-foreground mt-1">Start a new chat to get going!</p>
+              <p className="text-xs text-muted-foreground mt-1">Tap the ✏️ icon to start a new chat!</p>
             </div>
           ) : (
             filteredConversations.map((convo) => (
@@ -265,7 +310,6 @@ const Index = () => {
       <div className={`${!showSidebar ? "flex" : "hidden"} md:flex flex-1 flex-col`}>
         {activeConvo ? (
           <div className="flex flex-col h-full">
-            {/* Chat Header */}
             <div className="flex items-center gap-3 px-4 py-3 glass border-b border-border/50">
               <button onClick={() => setShowSidebar(true)} className="md:hidden p-1 hover:bg-surface-hover rounded-full transition-colors">
                 <ArrowLeft className="w-5 h-5 text-foreground" />
@@ -312,31 +356,27 @@ const Index = () => {
               </div>
             </div>
 
-            {/* Messages */}
             <div className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-1">
-              {messages.map((msg) => (
+              {uiMessages.map(({ ui, replyToId }) => (
                 <MessageBubble
-                  key={msg.id}
-                  message={{
-                    id: msg.id,
-                    senderId: msg.sender_id === user?.id ? "me" : msg.sender_id,
-                    text: msg.content || "",
-                    time: new Date(msg.created_at!).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                    status: msg.is_read ? "read" : "delivered",
-                    type: msg.message_type as "text" | "image" | "voice" | "file",
-                    mediaUrl: msg.media_url || undefined,
-                  }}
+                  key={ui.id}
+                  message={ui}
+                  replyMessage={replyToId ? messageMap.get(replyToId) || null : null}
+                  onReply={(msg) => setReplyTo(msg)}
+                  onForward={(msg) => setForwardMsg({ content: msg.text, type: msg.type, mediaUrl: msg.mediaUrl })}
+                  onDelete={handleDeleteMessage}
                 />
               ))}
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
             <MessageInput
               onSend={handleSend}
               onSendVoice={handleSendVoice}
               onSendFile={handleSendFile}
               onTyping={notifyTyping}
+              replyTo={replyTo}
+              onCancelReply={() => setReplyTo(null)}
             />
           </div>
         ) : (
