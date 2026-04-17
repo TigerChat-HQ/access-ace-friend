@@ -1,0 +1,69 @@
+import { useState } from "react";
+import { useFeed } from "@/hooks/usePosts";
+import { PostCard } from "@/components/social/PostCard";
+import { Link } from "react-router-dom";
+import { MessageCircle, Sparkles } from "lucide-react";
+import tigerLogo from "@/assets/tigerchats-logo.png";
+
+const Feed = () => {
+  const [tab, setTab] = useState<"following" | "discover">("following");
+  const { posts, loading, refetch } = useFeed(tab);
+
+  return (
+    <div className="h-full flex flex-col bg-background">
+      <header className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-card/80 backdrop-blur-md sticky top-0 z-10">
+        <div className="flex items-center gap-2">
+          <img src={tigerLogo} alt="" className="w-7 h-7" />
+          <h1 className="text-lg font-bold tracking-tight text-foreground">
+            TIGER<span className="text-primary">CHATS</span>
+          </h1>
+        </div>
+        <Link to="/chats" className="p-2 text-muted-foreground hover:text-primary">
+          <MessageCircle className="w-5 h-5" />
+        </Link>
+      </header>
+
+      <div className="flex border-b border-border/50 bg-card/50">
+        {(["following", "discover"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`flex-1 py-2.5 text-sm font-medium capitalize transition-colors ${
+              tab === t ? "text-primary border-b-2 border-primary" : "text-muted-foreground"
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex-1 overflow-y-auto scrollbar-thin">
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : posts.length === 0 ? (
+          <div className="text-center py-20 px-6">
+            <Sparkles className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-foreground font-semibold mb-1">No posts yet</p>
+            <p className="text-sm text-muted-foreground mb-4">
+              {tab === "following"
+                ? "Follow people or create your first post."
+                : "Be the first to share something."}
+            </p>
+            <Link
+              to="/create"
+              className="inline-block bg-primary text-primary-foreground px-5 py-2 rounded-full text-sm font-semibold"
+            >
+              Create a post
+            </Link>
+          </div>
+        ) : (
+          posts.map((p) => <PostCard key={p.id} post={p} onChanged={refetch} />)
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Feed;

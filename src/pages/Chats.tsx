@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { useConversations, useMessages, useSendMessage } from "@/hooks/useChat";
+import { useConversations, useMessages } from "@/hooks/useChat";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { useNotifications } from "@/hooks/useNotifications";
 import { StoriesBar } from "@/components/chat/StoriesBar";
@@ -13,9 +13,9 @@ import { CallDialog } from "@/components/chat/CallDialog";
 import { InviteMembersDialog } from "@/components/chat/InviteMembersDialog";
 import { ForwardDialog } from "@/components/chat/ForwardDialog";
 import { NewDmDialog } from "@/components/chat/NewDmDialog";
-import { Search, Settings, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, Camera } from "lucide-react";
 import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
-import { useNavigate } from "react-router-dom";
+import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, Camera, X, ChevronUp, ChevronDown } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
 import { Message } from "@/types/chat";
@@ -23,34 +23,41 @@ import tigerLogo from "@/assets/tigerchats-logo.png";
 
 type Story = Tables<"stories"> & { profile?: Tables<"profiles"> };
 
-const Index = () => {
+const Chats = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [activeChat, setActiveChat] = useState<string | null>(null);
+  const [params, setParams] = useSearchParams();
+  const activeChat = params.get("c");
+  const setActiveChat = (id: string | null) => {
+    if (id) setParams({ c: id });
+    else setParams({});
+  };
+
   const [search, setSearch] = useState("");
-  const [showSidebar, setShowSidebar] = useState(true);
   const [stories, setStories] = useState<Story[]>([]);
   const [storyViewerIndex, setStoryViewerIndex] = useState<number | null>(null);
   const [callState, setCallState] = useState<{ name: string; avatar: string; isVideo: boolean } | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [forwardMsg, setForwardMsg] = useState<{ content: string; type: string; mediaUrl?: string } | null>(null);
+
+  // In-chat message search
+  const [chatSearchOpen, setChatSearchOpen] = useState(false);
+  const [chatSearch, setChatSearch] = useState("");
+  const [matchIdx, setMatchIdx] = useState(0);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
   const storyInputRef = useRef<HTMLInputElement>(null);
 
   const { conversations, loading: convosLoading, refetch: refetchConversations } = useConversations();
-  const { messages, loading: msgsLoading } = useMessages(activeChat);
-  const { sendMessage } = useSendMessage();
+  const { messages } = useMessages(activeChat);
   const { typingUsers, notifyTyping } = useTypingIndicator(activeChat);
   useNotifications();
 
-  // Fetch stories
   useEffect(() => {
     const fetchStories = async () => {
-      const { data } = await supabase
-        .from("stories")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const { data } = await supabase.from("stories").select("*").order("created_at", { ascending: false });
       if (data) {
         const enriched = await Promise.all(
           data.map(async (story) => {
@@ -69,14 +76,20 @@ const Index = () => {
   }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (!chatSearchOpen) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, chatSearchOpen]);
+
+  // Reset search on chat change
+  useEffect(() => {
+    setChatSearchOpen(false);
+    setChatSearch("");
+    setReplyTo(null);
+  }, [activeChat]);
 
   const handleSend = async (text: string) => {
     if (!activeChat || !user) return;
     const replyId = replyTo?.id;
     setReplyTo(null);
-
     await supabase.from("messages").insert({
       conversation_id: activeChat,
       sender_id: user.id,
@@ -90,10 +103,7 @@ const Index = () => {
     if (!activeChat || !user) return;
     const filePath = `${user.id}/${Date.now()}.webm`;
     const { error: uploadError } = await supabase.storage.from("chat-media").upload(filePath, blob);
-    if (uploadError) {
-      toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
-      return;
-    }
+    if (uploadError) return toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
     const { data: { publicUrl } } = supabase.storage.from("chat-media").getPublicUrl(filePath);
     const mins = Math.floor(duration / 60);
     const secs = duration % 60;
@@ -111,10 +121,7 @@ const Index = () => {
     const ext = file.name.split(".").pop();
     const filePath = `${user.id}/${Date.now()}.${ext}`;
     const { error: uploadError } = await supabase.storage.from("chat-media").upload(filePath, file);
-    if (uploadError) {
-      toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
-      return;
-    }
+    if (uploadError) return toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
     const { data: { publicUrl } } = supabase.storage.from("chat-media").getPublicUrl(filePath);
     const msgType = file.type.startsWith("image/") ? "image" : "file";
     await supabase.from("messages").insert({
@@ -128,32 +135,20 @@ const Index = () => {
 
   const handleDeleteMessage = async (messageId: string) => {
     const { error } = await supabase.from("messages").delete().eq("id", messageId);
-    if (error) {
-      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
-    }
-  };
-
-  const handleSelectChat = (id: string) => {
-    setActiveChat(id);
-    setShowSidebar(false);
-    setReplyTo(null);
+    if (error) toast({ title: "Delete failed", description: error.message, variant: "destructive" });
   };
 
   const handleUploadStory = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-    const filePath = `${user.id}/${Date.now()}.${file.name.split('.').pop()}`;
+    const filePath = `${user.id}/${Date.now()}.${file.name.split(".").pop()}`;
     const { error: uploadError } = await supabase.storage.from("stories").upload(filePath, file);
-    if (uploadError) {
-      toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
-      return;
-    }
+    if (uploadError) return toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
     const { data: { publicUrl } } = supabase.storage.from("stories").getPublicUrl(filePath);
     await supabase.from("stories").insert({ user_id: user.id, image_url: publicUrl });
     toast({ title: "Story posted! 📸" });
   };
 
-  // Build message map for reply lookups
   const messageMap = new Map<string, Message>();
   const uiMessages = messages.map((msg) => {
     const m: Message = {
@@ -168,6 +163,25 @@ const Index = () => {
     messageMap.set(msg.id, m);
     return { ui: m, replyToId: (msg as any).reply_to_id as string | null };
   });
+
+  // Compute search matches
+  const matchIds = useMemo(() => {
+    const q = chatSearch.trim().toLowerCase();
+    if (!q) return [] as string[];
+    return uiMessages.filter(({ ui }) => ui.text.toLowerCase().includes(q)).map(({ ui }) => ui.id);
+  }, [chatSearch, uiMessages]);
+
+  useEffect(() => {
+    setMatchIdx(0);
+  }, [chatSearch]);
+
+  // Scroll active match into view
+  useEffect(() => {
+    if (!matchIds.length) return;
+    const id = matchIds[matchIdx];
+    const el = document.querySelector(`[data-msg-id="${id}"]`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [matchIdx, matchIds]);
 
   const activeConvo = conversations.find((c) => c.id === activeChat);
   const filteredConversations = conversations.filter((c) => {
@@ -205,8 +219,12 @@ const Index = () => {
     setCallState({ name: activeConvoName, avatar: activeConvoAvatar, isVideo });
   };
 
+  const showSidebar = !activeChat;
+  const matchSet = new Set(matchIds);
+  const activeMatchId = matchIds[matchIdx];
+
   return (
-    <div className="h-screen flex overflow-hidden bg-background">
+    <div className="h-full flex overflow-hidden bg-background">
       {storyViewerIndex !== null && storyViewerData.length > 0 && (
         <StoryViewer
           stories={storyViewerData}
@@ -242,27 +260,29 @@ const Index = () => {
         <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
           <div className="flex items-center gap-2.5">
             <img src={tigerLogo} alt="TIGERCHATS" className="w-9 h-9" width={512} height={512} />
-            <h1 className="text-lg font-bold tracking-tight neon-text text-foreground">
+            <h1 className="text-lg font-bold tracking-tight text-foreground">
               TIGER<span className="text-primary">CHATS</span>
             </h1>
           </div>
           <div className="flex items-center gap-1">
-            <NewDmDialog onStarted={(id) => { handleSelectChat(id); refetchConversations(); }} />
+            <NewDmDialog onStarted={(id) => { setActiveChat(id); refetchConversations(); }} />
             <NewGroupDialog onCreated={() => refetchConversations()} />
             <label className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary cursor-pointer">
               <Camera className="w-4 h-4" />
               <input type="file" accept="image/*" onChange={handleUploadStory} className="hidden" />
             </label>
-            <button onClick={() => navigate("/settings")} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-foreground">
-              <Settings className="w-4 h-4" />
-            </button>
           </div>
         </div>
 
         <div className="px-4 py-2">
           <div className="flex items-center gap-2 bg-surface rounded-xl px-3 py-2">
             <Search className="w-4 h-4 text-muted-foreground" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search chats..." className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search chats..."
+              className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
+            />
           </div>
         </div>
 
@@ -299,7 +319,7 @@ const Index = () => {
                   online: convo.otherProfile?.is_online || false,
                 }}
                 isActive={activeChat === convo.id}
-                onClick={() => handleSelectChat(convo.id)}
+                onClick={() => setActiveChat(convo.id)}
               />
             ))
           )}
@@ -311,7 +331,7 @@ const Index = () => {
         {activeConvo ? (
           <div className="flex flex-col h-full">
             <div className="flex items-center gap-3 px-4 py-3 glass border-b border-border/50">
-              <button onClick={() => setShowSidebar(true)} className="md:hidden p-1 hover:bg-surface-hover rounded-full transition-colors">
+              <button onClick={() => setActiveChat(null)} className="md:hidden p-1 hover:bg-surface-hover rounded-full transition-colors">
                 <ArrowLeft className="w-5 h-5 text-foreground" />
               </button>
               <div className="relative">
@@ -328,7 +348,7 @@ const Index = () => {
                   {isTyping ? (
                     <span className="text-primary animate-pulse">typing...</span>
                   ) : isGroup ? (
-                    <span className="text-muted-foreground">Group</span>
+                    <span>Group</span>
                   ) : activeConvo.otherProfile?.is_online ? (
                     <span className="text-primary">online</span>
                   ) : (
@@ -337,6 +357,13 @@ const Index = () => {
                 </p>
               </div>
               <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setChatSearchOpen((o) => !o)}
+                  className={`p-2 rounded-full hover:bg-surface-hover transition-colors ${chatSearchOpen ? "text-primary" : "text-muted-foreground hover:text-primary"}`}
+                  title="Search messages"
+                >
+                  <Search className="w-4 h-4" />
+                </button>
                 <button onClick={() => startCall(false)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary">
                   <Phone className="w-4 h-4" />
                 </button>
@@ -356,17 +383,73 @@ const Index = () => {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-1">
-              {uiMessages.map(({ ui, replyToId }) => (
-                <MessageBubble
-                  key={ui.id}
-                  message={ui}
-                  replyMessage={replyToId ? messageMap.get(replyToId) || null : null}
-                  onReply={(msg) => setReplyTo(msg)}
-                  onForward={(msg) => setForwardMsg({ content: msg.text, type: msg.type, mediaUrl: msg.mediaUrl })}
-                  onDelete={handleDeleteMessage}
+            {chatSearchOpen && (
+              <div className="flex items-center gap-2 px-4 py-2 border-b border-border/50 bg-card/80">
+                <Search className="w-4 h-4 text-muted-foreground" />
+                <input
+                  autoFocus
+                  value={chatSearch}
+                  onChange={(e) => setChatSearch(e.target.value)}
+                  placeholder="Search in conversation..."
+                  className="flex-1 bg-transparent text-sm outline-none text-foreground placeholder:text-muted-foreground"
                 />
-              ))}
+                {chatSearch && (
+                  <span className="text-[11px] text-muted-foreground tabular-nums">
+                    {matchIds.length === 0 ? "0" : `${matchIdx + 1}/${matchIds.length}`}
+                  </span>
+                )}
+                <button
+                  onClick={() => setMatchIdx((i) => (matchIds.length ? (i - 1 + matchIds.length) % matchIds.length : 0))}
+                  disabled={!matchIds.length}
+                  className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                >
+                  <ChevronUp className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setMatchIdx((i) => (matchIds.length ? (i + 1) % matchIds.length : 0))}
+                  disabled={!matchIds.length}
+                  className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    setChatSearchOpen(false);
+                    setChatSearch("");
+                  }}
+                  className="p-1 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            <div ref={messagesScrollRef} className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-1">
+              {uiMessages.map(({ ui, replyToId }) => {
+                const isMatch = matchSet.has(ui.id);
+                const isActive = ui.id === activeMatchId;
+                return (
+                  <div
+                    key={ui.id}
+                    data-msg-id={ui.id}
+                    className={
+                      isActive
+                        ? "rounded-lg ring-2 ring-primary ring-offset-2 ring-offset-background transition-all"
+                        : isMatch
+                        ? "rounded-lg ring-1 ring-primary/40 transition-all"
+                        : ""
+                    }
+                  >
+                    <MessageBubble
+                      message={ui}
+                      replyMessage={replyToId ? messageMap.get(replyToId) || null : null}
+                      onReply={(msg) => setReplyTo(msg)}
+                      onForward={(msg) => setForwardMsg({ content: msg.text, type: msg.type, mediaUrl: msg.mediaUrl })}
+                      onDelete={handleDeleteMessage}
+                    />
+                  </div>
+                );
+              })}
               <div ref={messagesEndRef} />
             </div>
 
@@ -384,15 +467,11 @@ const Index = () => {
             <img src={tigerLogo} alt="TIGERCHATS" className="w-24 h-24 opacity-30" width={512} height={512} />
             <div>
               <h2 className="text-xl font-bold text-foreground mb-1">
-                Welcome to <span className="text-primary neon-text">TIGERCHATS</span>
+                Welcome to <span className="text-primary">TIGERCHATS</span>
               </h2>
               <p className="text-sm text-muted-foreground max-w-sm">
-                Fast like lightning. Secure like a vault. Select a chat to start messaging.
+                Select a chat to start messaging.
               </p>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-4">
-              <MessageCircle className="w-3.5 h-3.5" />
-              <span>End-to-end encrypted</span>
             </div>
           </div>
         )}
@@ -401,4 +480,4 @@ const Index = () => {
   );
 };
 
-export default Index;
+export default Chats;
