@@ -1,13 +1,46 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFeed } from "@/hooks/usePosts";
+import { useNotifications } from "@/hooks/useNotifications";
 import { PostCard } from "@/components/social/PostCard";
 import { Link } from "react-router-dom";
 import { MessageCircle, Sparkles } from "lucide-react";
 import tigerLogo from "@/assets/tigerchats-logo.png";
+import { supabase } from "@/integrations/supabase/client";
 
 const Feed = () => {
   const [tab, setTab] = useState<"following" | "discover">("following");
   const { posts, loading, refetch } = useFeed(tab);
+  // Activate global notification listener (likes/comments/follows + new chat msgs)
+  useNotifications();
+
+  // AI-ranked order for Discover
+  const [aiOrder, setAiOrder] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (tab !== "discover") {
+      setAiOrder(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("recommend-posts");
+        if (cancelled || error) return;
+        const ids = (data?.post_ids as string[]) || [];
+        if (ids.length) setAiOrder(ids);
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, posts.length]);
+
+  const display = (() => {
+    if (tab !== "discover" || !aiOrder) return posts;
+    const map = new Map(posts.map((p) => [p.id, p]));
+    const ordered = aiOrder.map((id) => map.get(id)).filter(Boolean) as typeof posts;
+    const seen = new Set(ordered.map((p) => p.id));
+    return [...ordered, ...posts.filter((p) => !seen.has(p.id))];
+  })();
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -32,7 +65,7 @@ const Feed = () => {
               tab === t ? "text-primary border-b-2 border-primary" : "text-muted-foreground"
             }`}
           >
-            {t}
+            {t === "discover" ? "Discover ✨" : t}
           </button>
         ))}
       </div>
@@ -42,7 +75,7 @@ const Feed = () => {
           <div className="flex justify-center py-20">
             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : posts.length === 0 ? (
+        ) : display.length === 0 ? (
           <div className="text-center py-20 px-6">
             <Sparkles className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
             <p className="text-foreground font-semibold mb-1">No posts yet</p>
@@ -59,7 +92,7 @@ const Feed = () => {
             </Link>
           </div>
         ) : (
-          posts.map((p) => <PostCard key={p.id} post={p} onChanged={refetch} />)
+          display.map((p) => <PostCard key={p.id} post={p} onChanged={refetch} />)
         )}
       </div>
     </div>
