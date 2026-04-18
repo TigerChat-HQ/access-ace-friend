@@ -5,33 +5,44 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useFollow } from "@/hooks/useFollow";
 import { useUserPosts } from "@/hooks/usePosts";
 import { useUserRole } from "@/hooks/useUserRole";
-import { ArrowLeft, Settings, Shield, MessageCircle, Grid3x3, LogOut, Pencil } from "lucide-react";
+import { useBlocks } from "@/hooks/useBlocks";
+import { ReportDialog } from "@/components/social/ReportDialog";
+import {
+  ArrowLeft, Settings, Shield, MessageCircle, Grid3x3, LogOut, Pencil, Lock,
+  MoreVertical, Flag, UserX, UserCheck,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tables } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
 
-type Profile = Tables<"profiles">;
+type Profile = Tables<"profiles"> & { is_private?: boolean };
 
 const Profile = () => {
   const { userId } = useParams<{ userId: string }>();
   const { user, signOut } = useAuth();
   const { isAdmin } = useUserRole();
+  const { isBlocked, block, unblock } = useBlocks();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [form, setForm] = useState({ display_name: "", username: "", bio: "" });
   const { isFollowing, followerCount, followingCount, toggle } = useFollow(userId);
   const { posts } = useUserPosts(userId);
 
   const isMe = user?.id === userId;
+  const blocked = userId ? isBlocked(userId) : false;
 
   useEffect(() => {
     if (!userId) return;
     (async () => {
       const { data } = await supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle();
-      setProfile(data);
+      setProfile(data as Profile);
       if (data) setForm({ display_name: data.display_name || "", username: data.username || "", bio: data.bio || "" });
       setLoading(false);
     })();
@@ -54,7 +65,7 @@ const Profile = () => {
       toast({ title: "Profile updated" });
       setEditing(false);
       const { data } = await supabase.from("profiles").select("*").eq("user_id", user.id).single();
-      setProfile(data);
+      setProfile(data as Profile);
     }
   };
 
@@ -74,7 +85,6 @@ const Profile = () => {
 
   const startDM = async () => {
     if (!user || !userId || isMe) return;
-    // Find existing direct conv with this user
     const { data: myConvs } = await supabase
       .from("conversation_members")
       .select("conversation_id")
@@ -110,6 +120,17 @@ const Profile = () => {
     }
   };
 
+  const handleBlock = async () => {
+    if (!userId) return;
+    if (blocked) {
+      const { error } = await unblock(userId);
+      toast(error ? { title: "Failed", variant: "destructive" } : { title: "Unblocked" });
+    } else {
+      const { error } = await block(userId);
+      toast(error ? { title: "Failed", variant: "destructive" } : { title: "User blocked" });
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -123,6 +144,8 @@ const Profile = () => {
   }
 
   const initials = (profile.display_name || profile.username || "U").slice(0, 2).toUpperCase();
+  const isPrivate = !!profile.is_private;
+  const canSeePosts = isMe || !isPrivate || isFollowing;
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -130,17 +153,38 @@ const Profile = () => {
         <button onClick={() => navigate(-1)} className="text-foreground">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-sm font-semibold text-foreground">@{profile.username || "user"}</h1>
+        <h1 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+          @{profile.username || "user"}
+          {isPrivate && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
+        </h1>
         <div className="flex items-center gap-1">
           {isMe && isAdmin && (
             <button onClick={() => navigate("/admin")} className="p-2 text-muted-foreground hover:text-primary" title="Admin">
               <Shield className="w-5 h-5" />
             </button>
           )}
-          {isMe && (
+          {isMe ? (
             <button onClick={() => navigate("/settings")} className="p-2 text-muted-foreground hover:text-foreground">
               <Settings className="w-5 h-5" />
             </button>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger className="p-2 text-muted-foreground hover:text-foreground">
+                <MoreVertical className="w-5 h-5" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setReportOpen(true)}>
+                  <Flag className="w-4 h-4 mr-2" /> Report user
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleBlock}>
+                  {blocked ? (
+                    <><UserCheck className="w-4 h-4 mr-2" /> Unblock</>
+                  ) : (
+                    <><UserX className="w-4 h-4 mr-2" /> Block</>
+                  )}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </header>
@@ -249,7 +293,13 @@ const Profile = () => {
           <div className="flex items-center justify-center py-2.5 border-b-2 border-primary">
             <Grid3x3 className="w-4 h-4 text-primary" />
           </div>
-          {posts.length === 0 ? (
+          {!canSeePosts ? (
+            <div className="text-center py-12 px-6">
+              <Lock className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+              <p className="text-foreground font-semibold">This account is private</p>
+              <p className="text-sm text-muted-foreground mt-1">Follow to see their posts.</p>
+            </div>
+          ) : posts.length === 0 ? (
             <p className="text-center text-sm text-muted-foreground py-12">No posts yet.</p>
           ) : (
             <div className="grid grid-cols-3 gap-0.5">
@@ -268,6 +318,10 @@ const Profile = () => {
           )}
         </div>
       </div>
+
+      {reportOpen && userId && (
+        <ReportDialog open={reportOpen} onOpenChange={setReportOpen} targetType="user" targetId={userId} />
+      )}
     </div>
   );
 };
