@@ -19,7 +19,19 @@ export interface FeedPost {
   like_count: number;
   comment_count: number;
   liked_by_me: boolean;
+  score?: number;
 }
+
+const getBlockedSet = async (userId: string): Promise<Set<string>> => {
+  const [a, b] = await Promise.all([
+    supabase.from("blocks").select("blocked_id").eq("blocker_id", userId),
+    supabase.from("blocks").select("blocker_id").eq("blocked_id", userId),
+  ]);
+  const set = new Set<string>();
+  a.data?.forEach((r) => set.add(r.blocked_id));
+  b.data?.forEach((r) => set.add(r.blocker_id));
+  return set;
+};
 
 export const useFeed = (mode: "following" | "discover" = "following") => {
   const { user } = useAuth();
@@ -30,6 +42,8 @@ export const useFeed = (mode: "following" | "discover" = "following") => {
     if (!user) return;
     setLoading(true);
 
+    const blocked = await getBlockedSet(user.id);
+
     let userIdsForFeed: string[] | null = null;
     if (mode === "following") {
       const { data: follows } = await supabase
@@ -39,7 +53,7 @@ export const useFeed = (mode: "following" | "discover" = "following") => {
       userIdsForFeed = [...(follows?.map((f) => f.following_id) || []), user.id];
     }
 
-    let query = supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(50);
+    let query = supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(100);
     if (userIdsForFeed) query = query.in("user_id", userIdsForFeed);
 
     const { data: rawPosts } = await query;
@@ -49,8 +63,17 @@ export const useFeed = (mode: "following" | "discover" = "following") => {
       return;
     }
 
-    const postIds = rawPosts.map((p) => p.id);
-    const userIds = [...new Set(rawPosts.map((p) => p.user_id))];
+    // Filter blocked users (both directions)
+    const visiblePosts = rawPosts.filter((p) => !blocked.has(p.user_id));
+
+    const postIds = visiblePosts.map((p) => p.id);
+    const userIds = [...new Set(visiblePosts.map((p) => p.user_id))];
+
+    if (postIds.length === 0) {
+      setPosts([]);
+      setLoading(false);
+      return;
+    }
 
     const [{ data: profiles }, { data: likes }, { data: comments }, { data: myLikes }] = await Promise.all([
       supabase.from("profiles").select("user_id, username, display_name, avatar_url").in("user_id", userIds),
@@ -66,15 +89,30 @@ export const useFeed = (mode: "following" | "discover" = "following") => {
     comments?.forEach((c) => commentCountMap.set(c.post_id, (commentCountMap.get(c.post_id) || 0) + 1));
     const myLikeSet = new Set(myLikes?.map((l) => l.post_id) || []);
 
-    setPosts(
-      rawPosts.map((p) => ({
-        ...p,
-        profile: profileMap.get(p.user_id),
-        like_count: likeCountMap.get(p.id) || 0,
-        comment_count: commentCountMap.get(p.id) || 0,
-        liked_by_me: myLikeSet.has(p.id),
-      })) as FeedPost[]
-    );
+    let enriched: FeedPost[] = visiblePosts.map((p) => ({
+      ...p,
+      profile: profileMap.get(p.user_id),
+      like_count: likeCountMap.get(p.id) || 0,
+      comment_count: commentCountMap.get(p.id) || 0,
+      liked_by_me: myLikeSet.has(p.id),
+    })) as FeedPost[];
+
+    // Discover: rank by engagement + recency
+    if (mode === "discover") {
+      const now = Date.now();
+      enriched = enriched
+        .map((p) => {
+          const ageH = (now - new Date(p.created_at).getTime()) / 3_600_000;
+          const score = (p.like_count * 2 + p.comment_count * 3) / Math.pow(ageH + 2, 1.5);
+          return { ...p, score };
+        })
+        .sort((a, b) => (b.score || 0) - (a.score || 0))
+        .slice(0, 50);
+    } else {
+      enriched = enriched.slice(0, 50);
+    }
+
+    setPosts(enriched);
     setLoading(false);
   }, [user, mode]);
 
@@ -116,6 +154,11 @@ export const useUserPosts = (userId: string | undefined) => {
       return;
     }
     const postIds = data.map((p) => p.id);
+    if (postIds.length === 0) {
+      setPosts([]);
+      setLoading(false);
+      return;
+    }
     const [{ data: likes }, { data: comments }, { data: myLikes }] = await Promise.all([
       supabase.from("post_likes").select("post_id").in("post_id", postIds),
       supabase.from("post_comments").select("post_id").in("post_id", postIds),

@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Heart, MessageCircle, Share2, MoreVertical, Trash2 } from "lucide-react";
+import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Flag, UserX } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { FeedPost, toggleLike, deletePost } from "@/hooks/usePosts";
 import { CommentsSheet } from "./CommentsSheet";
+import { ReportDialog } from "./ReportDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useBlocks } from "@/hooks/useBlocks";
 
 interface Props {
   post: FeedPost;
@@ -21,10 +23,12 @@ interface Props {
 export const PostCard = ({ post, onChanged }: Props) => {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
+  const { block } = useBlocks();
   const { toast } = useToast();
   const [liked, setLiked] = useState(post.liked_by_me);
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const handleLike = async () => {
     if (!user) return;
@@ -42,6 +46,15 @@ export const PostCard = ({ post, onChanged }: Props) => {
     }
   };
 
+  const handleBlock = async () => {
+    const { error } = await block(post.user_id);
+    if (error) toast({ title: "Block failed", description: error.message, variant: "destructive" });
+    else {
+      toast({ title: "User blocked" });
+      onChanged?.();
+    }
+  };
+
   const handleShare = async () => {
     const url = `${window.location.origin}/post/${post.id}`;
     try {
@@ -54,7 +67,8 @@ export const PostCard = ({ post, onChanged }: Props) => {
   };
 
   const initials = (post.profile?.display_name || post.profile?.username || "U").slice(0, 2).toUpperCase();
-  const canDelete = user?.id === post.user_id || isAdmin;
+  const isOwner = user?.id === post.user_id;
+  const canDelete = isOwner || isAdmin;
 
   return (
     <article className="bg-card border-b border-border/50">
@@ -74,18 +88,28 @@ export const PostCard = ({ post, onChanged }: Props) => {
             <p className="text-[11px] text-muted-foreground">@{post.profile?.username || "user"}</p>
           </div>
         </Link>
-        {canDelete && (
-          <DropdownMenu>
-            <DropdownMenuTrigger className="p-1 text-muted-foreground hover:text-foreground">
-              <MoreVertical className="w-4 h-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+        <DropdownMenu>
+          <DropdownMenuTrigger className="p-1 text-muted-foreground hover:text-foreground">
+            <MoreVertical className="w-4 h-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {canDelete && (
               <DropdownMenuItem onClick={handleDelete} className="text-destructive">
                 <Trash2 className="w-4 h-4 mr-2" /> Delete
               </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+            )}
+            {!isOwner && (
+              <>
+                <DropdownMenuItem onClick={() => setReportOpen(true)}>
+                  <Flag className="w-4 h-4 mr-2" /> Report post
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleBlock}>
+                  <UserX className="w-4 h-4 mr-2" /> Block user
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </header>
 
       {post.media_url && post.media_type === "image" && (
@@ -130,6 +154,9 @@ export const PostCard = ({ post, onChanged }: Props) => {
 
       {commentsOpen && (
         <CommentsSheet postId={post.id} open={commentsOpen} onOpenChange={setCommentsOpen} onChange={onChanged} />
+      )}
+      {reportOpen && (
+        <ReportDialog open={reportOpen} onOpenChange={setReportOpen} targetType="post" targetId={post.id} />
       )}
     </article>
   );
