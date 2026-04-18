@@ -157,24 +157,38 @@ export const useCreateConversation = () => {
 
   const createDirectConversation = async (otherUserId: string) => {
     if (!user) return null;
-
-    // Create conversation
-    const { data: convo, error } = await supabase
+    const { data: convoId, error } = await supabase.rpc("create_direct_conversation", {
+      _other_user_id: otherUserId,
+    });
+    if (error || !convoId) {
+      console.error("create_direct_conversation failed", error);
+      return null;
+    }
+    const { data: convo } = await supabase
       .from("conversations")
-      .insert({ type: "direct" })
-      .select()
+      .select("*")
+      .eq("id", convoId as string)
       .single();
-
-    if (error || !convo) return null;
-
-    // Add both members
-    await supabase.from("conversation_members").insert([
-      { conversation_id: convo.id, user_id: user.id },
-      { conversation_id: convo.id, user_id: otherUserId },
-    ]);
-
     return convo;
   };
 
-  return { createDirectConversation };
+  const createGroupConversation = async (name: string, memberIds: string[]) => {
+    if (!user) return null;
+    const { data: convoId, error } = await supabase.rpc("create_group_conversation", {
+      _name: name,
+      _member_ids: memberIds,
+    });
+    if (error || !convoId) {
+      console.error("create_group_conversation failed", error);
+      return null;
+    }
+    const { data: convo } = await supabase
+      .from("conversations")
+      .select("*")
+      .eq("id", convoId as string)
+      .single();
+    return convo;
+  };
+
+  return { createDirectConversation, createGroupConversation };
 };
