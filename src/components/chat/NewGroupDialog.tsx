@@ -52,16 +52,24 @@ export const NewGroupDialog = ({ onCreated }: NewGroupDialogProps) => {
     if (!groupName.trim() || selectedIds.length === 0 || !user) return;
     setLoading(true);
 
-    const { data: convoId, error } = await supabase.rpc("create_group_conversation", {
-      _name: groupName,
-      _member_ids: selectedIds,
-    });
+    const { data: convo, error } = await supabase
+      .from("conversations")
+      .insert({ name: groupName, type: "group" })
+      .select()
+      .single();
 
-    if (error || !convoId) {
+    if (error || !convo) {
       toast({ title: "Error", description: error?.message || "Failed to create group", variant: "destructive" });
       setLoading(false);
       return;
     }
+
+    const members = [user.id, ...selectedIds].map((uid) => ({
+      conversation_id: convo.id,
+      user_id: uid,
+    }));
+
+    await supabase.from("conversation_members").insert(members);
 
     toast({ title: `Group "${groupName}" created! 🎉` });
     setOpen(false);

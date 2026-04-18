@@ -85,14 +85,39 @@ const Profile = () => {
 
   const startDM = async () => {
     if (!user || !userId || isMe) return;
-    const { data: convoId, error } = await supabase.rpc("create_direct_conversation", {
-      _other_user_id: userId,
-    });
-    if (error || !convoId) {
-      toast({ title: "Failed to start chat", description: error?.message, variant: "destructive" });
-      return;
+    const { data: myConvs } = await supabase
+      .from("conversation_members")
+      .select("conversation_id")
+      .eq("user_id", user.id);
+    const convIds = myConvs?.map((c) => c.conversation_id) || [];
+    if (convIds.length) {
+      const { data: shared } = await supabase
+        .from("conversation_members")
+        .select("conversation_id")
+        .eq("user_id", userId)
+        .in("conversation_id", convIds);
+      const sharedIds = shared?.map((s) => s.conversation_id) || [];
+      if (sharedIds.length) {
+        const { data: directs } = await supabase
+          .from("conversations")
+          .select("id")
+          .eq("type", "direct")
+          .in("id", sharedIds)
+          .limit(1);
+        if (directs?.[0]) {
+          navigate(`/chats?c=${directs[0].id}`);
+          return;
+        }
+      }
     }
-    navigate(`/chats?c=${convoId}`);
+    const { data: convo } = await supabase.from("conversations").insert({ type: "direct" }).select().single();
+    if (convo) {
+      await supabase.from("conversation_members").insert([
+        { conversation_id: convo.id, user_id: user.id },
+        { conversation_id: convo.id, user_id: userId },
+      ]);
+      navigate(`/chats?c=${convo.id}`);
+    }
   };
 
   const handleBlock = async () => {
