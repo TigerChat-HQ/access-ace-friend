@@ -48,6 +48,7 @@ const Settings = () => {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [readReceipts, setReadReceipts] = useState(true);
   const [lastSeen, setLastSeen] = useState(true);
+  const [isPrivate, setIsPrivate] = useState(false);
 
   useEffect(() => {
     if (user) loadProfile();
@@ -60,7 +61,16 @@ const Settings = () => {
       setDisplayName(data.display_name || "");
       setBio(data.bio || "");
       setAvatarUrl(data.avatar_url || "");
+      setIsPrivate((data as any).is_private || false);
     }
+  };
+
+  const updatePrivacy = async (v: boolean) => {
+    setIsPrivate(v);
+    const { error } = await supabase
+      .from("profiles").update({ is_private: v } as any).eq("user_id", user!.id);
+    if (error) toast({ title: "Failed", description: error.message, variant: "destructive" as const });
+    else toast({ title: v ? "Account is now private" : "Account is now public" });
   };
 
   const updateProfile = async () => {
@@ -151,6 +161,13 @@ const Settings = () => {
       case "privacy":
         return (
           <div className="space-y-4 animate-fade-in">
+            <SettingToggle
+              label="Private account"
+              description="Only approved followers can see your posts"
+              value={isPrivate}
+              onChange={updatePrivacy}
+              icon={<Lock className="w-5 h-5" />}
+            />
             <SettingToggle label={t("readReceipts")} description={t("readReceiptsDesc")} value={readReceipts} onChange={setReadReceipts} />
             <SettingToggle label={t("lastSeen")} description={t("lastSeenDesc")} value={lastSeen} onChange={setLastSeen} />
             <div className="pt-4 border-t border-border/50">
