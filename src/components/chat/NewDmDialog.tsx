@@ -71,8 +71,8 @@ export const NewDmDialog = ({ onStarted }: NewDmDialogProps) => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary">
-          <MessageSquarePlus className="w-4 h-4" />
+        <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary" aria-label="New message">
+          <MessageSquarePlus className="w-5 h-5" />
         </button>
       </DialogTrigger>
       <DialogContent className="bg-card border-border/50 max-w-sm">
