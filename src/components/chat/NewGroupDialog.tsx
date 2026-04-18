@@ -82,8 +82,8 @@ export const NewGroupDialog = ({ onCreated }: NewGroupDialogProps) => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary">
-          <Users className="w-4 h-4" />
+        <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary" aria-label="New group">
+          <Users className="w-5 h-5" />
         </button>
       </DialogTrigger>
       <DialogContent className="bg-card border-border/50 max-w-sm">

@@ -267,8 +267,8 @@ const Chats = () => {
           <div className="flex items-center gap-1">
             <NewDmDialog onStarted={(id) => { setActiveChat(id); refetchConversations(); }} />
             <NewGroupDialog onCreated={() => refetchConversations()} />
-            <label className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary cursor-pointer">
-              <Camera className="w-4 h-4" />
+            <label className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary cursor-pointer" aria-label="Add story">
+              <Camera className="w-5 h-5" />
               <input type="file" accept="image/*" onChange={handleUploadStory} className="hidden" />
             </label>
           </div>

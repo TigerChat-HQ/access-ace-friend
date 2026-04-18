@@ -14,6 +14,7 @@ import Chats from "./pages/Chats";
 import Profile from "./pages/Profile";
 import PostDetail from "./pages/PostDetail";
 import Admin from "./pages/Admin";
+import Notifications from "./pages/Notifications";
 import Auth from "./pages/Auth";
 import Settings from "./pages/Settings";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -66,6 +67,7 @@ const App = () => (
                   <Route path="/u/:userId" element={<Profile />} />
                   <Route path="/post/:postId" element={<PostDetail />} />
                   <Route path="/admin" element={<Admin />} />
+                  <Route path="/notifications" element={<Notifications />} />
                   <Route path="/settings" element={<Settings />} />
                 </Route>
 
