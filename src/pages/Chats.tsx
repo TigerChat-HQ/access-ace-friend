@@ -51,7 +51,7 @@ const Chats = () => {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
-  const storyInputRef = useRef<HTMLInputElement>(null);
+  
 
   const { conversations, loading: convosLoading, refetch: refetchConversations } = useConversations();
   const { messages } = useMessages(activeChat);
@@ -141,16 +141,6 @@ const Chats = () => {
     if (error) toast({ title: "Delete failed", description: error.message, variant: "destructive" });
   };
 
-  const handleUploadStory = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-    const filePath = `${user.id}/${Date.now()}.${file.name.split(".").pop()}`;
-    const { error: uploadError } = await supabase.storage.from("stories").upload(filePath, file);
-    if (uploadError) return toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
-    const { data: { publicUrl } } = supabase.storage.from("stories").getPublicUrl(filePath);
-    await supabase.from("stories").insert({ user_id: user.id, image_url: publicUrl });
-    toast({ title: "Story posted! 📸" });
-  };
 
   const messageMap = new Map<string, Message>();
   const uiMessages = messages.map((msg) => {
@@ -257,7 +247,7 @@ const Chats = () => {
         />
       )}
 
-      <input ref={storyInputRef} type="file" accept="image/*" onChange={handleUploadStory} className="hidden" />
+      
 
       {/* Sidebar */}
       <div className={`${showSidebar ? "flex" : "hidden"} md:flex flex-col w-full md:w-[380px] lg:w-[420px] border-r border-border/50 bg-card/50`}>
