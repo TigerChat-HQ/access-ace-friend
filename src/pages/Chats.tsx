@@ -16,6 +16,7 @@ import { ForwardDialog } from "@/components/chat/ForwardDialog";
 import { GroupAdminDialog } from "@/components/chat/GroupAdminDialog";
 import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
+import { StoryUploadDialog } from "@/components/chat/StoryUploadDialog";
 import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, Camera, X, ChevronUp, ChevronDown } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
