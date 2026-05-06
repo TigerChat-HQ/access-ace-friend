@@ -112,6 +112,27 @@ export type Database = {
         }
         Relationships: []
       }
+      group_admins: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string | null
@@ -362,6 +383,7 @@ export type Database = {
           expires_at: string
           id: string
           image_url: string
+          music_url: string | null
           user_id: string
         }
         Insert: {
@@ -370,6 +392,7 @@ export type Database = {
           expires_at?: string
           id?: string
           image_url: string
+          music_url?: string | null
           user_id: string
         }
         Update: {
@@ -378,6 +401,7 @@ export type Database = {
           expires_at?: string
           id?: string
           image_url?: string
+          music_url?: string | null
           user_id?: string
         }
         Relationships: []
