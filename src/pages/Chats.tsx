@@ -290,7 +290,7 @@ const Chats = () => {
         <StoriesBar
           stories={storyBarData}
           onStoryClick={(index) => setStoryViewerIndex(index)}
-          onAddStory={() => storyInputRef.current?.click()}
+          onAddStory={() => {}}
         />
 
         <div className="flex-1 overflow-y-auto scrollbar-thin">
