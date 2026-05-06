@@ -425,7 +425,8 @@ const Chats = () => {
               </div>
             )}
 
-            <div ref={messagesScrollRef} className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-1">
+            <div ref={messagesScrollRef} className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-1 relative">
+              <TigerChatBackground />
               {uiMessages.map(({ ui, replyToId }) => {
                 const isMatch = matchSet.has(ui.id);
                 const isActive = ui.id === activeMatchId;
