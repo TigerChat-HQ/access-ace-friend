@@ -208,6 +208,7 @@ const Chats = () => {
     avatar: (s.profile?.display_name || "U").slice(0, 2).toUpperCase(),
     imageUrl: s.image_url,
     caption: s.caption || undefined,
+    musicUrl: (s as any).music_url || undefined,
   }));
 
   const activeConvoName = activeConvo?.otherProfile?.display_name || activeConvo?.name || "Chat";
