@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { X, Volume2, VolumeX } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface StoryData {
@@ -9,6 +9,7 @@ interface StoryData {
   avatar: string;
   imageUrl?: string;
   caption?: string;
+  musicUrl?: string;
 }
 
 interface StoryViewerProps {
@@ -21,7 +22,15 @@ interface StoryViewerProps {
 export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: StoryViewerProps) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [progress, setProgress] = useState(0);
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const story = stories[currentIndex];
+
+  // Reset image loaded state on index change
+  useEffect(() => {
+    setImgLoaded(false);
+  }, [currentIndex]);
 
   useEffect(() => {
     setProgress(0);
@@ -40,7 +49,6 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
       });
     }, 100);
 
-    // Record view
     if (currentUserId && story && story.userId !== currentUserId) {
       supabase.from("story_views").insert({
         story_id: story.id,
@@ -50,6 +58,19 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
 
     return () => clearInterval(interval);
   }, [currentIndex, stories.length, onClose, currentUserId, story]);
+
+  // Handle music
+  useEffect(() => {
+    if (audioRef.current) {
+      if (story?.musicUrl) {
+        audioRef.current.src = story.musicUrl;
+        audioRef.current.play().catch(() => {});
+      } else {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+      }
+    }
+  }, [story?.musicUrl, currentIndex]);
 
   const goNext = () => {
     if (currentIndex < stories.length - 1) {
@@ -71,6 +92,8 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
+      <audio ref={audioRef} loop muted={muted} />
+
       {/* Progress bars */}
       <div className="absolute top-0 left-0 right-0 flex gap-1 p-2 z-10">
         {stories.map((_, i) => (
@@ -91,19 +114,54 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
           </div>
           <span className="text-white font-semibold text-sm">{story.userName}</span>
         </div>
-        <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10 transition-colors mt-2">
-          <X className="w-5 h-5 text-white" />
-        </button>
+        <div className="flex items-center gap-2 mt-2">
+          {story.musicUrl && (
+            <button onClick={() => setMuted(!muted)} className="p-2 rounded-full hover:bg-white/10 transition-colors">
+              {muted ? <VolumeX className="w-5 h-5 text-white" /> : <Volume2 className="w-5 h-5 text-white" />}
+            </button>
+          )}
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10 transition-colors">
+            <X className="w-5 h-5 text-white" />
+          </button>
+        </div>
       </div>
 
-      {/* Story content */}
+      {/* Story content with smooth loading */}
       <div className="w-full h-full flex items-center justify-center">
         {story.imageUrl ? (
-          <img src={story.imageUrl} alt="Story" className="max-w-full max-h-full object-contain" />
+          <>
+            {!imgLoaded && (
+              <div className="w-full h-full flex items-center justify-center">
+                <div className="w-10 h-10 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+            <img
+              src={story.imageUrl}
+              alt="Story"
+              className={`max-w-full max-h-full object-contain transition-opacity duration-500 ${imgLoaded ? "opacity-100" : "opacity-0 absolute"}`}
+              onLoad={() => setImgLoaded(true)}
+            />
+          </>
         ) : (
           <div className="text-white text-xl font-semibold">{story.caption || "📸"}</div>
         )}
       </div>
+
+      {/* Music indicator */}
+      {story.musicUrl && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/50 px-3 py-1.5 rounded-full z-10">
+          <div className="flex items-center gap-0.5">
+            {[1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                className="w-0.5 bg-white rounded-full animate-pulse"
+                style={{ height: `${8 + Math.random() * 8}px`, animationDelay: `${i * 150}ms` }}
+              />
+            ))}
+          </div>
+          <span className="text-white text-[10px]">♪ Playing music</span>
+        </div>
+      )}
 
       {/* Caption */}
       {story.caption && story.imageUrl && (

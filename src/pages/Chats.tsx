@@ -10,11 +10,14 @@ import { MessageBubble } from "@/components/chat/MessageBubble";
 import { MessageInput } from "@/components/chat/MessageInput";
 import { StoryViewer } from "@/components/chat/StoryViewer";
 import { CallDialog } from "@/components/chat/CallDialog";
+import { TigerChatBackground } from "@/components/chat/TigerChatBackground";
 import { InviteMembersDialog } from "@/components/chat/InviteMembersDialog";
 import { ForwardDialog } from "@/components/chat/ForwardDialog";
+import { GroupAdminDialog } from "@/components/chat/GroupAdminDialog";
 import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
-import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, Camera, X, ChevronUp, ChevronDown } from "lucide-react";
+import { StoryUploadDialog } from "@/components/chat/StoryUploadDialog";
+import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, X, ChevronUp, ChevronDown } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
@@ -48,7 +51,7 @@ const Chats = () => {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
-  const storyInputRef = useRef<HTMLInputElement>(null);
+  
 
   const { conversations, loading: convosLoading, refetch: refetchConversations } = useConversations();
   const { messages } = useMessages(activeChat);
@@ -138,16 +141,6 @@ const Chats = () => {
     if (error) toast({ title: "Delete failed", description: error.message, variant: "destructive" });
   };
 
-  const handleUploadStory = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-    const filePath = `${user.id}/${Date.now()}.${file.name.split(".").pop()}`;
-    const { error: uploadError } = await supabase.storage.from("stories").upload(filePath, file);
-    if (uploadError) return toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
-    const { data: { publicUrl } } = supabase.storage.from("stories").getPublicUrl(filePath);
-    await supabase.from("stories").insert({ user_id: user.id, image_url: publicUrl });
-    toast({ title: "Story posted! 📸" });
-  };
 
   const messageMap = new Map<string, Message>();
   const uiMessages = messages.map((msg) => {
@@ -207,6 +200,7 @@ const Chats = () => {
     avatar: (s.profile?.display_name || "U").slice(0, 2).toUpperCase(),
     imageUrl: s.image_url,
     caption: s.caption || undefined,
+    musicUrl: (s as any).music_url || undefined,
   }));
 
   const activeConvoName = activeConvo?.otherProfile?.display_name || activeConvo?.name || "Chat";
@@ -253,7 +247,7 @@ const Chats = () => {
         />
       )}
 
-      <input ref={storyInputRef} type="file" accept="image/*" onChange={handleUploadStory} className="hidden" />
+      
 
       {/* Sidebar */}
       <div className={`${showSidebar ? "flex" : "hidden"} md:flex flex-col w-full md:w-[380px] lg:w-[420px] border-r border-border/50 bg-card/50`}>
@@ -267,10 +261,17 @@ const Chats = () => {
           <div className="flex items-center gap-1">
             <NewDmDialog onStarted={(id) => { setActiveChat(id); refetchConversations(); }} />
             <NewGroupDialog onCreated={() => refetchConversations()} />
-            <label className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary cursor-pointer" aria-label="Add story">
-              <Camera className="w-5 h-5" />
-              <input type="file" accept="image/*" onChange={handleUploadStory} className="hidden" />
-            </label>
+            <StoryUploadDialog onUploaded={() => {
+              supabase.from("stories").select("*").order("created_at", { ascending: false }).then(async ({ data }) => {
+                if (data) {
+                  const enriched = await Promise.all(data.map(async (story) => {
+                    const { data: profile } = await supabase.from("profiles").select("*").eq("user_id", story.user_id).single();
+                    return { ...story, profile };
+                  }));
+                  setStories(enriched);
+                }
+              });
+            }} />
           </div>
         </div>
 
@@ -289,7 +290,7 @@ const Chats = () => {
         <StoriesBar
           stories={storyBarData}
           onStoryClick={(index) => setStoryViewerIndex(index)}
-          onAddStory={() => storyInputRef.current?.click()}
+          onAddStory={() => {}}
         />
 
         <div className="flex-1 overflow-y-auto scrollbar-thin">
@@ -371,11 +372,14 @@ const Chats = () => {
                   <Video className="w-4 h-4" />
                 </button>
                 {isGroup && (
-                  <InviteMembersDialog
-                    conversationId={activeConvo.id}
-                    existingMemberIds={[user?.id || ""]}
-                    onInvited={() => refetchConversations()}
-                  />
+                  <>
+                    <InviteMembersDialog
+                      conversationId={activeConvo.id}
+                      existingMemberIds={[user?.id || ""]}
+                      onInvited={() => refetchConversations()}
+                    />
+                    <GroupAdminDialog conversationId={activeConvo.id} />
+                  </>
                 )}
                 <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-foreground">
                   <MoreVertical className="w-4 h-4" />
@@ -424,7 +428,8 @@ const Chats = () => {
               </div>
             )}
 
-            <div ref={messagesScrollRef} className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-1">
+            <div ref={messagesScrollRef} className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-1 relative">
+              <TigerChatBackground />
               {uiMessages.map(({ ui, replyToId }) => {
                 const isMatch = matchSet.has(ui.id);
                 const isActive = ui.id === activeMatchId;

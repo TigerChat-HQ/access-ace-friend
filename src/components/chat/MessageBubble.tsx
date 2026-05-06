@@ -106,12 +106,13 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
           </div>
         ) : isImage && message.mediaUrl ? (
           <div>
-            <div className="relative">
+            <div className="relative overflow-hidden rounded-lg">
               {!imgLoaded && <div className="w-48 h-48 bg-surface-hover rounded-lg animate-pulse" />}
               <img
                 src={message.mediaUrl}
                 alt="Image"
-                className={cn("rounded-lg max-w-full cursor-pointer", !imgLoaded && "hidden")}
+                loading="lazy"
+                className={`rounded-lg max-w-full cursor-pointer transition-all duration-500 ${imgLoaded ? "opacity-100 scale-100" : "opacity-0 scale-95 absolute"}`}
                 onLoad={() => setImgLoaded(true)}
                 onClick={() => window.open(message.mediaUrl, "_blank")}
               />
