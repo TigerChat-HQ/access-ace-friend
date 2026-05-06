@@ -271,10 +271,17 @@ const Chats = () => {
           <div className="flex items-center gap-1">
             <NewDmDialog onStarted={(id) => { setActiveChat(id); refetchConversations(); }} />
             <NewGroupDialog onCreated={() => refetchConversations()} />
-            <label className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary cursor-pointer" aria-label="Add story">
-              <Camera className="w-5 h-5" />
-              <input type="file" accept="image/*" onChange={handleUploadStory} className="hidden" />
-            </label>
+            <StoryUploadDialog onUploaded={() => {
+              supabase.from("stories").select("*").order("created_at", { ascending: false }).then(async ({ data }) => {
+                if (data) {
+                  const enriched = await Promise.all(data.map(async (story) => {
+                    const { data: profile } = await supabase.from("profiles").select("*").eq("user_id", story.user_id).single();
+                    return { ...story, profile };
+                  }));
+                  setStories(enriched);
+                }
+              });
+            }} />
           </div>
         </div>
 
