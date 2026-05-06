@@ -13,6 +13,7 @@ import { CallDialog } from "@/components/chat/CallDialog";
 import { TigerChatBackground } from "@/components/chat/TigerChatBackground";
 import { InviteMembersDialog } from "@/components/chat/InviteMembersDialog";
 import { ForwardDialog } from "@/components/chat/ForwardDialog";
+import { GroupAdminDialog } from "@/components/chat/GroupAdminDialog";
 import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
 import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, Camera, X, ChevronUp, ChevronDown } from "lucide-react";
