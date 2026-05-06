@@ -374,11 +374,14 @@ const Chats = () => {
                   <Video className="w-4 h-4" />
                 </button>
                 {isGroup && (
-                  <InviteMembersDialog
-                    conversationId={activeConvo.id}
-                    existingMemberIds={[user?.id || ""]}
-                    onInvited={() => refetchConversations()}
-                  />
+                  <>
+                    <InviteMembersDialog
+                      conversationId={activeConvo.id}
+                      existingMemberIds={[user?.id || ""]}
+                      onInvited={() => refetchConversations()}
+                    />
+                    <GroupAdminDialog conversationId={activeConvo.id} />
+                  </>
                 )}
                 <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-foreground">
                   <MoreVertical className="w-4 h-4" />
