@@ -178,8 +178,17 @@ const TigerAI = () => {
               {s}
             </button>
           ))}
+          <button
+            onClick={() => { setFeedbackPrefill(""); setFeedbackOpen(true); }}
+            className="text-[11px] px-3 py-1.5 rounded-full bg-primary/15 border border-primary/30 text-primary hover:bg-primary/25 transition-colors flex items-center gap-1"
+          >
+            <Megaphone className="w-3 h-3" /> Send feedback to admin
+          </button>
         </div>
       )}
+
+      <TigerFeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} initialText={feedbackPrefill} />
+
 
       <div className="p-3 border-t border-border/50 glass">
         <div className="flex items-center gap-2">
