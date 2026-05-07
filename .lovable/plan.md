@@ -1,58 +1,93 @@
-## TigerChat Major Upgrade Plan
+## TigerChat — Phase 9 finish + Social/Admin upgrades
 
-This is a large multi-feature upgrade. I'll break it into phases so we can ship and verify each one. Below is the proposed scope, ordered by impact and dependency.
+### 1. Phase 9 — Screenshot protection wiring
+- Add `no-select` and `privacy-blur` CSS utilities to `src/index.css` (user-select:none on `.no-select *`, blur(20px) on `.privacy-blur`).
+- Call `useScreenshotProtection(true)` in `Chats.tsx` (when a chat is open) and `StoryViewer.tsx` (when mounted).
+- Add a small "Screen privacy on" hint below the StoryViewer header so users know the limitation.
 
-### Phase 1 — Messaging core fixes (highest priority)
-- **Read receipts (WhatsApp-style ticks)**: add `delivered_at` and `read_at` columns to `messages`. Show ✓ (sent), ✓✓ grey (delivered), ✓✓ blue (seen). Mark messages delivered on realtime arrival, mark read when chat is open and visible.
-- **Unread counter auto-clear**: when user opens a conversation, mark all incoming messages read; counter updates instantly via realtime.
-- **Real-time notifications fix**: audit `useNotifications` so likes / comments / follows / new messages / story reactions all fire correctly without refresh; add toast + badge updates.
+### 2. Story reactions — real-time + persisted
+- StoryViewer already inserts into `story_reactions`. Add:
+  - Real-time subscription to `story_reactions` for the current `story.id` so reactions from other viewers float up as animated emojis on the owner's screen.
+  - Owner-side reaction count badge (e.g. ❤️ 12) using a fast aggregate query on viewer open.
+- Show a small picker chip with current count for each emoji.
 
-### Phase 2 — Comments thread (replies + likes)
-- Add `parent_id` to `post_comments` for nested replies, and a new `comment_likes` table.
-- Update `CommentsSheet` to render a threaded view with collapsible replies, like button per comment, smooth animations.
-- Notifications for comment replies and comment likes.
+### 3. Stories grid — reliable video thumbnails
+- Stories grid in `Stories.tsx` already detects `media_type === 'video'`. Improve by:
+  - Adding `#t=0.1` fragment to `video.src` so first frame renders on iOS/Safari.
+  - Showing a play-icon overlay on video tiles.
+- StoryViewer already routes by `mediaType`; verify and keep.
 
-### Phase 3 — Navigation & Settings access
-- Reorder bottom nav: Home, Chats, **Groups** (new tab filtered to group conversations), Stories, Profile.
-- Add a persistent settings icon in every page header (top-right) linking to `/settings`.
-- Move Create + Search into the Home header / Stories tab to keep nav at 5 items.
+### 4. Persist & load chat customization
+- `useChatPreferences` already exposes `prefs`. Wire it in `Chats.tsx`:
+  - Apply `wallpaperClass(prefs?.wallpaper)` as a CSS class on the messages scroll container.
+  - Apply `fontSizeClass(prefs?.font_size)` on the messages list.
+  - Pass `bubbleColorClass(prefs?.bubble_color)` to each `MessageBubble` via `myBubbleClass`.
+- Ensure `ChatCustomizationDialog` upserts changes (already supported by hook) and the UI updates without refresh.
 
-### Phase 4 — Group management
-- Group settings sheet (admins only): rename group, change avatar (upload to `chat-media`), remove members, promote/demote admins, toggle join-request mode, generate invite link.
-- Join requests table + approval flow.
+### 5. Easier group creation
+- Replace checkbox list in `NewGroupDialog` with:
+  - Search bar that filters profiles by name/username.
+  - Avatar grid with quick tap-to-add chips at the top showing selected members.
+  - Optional "Skip name" → auto-name from first 3 member names.
+  - Friendly empty state with link to Search if no users yet.
+- Make the trigger button bigger and labeled "New group" on the Groups page header so it is more discoverable.
 
-### Phase 5 — Chat customization (3-dot menu)
-- Per-conversation settings stored in a new `chat_preferences` table (user_id + conversation_id): wallpaper preset, bubble color, font size, theme override.
-- Built-in wallpapers (tiger theme, gradients, solid, light, dark) + custom upload.
-- Apply preferences live in `ChatView`.
+### 6. Follow / followed-by — already in place, polish
+- Profile page already shows Follow button + counts. Add:
+  - Tappable Followers/Following counts → open a list dialog (`FollowListDialog`) showing users with Follow-back buttons.
+  - On `Notifications.tsx`, ensure follow notifications link to the actor's profile (already via useNotifications, just verify).
 
-### Phase 6 — Stories upgrade
-- Support video stories up to 2 minutes (add `media_type`, `duration` columns).
-- Text overlays, music overlay (existing), reactions table (`story_reactions`).
-- Optimize loader (preload next, blur-up).
+### 7. Account administration in Profile
+- In Profile (own profile) add a collapsible "Account" section with:
+  - Toggle "Private account" (writes `profiles.is_private`).
+  - "Change password" → `/settings` deep link.
+  - "Sign out" (already present, move into this section).
+  - "Delete account data" — calls a new edge function `delete-account` that removes the user's posts, comments, conversations they own, and finally `auth.admin.deleteUser`.
+- Admin shortcut button (Shield icon) is already present for admins; keep.
 
-### Phase 7 — Feed algorithm + Trending
-- Compute engagement score in `recommend-posts` edge function: `likes*1 + comments*2 + recency_decay`. Already AI-ranked; add rule-based trending fallback.
-- New "Trending" rail on Home showing top posts in last 48h worldwide.
+### 8. Admin panel additions
+- Extend `Admin.tsx`:
+  - Promote/demote users to/from `admin` role via `user_roles` (insert/delete).
+  - View & resolve `reports` (set status='resolved').
+  - Quick search users by username.
+- Already gated by `useUserRole().isAdmin` — keep.
 
-### Phase 8 — Media editor (lightweight)
-- Pre-upload editor in `Create`: crop (react-easy-crop), filters (CSS), text/sticker overlays rendered to canvas, video trim (ffmpeg.wasm — heavy, optional).
-- Music picker from a curated list.
+### 9. Sign-up without admin approval (already true)
+- Confirmed: `handle_new_user` trigger creates a profile on signup; no approval step exists. No changes needed unless the user wants email verification disabled — leaving default (recommended).
 
-### Phase 9 — Screenshot protection (best effort on web)
-- Add CSS `user-select:none`, disable context menu in chats/stories/media viewer.
-- Detect Page Visibility blur and overlay a privacy screen. *Note: true screenshot blocking is not possible in browser PWAs — only native apps can enforce it. Will document this limitation.*
+### 10. Security linter pass
+- Run linter after migrations. Expected items to address:
+  - Confirm RLS enabled on `chat_preferences`, `story_reactions` (both already have policies — verify).
+  - Storage policies on `stories` and `chat-media` buckets: ensure `INSERT` policy requires `auth.uid()::text = (storage.foldername(name))[1]` so users can only write under their own folder.
 
-### Technical notes
-- DB migrations needed for: `messages.delivered_at`, `messages.read_at`, `post_comments.parent_id`, `comment_likes`, `chat_preferences`, `group_join_requests`, `story_reactions`, `stories.media_type`, `stories.duration`.
-- New edge function updates: `recommend-posts` for trending.
-- New hooks: `useReadReceipts`, `useChatPreferences`, `useCommentReplies`, `useTrendingPosts`.
-- Major new components: `GroupManagementSheet`, `ChatCustomizationSheet`, `MediaEditor`, `TrendingRail`, `StoryComposer` (video).
+### Technical details (for engineers)
 
-### Recommendation
-Given the size (~9 phases, ~20 new files, ~10 DB migrations), I propose **shipping Phases 1–4 first** in this iteration (messaging fixes, comment threads, nav reorganization, group management). These deliver the most user-visible value and unblock the rest. Phases 5–9 follow in subsequent iterations.
+**New files:**
+- `src/components/social/FollowListDialog.tsx` — followers/following modal.
+- `supabase/functions/delete-account/index.ts` — secure account deletion via service role.
 
-**Reply with:**
-- "go" to ship Phases 1–4 now
-- a different phase selection (e.g. "do 1, 6, 7")
-- or adjustments to the plan
+**Edited files:**
+- `src/index.css` — add `.no-select` & `.privacy-blur` utilities.
+- `src/components/chat/StoryViewer.tsx` — protection hook, realtime reactions, owner badges.
+- `src/pages/Stories.tsx` — video thumbnail polish (play icon, `#t=0.1`).
+- `src/pages/Chats.tsx` — protection hook, apply chat prefs to bubbles/wallpaper/font.
+- `src/components/chat/NewGroupDialog.tsx` — searchable, chip-based UX.
+- `src/pages/Profile.tsx` — Account section with private toggle + delete; tap counts.
+- `src/pages/Admin.tsx` — role management + reports table + user search.
+
+**DB migrations:**
+- Storage policies for `stories` and `chat-media` (idempotent CREATE POLICY IF NOT EXISTS).
+- No table schema changes required — all needed tables already exist.
+
+**Realtime:**
+- `ALTER PUBLICATION supabase_realtime ADD TABLE public.story_reactions;` (if not already added).
+
+### Deliverable order
+1. CSS + Phase 9 wiring (Chats + StoryViewer).
+2. Chat prefs application in Chats.
+3. Story reactions realtime + grid polish.
+4. NewGroupDialog UX overhaul.
+5. Profile account section + FollowListDialog.
+6. Admin extensions.
+7. `delete-account` edge function.
+8. Storage RLS migration + linter check.
