@@ -11,6 +11,8 @@ import Feed from "./pages/Feed";
 import Search from "./pages/Search";
 import Create from "./pages/Create";
 import Chats from "./pages/Chats";
+import Groups from "./pages/Groups";
+import Stories from "./pages/Stories";
 import Profile from "./pages/Profile";
 import PostDetail from "./pages/PostDetail";
 import Admin from "./pages/Admin";
@@ -64,6 +66,8 @@ const App = () => (
                   <Route path="/search" element={<Search />} />
                   <Route path="/create" element={<Create />} />
                   <Route path="/chats" element={<Chats />} />
+                  <Route path="/groups" element={<Groups />} />
+                  <Route path="/stories" element={<Stories />} />
                   <Route path="/u/:userId" element={<Profile />} />
                   <Route path="/post/:postId" element={<PostDetail />} />
                   <Route path="/admin" element={<Admin />} />
