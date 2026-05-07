@@ -135,6 +135,30 @@ const Profile = () => {
     }
   };
 
+  const togglePrivate = async (next: boolean) => {
+    if (!user) return;
+    const { error } = await supabase.from("profiles").update({ is_private: next }).eq("user_id", user.id);
+    if (error) {
+      toast({ title: "Failed", description: error.message, variant: "destructive" });
+    } else {
+      setProfile((p) => (p ? { ...p, is_private: next } : p));
+      toast({ title: next ? "Account is now private" : "Account is now public" });
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    if (!confirm("Permanently delete your account and all your data? This cannot be undone.")) return;
+    const { error } = await supabase.functions.invoke("delete-account");
+    if (error) {
+      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Account deleted" });
+    await signOut();
+    navigate("/auth");
+  };
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
