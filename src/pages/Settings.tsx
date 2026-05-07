@@ -10,9 +10,10 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Camera, User, Bell, Shield, Palette, LogOut,
-  ChevronRight, Moon, Sun, Globe, Lock,
+  ChevronRight, Moon, Sun, Globe, Lock, Fingerprint,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAppLock, isWebAuthnSupported } from "@/hooks/useAppLock";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 
 const SettingToggle = ({
@@ -49,6 +50,21 @@ const Settings = () => {
   const [readReceipts, setReadReceipts] = useState(true);
   const [lastSeen, setLastSeen] = useState(true);
   const [isPrivate, setIsPrivate] = useState(false);
+  const appLock = useAppLock();
+
+  const toggleAppLock = async (v: boolean) => {
+    try {
+      if (v) {
+        const ok = await appLock.enable();
+        if (ok) toast({ title: "App lock enabled" });
+      } else {
+        appLock.disable();
+        toast({ title: "App lock disabled" });
+      }
+    } catch (e: any) {
+      toast({ title: "Failed", description: e?.message || "Could not enable", variant: "destructive" });
+    }
+  };
 
   useEffect(() => {
     if (user) loadProfile();
@@ -170,6 +186,15 @@ const Settings = () => {
             />
             <SettingToggle label={t("readReceipts")} description={t("readReceiptsDesc")} value={readReceipts} onChange={setReadReceipts} />
             <SettingToggle label={t("lastSeen")} description={t("lastSeenDesc")} value={lastSeen} onChange={setLastSeen} />
+            {isWebAuthnSupported() && (
+              <SettingToggle
+                label="Biometric app lock"
+                description="Require fingerprint / Face ID to open TIGERCHATS"
+                value={appLock.enabled}
+                onChange={toggleAppLock}
+                icon={<Fingerprint className="w-5 h-5" />}
+              />
+            )}
             <div className="pt-4 border-t border-border/50">
               <button className="flex items-center gap-3 w-full py-3 text-left">
                 <Lock className="w-5 h-5 text-muted-foreground" />

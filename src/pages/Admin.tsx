@@ -21,6 +21,8 @@ const Admin = () => {
   const [recentPosts, setRecentPosts] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [admins, setAdmins] = useState<Set<string>>(new Set());
+  const [moderators, setModerators] = useState<Set<string>>(new Set());
+  const [advisers, setAdvisers] = useState<Set<string>>(new Set());
   const [reports, setReports] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [growth, setGrowth] = useState<{ day: string; users: number; posts: number }[]>([]);
@@ -42,7 +44,7 @@ const Admin = () => {
       supabase.from("messages").select("*", { count: "exact", head: true }),
       supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(20),
       supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(100),
-      supabase.from("user_roles").select("user_id, role").eq("role", "admin"),
+      supabase.from("user_roles").select("user_id, role"),
       supabase.from("reports").select("*").order("created_at", { ascending: false }).limit(50),
       supabase.from("profiles").select("created_at").gte("created_at", new Date(Date.now() - 14 * 86400000).toISOString()),
       supabase.from("posts").select("created_at").gte("created_at", new Date(Date.now() - 14 * 86400000).toISOString()),
@@ -53,7 +55,10 @@ const Admin = () => {
     });
     setRecentPosts(postsData.data || []);
     setUsers(usersData.data || []);
-    setAdmins(new Set((rolesData.data || []).map((r: any) => r.user_id)));
+    const roles = (rolesData.data || []) as { user_id: string; role: string }[];
+    setAdmins(new Set(roles.filter((r) => r.role === "admin").map((r) => r.user_id)));
+    setModerators(new Set(roles.filter((r) => r.role === "moderator").map((r) => r.user_id)));
+    setAdvisers(new Set(roles.filter((r) => r.role === "adviser").map((r) => r.user_id)));
     setReports(reportsData.data || []);
 
     // Build 14-day growth series
@@ -107,22 +112,26 @@ const Admin = () => {
     }
   };
 
-  const toggleAdmin = async (userId: string) => {
-    if (admins.has(userId)) {
-      const { error } = await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", "admin");
-      if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
-      else {
-        toast({ title: "Demoted to user" });
-        load();
-      }
-    } else {
-      const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: "admin" });
-      if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
-      else {
-        toast({ title: "Promoted to admin" });
-        load();
+  const setRole = async (userId: string, role: "admin" | "moderator" | "adviser" | "none") => {
+    // Remove all elevated roles for the user
+    const { error: delErr } = await supabase
+      .from("user_roles")
+      .delete()
+      .eq("user_id", userId)
+      .in("role", ["admin", "moderator", "adviser"] as any);
+    if (delErr) {
+      toast({ title: "Failed", description: delErr.message, variant: "destructive" });
+      return;
+    }
+    if (role !== "none") {
+      const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: role as any });
+      if (error) {
+        toast({ title: "Failed", description: error.message, variant: "destructive" });
+        return;
       }
     }
+    toast({ title: role === "none" ? "Role cleared" : `Set as ${role}` });
+    load();
   };
 
   const resolveReport = async (id: string) => {
@@ -269,8 +278,12 @@ const Admin = () => {
           <div className="space-y-1 max-h-80 overflow-y-auto scrollbar-thin">
             {filtered.map((u) => {
               const isUserAdmin = admins.has(u.user_id);
+              const isMod = moderators.has(u.user_id);
+              const isAdv = advisers.has(u.user_id);
+              const currentRole: "admin" | "moderator" | "adviser" | "none" =
+                isUserAdmin ? "admin" : isMod ? "moderator" : isAdv ? "adviser" : "none";
               return (
-                <div key={u.id} className="flex items-center gap-3 px-2 py-2 bg-card border border-border/50 rounded-lg">
+                <div key={u.id} className="flex flex-col gap-2 px-2 py-2 bg-card border border-border/50 rounded-lg">
                   <Link to={`/profile/${u.user_id}`} className="flex items-center gap-3 flex-1 min-w-0">
                     {u.avatar_url ? (
                       <img src={u.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
@@ -283,21 +296,22 @@ const Admin = () => {
                       <p className="text-sm text-foreground truncate flex items-center gap-1.5">
                         {u.display_name || "Unnamed"}
                         {isUserAdmin && <Shield className="w-3 h-3 text-primary" />}
+                        {isMod && <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">MOD</span>}
+                        {isAdv && <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">ADV</span>}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">@{u.username}</p>
                     </div>
                   </Link>
-                  <Button size="sm" variant={isUserAdmin ? "outline" : "default"} onClick={() => toggleAdmin(u.user_id)}>
-                    {isUserAdmin ? (
-                      <>
-                        <ShieldOff className="w-3.5 h-3.5 mr-1" /> Demote
-                      </>
-                    ) : (
-                      <>
-                        <Shield className="w-3.5 h-3.5 mr-1" /> Make admin
-                      </>
-                    )}
-                  </Button>
+                  <select
+                    value={currentRole}
+                    onChange={(e) => setRole(u.user_id, e.target.value as any)}
+                    className="text-xs bg-surface border border-border/50 rounded px-2 py-1 text-foreground"
+                  >
+                    <option value="none">User</option>
+                    <option value="adviser">Adviser (read-only)</option>
+                    <option value="moderator">Moderator</option>
+                    <option value="admin">Admin</option>
+                  </select>
                 </div>
               );
             })}
