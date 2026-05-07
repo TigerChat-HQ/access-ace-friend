@@ -2,37 +2,88 @@ import { useEffect, useState } from "react";
 import { Navigate, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
-import { ArrowLeft, Trash2, Users, FileText, MessageSquare, Search, Shield, ShieldOff, Flag } from "lucide-react";
+import {
+  ArrowLeft, Trash2, Users, FileText, MessageSquare, Search, Shield, ShieldOff, Flag,
+  TrendingUp, Heart, Eye, Crown,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+} from "recharts";
 
 const Admin = () => {
   const { isAdmin, loading } = useUserRole();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [stats, setStats] = useState({ users: 0, posts: 0, comments: 0 });
+  const [stats, setStats] = useState({ users: 0, posts: 0, comments: 0, likes: 0, stories: 0, messages: 0 });
   const [recentPosts, setRecentPosts] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [admins, setAdmins] = useState<Set<string>>(new Set());
   const [reports, setReports] = useState<any[]>([]);
   const [search, setSearch] = useState("");
+  const [growth, setGrowth] = useState<{ day: string; users: number; posts: number }[]>([]);
+  const [engagement, setEngagement] = useState<{ name: string; value: number }[]>([]);
+  const [creating, setCreating] = useState(false);
 
   const load = async () => {
-    const [{ count: usersC }, { count: postsC }, { count: commentsC }, postsData, usersData, rolesData, reportsData] =
-      await Promise.all([
-        supabase.from("profiles").select("*", { count: "exact", head: true }),
-        supabase.from("posts").select("*", { count: "exact", head: true }),
-        supabase.from("post_comments").select("*", { count: "exact", head: true }),
-        supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(20),
-        supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(100),
-        supabase.from("user_roles").select("user_id, role").eq("role", "admin"),
-        supabase.from("reports").select("*").order("created_at", { ascending: false }).limit(50),
-      ]);
-    setStats({ users: usersC || 0, posts: postsC || 0, comments: commentsC || 0 });
+    const [
+      { count: usersC }, { count: postsC }, { count: commentsC },
+      { count: likesC }, { count: storiesC }, { count: messagesC },
+      postsData, usersData, rolesData, reportsData,
+      { data: profGrowth }, { data: postGrowth },
+    ] = await Promise.all([
+      supabase.from("profiles").select("*", { count: "exact", head: true }),
+      supabase.from("posts").select("*", { count: "exact", head: true }),
+      supabase.from("post_comments").select("*", { count: "exact", head: true }),
+      supabase.from("post_likes").select("*", { count: "exact", head: true }),
+      supabase.from("stories").select("*", { count: "exact", head: true }),
+      supabase.from("messages").select("*", { count: "exact", head: true }),
+      supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(20),
+      supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(100),
+      supabase.from("user_roles").select("user_id, role").eq("role", "admin"),
+      supabase.from("reports").select("*").order("created_at", { ascending: false }).limit(50),
+      supabase.from("profiles").select("created_at").gte("created_at", new Date(Date.now() - 14 * 86400000).toISOString()),
+      supabase.from("posts").select("created_at").gte("created_at", new Date(Date.now() - 14 * 86400000).toISOString()),
+    ]);
+    setStats({
+      users: usersC || 0, posts: postsC || 0, comments: commentsC || 0,
+      likes: likesC || 0, stories: storiesC || 0, messages: messagesC || 0,
+    });
     setRecentPosts(postsData.data || []);
     setUsers(usersData.data || []);
     setAdmins(new Set((rolesData.data || []).map((r: any) => r.user_id)));
     setReports(reportsData.data || []);
+
+    // Build 14-day growth series
+    const days: { day: string; users: number; posts: number }[] = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400000);
+      const key = d.toISOString().slice(0, 10);
+      const label = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      const u = (profGrowth || []).filter((r: any) => r.created_at.slice(0, 10) === key).length;
+      const p = (postGrowth || []).filter((r: any) => r.created_at.slice(0, 10) === key).length;
+      days.push({ day: label, users: u, posts: p });
+    }
+    setGrowth(days);
+    setEngagement([
+      { name: "Likes", value: likesC || 0 },
+      { name: "Comments", value: commentsC || 0 },
+      { name: "Stories", value: storiesC || 0 },
+      { name: "Messages", value: messagesC || 0 },
+    ]);
+  };
+
+  const openSuperGroup = async () => {
+    setCreating(true);
+    const { data, error } = await supabase.rpc("ensure_admin_super_group");
+    setCreating(false);
+    if (error || !data) {
+      toast({ title: "Failed to open super group", description: error?.message, variant: "destructive" });
+      return;
+    }
+    navigate(`/chats?c=${data}`);
   };
 
   useEffect(() => {
@@ -96,11 +147,82 @@ const Admin = () => {
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        <Button
+          onClick={openSuperGroup}
+          disabled={creating}
+          className="w-full bg-gradient-to-r from-primary to-purple-500 text-primary-foreground"
+        >
+          <Crown className="w-4 h-4 mr-2" />
+          {creating ? "Opening..." : "Open Admin Super Group"}
+        </Button>
+
         <div className="grid grid-cols-3 gap-2">
           <Stat icon={Users} label="Users" value={stats.users} />
           <Stat icon={FileText} label="Posts" value={stats.posts} />
           <Stat icon={MessageSquare} label="Comments" value={stats.comments} />
+          <Stat icon={Heart} label="Likes" value={stats.likes} />
+          <Stat icon={Eye} label="Stories" value={stats.stories} />
+          <Stat icon={MessageSquare} label="Messages" value={stats.messages} />
         </div>
+
+        <section>
+          <h2 className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-2 flex items-center gap-2">
+            <TrendingUp className="w-3.5 h-3.5" /> Growth — last 14 days
+          </h2>
+          <div className="bg-card border border-border/50 rounded-xl p-3 h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={growth}>
+                <defs>
+                  <linearGradient id="gUsers" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.6} />
+                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gPosts" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(280 90% 65%)" stopOpacity={0.6} />
+                    <stop offset="100%" stopColor="hsl(280 90% 65%)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} allowDecimals={false} />
+                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
+                <Area type="monotone" dataKey="users" stroke="hsl(var(--primary))" fill="url(#gUsers)" />
+                <Area type="monotone" dataKey="posts" stroke="hsl(280 90% 65%)" fill="url(#gPosts)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+
+        <section>
+          <h2 className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-2">
+            Engagement breakdown
+          </h2>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-card border border-border/50 rounded-xl p-3 h-44">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={engagement}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={9} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={9} />
+                  <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
+                  <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="bg-card border border-border/50 rounded-xl p-3 h-44">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={engagement} dataKey="value" nameKey="name" innerRadius={28} outerRadius={55} paddingAngle={2}>
+                    {engagement.map((_, i) => (
+                      <Cell key={i} fill={["hsl(var(--primary))", "hsl(280 90% 65%)", "hsl(200 90% 60%)", "hsl(40 90% 60%)"][i % 4]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </section>
 
         <section>
           <h2 className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-2 flex items-center gap-2">

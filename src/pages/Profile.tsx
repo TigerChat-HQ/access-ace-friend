@@ -23,8 +23,9 @@ import { useToast } from "@/hooks/use-toast";
 type Profile = Tables<"profiles"> & { is_private?: boolean };
 
 const Profile = () => {
-  const { userId } = useParams<{ userId: string }>();
+  const params = useParams<{ userId: string }>();
   const { user, signOut } = useAuth();
+  const userId = params.userId || user?.id;
   const { isAdmin } = useUserRole();
   const { isBlocked, block, unblock } = useBlocks();
   const navigate = useNavigate();
@@ -45,7 +46,12 @@ const Profile = () => {
   useEffect(() => {
     if (!userId) return;
     (async () => {
-      const { data } = await supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle();
+      setLoading(true);
+      const isUuid = /^[0-9a-f-]{36}$/i.test(userId);
+      const query = supabase.from("profiles").select("*");
+      const { data } = isUuid
+        ? await query.eq("user_id", userId).maybeSingle()
+        : await query.eq("username", userId.replace(/^@/, "")).maybeSingle();
       setProfile(data as Profile);
       if (data) setForm({ display_name: data.display_name || "", username: data.username || "", bio: data.bio || "" });
       setLoading(false);
