@@ -71,7 +71,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
           "max-w-[75%] rounded-2xl text-sm leading-relaxed",
           isImage && !message.text ? "p-1" : "px-4 py-2.5",
           isMe
-            ? cn(myBubbleClass || "bg-primma text-primary-foreground", "rounded-br-md")
+            ? cn(myBubbleClass || "bg-primary text-primary-foreground", "rounded-br-md")
             : "glass text-foreground rounded-bl-md"
         )}
       >

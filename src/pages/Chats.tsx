@@ -482,6 +482,7 @@ const Chats = () => {
                       onReply={(msg) => setReplyTo(msg)}
                       onForward={(msg) => setForwardMsg({ content: msg.text, type: msg.type, mediaUrl: msg.mediaUrl })}
                       onDelete={handleDeleteMessage}
+                      myBubbleClass={bubbleColorClass(chatPrefs.bubble_color)}
                     />
                   </div>
                 );
