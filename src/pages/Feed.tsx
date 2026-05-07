@@ -51,9 +51,20 @@ const Feed = () => {
             TIGER<span className="text-primary">CHATS</span>
           </h1>
         </div>
-        <Link to="/chats" className="p-2 text-muted-foreground hover:text-primary">
-          <MessageCircle className="w-5 h-5" />
-        </Link>
+        <div className="flex items-center gap-1">
+          <Link to="/search" className="p-2 text-muted-foreground hover:text-primary">
+            <Search className="w-5 h-5" />
+          </Link>
+          <Link to="/create" className="p-2 text-muted-foreground hover:text-primary">
+            <PlusSquare className="w-5 h-5" />
+          </Link>
+          <Link to="/notifications" className="p-2 text-muted-foreground hover:text-primary">
+            <Bell className="w-5 h-5" />
+          </Link>
+          <Link to="/settings" className="p-2 text-muted-foreground hover:text-primary">
+            <SettingsIcon className="w-5 h-5" />
+          </Link>
+        </div>
       </header>
 
       <div className="flex border-b border-border/50 bg-card/50">
