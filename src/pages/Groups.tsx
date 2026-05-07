@@ -79,6 +79,7 @@ const Groups = () => {
               </li>
             ))}
           </ul>
+          </>
         )}
       </div>
     </div>
