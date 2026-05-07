@@ -17,29 +17,73 @@ const Admin = () => {
   const { isAdmin, loading } = useUserRole();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [stats, setStats] = useState({ users: 0, posts: 0, comments: 0 });
+  const [stats, setStats] = useState({ users: 0, posts: 0, comments: 0, likes: 0, stories: 0, messages: 0 });
   const [recentPosts, setRecentPosts] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [admins, setAdmins] = useState<Set<string>>(new Set());
   const [reports, setReports] = useState<any[]>([]);
   const [search, setSearch] = useState("");
+  const [growth, setGrowth] = useState<{ day: string; users: number; posts: number }[]>([]);
+  const [engagement, setEngagement] = useState<{ name: string; value: number }[]>([]);
+  const [creating, setCreating] = useState(false);
 
   const load = async () => {
-    const [{ count: usersC }, { count: postsC }, { count: commentsC }, postsData, usersData, rolesData, reportsData] =
-      await Promise.all([
-        supabase.from("profiles").select("*", { count: "exact", head: true }),
-        supabase.from("posts").select("*", { count: "exact", head: true }),
-        supabase.from("post_comments").select("*", { count: "exact", head: true }),
-        supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(20),
-        supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(100),
-        supabase.from("user_roles").select("user_id, role").eq("role", "admin"),
-        supabase.from("reports").select("*").order("created_at", { ascending: false }).limit(50),
-      ]);
-    setStats({ users: usersC || 0, posts: postsC || 0, comments: commentsC || 0 });
+    const [
+      { count: usersC }, { count: postsC }, { count: commentsC },
+      { count: likesC }, { count: storiesC }, { count: messagesC },
+      postsData, usersData, rolesData, reportsData,
+      { data: profGrowth }, { data: postGrowth },
+    ] = await Promise.all([
+      supabase.from("profiles").select("*", { count: "exact", head: true }),
+      supabase.from("posts").select("*", { count: "exact", head: true }),
+      supabase.from("post_comments").select("*", { count: "exact", head: true }),
+      supabase.from("post_likes").select("*", { count: "exact", head: true }),
+      supabase.from("stories").select("*", { count: "exact", head: true }),
+      supabase.from("messages").select("*", { count: "exact", head: true }),
+      supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(20),
+      supabase.from("profiles").select("*").order("created_at", { ascending: false }).limit(100),
+      supabase.from("user_roles").select("user_id, role").eq("role", "admin"),
+      supabase.from("reports").select("*").order("created_at", { ascending: false }).limit(50),
+      supabase.from("profiles").select("created_at").gte("created_at", new Date(Date.now() - 14 * 86400000).toISOString()),
+      supabase.from("posts").select("created_at").gte("created_at", new Date(Date.now() - 14 * 86400000).toISOString()),
+    ]);
+    setStats({
+      users: usersC || 0, posts: postsC || 0, comments: commentsC || 0,
+      likes: likesC || 0, stories: storiesC || 0, messages: messagesC || 0,
+    });
     setRecentPosts(postsData.data || []);
     setUsers(usersData.data || []);
     setAdmins(new Set((rolesData.data || []).map((r: any) => r.user_id)));
     setReports(reportsData.data || []);
+
+    // Build 14-day growth series
+    const days: { day: string; users: number; posts: number }[] = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400000);
+      const key = d.toISOString().slice(0, 10);
+      const label = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      const u = (profGrowth || []).filter((r: any) => r.created_at.slice(0, 10) === key).length;
+      const p = (postGrowth || []).filter((r: any) => r.created_at.slice(0, 10) === key).length;
+      days.push({ day: label, users: u, posts: p });
+    }
+    setGrowth(days);
+    setEngagement([
+      { name: "Likes", value: likesC || 0 },
+      { name: "Comments", value: commentsC || 0 },
+      { name: "Stories", value: storiesC || 0 },
+      { name: "Messages", value: messagesC || 0 },
+    ]);
+  };
+
+  const openSuperGroup = async () => {
+    setCreating(true);
+    const { data, error } = await supabase.rpc("ensure_admin_super_group");
+    setCreating(false);
+    if (error || !data) {
+      toast({ title: "Failed to open super group", description: error?.message, variant: "destructive" });
+      return;
+    }
+    navigate(`/chats?c=${data}`);
   };
 
   useEffect(() => {
