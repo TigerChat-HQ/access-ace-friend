@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { X, Volume2, VolumeX, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useScreenshotProtection } from "@/hooks/useScreenshotProtection";
+import { TigerReactionLayer } from "@/components/TigerReaction";
+import tigerImg from "@/assets/tiger-reaction.png";
 
 interface StoryData {
   id: string;
@@ -33,6 +35,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
   const [paused, setPaused] = useState(false);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [floaters, setFloaters] = useState<{ id: string; emoji: string; left: number }[]>([]);
+  const [tigerTrigger, setTigerTrigger] = useState(0);
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const story = stories[currentIndex];
@@ -80,9 +83,13 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
           const emoji = payload.new?.emoji;
           if (!emoji) return;
           setCounts((c) => ({ ...c, [emoji]: (c[emoji] || 0) + 1 }));
-          const id = `${Date.now()}-${Math.random()}`;
-          setFloaters((f) => [...f, { id, emoji, left: 20 + Math.random() * 60 }]);
-          setTimeout(() => setFloaters((f) => f.filter((x) => x.id !== id)), 2400);
+          if (emoji === "🐯") {
+            setTigerTrigger((t) => t + 1);
+          } else {
+            const id = `${Date.now()}-${Math.random()}`;
+            setFloaters((f) => [...f, { id, emoji, left: 20 + Math.random() * 60 }]);
+            setTimeout(() => setFloaters((f) => f.filter((x) => x.id !== id)), 2400);
+          }
         }
       )
       .subscribe();
@@ -144,10 +151,13 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
 
   const sendReaction = async (emoji: string) => {
     if (!currentUserId || !story) return;
-    // Optimistic floater
-    const id = `${Date.now()}-${Math.random()}`;
-    setFloaters((f) => [...f, { id, emoji, left: 40 + Math.random() * 20 }]);
-    setTimeout(() => setFloaters((f) => f.filter((x) => x.id !== id)), 2400);
+    if (emoji === "🐯") {
+      setTigerTrigger((t) => t + 1);
+    } else {
+      const id = `${Date.now()}-${Math.random()}`;
+      setFloaters((f) => [...f, { id, emoji, left: 40 + Math.random() * 20 }]);
+      setTimeout(() => setFloaters((f) => f.filter((x) => x.id !== id)), 2400);
+    }
     await supabase.from("story_reactions" as any).insert({
       story_id: story.id,
       user_id: currentUserId,
@@ -268,8 +278,20 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
         </div>
       )}
 
+      {/* Tiger pop layer */}
+      <TigerReactionLayer trigger={tigerTrigger} />
+
       {/* Reactions bar / counts */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-black/60 backdrop-blur px-3 py-2 rounded-full z-20">
+        {!isOwner && (
+          <button
+            onClick={() => sendReaction("🐯")}
+            className="flex items-center justify-center w-9 h-9 rounded-full bg-primary/20 hover:bg-primary/40 transition-transform active:scale-150"
+            title="Send Tiger 🐯"
+          >
+            <img src={tigerImg} alt="Tiger" className="w-7 h-7" />
+          </button>
+        )}
         {REACTIONS.map((e) => {
           const count = counts[e] || 0;
           return (
@@ -284,6 +306,11 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
             </button>
           );
         })}
+        {(counts["🐯"] || 0) > 0 && isOwner && (
+          <span className="flex items-center gap-1 text-white text-xs font-semibold ml-1">
+            🐯 {counts["🐯"]}
+          </span>
+        )}
       </div>
 
       <button onClick={goPrev} className="absolute left-0 top-12 bottom-20 w-1/3 z-10" />
