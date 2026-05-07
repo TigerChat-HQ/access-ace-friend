@@ -79,6 +79,39 @@ export type Database = {
           },
         ]
       }
+      chat_preferences: {
+        Row: {
+          bubble_color: string | null
+          conversation_id: string
+          font_size: string | null
+          id: string
+          theme: string | null
+          updated_at: string
+          user_id: string
+          wallpaper: string | null
+        }
+        Insert: {
+          bubble_color?: string | null
+          conversation_id: string
+          font_size?: string | null
+          id?: string
+          theme?: string | null
+          updated_at?: string
+          user_id: string
+          wallpaper?: string | null
+        }
+        Update: {
+          bubble_color?: string | null
+          conversation_id?: string
+          font_size?: string | null
+          id?: string
+          theme?: string | null
+          updated_at?: string
+          user_id?: string
+          wallpaper?: string | null
+        }
+        Relationships: []
+      }
       comment_likes: {
         Row: {
           comment_id: string
@@ -356,6 +389,13 @@ export type Database = {
             referencedRelation: "posts"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "post_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "trending_posts"
+            referencedColumns: ["id"]
+          },
         ]
       }
       post_likes: {
@@ -383,6 +423,13 @@ export type Database = {
             columns: ["post_id"]
             isOneToOne: false
             referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "trending_posts"
             referencedColumns: ["id"]
           },
         ]
@@ -496,31 +543,72 @@ export type Database = {
         Row: {
           caption: string | null
           created_at: string | null
+          duration: number | null
           expires_at: string
           id: string
           image_url: string
+          media_type: string
           music_url: string | null
+          text_overlay: Json | null
           user_id: string
         }
         Insert: {
           caption?: string | null
           created_at?: string | null
+          duration?: number | null
           expires_at?: string
           id?: string
           image_url: string
+          media_type?: string
           music_url?: string | null
+          text_overlay?: Json | null
           user_id: string
         }
         Update: {
           caption?: string | null
           created_at?: string | null
+          duration?: number | null
           expires_at?: string
           id?: string
           image_url?: string
+          media_type?: string
           music_url?: string | null
+          text_overlay?: Json | null
           user_id?: string
         }
         Relationships: []
+      }
+      story_reactions: {
+        Row: {
+          created_at: string
+          emoji: string
+          id: string
+          story_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          emoji: string
+          id?: string
+          story_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          emoji?: string
+          id?: string
+          story_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_reactions_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       story_views: {
         Row: {
@@ -574,7 +662,17 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      trending_posts: {
+        Row: {
+          comment_count: number | null
+          created_at: string | null
+          id: string | null
+          like_count: number | null
+          score: number | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       create_direct_conversation: {
