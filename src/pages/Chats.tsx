@@ -414,9 +414,7 @@ const Chats = () => {
                     <GroupAdminDialog conversationId={activeConvo.id} />
                   </>
                 )}
-                <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-foreground">
-                  <MoreVertical className="w-4 h-4" />
-                </button>
+                <ChatCustomizationDialog conversationId={activeConvo.id} />
               </div>
             </div>
 
@@ -461,8 +459,8 @@ const Chats = () => {
               </div>
             )}
 
-            <div ref={messagesScrollRef} className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-1 relative">
-              <TigerChatBackground />
+            <div ref={messagesScrollRef} className={`flex-1 overflow-y-auto scrollbar-thin p-4 space-y-1 relative ${wallpaperClass(chatPrefs.wallpaper)} ${fontSizeClass(chatPrefs.font_size)}`}>
+              {(!chatPrefs.wallpaper || chatPrefs.wallpaper === "default") && <TigerChatBackground />}
               {uiMessages.map(({ ui, replyToId }) => {
                 const isMatch = matchSet.has(ui.id);
                 const isActive = ui.id === activeMatchId;
