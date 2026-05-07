@@ -15,9 +15,10 @@ interface MessageBubbleProps {
   onReply?: (message: Message) => void;
   onForward?: (message: Message) => void;
   onDelete?: (messageId: string) => void;
+  myBubbleClass?: string;
 }
 
-export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDelete }: MessageBubbleProps) => {
+export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDelete, myBubbleClass }: MessageBubbleProps) => {
   const isMe = message.senderId === "me";
   const [playing, setPlaying] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
@@ -70,7 +71,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
           "max-w-[75%] rounded-2xl text-sm leading-relaxed",
           isImage && !message.text ? "p-1" : "px-4 py-2.5",
           isMe
-            ? "bg-primary text-primary-foreground rounded-br-md"
+            ? cn(myBubbleClass || "bg-primary text-primary-foreground", "rounded-br-md")
             : "glass text-foreground rounded-bl-md"
         )}
       >

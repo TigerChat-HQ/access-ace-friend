@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useFeed } from "@/hooks/usePosts";
 import { useNotifications } from "@/hooks/useNotifications";
 import { PostCard } from "@/components/social/PostCard";
+import { TrendingRail } from "@/components/social/TrendingRail";
 import { Link } from "react-router-dom";
 import { Bell, PlusSquare, Search, Settings as SettingsIcon, Sparkles } from "lucide-react";
 import tigerLogo from "@/assets/tigerchats-logo.png";
@@ -82,6 +83,7 @@ const Feed = () => {
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-thin">
+        <TrendingRail />
         {loading ? (
           <div className="flex justify-center py-20">
             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
