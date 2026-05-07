@@ -7,11 +7,13 @@ import { useUserPosts } from "@/hooks/usePosts";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useBlocks } from "@/hooks/useBlocks";
 import { ReportDialog } from "@/components/social/ReportDialog";
+import { FollowListDialog } from "@/components/social/FollowListDialog";
 import {
   ArrowLeft, Settings, Shield, MessageCircle, Grid3x3, LogOut, Pencil, Lock,
-  MoreVertical, Flag, UserX, UserCheck,
+  MoreVertical, Flag, UserX, UserCheck, Trash2, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
