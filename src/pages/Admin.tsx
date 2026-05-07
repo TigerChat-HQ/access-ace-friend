@@ -21,6 +21,8 @@ const Admin = () => {
   const [recentPosts, setRecentPosts] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [admins, setAdmins] = useState<Set<string>>(new Set());
+  const [moderators, setModerators] = useState<Set<string>>(new Set());
+  const [advisers, setAdvisers] = useState<Set<string>>(new Set());
   const [reports, setReports] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [growth, setGrowth] = useState<{ day: string; users: number; posts: number }[]>([]);
