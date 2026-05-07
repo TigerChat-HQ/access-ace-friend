@@ -33,6 +33,8 @@ const TigerAI = () => {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackPrefill, setFeedbackPrefill] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
