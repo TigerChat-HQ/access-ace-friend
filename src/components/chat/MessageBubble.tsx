@@ -138,6 +138,8 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
           {isMe && (
             message.status === "read" ? (
               <CheckCheck className="w-3.5 h-3.5 text-neon-blue" />
+            ) : message.status === "delivered" ? (
+              <CheckCheck className="w-3.5 h-3.5 opacity-60" />
             ) : (
               <Check className="w-3.5 h-3.5 opacity-60" />
             )
