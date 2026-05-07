@@ -235,12 +235,27 @@ const Chats = () => {
         />
       )}
 
-      {callState && (
+      {webrtc.callStatus !== "idle" && webrtc.activeCall && (
         <CallDialog
-          contactName={callState.name}
-          contactAvatar={callState.avatar}
-          isVideo={callState.isVideo}
-          onEnd={() => setCallState(null)}
+          callInfo={webrtc.activeCall}
+          callStatus={webrtc.callStatus}
+          isMuted={webrtc.isMuted}
+          isVideoOn={webrtc.isVideoOn}
+          duration={webrtc.duration}
+          remoteStream={webrtc.remoteStream}
+          localVideoRef={webrtc.localVideoRef}
+          remoteVideoRef={webrtc.remoteVideoRef}
+          onAccept={() => {
+            const pending = (window as any).__pendingOffer;
+            if (pending && webrtc.activeCall) {
+              webrtc.acceptCall(webrtc.activeCall, pending);
+              delete (window as any).__pendingOffer;
+            }
+          }}
+          onReject={webrtc.rejectCall}
+          onEnd={webrtc.endCall}
+          onToggleMute={webrtc.toggleMute}
+          onToggleVideo={webrtc.toggleVideo}
         />
       )}
 
