@@ -4,8 +4,8 @@ import { ArrowLeft, Heart, MessageCircle, UserPlus, Bell } from "lucide-react";
 import { useNotificationsFeed, AppNotification } from "@/hooks/useNotificationsFeed";
 
 const iconFor = (type: AppNotification["type"]) => {
-  if (type === "like") return <Heart className="w-4 h-4 text-primary fill-primary" />;
-  if (type === "comment") return <MessageCircle className="w-4 h-4 text-primary" />;
+  if (type === "like" || type === "comment_like") return <Heart className="w-4 h-4 text-primary fill-primary" />;
+  if (type === "comment" || type === "reply") return <MessageCircle className="w-4 h-4 text-primary" />;
   if (type === "follow") return <UserPlus className="w-4 h-4 text-primary" />;
   return <Bell className="w-4 h-4 text-primary" />;
 };
@@ -14,6 +14,8 @@ const textFor = (n: AppNotification) => {
   const name = n.actor?.display_name || n.actor?.username || "Someone";
   if (n.type === "like") return `${name} liked your post`;
   if (n.type === "comment") return `${name} commented on your post`;
+  if (n.type === "reply") return `${name} replied to your comment`;
+  if (n.type === "comment_like") return `${name} liked your comment`;
   if (n.type === "follow") return `${name} started following you`;
   return `${name} mentioned you`;
 };

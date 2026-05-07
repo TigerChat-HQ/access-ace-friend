@@ -119,6 +119,10 @@ export const useNotifications = () => {
               ? `${name} commented on your post`
               : n.type === "follow"
               ? `${name} started following you`
+              : n.type === "reply"
+              ? `${name} replied to your comment`
+              : n.type === "comment_like"
+              ? `${name} liked your comment`
               : `${name} mentioned you`;
           const url = n.post_id ? `/post/${n.post_id}` : `/u/${n.actor_id}`;
           showNotification("TIGERCHATS", body, { url, tag: `social-${n.id}` });

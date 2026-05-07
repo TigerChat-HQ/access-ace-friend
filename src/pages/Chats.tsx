@@ -11,6 +11,7 @@ import { MessageInput } from "@/components/chat/MessageInput";
 import { StoryViewer } from "@/components/chat/StoryViewer";
 import { CallDialog } from "@/components/chat/CallDialog";
 import { useWebRTC } from "@/hooks/useWebRTC";
+import { useReadReceipts } from "@/hooks/useReadReceipts";
 import { TigerChatBackground } from "@/components/chat/TigerChatBackground";
 import { InviteMembersDialog } from "@/components/chat/InviteMembersDialog";
 import { ForwardDialog } from "@/components/chat/ForwardDialog";
@@ -58,6 +59,7 @@ const Chats = () => {
   const { messages } = useMessages(activeChat);
   const { typingUsers, notifyTyping } = useTypingIndicator(activeChat);
   useNotifications();
+  useReadReceipts(activeChat, !!activeChat);
 
   useEffect(() => {
     const fetchStories = async () => {
@@ -145,12 +147,18 @@ const Chats = () => {
 
   const messageMap = new Map<string, Message>();
   const uiMessages = messages.map((msg) => {
+    const anyMsg = msg as any;
+    const status: Message["status"] = anyMsg.read_at
+      ? "read"
+      : anyMsg.delivered_at
+      ? "delivered"
+      : "sent";
     const m: Message = {
       id: msg.id,
       senderId: msg.sender_id === user?.id ? "me" : msg.sender_id,
       text: msg.content || "",
       time: new Date(msg.created_at!).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      status: msg.is_read ? "read" : "delivered",
+      status,
       type: msg.message_type as Message["type"],
       mediaUrl: msg.media_url || undefined,
     };
