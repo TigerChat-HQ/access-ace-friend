@@ -41,7 +41,7 @@ const Chats = () => {
   const [search, setSearch] = useState("");
   const [stories, setStories] = useState<Story[]>([]);
   const [storyViewerIndex, setStoryViewerIndex] = useState<number | null>(null);
-  const [callState, setCallState] = useState<{ name: string; avatar: string; isVideo: boolean } | null>(null);
+  const webrtc = useWebRTC();
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [forwardMsg, setForwardMsg] = useState<{ content: string; type: string; mediaUrl?: string } | null>(null);
 
