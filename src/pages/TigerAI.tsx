@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
-import { ArrowLeft, Send, Loader2 } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Megaphone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import tigerLogo from "@/assets/tiger-reaction.png";
+import TigerFeedbackDialog from "@/components/TigerFeedbackDialog";
 
 interface Msg {
   role: "user" | "assistant";
@@ -32,6 +33,8 @@ const TigerAI = () => {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackPrefill, setFeedbackPrefill] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -122,10 +125,16 @@ const TigerAI = () => {
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </button>
         <img src={tigerLogo} alt="" className="w-9 h-9" />
-        <div>
+        <div className="flex-1">
           <h1 className="text-base font-bold text-foreground leading-tight">Tiger AI</h1>
           <p className="text-[10px] text-primary">Online · always here</p>
         </div>
+        <button
+          onClick={() => { setFeedbackPrefill(input); setFeedbackOpen(true); }}
+          className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-full bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 transition-colors"
+        >
+          <Megaphone className="w-3.5 h-3.5" /> Send to admin
+        </button>
       </header>
 
       <div className="flex-1 overflow-y-auto scrollbar-thin px-3 py-4 space-y-3">
@@ -169,8 +178,17 @@ const TigerAI = () => {
               {s}
             </button>
           ))}
+          <button
+            onClick={() => { setFeedbackPrefill(""); setFeedbackOpen(true); }}
+            className="text-[11px] px-3 py-1.5 rounded-full bg-primary/15 border border-primary/30 text-primary hover:bg-primary/25 transition-colors flex items-center gap-1"
+          >
+            <Megaphone className="w-3 h-3" /> Send feedback to admin
+          </button>
         </div>
       )}
+
+      <TigerFeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} initialText={feedbackPrefill} />
+
 
       <div className="p-3 border-t border-border/50 glass">
         <div className="flex items-center gap-2">
