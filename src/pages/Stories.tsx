@@ -47,6 +47,9 @@ const Stories = () => {
     imageUrl: s.image_url,
     caption: s.caption || undefined,
     musicUrl: (s as any).music_url || undefined,
+    mediaType: ((s as any).media_type || "image") as "image" | "video",
+    textOverlay: (s as any).text_overlay || null,
+    duration: (s as any).duration || null,
   }));
 
   return (
