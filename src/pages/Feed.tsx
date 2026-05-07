@@ -3,7 +3,7 @@ import { useFeed } from "@/hooks/usePosts";
 import { useNotifications } from "@/hooks/useNotifications";
 import { PostCard } from "@/components/social/PostCard";
 import { Link } from "react-router-dom";
-import { MessageCircle, Sparkles } from "lucide-react";
+import { Bell, PlusSquare, Search, Settings as SettingsIcon, Sparkles } from "lucide-react";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 import { supabase } from "@/integrations/supabase/client";
 
