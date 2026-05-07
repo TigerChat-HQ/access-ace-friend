@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import type { Json } from "@/integrations/supabase/types";
+
 
 type SignalInsert = {
   caller_id: string;
