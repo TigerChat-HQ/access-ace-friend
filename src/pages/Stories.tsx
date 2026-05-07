@@ -98,13 +98,20 @@ const Stories = () => {
                   className="relative aspect-[3/5] rounded-xl overflow-hidden bg-surface group"
                 >
                   {isVideo ? (
-                    <video
-                      src={s.image_url}
-                      muted
-                      playsInline
-                      preload="metadata"
-                      className="w-full h-full object-cover"
-                    />
+                    <>
+                      <video
+                        src={`${s.image_url}#t=0.1`}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-10 h-10 rounded-full bg-black/50 backdrop-blur flex items-center justify-center">
+                          <div className="w-0 h-0 border-l-[10px] border-l-white border-y-[6px] border-y-transparent ml-0.5" />
+                        </div>
+                      </div>
+                    </>
                   ) : (
                     <img
                       src={s.image_url}
