@@ -315,6 +315,55 @@ const Profile = () => {
               </>
             )}
           </div>
+
+          {isMe && (
+            <div className="border border-border/50 rounded-xl overflow-hidden">
+              <button
+                onClick={() => setAccountOpen((o) => !o)}
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface-hover"
+              >
+                <span className="text-sm font-semibold text-foreground">Account</span>
+                {accountOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+              </button>
+              {accountOpen && (
+                <div className="px-4 py-3 space-y-3 border-t border-border/50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-foreground">Private account</p>
+                      <p className="text-[11px] text-muted-foreground">Only followers can see your posts</p>
+                    </div>
+                    <Switch checked={!!profile.is_private} onCheckedChange={togglePrivate} />
+                  </div>
+                  <button
+                    onClick={() => navigate("/settings")}
+                    className="w-full text-left text-sm text-foreground py-2 hover:text-primary"
+                  >
+                    Settings & password
+                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => navigate("/admin")}
+                      className="w-full text-left text-sm text-primary py-2 flex items-center gap-2"
+                    >
+                      <Shield className="w-4 h-4" /> Admin panel
+                    </button>
+                  )}
+                  <button
+                    onClick={signOut}
+                    className="w-full text-left text-sm text-foreground py-2 flex items-center gap-2 hover:text-primary"
+                  >
+                    <LogOut className="w-4 h-4" /> Sign out
+                  </button>
+                  <button
+                    onClick={handleDeleteAccount}
+                    className="w-full text-left text-sm text-destructive py-2 flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" /> Delete account
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="border-t border-border/50">
