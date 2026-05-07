@@ -16,6 +16,8 @@ import { TigerChatBackground } from "@/components/chat/TigerChatBackground";
 import { InviteMembersDialog } from "@/components/chat/InviteMembersDialog";
 import { ForwardDialog } from "@/components/chat/ForwardDialog";
 import { GroupAdminDialog } from "@/components/chat/GroupAdminDialog";
+import { ChatCustomizationDialog, wallpaperClass, bubbleColorClass, fontSizeClass } from "@/components/chat/ChatCustomizationDialog";
+import { useChatPreferences } from "@/hooks/useChatPreferences";
 import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
 import { StoryUploadDialog } from "@/components/chat/StoryUploadDialog";
@@ -60,6 +62,7 @@ const Chats = () => {
   const { typingUsers, notifyTyping } = useTypingIndicator(activeChat);
   useNotifications();
   useReadReceipts(activeChat, !!activeChat);
+  const { prefs: chatPrefs } = useChatPreferences(activeChat);
 
   useEffect(() => {
     const fetchStories = async () => {
