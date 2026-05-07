@@ -209,9 +209,15 @@ const Chats = () => {
   const isGroup = activeConvo?.type === "group";
   const isTyping = typingUsers.length > 0;
 
-  const startCall = (isVideo: boolean) => {
-    if (!activeConvo) return;
-    setCallState({ name: activeConvoName, avatar: activeConvoAvatar, isVideo });
+  const handleStartCall = (isVideo: boolean) => {
+    if (!activeConvo || !activeConvo.otherProfile?.user_id) return;
+    webrtc.startCall(
+      activeConvo.otherProfile.user_id,
+      activeConvo.id,
+      isVideo ? "video" : "voice",
+      activeConvoName,
+      activeConvoAvatar,
+    );
   };
 
   const showSidebar = !activeChat;
