@@ -89,25 +89,43 @@ const Stories = () => {
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-2">
-            {stories.map((s, i) => (
-              <button
-                key={s.id}
-                onClick={() => setViewer(i)}
-                className="relative aspect-[3/5] rounded-xl overflow-hidden bg-surface group"
-              >
-                <img
-                  src={s.image_url}
-                  alt=""
-                  loading="lazy"
-                  className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                />
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2">
-                  <p className="text-[11px] text-white font-medium truncate">
-                    {s.profile?.display_name || "User"}
-                  </p>
-                </div>
-              </button>
-            ))}
+            {stories.map((s, i) => {
+              const isVideo = (s as any).media_type === "video";
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setViewer(i)}
+                  className="relative aspect-[3/5] rounded-xl overflow-hidden bg-surface group"
+                >
+                  {isVideo ? (
+                    <video
+                      src={s.image_url}
+                      muted
+                      playsInline
+                      preload="metadata"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <img
+                      src={s.image_url}
+                      alt=""
+                      loading="lazy"
+                      className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                    />
+                  )}
+                  {isVideo && (
+                    <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">
+                      VIDEO
+                    </div>
+                  )}
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                    <p className="text-[11px] text-white font-medium truncate">
+                      {s.profile?.display_name || "User"}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
