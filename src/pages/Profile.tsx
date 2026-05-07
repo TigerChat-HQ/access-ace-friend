@@ -247,14 +247,14 @@ const Profile = () => {
                 <p className="text-base font-bold text-foreground">{posts.length}</p>
                 <p className="text-[11px] text-muted-foreground">Posts</p>
               </div>
-              <div>
+              <button onClick={() => setFollowList("followers")} className="text-center hover:opacity-70">
                 <p className="text-base font-bold text-foreground">{followerCount}</p>
                 <p className="text-[11px] text-muted-foreground">Followers</p>
-              </div>
-              <div>
+              </button>
+              <button onClick={() => setFollowList("following")} className="text-center hover:opacity-70">
                 <p className="text-base font-bold text-foreground">{followingCount}</p>
                 <p className="text-[11px] text-muted-foreground">Following</p>
-              </div>
+              </button>
             </div>
           </div>
 
