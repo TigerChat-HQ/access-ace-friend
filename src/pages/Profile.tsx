@@ -24,9 +24,8 @@ type Profile = Tables<"profiles"> & { is_private?: boolean };
 
 const Profile = () => {
   const params = useParams<{ userId: string }>();
-  const { user: authUser } = useAuth();
-  const userId = params.userId || authUser?.id;
   const { user, signOut } = useAuth();
+  const userId = params.userId || user?.id;
   const { isAdmin } = useUserRole();
   const { isBlocked, block, unblock } = useBlocks();
   const navigate = useNavigate();
