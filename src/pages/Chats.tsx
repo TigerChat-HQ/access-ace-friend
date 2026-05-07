@@ -387,10 +387,10 @@ const Chats = () => {
                 >
                   <Search className="w-4 h-4" />
                 </button>
-                <button onClick={() => startCall(false)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary">
+                <button onClick={() => handleStartCall(false)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary">
                   <Phone className="w-4 h-4" />
                 </button>
-                <button onClick={() => startCall(true)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary">
+                <button onClick={() => handleStartCall(true)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary">
                   <Video className="w-4 h-4" />
                 </button>
                 {isGroup && (
