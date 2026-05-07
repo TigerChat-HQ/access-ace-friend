@@ -1,93 +1,97 @@
-## TigerChat — Phase 9 finish + Social/Admin upgrades
+## TigerChats — Major Feature Expansion
 
-### 1. Phase 9 — Screenshot protection wiring
-- Add `no-select` and `privacy-blur` CSS utilities to `src/index.css` (user-select:none on `.no-select *`, blur(20px) on `.privacy-blur`).
-- Call `useScreenshotProtection(true)` in `Chats.tsx` (when a chat is open) and `StoryViewer.tsx` (when mounted).
-- Add a small "Screen privacy on" hint below the StoryViewer header so users know the limitation.
+This is a large, multi-system request. I'll group it into phases so we ship working pieces and avoid breaking existing flows. Some items (true peer-to-peer voice/video, native screenshot blocking, real biometric fingerprint) have hard browser limits — I'll explain what's actually achievable on the web.
 
-### 2. Story reactions — real-time + persisted
-- StoryViewer already inserts into `story_reactions`. Add:
-  - Real-time subscription to `story_reactions` for the current `story.id` so reactions from other viewers float up as animated emojis on the owner's screen.
-  - Owner-side reaction count badge (e.g. ❤️ 12) using a fast aggregate query on viewer open.
-- Show a small picker chip with current count for each emoji.
+---
 
-### 3. Stories grid — reliable video thumbnails
-- Stories grid in `Stories.tsx` already detects `media_type === 'video'`. Improve by:
-  - Adding `#t=0.1` fragment to `video.src` so first frame renders on iOS/Safari.
-  - Showing a play-icon overlay on video tiles.
-- StoryViewer already routes by `mediaType`; verify and keep.
+### Phase A — Security & Privacy
 
-### 4. Persist & load chat customization
-- `useChatPreferences` already exposes `prefs`. Wire it in `Chats.tsx`:
-  - Apply `wallpaperClass(prefs?.wallpaper)` as a CSS class on the messages scroll container.
-  - Apply `fontSizeClass(prefs?.font_size)` on the messages list.
-  - Pass `bubbleColorClass(prefs?.bubble_color)` to each `MessageBubble` via `myBubbleClass`.
-- Ensure `ChatCustomizationDialog` upserts changes (already supported by hook) and the UI updates without refresh.
+**1. Fingerprint / biometric lock**
 
-### 5. Easier group creation
-- Replace checkbox list in `NewGroupDialog` with:
-  - Search bar that filters profiles by name/username.
-  - Avatar grid with quick tap-to-add chips at the top showing selected members.
-  - Optional "Skip name" → auto-name from first 3 member names.
-  - Friendly empty state with link to Search if no users yet.
-- Make the trigger button bigger and labeled "New group" on the Groups page header so it is more discoverable.
+- Web cannot read a real fingerprint, but it CAN use **WebAuthn / passkeys** (Touch ID, Windows Hello, Android fingerprint) as a second factor / app lock.
+- Add a "Require biometric to open app" toggle in Settings → registers a passkey via `navigator.credentials.create()`, then requires `navigator.credentials.get()` on app launch.
+- Store credential ID on `profiles` (new column `passkey_credential_id`).
 
-### 6. Follow / followed-by — already in place, polish
-- Profile page already shows Follow button + counts. Add:
-  - Tappable Followers/Following counts → open a list dialog (`FollowListDialog`) showing users with Follow-back buttons.
-  - On `Notifications.tsx`, ensure follow notifications link to the actor's profile (already via useNotifications, just verify).
+**3. Screenshot prevention**
 
-### 7. Account administration in Profile
-- In Profile (own profile) add a collapsible "Account" section with:
-  - Toggle "Private account" (writes `profiles.is_private`).
-  - "Change password" → `/settings` deep link.
-  - "Sign out" (already present, move into this section).
-  - "Delete account data" — calls a new edge function `delete-account` that removes the user's posts, comments, conversations they own, and finally `auth.admin.deleteUser`.
-- Admin shortcut button (Shield icon) is already present for admins; keep.
+- True blocking is impossible in a browser. We already blur on blur/visibility change.
+- Strengthen: also blur on `Print Screen` keypress, disable drag/save on images, watermark sensitive views with the viewer's `@username` so leaked screenshots are traceable.
 
-### 8. Admin panel additions
-- Extend `Admin.tsx`:
-  - Promote/demote users to/from `admin` role via `user_roles` (insert/delete).
-  - View & resolve `reports` (set status='resolved').
-  - Quick search users by username.
-- Already gated by `useUserRole().isAdmin` — keep.
+---
 
-### 9. Sign-up without admin approval (already true)
-- Confirmed: `handle_new_user` trigger creates a profile on signup; no approval step exists. No changes needed unless the user wants email verification disabled — leaving default (recommended).
+### Phase B — Stories and post: Music & Tiger Reactions
 
-### 10. Security linter pass
-- Run linter after migrations. Expected items to address:
-  - Confirm RLS enabled on `chat_preferences`, `story_reactions` (both already have policies — verify).
-  - Storage policies on `stories` and `chat-media` buckets: ensure `INSERT` policy requires `auth.uid()::text = (storage.foldername(name))[1]` so users can only write under their own folder.
+**2. Royalty-free background music**
 
-### Technical details (for engineers)
+- Add a **music picker** in `StoryUploadDialog` backed by a curated list of free tracks (Pixabay Music / Free Music Archive — public CDN URLs, no key needed).
+- Built-in **trim slider** (start/end seconds, max 15s) using a lightweight `<audio>` + range UI; store `music_url`, `music_start`, `music_end` on `stories and posts`.
+- Playback in `StoryViewer and post` respects the trim window.
 
-**New files:**
-- `src/components/social/FollowListDialog.tsx` — followers/following modal.
-- `supabase/functions/delete-account/index.ts` — secure account deletion via service role.
+**4. Tiger image & pop-up tiger reactions in stories and post**
 
-**Edited files:**
-- `src/index.css` — add `.no-select` & `.privacy-blur` utilities.
-- `src/components/chat/StoryViewer.tsx` — protection hook, realtime reactions, owner badges.
-- `src/pages/Stories.tsx` — video thumbnail polish (play icon, `#t=0.1`).
-- `src/pages/Chats.tsx` — protection hook, apply chat prefs to bubbles/wallpaper/font.
-- `src/components/chat/NewGroupDialog.tsx` — searchable, chip-based UX.
-- `src/pages/Profile.tsx` — Account section with private toggle + delete; tap counts.
-- `src/pages/Admin.tsx` — role management + reports table + user search.
+- Add a 🐯 quick-reaction button alongside the existing emoji picker.
+- When tapped, a large animated tiger PNG (generated asset) flies up across the viewer with a roar SFX, then is persisted to `story_reactions` so the owner sees who sent tigers.
+- Same tiger animation triggers in chat when someone sends `🐯` or taps a new "Send Tiger" button in `MessageInput`.
 
-**DB migrations:**
-- Storage policies for `stories` and `chat-media` (idempotent CREATE POLICY IF NOT EXISTS).
-- No table schema changes required — all needed tables already exist.
+---
 
-**Realtime:**
-- `ALTER PUBLICATION supabase_realtime ADD TABLE public.story_reactions;` (if not already added).
+### Phase C — Real Voice / Video Calls
 
-### Deliverable order
-1. CSS + Phase 9 wiring (Chats + StoryViewer).
-2. Chat prefs application in Chats.
-3. Story reactions realtime + grid polish.
-4. NewGroupDialog UX overhaul.
-5. Profile account section + FollowListDialog.
-6. Admin extensions.
-7. `delete-account` edge function.
-8. Storage RLS migration + linter check.
+**6. Make calls actually connect**
+
+- We already have `useWebRTC` + `call_signals` table. Audit the signaling flow end-to-end:
+  - Verify offer/answer/ICE exchange writes to `call_signals` with the right `signal_type`.
+  - Add Realtime subscription so callee receives "incoming" within 1s.
+  - Add Google STUN server (`stun:stun.l.google.com:19302`) so calls work across NATs.
+  - Wire `CallDialog` accept/reject to actually create the peer connection and attach media.
+- Result: real 1-to-1 voice & video over WebRTC between two logged-in users on the same network or via STUN.
+- Note: full TURN relay (for strict NATs / cellular) needs a paid TURN server — not included.
+
+---
+
+### Phase D — Admin Power-Ups
+
+**5. Roles, super-group governance, more admin tools**
+
+- Extend `app_role` enum with `moderator` and `adviser`.
+- New tab in Admin panel: **Role Management** — main admin can promote/demote any user to admin / moderator / adviser; moderators can resolve reports & delete posts but can't change roles; advisers are read-only.
+- Admin Super Group: only main admin can add new admins/moderators/advisers to it; show role badges next to each member.
+- New admin widgets: top hashtags, top posters, retention (DAU/WAU), report queue with bulk resolve.
+
+---
+
+### Phase E — Tiger AI Assistant + Trending Polish
+
+**7. Tiger AI Assistant**
+
+- New page `/tiger-ai` (and a floating 🐯 button on Notifications/Help) — chat UI backed by an edge function `tiger-ai` that calls Lovable AI Gateway (`google/gemini-3-flash-preview`) with a TigerChats system prompt.
+- When a user files a **report**, the AI auto-posts a first-response message ("Hi, I'm Tigerchat AI — here's what I found…") while the human admin reviews. Admin can override.
+
+**Trending smoothness**
+
+- Add swipe left or right to replay a message and swipe-to-refresh on Feed.
+- Skeleton loaders on Stories/Feed/Chats lists.
+- Cache the trending rail in `sessionStorage` for instant revisit.
+- Add gentle spring animations to story thumbnails and post likes (framer-motion).
+
+---
+
+### Suggested Order
+
+I recommend shipping in this order so each phase is independently usable:
+
+1. **Phase C** (calls actually work) — highest user impact
+2. **Phase B** (story music + tiger reactions) — big delight
+3. **Phase D** (admin roles & super-group governance)
+4. **Phase E** (Tiger AI + smoothness)
+5. **Phase A** (passkey lock + screenshot hardening)
+
+---
+
+### Questions before I start
+
+- **Tiger AI scope**: should it be a general help chatbot, OR specifically the "first responder" on user reports / DMs to admin? (I'll do both unless you say otherwise.)
+- **Music library**: OK to ship ~20 curated Pixabay tracks hard-coded, or do you want an admin UI to manage the track list later?
+- **Calls**: OK to ship with public Google STUN only (works for ~80% of users), and add a paid TURN server later?
+
+Reply with answers (or just say "go") and I'll start with Phase C.

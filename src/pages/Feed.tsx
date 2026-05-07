@@ -6,6 +6,7 @@ import { TrendingRail } from "@/components/social/TrendingRail";
 import { Link } from "react-router-dom";
 import { Bell, PlusSquare, Search, Settings as SettingsIcon, Sparkles } from "lucide-react";
 import tigerLogo from "@/assets/tigerchats-logo.png";
+import tigerAI from "@/assets/tiger-reaction.png";
 import { supabase } from "@/integrations/supabase/client";
 
 const Feed = () => {
@@ -108,6 +109,16 @@ const Feed = () => {
           display.map((p) => <PostCard key={p.id} post={p} onChanged={refetch} />)
         )}
       </div>
+
+      {/* Floating Tiger AI button */}
+      <Link
+        to="/tiger-ai"
+        className="fixed bottom-20 right-4 z-20 w-14 h-14 rounded-full bg-gradient-to-br from-primary to-accent shadow-lg shadow-primary/40 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
+        aria-label="Tiger AI"
+      >
+        <img src={tigerAI} alt="" className="w-10 h-10" />
+        <span className="absolute inset-0 rounded-full animate-pulse-ring border-2 border-primary" />
+      </Link>
     </div>
   );
 };
