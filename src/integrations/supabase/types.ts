@@ -79,6 +79,35 @@ export type Database = {
           },
         ]
       }
+      comment_likes: {
+        Row: {
+          comment_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          comment_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          comment_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comment_likes_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "post_comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_members: {
         Row: {
           conversation_id: string
@@ -114,6 +143,7 @@ export type Database = {
           created_at: string | null
           id: string
           name: string | null
+          requires_approval: boolean
           type: string
           updated_at: string | null
         }
@@ -122,6 +152,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           name?: string | null
+          requires_approval?: boolean
           type?: string
           updated_at?: string | null
         }
@@ -130,6 +161,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           name?: string | null
+          requires_approval?: boolean
           type?: string
           updated_at?: string | null
         }
@@ -177,15 +209,41 @@ export type Database = {
         }
         Relationships: []
       }
+      group_join_requests: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           content: string | null
           conversation_id: string
           created_at: string | null
+          delivered_at: string | null
           id: string
           is_read: boolean | null
           media_url: string | null
           message_type: string
+          read_at: string | null
           reply_to_id: string | null
           sender_id: string
         }
@@ -193,10 +251,12 @@ export type Database = {
           content?: string | null
           conversation_id: string
           created_at?: string | null
+          delivered_at?: string | null
           id?: string
           is_read?: boolean | null
           media_url?: string | null
           message_type?: string
+          read_at?: string | null
           reply_to_id?: string | null
           sender_id: string
         }
@@ -204,10 +264,12 @@ export type Database = {
           content?: string | null
           conversation_id?: string
           created_at?: string | null
+          delivered_at?: string | null
           id?: string
           is_read?: boolean | null
           media_url?: string | null
           message_type?: string
+          read_at?: string | null
           reply_to_id?: string | null
           sender_id?: string
         }
@@ -259,6 +321,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          parent_id: string | null
           post_id: string
           user_id: string
         }
@@ -266,6 +329,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          parent_id?: string | null
           post_id: string
           user_id: string
         }
@@ -273,10 +337,18 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          parent_id?: string | null
           post_id?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "post_comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "post_comments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "post_comments_post_id_fkey"
             columns: ["post_id"]
