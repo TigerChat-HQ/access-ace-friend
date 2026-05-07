@@ -399,6 +399,14 @@ const Profile = () => {
       {reportOpen && userId && (
         <ReportDialog open={reportOpen} onOpenChange={setReportOpen} targetType="user" targetId={userId} />
       )}
+      {followList && userId && (
+        <FollowListDialog
+          open={!!followList}
+          onOpenChange={(o) => !o && setFollowList(null)}
+          userId={userId}
+          mode={followList}
+        />
+      )}
     </div>
   );
 };
