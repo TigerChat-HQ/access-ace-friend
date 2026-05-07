@@ -72,7 +72,7 @@ export const useWebRTC = () => {
     // Send ICE candidates via Supabase
     pc.onicecandidate = async (event) => {
       if (event.candidate && callInfo.callId) {
-        await supabase.from("call_signals").insert({
+        await insertSignal({
           caller_id: callInfo.callerId,
           callee_id: callInfo.calleeId,
           conversation_id: callInfo.conversationId,
@@ -150,7 +150,7 @@ export const useWebRTC = () => {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      await supabase.from("call_signals").insert({
+      await insertSignal({
         caller_id: user.id,
         callee_id: calleeId,
         conversation_id: conversationId,
@@ -196,7 +196,7 @@ export const useWebRTC = () => {
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
-      await supabase.from("call_signals").insert({
+      await insertSignal({
         caller_id: callInfo.callerId,
         callee_id: callInfo.calleeId,
         conversation_id: callInfo.conversationId,
@@ -216,7 +216,7 @@ export const useWebRTC = () => {
   // Reject an incoming call
   const rejectCall = useCallback(async () => {
     if (!activeCall || !user) return;
-    await supabase.from("call_signals").insert({
+    await insertSignal({
       caller_id: activeCall.callerId,
       callee_id: activeCall.calleeId,
       conversation_id: activeCall.conversationId,
@@ -233,7 +233,7 @@ export const useWebRTC = () => {
   // End an active call
   const endCall = useCallback(async () => {
     if (!activeCall || !user) return;
-    await supabase.from("call_signals").insert({
+    await insertSignal({
       caller_id: activeCall.callerId,
       callee_id: activeCall.calleeId,
       conversation_id: activeCall.conversationId,
