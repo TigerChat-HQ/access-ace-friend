@@ -147,11 +147,82 @@ const Admin = () => {
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        <Button
+          onClick={openSuperGroup}
+          disabled={creating}
+          className="w-full bg-gradient-to-r from-primary to-purple-500 text-primary-foreground"
+        >
+          <Crown className="w-4 h-4 mr-2" />
+          {creating ? "Opening..." : "Open Admin Super Group"}
+        </Button>
+
         <div className="grid grid-cols-3 gap-2">
           <Stat icon={Users} label="Users" value={stats.users} />
           <Stat icon={FileText} label="Posts" value={stats.posts} />
           <Stat icon={MessageSquare} label="Comments" value={stats.comments} />
+          <Stat icon={Heart} label="Likes" value={stats.likes} />
+          <Stat icon={Eye} label="Stories" value={stats.stories} />
+          <Stat icon={MessageSquare} label="Messages" value={stats.messages} />
         </div>
+
+        <section>
+          <h2 className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-2 flex items-center gap-2">
+            <TrendingUp className="w-3.5 h-3.5" /> Growth — last 14 days
+          </h2>
+          <div className="bg-card border border-border/50 rounded-xl p-3 h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={growth}>
+                <defs>
+                  <linearGradient id="gUsers" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.6} />
+                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gPosts" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(280 90% 65%)" stopOpacity={0.6} />
+                    <stop offset="100%" stopColor="hsl(280 90% 65%)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} allowDecimals={false} />
+                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
+                <Area type="monotone" dataKey="users" stroke="hsl(var(--primary))" fill="url(#gUsers)" />
+                <Area type="monotone" dataKey="posts" stroke="hsl(280 90% 65%)" fill="url(#gPosts)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+
+        <section>
+          <h2 className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-2">
+            Engagement breakdown
+          </h2>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-card border border-border/50 rounded-xl p-3 h-44">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={engagement}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={9} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={9} />
+                  <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
+                  <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="bg-card border border-border/50 rounded-xl p-3 h-44">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={engagement} dataKey="value" nameKey="name" innerRadius={28} outerRadius={55} paddingAngle={2}>
+                    {engagement.map((_, i) => (
+                      <Cell key={i} fill={["hsl(var(--primary))", "hsl(280 90% 65%)", "hsl(200 90% 60%)", "hsl(40 90% 60%)"][i % 4]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </section>
 
         <section>
           <h2 className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-2 flex items-center gap-2">
