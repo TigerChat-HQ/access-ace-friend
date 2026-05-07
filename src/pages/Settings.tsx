@@ -186,6 +186,15 @@ const Settings = () => {
             />
             <SettingToggle label={t("readReceipts")} description={t("readReceiptsDesc")} value={readReceipts} onChange={setReadReceipts} />
             <SettingToggle label={t("lastSeen")} description={t("lastSeenDesc")} value={lastSeen} onChange={setLastSeen} />
+            {isWebAuthnSupported() && (
+              <SettingToggle
+                label="Biometric app lock"
+                description="Require fingerprint / Face ID to open TIGERCHATS"
+                value={appLock.enabled}
+                onChange={toggleAppLock}
+                icon={<Fingerprint className="w-5 h-5" />}
+              />
+            )}
             <div className="pt-4 border-t border-border/50">
               <button className="flex items-center gap-3 w-full py-3 text-left">
                 <Lock className="w-5 h-5 text-muted-foreground" />
