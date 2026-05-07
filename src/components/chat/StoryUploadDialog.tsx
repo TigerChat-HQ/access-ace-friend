@@ -1,11 +1,12 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Camera, Music, X, Upload, Type } from "lucide-react";
+import { Camera, X, Upload, Type } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { MusicPicker } from "./MusicPicker";
 
 interface StoryUploadDialogProps {
   onUploaded: () => void;
@@ -19,7 +20,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
   const [open, setOpen] = useState(false);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaType, setMediaType] = useState<"image" | "video">("image");
-  const [musicFile, setMusicFile] = useState<File | null>(null);
+  const [music, setMusic] = useState<{ url: string; title: string; start: number; end: number } | null>(null);
   const [caption, setCaption] = useState("");
   const [textOverlay, setTextOverlay] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
@@ -70,21 +71,11 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
     }
     const { data: { publicUrl: mediaUrl } } = supabase.storage.from("stories").getPublicUrl(path);
 
-    let musicUrl: string | null = null;
-    if (musicFile) {
-      const mp = `${user.id}/${Date.now()}_music.${musicFile.name.split(".").pop()}`;
-      const { error: mErr } = await supabase.storage.from("stories").upload(mp, musicFile);
-      if (!mErr) {
-        const { data: { publicUrl } } = supabase.storage.from("stories").getPublicUrl(mp);
-        musicUrl = publicUrl;
-      }
-    }
-
     await supabase.from("stories").insert({
       user_id: user.id,
       image_url: mediaUrl,
       caption: caption || null,
-      music_url: musicUrl,
+      music_url: music?.url || null,
       media_type: mediaType,
       duration: duration,
       text_overlay: textOverlay ? { text: textOverlay } : null,
@@ -93,7 +84,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
     toast({ title: "Story posted! 📸" });
     setOpen(false);
     setMediaFile(null);
-    setMusicFile(null);
+    setMusic(null);
     setCaption("");
     setTextOverlay("");
     setPreview(null);
@@ -160,25 +151,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
             />
           </div>
 
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 px-3 py-2 bg-surface rounded-lg cursor-pointer hover:bg-surface-hover transition-colors flex-1">
-              <Music className="w-4 h-4 text-primary" />
-              <span className="text-sm text-foreground truncate">
-                {musicFile ? musicFile.name : "Add background music"}
-              </span>
-              <input
-                type="file"
-                accept="audio/*"
-                onChange={(e) => setMusicFile(e.target.files?.[0] || null)}
-                className="hidden"
-              />
-            </label>
-            {musicFile && (
-              <button onClick={() => setMusicFile(null)} className="p-1 text-muted-foreground hover:text-destructive">
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
+          <MusicPicker value={music} onChange={setMusic} maxClip={15} />
 
           <Button onClick={handleUpload} disabled={loading || !mediaFile} className="w-full neon-glow">
             {loading ? "Posting..." : "Post Story"}
