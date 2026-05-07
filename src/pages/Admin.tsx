@@ -2,9 +2,16 @@ import { useEffect, useState } from "react";
 import { Navigate, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
-import { ArrowLeft, Trash2, Users, FileText, MessageSquare, Search, Shield, ShieldOff, Flag } from "lucide-react";
+import {
+  ArrowLeft, Trash2, Users, FileText, MessageSquare, Search, Shield, ShieldOff, Flag,
+  TrendingUp, Heart, Eye, Crown,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+} from "recharts";
 
 const Admin = () => {
   const { isAdmin, loading } = useUserRole();
