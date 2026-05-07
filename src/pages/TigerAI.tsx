@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
-import { ArrowLeft, Send, Loader2 } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Megaphone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import tigerLogo from "@/assets/tiger-reaction.png";
+import TigerFeedbackDialog from "@/components/TigerFeedbackDialog";
 
 interface Msg {
   role: "user" | "assistant";
