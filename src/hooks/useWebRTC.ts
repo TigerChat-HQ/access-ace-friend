@@ -9,7 +9,7 @@ type SignalInsert = {
   conversation_id?: string;
   call_type: string;
   signal_type: string;
-  signal_data?: Json;
+  signal_data?: any;
   status?: string;
 };
 
