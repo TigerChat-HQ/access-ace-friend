@@ -23,7 +23,9 @@ import { useToast } from "@/hooks/use-toast";
 type Profile = Tables<"profiles"> & { is_private?: boolean };
 
 const Profile = () => {
-  const { userId } = useParams<{ userId: string }>();
+  const params = useParams<{ userId: string }>();
+  const { user: authUser } = useAuth();
+  const userId = params.userId || authUser?.id;
   const { user, signOut } = useAuth();
   const { isAdmin } = useUserRole();
   const { isBlocked, block, unblock } = useBlocks();
