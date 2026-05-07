@@ -10,6 +10,7 @@ import { MessageBubble } from "@/components/chat/MessageBubble";
 import { MessageInput } from "@/components/chat/MessageInput";
 import { StoryViewer } from "@/components/chat/StoryViewer";
 import { CallDialog } from "@/components/chat/CallDialog";
+import { useWebRTC } from "@/hooks/useWebRTC";
 import { TigerChatBackground } from "@/components/chat/TigerChatBackground";
 import { InviteMembersDialog } from "@/components/chat/InviteMembersDialog";
 import { ForwardDialog } from "@/components/chat/ForwardDialog";
@@ -40,7 +41,7 @@ const Chats = () => {
   const [search, setSearch] = useState("");
   const [stories, setStories] = useState<Story[]>([]);
   const [storyViewerIndex, setStoryViewerIndex] = useState<number | null>(null);
-  const [callState, setCallState] = useState<{ name: string; avatar: string; isVideo: boolean } | null>(null);
+  const webrtc = useWebRTC();
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [forwardMsg, setForwardMsg] = useState<{ content: string; type: string; mediaUrl?: string } | null>(null);
 
@@ -208,9 +209,15 @@ const Chats = () => {
   const isGroup = activeConvo?.type === "group";
   const isTyping = typingUsers.length > 0;
 
-  const startCall = (isVideo: boolean) => {
-    if (!activeConvo) return;
-    setCallState({ name: activeConvoName, avatar: activeConvoAvatar, isVideo });
+  const handleStartCall = (isVideo: boolean) => {
+    if (!activeConvo || !activeConvo.otherProfile?.user_id) return;
+    webrtc.startCall(
+      activeConvo.otherProfile.user_id,
+      activeConvo.id,
+      isVideo ? "video" : "voice",
+      activeConvoName,
+      activeConvoAvatar,
+    );
   };
 
   const showSidebar = !activeChat;
@@ -228,12 +235,27 @@ const Chats = () => {
         />
       )}
 
-      {callState && (
+      {webrtc.callStatus !== "idle" && webrtc.activeCall && (
         <CallDialog
-          contactName={callState.name}
-          contactAvatar={callState.avatar}
-          isVideo={callState.isVideo}
-          onEnd={() => setCallState(null)}
+          callInfo={webrtc.activeCall}
+          callStatus={webrtc.callStatus}
+          isMuted={webrtc.isMuted}
+          isVideoOn={webrtc.isVideoOn}
+          duration={webrtc.duration}
+          remoteStream={webrtc.remoteStream}
+          localVideoRef={webrtc.localVideoRef}
+          remoteVideoRef={webrtc.remoteVideoRef}
+          onAccept={() => {
+            const pending = (window as any).__pendingOffer;
+            if (pending && webrtc.activeCall) {
+              webrtc.acceptCall(webrtc.activeCall, pending);
+              delete (window as any).__pendingOffer;
+            }
+          }}
+          onReject={webrtc.rejectCall}
+          onEnd={webrtc.endCall}
+          onToggleMute={webrtc.toggleMute}
+          onToggleVideo={webrtc.toggleVideo}
         />
       )}
 
@@ -365,10 +387,10 @@ const Chats = () => {
                 >
                   <Search className="w-4 h-4" />
                 </button>
-                <button onClick={() => startCall(false)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary">
+                <button onClick={() => handleStartCall(false)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary">
                   <Phone className="w-4 h-4" />
                 </button>
-                <button onClick={() => startCall(true)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary">
+                <button onClick={() => handleStartCall(true)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary">
                   <Video className="w-4 h-4" />
                 </button>
                 {isGroup && (
