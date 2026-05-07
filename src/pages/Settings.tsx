@@ -10,9 +10,10 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Camera, User, Bell, Shield, Palette, LogOut,
-  ChevronRight, Moon, Sun, Globe, Lock,
+  ChevronRight, Moon, Sun, Globe, Lock, Fingerprint,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAppLock, isWebAuthnSupported } from "@/hooks/useAppLock";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 
 const SettingToggle = ({
@@ -49,6 +50,21 @@ const Settings = () => {
   const [readReceipts, setReadReceipts] = useState(true);
   const [lastSeen, setLastSeen] = useState(true);
   const [isPrivate, setIsPrivate] = useState(false);
+  const appLock = useAppLock();
+
+  const toggleAppLock = async (v: boolean) => {
+    try {
+      if (v) {
+        const ok = await appLock.enable();
+        if (ok) toast({ title: "App lock enabled" });
+      } else {
+        appLock.disable();
+        toast({ title: "App lock disabled" });
+      }
+    } catch (e: any) {
+      toast({ title: "Failed", description: e?.message || "Could not enable", variant: "destructive" });
+    }
+  };
 
   useEffect(() => {
     if (user) loadProfile();
