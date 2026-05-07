@@ -32,9 +32,28 @@ const Groups = () => {
           <div className="text-center py-20 px-6">
             <Users className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
             <p className="text-foreground font-semibold">No groups yet</p>
-            <p className="text-sm text-muted-foreground mt-1">Create a group to chat with multiple friends.</p>
+            <p className="text-sm text-muted-foreground mt-1 mb-4">Create a group to chat with multiple friends.</p>
+            <NewGroupDialog
+              onCreated={() => refetch()}
+              trigger={
+                <button className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-full text-sm font-semibold neon-glow">
+                  <Plus className="w-4 h-4" /> New group
+                </button>
+              }
+            />
           </div>
         ) : (
+          <>
+          <div className="px-4 pt-3 pb-1">
+            <NewGroupDialog
+              onCreated={() => refetch()}
+              trigger={
+                <button className="w-full inline-flex items-center justify-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-semibold border border-primary/30">
+                  <Plus className="w-4 h-4" /> New group
+                </button>
+              }
+            />
+          </div>
           <ul className="divide-y divide-border/50">
             {groups.map((g) => (
               <li key={g.id}>
@@ -60,6 +79,7 @@ const Groups = () => {
               </li>
             ))}
           </ul>
+          </>
         )}
       </div>
     </div>

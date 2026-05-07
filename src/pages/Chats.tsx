@@ -12,6 +12,7 @@ import { StoryViewer } from "@/components/chat/StoryViewer";
 import { CallDialog } from "@/components/chat/CallDialog";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { useReadReceipts } from "@/hooks/useReadReceipts";
+import { useScreenshotProtection } from "@/hooks/useScreenshotProtection";
 import { TigerChatBackground } from "@/components/chat/TigerChatBackground";
 import { InviteMembersDialog } from "@/components/chat/InviteMembersDialog";
 import { ForwardDialog } from "@/components/chat/ForwardDialog";
@@ -62,6 +63,7 @@ const Chats = () => {
   const { typingUsers, notifyTyping } = useTypingIndicator(activeChat);
   useNotifications();
   useReadReceipts(activeChat, !!activeChat);
+  useScreenshotProtection(!!activeChat);
   const { prefs: chatPrefs } = useChatPreferences(activeChat);
 
   useEffect(() => {

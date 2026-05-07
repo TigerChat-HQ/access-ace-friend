@@ -101,4 +101,21 @@
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted)) transparent;
   }
+  .no-select, .no-select * {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  .privacy-blur {
+    filter: blur(20px);
+    transition: filter 0.2s ease;
+  }
+  @keyframes float-up {
+    0% { transform: translateY(0) scale(0.6); opacity: 0; }
+    20% { opacity: 1; }
+    100% { transform: translateY(-280px) scale(1.4); opacity: 0; }
+  }
+  .animate-float-up {
+    animation: float-up 2.4s ease-out forwards;
+  }
 }

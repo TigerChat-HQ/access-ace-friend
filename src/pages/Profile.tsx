@@ -7,11 +7,13 @@ import { useUserPosts } from "@/hooks/usePosts";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useBlocks } from "@/hooks/useBlocks";
 import { ReportDialog } from "@/components/social/ReportDialog";
+import { FollowListDialog } from "@/components/social/FollowListDialog";
 import {
   ArrowLeft, Settings, Shield, MessageCircle, Grid3x3, LogOut, Pencil, Lock,
-  MoreVertical, Flag, UserX, UserCheck,
+  MoreVertical, Flag, UserX, UserCheck, Trash2, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -31,6 +33,8 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [followList, setFollowList] = useState<"followers" | "following" | null>(null);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [form, setForm] = useState({ display_name: "", username: "", bio: "" });
   const { isFollowing, followerCount, followingCount, toggle } = useFollow(userId);
   const { posts } = useUserPosts(userId);
@@ -131,6 +135,30 @@ const Profile = () => {
     }
   };
 
+  const togglePrivate = async (next: boolean) => {
+    if (!user) return;
+    const { error } = await supabase.from("profiles").update({ is_private: next }).eq("user_id", user.id);
+    if (error) {
+      toast({ title: "Failed", description: error.message, variant: "destructive" });
+    } else {
+      setProfile((p) => (p ? { ...p, is_private: next } : p));
+      toast({ title: next ? "Account is now private" : "Account is now public" });
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    if (!confirm("Permanently delete your account and all your data? This cannot be undone.")) return;
+    const { error } = await supabase.functions.invoke("delete-account");
+    if (error) {
+      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Account deleted" });
+    await signOut();
+    navigate("/auth");
+  };
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -219,14 +247,14 @@ const Profile = () => {
                 <p className="text-base font-bold text-foreground">{posts.length}</p>
                 <p className="text-[11px] text-muted-foreground">Posts</p>
               </div>
-              <div>
+              <button onClick={() => setFollowList("followers")} className="text-center hover:opacity-70">
                 <p className="text-base font-bold text-foreground">{followerCount}</p>
                 <p className="text-[11px] text-muted-foreground">Followers</p>
-              </div>
-              <div>
+              </button>
+              <button onClick={() => setFollowList("following")} className="text-center hover:opacity-70">
                 <p className="text-base font-bold text-foreground">{followingCount}</p>
                 <p className="text-[11px] text-muted-foreground">Following</p>
-              </div>
+              </button>
             </div>
           </div>
 
@@ -287,6 +315,55 @@ const Profile = () => {
               </>
             )}
           </div>
+
+          {isMe && (
+            <div className="border border-border/50 rounded-xl overflow-hidden">
+              <button
+                onClick={() => setAccountOpen((o) => !o)}
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface-hover"
+              >
+                <span className="text-sm font-semibold text-foreground">Account</span>
+                {accountOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+              </button>
+              {accountOpen && (
+                <div className="px-4 py-3 space-y-3 border-t border-border/50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-foreground">Private account</p>
+                      <p className="text-[11px] text-muted-foreground">Only followers can see your posts</p>
+                    </div>
+                    <Switch checked={!!profile.is_private} onCheckedChange={togglePrivate} />
+                  </div>
+                  <button
+                    onClick={() => navigate("/settings")}
+                    className="w-full text-left text-sm text-foreground py-2 hover:text-primary"
+                  >
+                    Settings & password
+                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => navigate("/admin")}
+                      className="w-full text-left text-sm text-primary py-2 flex items-center gap-2"
+                    >
+                      <Shield className="w-4 h-4" /> Admin panel
+                    </button>
+                  )}
+                  <button
+                    onClick={signOut}
+                    className="w-full text-left text-sm text-foreground py-2 flex items-center gap-2 hover:text-primary"
+                  >
+                    <LogOut className="w-4 h-4" /> Sign out
+                  </button>
+                  <button
+                    onClick={handleDeleteAccount}
+                    className="w-full text-left text-sm text-destructive py-2 flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" /> Delete account
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="border-t border-border/50">
@@ -321,6 +398,14 @@ const Profile = () => {
 
       {reportOpen && userId && (
         <ReportDialog open={reportOpen} onOpenChange={setReportOpen} targetType="user" targetId={userId} />
+      )}
+      {followList && userId && (
+        <FollowListDialog
+          open={!!followList}
+          onOpenChange={(o) => !o && setFollowList(null)}
+          userId={userId}
+          mode={followList}
+        />
       )}
     </div>
   );
