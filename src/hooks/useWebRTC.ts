@@ -1,6 +1,20 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import type { Json } from "@/integrations/supabase/types";
+
+type SignalInsert = {
+  caller_id: string;
+  callee_id: string;
+  conversation_id?: string;
+  call_type: string;
+  signal_type: string;
+  signal_data?: Json;
+  status?: string;
+};
+
+const insertSignal = (data: SignalInsert) =>
+  supabase.from("call_signals").insert(data as any);
 
 const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
