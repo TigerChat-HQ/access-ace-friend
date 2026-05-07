@@ -33,6 +33,8 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [followList, setFollowList] = useState<"followers" | "following" | null>(null);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [form, setForm] = useState({ display_name: "", username: "", bio: "" });
   const { isFollowing, followerCount, followingCount, toggle } = useFollow(userId);
   const { posts } = useUserPosts(userId);
