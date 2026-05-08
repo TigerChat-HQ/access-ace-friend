@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
-import { ArrowLeft, Send, Loader2, Megaphone } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Megaphone, Image as ImageIcon, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import tigerLogo from "@/assets/tiger-reaction.png";
 import TigerFeedbackDialog from "@/components/TigerFeedbackDialog";
@@ -9,16 +9,17 @@ import TigerFeedbackDialog from "@/components/TigerFeedbackDialog";
 interface Msg {
   role: "user" | "assistant";
   content: string;
+  image_url?: string;
 }
 
 const TIGER_AI_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tiger-ai`;
 const ANON = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 const SUGGESTED = [
-  "How do I post a story?",
-  "How do voice & video calls work?",
-  "Make my account private",
-  "How do I report someone?",
+  "Translate 'good morning' to Swahili",
+  "Summarize my last group chat",
+  "Suggest 3 smart replies to 'are you free tonight?'",
+  "Generate an image of a neon tiger",
 ];
 
 const TigerAI = () => {
@@ -41,8 +42,35 @@ const TigerAI = () => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const detectImageRequest = (t: string) =>
+    /^(generate|create|draw|make|design)\s+(an?|the)?\s*(image|picture|pic|art|illustration|wallpaper|photo)/i.test(t.trim());
+
+  const sendImage = async (prompt: string) => {
+    setLoading(true);
+    setMessages((m) => [...m, { role: "user", content: prompt }]);
+    setInput("");
+    try {
+      const resp = await fetch(TIGER_AI_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${ANON}` },
+        body: JSON.stringify({ image_prompt: prompt }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Image gen failed");
+      setMessages((m) => [
+        ...m,
+        { role: "assistant", content: data.text || "Here you go 🐯", image_url: data.image_url },
+      ]);
+    } catch (e: any) {
+      toast({ title: "Image gen failed", description: e.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const send = async (text: string) => {
     if (!text.trim() || loading) return;
+    if (detectImageRequest(text)) return sendImage(text);
     const userMsg: Msg = { role: "user", content: text };
     setMessages((m) => [...m, userMsg]);
     setInput("");
@@ -155,6 +183,9 @@ const TigerAI = () => {
             >
               <div className="prose prose-sm prose-invert max-w-none [&_p]:my-1 [&_strong]:text-primary">
                 <ReactMarkdown>{m.content}</ReactMarkdown>
+                {m.image_url && (
+                  <img src={m.image_url} alt="Tiger AI generated" className="mt-2 rounded-lg max-w-full" />
+                )}
               </div>
             </div>
           </div>

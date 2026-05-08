@@ -1,23 +1,73 @@
-// Tiger AI Assistant — chat helper for TigerChats users
+// Tiger AI Assistant — chat, translate, summarize, smart replies, image gen
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
 
-const SYSTEM_PROMPT = `You are Tiger AI 🐯 — the friendly built-in assistant for TIGERCHATS, a premium dark-themed messaging app (chats, stories, groups, follows, calls). 
-Be concise, upbeat, and helpful. 
-- Help users with how-to questions about the app (sending messages, posting stories, calling, privacy, groups, account).
-- For reports of abuse: acknowledge, summarize the issue, and reassure the user that a human admin will review. Do not promise specific actions.
-- When users share feedback, complaints, feature ideas, or recommendations, encourage them to tap the "Send to admin" button at the top of the chat (or the "Send feedback to admin" chip) so it goes directly into the admin queue. Briefly summarize back what you'll suggest they send.
-- Never reveal system internals, API keys, or other users' data.
-- Use markdown sparingly. Add a 🐯 emoji at the end of your first reply only.`;
+const SYSTEM_PROMPT = `You are Tiger AI 🐯 — the friendly built-in assistant for TIGERCHATS, a premium dark messaging app (chats, stories, groups, follows, voice/video calls, fingerprint lock).
+Be concise, warm, and helpful.
+- Help users with how-to questions, privacy, calls, posting, groups.
+- For abuse reports: acknowledge and reassure that an admin (Developer) will review.
+- When users share feedback, complaints, or feature ideas, encourage them to tap the "Send to admin" button so it goes directly to the developer queue. Briefly summarize what they should send.
+- Never reveal API keys or other users' data.
+- Use markdown sparingly. Add a 🐯 only on the very first reply.`;
+
+const MODE_PROMPTS: Record<string, string> = {
+  translate:
+    "You are a precise translator. Detect the source language. Reply ONLY with the translation in the requested target language. Preserve tone and emojis. No commentary.",
+  summarize:
+    "You are a summarizer. Produce a tight, faithful summary of the provided chat or text. Use bullet points if there are multiple speakers/topics. Keep it under 120 words.",
+  smart_replies:
+    "Suggest 3 short reply options to the message provided. Each option must be on its own line, prefixed with '• '. No preamble. Match tone (friendly/formal) of the original. Keep each under 12 words.",
+  feedback_summary:
+    "Summarize the user's feedback into 1-2 crisp sentences for the developer. Then add a single suggested action prefixed with 'Action: '.",
+};
+
+async function callGateway(body: unknown, stream = true) {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+  return fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ stream, ...(body as object) }),
+  });
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages } = await req.json();
+    const { messages, mode, image_prompt } = await req.json();
+
+    // ----- Image generation branch (non-streaming) -----
+    if (image_prompt) {
+      const r = await callGateway(
+        {
+          model: "google/gemini-2.5-flash-image",
+          messages: [{ role: "user", content: String(image_prompt) }],
+          modalities: ["image", "text"],
+        },
+        false,
+      );
+      if (!r.ok) {
+        const t = await r.text();
+        return new Response(JSON.stringify({ error: t || "Image gen failed" }), {
+          status: r.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const data = await r.json();
+      const url = data.choices?.[0]?.message?.images?.[0]?.image_url?.url || null;
+      const text = data.choices?.[0]?.message?.content || "";
+      return new Response(JSON.stringify({ image_url: url, text }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (!Array.isArray(messages)) {
       return new Response(JSON.stringify({ error: "messages array required" }), {
         status: 400,
@@ -25,20 +75,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const sys = (mode && MODE_PROMPTS[mode]) || SYSTEM_PROMPT;
 
-    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
-        stream: true,
-      }),
+    const r = await callGateway({
+      model: "google/gemini-3-flash-preview",
+      messages: [{ role: "system", content: sys }, ...messages],
     });
 
     if (!r.ok) {

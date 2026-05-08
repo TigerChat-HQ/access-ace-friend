@@ -193,7 +193,7 @@ const Profile = () => {
         </h1>
         <div className="flex items-center gap-1">
           {isMe && isAdmin && (
-            <button onClick={() => navigate("/admin")} className="p-2 text-muted-foreground hover:text-primary" title="Admin">
+            <button onClick={() => navigate("/admin")} className="p-2 text-muted-foreground hover:text-primary" title="Developer Panel">
               <Shield className="w-5 h-5" />
             </button>
           )}
@@ -351,7 +351,7 @@ const Profile = () => {
                       onClick={() => navigate("/admin")}
                       className="w-full text-left text-sm text-primary py-2 flex items-center gap-2"
                     >
-                      <Shield className="w-4 h-4" /> Admin panel
+                      <Shield className="w-4 h-4" /> Developer panel
                     </button>
                   )}
                   <button
