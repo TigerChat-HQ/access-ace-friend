@@ -42,8 +42,35 @@ const TigerAI = () => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const detectImageRequest = (t: string) =>
+    /^(generate|create|draw|make|design)\s+(an?|the)?\s*(image|picture|pic|art|illustration|wallpaper|photo)/i.test(t.trim());
+
+  const sendImage = async (prompt: string) => {
+    setLoading(true);
+    setMessages((m) => [...m, { role: "user", content: prompt }]);
+    setInput("");
+    try {
+      const resp = await fetch(TIGER_AI_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${ANON}` },
+        body: JSON.stringify({ image_prompt: prompt }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Image gen failed");
+      setMessages((m) => [
+        ...m,
+        { role: "assistant", content: data.text || "Here you go 🐯", image_url: data.image_url },
+      ]);
+    } catch (e: any) {
+      toast({ title: "Image gen failed", description: e.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const send = async (text: string) => {
     if (!text.trim() || loading) return;
+    if (detectImageRequest(text)) return sendImage(text);
     const userMsg: Msg = { role: "user", content: text };
     setMessages((m) => [...m, userMsg]);
     setInput("");
