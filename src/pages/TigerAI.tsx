@@ -183,6 +183,9 @@ const TigerAI = () => {
             >
               <div className="prose prose-sm prose-invert max-w-none [&_p]:my-1 [&_strong]:text-primary">
                 <ReactMarkdown>{m.content}</ReactMarkdown>
+                {m.image_url && (
+                  <img src={m.image_url} alt="Tiger AI generated" className="mt-2 rounded-lg max-w-full" />
+                )}
               </div>
             </div>
           </div>
