@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
-import { ArrowLeft, Send, Loader2, Megaphone } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Megaphone, Image as ImageIcon, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import tigerLogo from "@/assets/tiger-reaction.png";
 import TigerFeedbackDialog from "@/components/TigerFeedbackDialog";
@@ -9,16 +9,17 @@ import TigerFeedbackDialog from "@/components/TigerFeedbackDialog";
 interface Msg {
   role: "user" | "assistant";
   content: string;
+  image_url?: string;
 }
 
 const TIGER_AI_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tiger-ai`;
 const ANON = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 const SUGGESTED = [
-  "How do I post a story?",
-  "How do voice & video calls work?",
-  "Make my account private",
-  "How do I report someone?",
+  "Translate 'good morning' to Swahili",
+  "Summarize my last group chat",
+  "Suggest 3 smart replies to 'are you free tonight?'",
+  "Generate an image of a neon tiger",
 ];
 
 const TigerAI = () => {
