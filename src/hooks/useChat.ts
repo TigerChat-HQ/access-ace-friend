@@ -170,23 +170,14 @@ export const useCreateConversation = () => {
 
   const createDirectConversation = async (otherUserId: string) => {
     if (!user) return null;
-
-    // Create conversation
-    const { data: convo, error } = await supabase
-      .from("conversations")
-      .insert({ type: "direct" })
-      .select()
-      .single();
-
-    if (error || !convo) return null;
-
-    // Add both members
-    await supabase.from("conversation_members").insert([
-      { conversation_id: convo.id, user_id: user.id },
-      { conversation_id: convo.id, user_id: otherUserId },
-    ]);
-
-    return convo;
+    const { data, error } = await supabase.rpc("create_direct_conversation", {
+      _other_user_id: otherUserId,
+    });
+    if (error || !data) {
+      console.error("create_direct_conversation failed", error);
+      return null;
+    }
+    return { id: data as string };
   };
 
   return { createDirectConversation };
