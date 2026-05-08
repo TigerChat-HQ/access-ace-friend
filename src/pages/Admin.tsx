@@ -152,7 +152,9 @@ const Admin = () => {
         <button onClick={() => navigate(-1)} className="text-foreground">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-sm font-semibold text-foreground">Admin Panel</h1>
+        <h1 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Crown className="w-4 h-4 text-primary" /> Developer Panel
+        </h1>
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
