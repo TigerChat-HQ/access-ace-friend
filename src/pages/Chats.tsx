@@ -9,8 +9,7 @@ import { ChatListItem } from "@/components/chat/ChatListItem";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { MessageInput } from "@/components/chat/MessageInput";
 import { StoryViewer } from "@/components/chat/StoryViewer";
-import { CallDialog } from "@/components/chat/CallDialog";
-import { useWebRTC } from "@/hooks/useWebRTC";
+import { useCall } from "@/contexts/CallContext";
 import { useReadReceipts } from "@/hooks/useReadReceipts";
 import { useScreenshotProtection } from "@/hooks/useScreenshotProtection";
 import { TigerChatBackground } from "@/components/chat/TigerChatBackground";
@@ -45,7 +44,7 @@ const Chats = () => {
   const [search, setSearch] = useState("");
   const [stories, setStories] = useState<Story[]>([]);
   const [storyViewerIndex, setStoryViewerIndex] = useState<number | null>(null);
-  const webrtc = useWebRTC();
+  const webrtc = useCall();
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [forwardMsg, setForwardMsg] = useState<{ content: string; type: string; mediaUrl?: string } | null>(null);
 
@@ -251,29 +250,7 @@ const Chats = () => {
         />
       )}
 
-      {webrtc.callStatus !== "idle" && webrtc.activeCall && (
-        <CallDialog
-          callInfo={webrtc.activeCall}
-          callStatus={webrtc.callStatus}
-          isMuted={webrtc.isMuted}
-          isVideoOn={webrtc.isVideoOn}
-          duration={webrtc.duration}
-          remoteStream={webrtc.remoteStream}
-          localVideoRef={webrtc.localVideoRef}
-          remoteVideoRef={webrtc.remoteVideoRef}
-          onAccept={() => {
-            const pending = (window as any).__pendingOffer;
-            if (pending && webrtc.activeCall) {
-              webrtc.acceptCall(webrtc.activeCall, pending);
-              delete (window as any).__pendingOffer;
-            }
-          }}
-          onReject={webrtc.rejectCall}
-          onEnd={webrtc.endCall}
-          onToggleMute={webrtc.toggleMute}
-          onToggleVideo={webrtc.toggleVideo}
-        />
-      )}
+      {/* CallDialog rendered globally by CallProvider */}
 
       {forwardMsg && (
         <ForwardDialog

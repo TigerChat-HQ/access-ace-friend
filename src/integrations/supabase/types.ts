@@ -14,6 +14,77 @@ export type Database = {
   }
   public: {
     Tables: {
+      announcement_dismissals: {
+        Row: {
+          announcement_id: string
+          dismissed_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          announcement_id: string
+          dismissed_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          announcement_id?: string
+          dismissed_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcement_dismissals_announcement_id_fkey"
+            columns: ["announcement_id"]
+            isOneToOne: false
+            referencedRelation: "announcements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      announcements: {
+        Row: {
+          author_id: string
+          body: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          media_type: string | null
+          media_url: string | null
+          priority: string
+          starts_at: string
+          title: string
+        }
+        Insert: {
+          author_id: string
+          body?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          media_type?: string | null
+          media_url?: string | null
+          priority?: string
+          starts_at?: string
+          title: string
+        }
+        Update: {
+          author_id?: string
+          body?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          media_type?: string | null
+          media_url?: string | null
+          priority?: string
+          starts_at?: string
+          title?: string
+        }
+        Relationships: []
+      }
       blocks: {
         Row: {
           blocked_id: string
@@ -32,6 +103,42 @@ export type Database = {
           blocker_id?: string
           created_at?: string
           id?: string
+        }
+        Relationships: []
+      }
+      call_logs: {
+        Row: {
+          call_type: string
+          callee_id: string
+          caller_id: string
+          conversation_id: string | null
+          duration_seconds: number
+          ended_at: string | null
+          id: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          call_type?: string
+          callee_id: string
+          caller_id: string
+          conversation_id?: string | null
+          duration_seconds?: number
+          ended_at?: string | null
+          id?: string
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          call_type?: string
+          callee_id?: string
+          caller_id?: string
+          conversation_id?: string | null
+          duration_seconds?: number
+          ended_at?: string | null
+          id?: string
+          started_at?: string
+          status?: string
         }
         Relationships: []
       }
@@ -275,6 +382,7 @@ export type Database = {
           id: string
           is_read: boolean | null
           media_url: string | null
+          message_status: string
           message_type: string
           read_at: string | null
           reply_to_id: string | null
@@ -288,6 +396,7 @@ export type Database = {
           id?: string
           is_read?: boolean | null
           media_url?: string | null
+          message_status?: string
           message_type?: string
           read_at?: string | null
           reply_to_id?: string | null
@@ -301,6 +410,7 @@ export type Database = {
           id?: string
           is_read?: boolean | null
           media_url?: string | null
+          message_status?: string
           message_type?: string
           read_at?: string | null
           reply_to_id?: string | null
@@ -697,7 +807,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "moderator" | "user" | "adviser"
+      app_role: "admin" | "moderator" | "user" | "adviser" | "superior_admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -825,7 +935,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "moderator", "user", "adviser"],
+      app_role: ["admin", "moderator", "user", "adviser", "superior_admin"],
     },
   },
 } as const

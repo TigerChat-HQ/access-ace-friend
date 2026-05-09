@@ -38,9 +38,10 @@ export const ChatListItem = ({ contact, isActive, onClick }: ChatListItemProps) 
             )}
           </span>
           {contact.unread > 0 && (
-            <span className="ml-2 shrink-0 w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
-              {contact.unread}
-            </span>
+            <span
+              aria-label={`${contact.unread} unread`}
+              className="ml-2 shrink-0 w-2.5 h-2.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.8)]"
+            />
           )}
         </div>
       </div>
