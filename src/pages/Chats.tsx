@@ -9,8 +9,7 @@ import { ChatListItem } from "@/components/chat/ChatListItem";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { MessageInput } from "@/components/chat/MessageInput";
 import { StoryViewer } from "@/components/chat/StoryViewer";
-import { CallDialog } from "@/components/chat/CallDialog";
-import { useWebRTC } from "@/hooks/useWebRTC";
+import { useCall } from "@/contexts/CallContext";
 import { useReadReceipts } from "@/hooks/useReadReceipts";
 import { useScreenshotProtection } from "@/hooks/useScreenshotProtection";
 import { TigerChatBackground } from "@/components/chat/TigerChatBackground";
@@ -45,7 +44,7 @@ const Chats = () => {
   const [search, setSearch] = useState("");
   const [stories, setStories] = useState<Story[]>([]);
   const [storyViewerIndex, setStoryViewerIndex] = useState<number | null>(null);
-  const webrtc = useWebRTC();
+  const webrtc = useCall();
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [forwardMsg, setForwardMsg] = useState<{ content: string; type: string; mediaUrl?: string } | null>(null);
 
