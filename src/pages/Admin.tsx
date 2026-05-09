@@ -12,9 +12,10 @@ import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
+import { AnnouncementComposer } from "@/components/admin/AnnouncementComposer";
 
 const Admin = () => {
-  const { isAdmin, loading } = useUserRole();
+  const { isAdmin, isSuperiorAdmin, loading } = useUserRole();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [stats, setStats] = useState({ users: 0, posts: 0, comments: 0, likes: 0, stories: 0, messages: 0 });
@@ -167,6 +168,7 @@ const Admin = () => {
           {creating ? "Opening..." : "Open Admin Super Group"}
         </Button>
 
+        {(isSuperiorAdmin || isAdmin) && <AnnouncementComposer />}
         <div className="grid grid-cols-3 gap-2">
           <Stat icon={Users} label="Users" value={stats.users} />
           <Stat icon={FileText} label="Posts" value={stats.posts} />
