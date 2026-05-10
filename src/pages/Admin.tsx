@@ -355,7 +355,18 @@ const Admin = () => {
             ))}
           </div>
         </section>
+
+        <GameAdmin />
       </div>
+
+      {replyTarget && (
+        <ReportReplyDialog
+          open={!!replyTarget}
+          onClose={() => setReplyTarget(null)}
+          report={replyTarget}
+          onReplied={load}
+        />
+      )}
     </div>
   );
 };
