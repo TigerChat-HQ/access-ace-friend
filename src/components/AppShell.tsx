@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useLocation } from "react-router-dom";
-import { Home, MessageCircle, Users, Sparkles, User as UserIcon } from "lucide-react";
+import { Home, MessageCircle, Users, Sparkles, User as UserIcon, Trophy } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLockGate } from "@/components/AppLockGate";
 import { CallProvider } from "@/contexts/CallContext";
@@ -18,6 +18,7 @@ export const AppShell = () => {
     { to: "/chats", icon: MessageCircle, label: "Chats", badge: unreadMessages },
     { to: "/groups", icon: Users, label: "Groups", badge: 0 },
     { to: "/stories", icon: Sparkles, label: "Stories", badge: 0 },
+    { to: "/game", icon: Trophy, label: "Game", badge: 0 },
     { to: `/u/${user?.id ?? ""}`, icon: UserIcon, label: "Profile", badge: unreadNotifications },
   ];
 
