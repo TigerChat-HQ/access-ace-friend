@@ -24,6 +24,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 import TigerAI from "./pages/TigerAI";
+import Game from "./pages/Game";
 
 const queryClient = new QueryClient();
 
@@ -76,6 +77,7 @@ const App = () => (
                   <Route path="/notifications" element={<Notifications />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/tiger-ai" element={<TigerAI />} />
+                  <Route path="/game" element={<Game />} />
                 </Route>
 
                 <Route path="*" element={<NotFound />} />
