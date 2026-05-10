@@ -690,27 +690,39 @@ export type Database = {
       }
       reports: {
         Row: {
+          admin_reply: string | null
+          admin_reply_at: string | null
+          admin_reply_media_url: string | null
           created_at: string
           id: string
           reason: string
+          replied_by: string | null
           reporter_id: string
           status: string
           target_id: string
           target_type: string
         }
         Insert: {
+          admin_reply?: string | null
+          admin_reply_at?: string | null
+          admin_reply_media_url?: string | null
           created_at?: string
           id?: string
           reason: string
+          replied_by?: string | null
           reporter_id: string
           status?: string
           target_id: string
           target_type: string
         }
         Update: {
+          admin_reply?: string | null
+          admin_reply_at?: string | null
+          admin_reply_media_url?: string | null
           created_at?: string
           id?: string
           reason?: string
+          replied_by?: string | null
           reporter_id?: string
           status?: string
           target_id?: string

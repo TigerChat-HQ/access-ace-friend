@@ -13,6 +13,8 @@ import {
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import { AnnouncementComposer } from "@/components/admin/AnnouncementComposer";
+import { GameAdmin } from "@/components/admin/GameAdmin";
+import { ReportReplyDialog } from "@/components/admin/ReportReplyDialog";
 
 const Admin = () => {
   const { isAdmin, isSuperiorAdmin, loading } = useUserRole();
@@ -29,6 +31,7 @@ const Admin = () => {
   const [growth, setGrowth] = useState<{ day: string; users: number; posts: number }[]>([]);
   const [engagement, setEngagement] = useState<{ name: string; value: number }[]>([]);
   const [creating, setCreating] = useState(false);
+  const [replyTarget, setReplyTarget] = useState<any | null>(null);
 
   const load = async () => {
     const [
@@ -254,13 +257,24 @@ const Admin = () => {
                       </p>
                       <p className="text-[10px] text-muted-foreground">
                         {new Date(r.created_at).toLocaleString()} · status: {r.status}
+                        {r.admin_reply_at && " · replied"}
                       </p>
+                      {r.admin_reply && (
+                        <p className="mt-1.5 text-xs text-primary border-l-2 border-primary/40 pl-2">
+                          ↪ {r.admin_reply}
+                        </p>
+                      )}
                     </div>
-                    {r.status === "pending" && (
-                      <Button size="sm" variant="outline" onClick={() => resolveReport(r.id)}>
-                        Resolve
+                    <div className="flex gap-1.5">
+                      <Button size="sm" variant="outline" onClick={() => setReplyTarget(r)}>
+                        Reply
                       </Button>
-                    )}
+                      {r.status === "pending" && (
+                        <Button size="sm" variant="ghost" onClick={() => resolveReport(r.id)}>
+                          Resolve
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))
@@ -341,7 +355,18 @@ const Admin = () => {
             ))}
           </div>
         </section>
+
+        <GameAdmin />
       </div>
+
+      {replyTarget && (
+        <ReportReplyDialog
+          open={!!replyTarget}
+          onClose={() => setReplyTarget(null)}
+          report={replyTarget}
+          onReplied={load}
+        />
+      )}
     </div>
   );
 };
