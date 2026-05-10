@@ -328,6 +328,75 @@ export type Database = {
         }
         Relationships: []
       }
+      game_attempts: {
+        Row: {
+          correct_count: number
+          created_at: string
+          duration_seconds: number
+          id: string
+          score: number
+          total_questions: number
+          trophy_tier: string | null
+          user_id: string
+        }
+        Insert: {
+          correct_count: number
+          created_at?: string
+          duration_seconds?: number
+          id?: string
+          score: number
+          total_questions: number
+          trophy_tier?: string | null
+          user_id: string
+        }
+        Update: {
+          correct_count?: number
+          created_at?: string
+          duration_seconds?: number
+          id?: string
+          score?: number
+          total_questions?: number
+          trophy_tier?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      game_questions: {
+        Row: {
+          category: string
+          correct_index: number
+          created_at: string
+          difficulty: string
+          explanation: string | null
+          id: string
+          is_active: boolean
+          options: Json
+          question: string
+        }
+        Insert: {
+          category?: string
+          correct_index: number
+          created_at?: string
+          difficulty?: string
+          explanation?: string | null
+          id?: string
+          is_active?: boolean
+          options: Json
+          question: string
+        }
+        Update: {
+          category?: string
+          correct_index?: number
+          created_at?: string
+          difficulty?: string
+          explanation?: string | null
+          id?: string
+          is_active?: boolean
+          options?: Json
+          question?: string
+        }
+        Relationships: []
+      }
       group_admins: {
         Row: {
           conversation_id: string
@@ -749,6 +818,36 @@ export type Database = {
           },
         ]
       }
+      trophies: {
+        Row: {
+          color: string
+          created_at: string
+          icon: string
+          id: string
+          min_score: number
+          name: string
+          tier: string
+        }
+        Insert: {
+          color: string
+          created_at?: string
+          icon: string
+          id?: string
+          min_score: number
+          name: string
+          tier: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          min_score?: number
+          name?: string
+          tier?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -766,6 +865,30 @@ export type Database = {
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_trophies: {
+        Row: {
+          attempt_id: string | null
+          awarded_at: string
+          id: string
+          trophy_tier: string
+          user_id: string
+        }
+        Insert: {
+          attempt_id?: string | null
+          awarded_at?: string
+          id?: string
+          trophy_tier: string
+          user_id: string
+        }
+        Update: {
+          attempt_id?: string | null
+          awarded_at?: string
+          id?: string
+          trophy_tier?: string
           user_id?: string
         }
         Relationships: []
