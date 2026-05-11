@@ -70,6 +70,7 @@ const TigerAI = () => {
 
   const send = async (text: string) => {
     if (!text.trim() || loading) return;
+    if (detectVideoRequest(text)) return sendVideo(text);
     if (detectImageRequest(text)) return sendImage(text);
     const userMsg: Msg = { role: "user", content: text };
     setMessages((m) => [...m, userMsg]);
