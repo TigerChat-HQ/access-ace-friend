@@ -25,6 +25,7 @@ import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 import TigerAI from "./pages/TigerAI";
 import Game from "./pages/Game";
+import Draughts from "./pages/Draughts";
 
 const queryClient = new QueryClient();
 
@@ -78,6 +79,7 @@ const App = () => (
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/tiger-ai" element={<TigerAI />} />
                   <Route path="/game" element={<Game />} />
+                  <Route path="/draughts" element={<Draughts />} />
                 </Route>
 
                 <Route path="*" element={<NotFound />} />
