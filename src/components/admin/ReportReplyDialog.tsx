@@ -49,13 +49,14 @@ export const ReportReplyDialog = ({ open, onClose, report, onReplied }: Props) =
     }
     setSending(true);
     const { data: u } = await supabase.auth.getUser();
+    const adminId = u?.user?.id;
     const { error } = await supabase
       .from("reports")
       .update({
         admin_reply: reply,
         admin_reply_media_url: mediaUrl,
         admin_reply_at: new Date().toISOString(),
-        replied_by: u?.user?.id,
+        replied_by: adminId,
         status: "resolved",
       })
       .eq("id", report.id);
@@ -64,7 +65,15 @@ export const ReportReplyDialog = ({ open, onClose, report, onReplied }: Props) =
       toast({ title: "Failed", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Reply sent" });
+    // Notify the reporter that an admin replied
+    if (adminId && report?.reporter_id && report.reporter_id !== adminId) {
+      await supabase.from("notifications").insert({
+        recipient_id: report.reporter_id,
+        actor_id: adminId,
+        type: "report_reply",
+      });
+    }
+    toast({ title: "Reply sent & user notified" });
     onReplied();
     onClose();
   };

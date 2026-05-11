@@ -17,9 +17,9 @@ const ANON = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 const SUGGESTED = [
   "Translate 'good morning' to Swahili",
-  "Summarize my last group chat",
-  "Suggest 3 smart replies to 'are you free tonight?'",
-  "Generate an image of a neon tiger",
+  "Generate an image of a neon tiger in Dar es Salaam",
+  "Generate HQ image of a Maasai warrior at sunset",
+  "Make a video of a tiger running (preview)",
 ];
 
 const TigerAI = () => {
@@ -43,7 +43,36 @@ const TigerAI = () => {
   }, [messages]);
 
   const detectImageRequest = (t: string) =>
-    /^(generate|create|draw|make|design)\s+(an?|the)?\s*(image|picture|pic|art|illustration|wallpaper|photo)/i.test(t.trim());
+    /^(generate|create|draw|make|design)\s+(an?|the|hq\s+)?\s*(image|picture|pic|art|illustration|wallpaper|photo)/i.test(t.trim());
+  const detectVideoRequest = (t: string) =>
+    /^(generate|create|make|produce)\s+(an?|the|short\s+)?\s*(video|clip|reel|motion)/i.test(t.trim()) ||
+    /\bvideo of\b/i.test(t);
+  const detectHQ = (t: string) => /\b(hq|high\s*quality|4k|cinematic|pro)\b/i.test(t);
+
+  const sendVideo = async (prompt: string) => {
+    setMessages((m) => [...m, { role: "user", content: prompt }]);
+    setInput("");
+    setLoading(true);
+    try {
+      const resp = await fetch(TIGER_AI_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${ANON}` },
+        body: JSON.stringify({ video_prompt: prompt }),
+      });
+      const data = await resp.json();
+      setMessages((m) => [
+        ...m,
+        {
+          role: "assistant",
+          content:
+            data?.error ||
+            "Video generation is rolling out soon. Tap **Send to admin** to request it.",
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const sendImage = async (prompt: string) => {
     setLoading(true);
@@ -53,7 +82,7 @@ const TigerAI = () => {
       const resp = await fetch(TIGER_AI_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${ANON}` },
-        body: JSON.stringify({ image_prompt: prompt }),
+        body: JSON.stringify({ image_prompt: prompt, hq: detectHQ(prompt) }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || "Image gen failed");
@@ -70,6 +99,7 @@ const TigerAI = () => {
 
   const send = async (text: string) => {
     if (!text.trim() || loading) return;
+    if (detectVideoRequest(text)) return sendVideo(text);
     if (detectImageRequest(text)) return sendImage(text);
     const userMsg: Msg = { role: "user", content: text };
     setMessages((m) => [...m, userMsg]);

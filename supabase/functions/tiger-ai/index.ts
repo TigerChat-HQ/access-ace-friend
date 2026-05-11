@@ -41,14 +41,34 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages, mode, image_prompt } = await req.json();
+    const { messages, mode, image_prompt, edit_image_url, hq, video_prompt } = await req.json();
 
-    // ----- Image generation branch (non-streaming) -----
-    if (image_prompt) {
+    // ----- Video branch (not yet supported on Lovable AI Gateway) -----
+    if (video_prompt) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "Video generation isn't available on Tiger AI yet. Tap 'Send to admin' to request video gen — we'll wire it up to a video provider as soon as the team adds the key.",
+        }),
+        { status: 501, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // ----- Image generation / editing branch (non-streaming) -----
+    if (image_prompt || edit_image_url) {
+      const model = hq
+        ? "google/gemini-3-pro-image-preview"
+        : "google/gemini-3.1-flash-image-preview";
+      const userContent: any[] = [
+        { type: "text", text: String(image_prompt || "Edit this image") },
+      ];
+      if (edit_image_url) {
+        userContent.push({ type: "image_url", image_url: { url: String(edit_image_url) } });
+      }
       const r = await callGateway(
         {
-          model: "google/gemini-2.5-flash-image",
-          messages: [{ role: "user", content: String(image_prompt) }],
+          model,
+          messages: [{ role: "user", content: userContent }],
           modalities: ["image", "text"],
         },
         false,
