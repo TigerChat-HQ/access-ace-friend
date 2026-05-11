@@ -307,6 +307,48 @@ export type Database = {
         }
         Relationships: []
       }
+      draft_matches: {
+        Row: {
+          board: Json
+          created_at: string
+          current_turn: string
+          id: string
+          last_move: Json | null
+          player_black: string | null
+          player_white: string
+          status: string
+          updated_at: string
+          vs_ai: boolean
+          winner: string | null
+        }
+        Insert: {
+          board: Json
+          created_at?: string
+          current_turn?: string
+          id?: string
+          last_move?: Json | null
+          player_black?: string | null
+          player_white: string
+          status?: string
+          updated_at?: string
+          vs_ai?: boolean
+          winner?: string | null
+        }
+        Update: {
+          board?: Json
+          created_at?: string
+          current_turn?: string
+          id?: string
+          last_move?: Json | null
+          player_black?: string | null
+          player_white?: string
+          status?: string
+          updated_at?: string
+          vs_ai?: boolean
+          winner?: string | null
+        }
+        Relationships: []
+      }
       follows: {
         Row: {
           created_at: string
