@@ -17,9 +17,9 @@ const ANON = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 const SUGGESTED = [
   "Translate 'good morning' to Swahili",
-  "Summarize my last group chat",
-  "Suggest 3 smart replies to 'are you free tonight?'",
-  "Generate an image of a neon tiger",
+  "Generate an image of a neon tiger in Dar es Salaam",
+  "Generate HQ image of a Maasai warrior at sunset",
+  "Make a video of a tiger running (preview)",
 ];
 
 const TigerAI = () => {
