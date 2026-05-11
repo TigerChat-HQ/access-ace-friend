@@ -172,7 +172,15 @@ const Game = () => {
             </h1>
             <p className="text-xs text-muted-foreground">Answer fast. Earn trophies. Climb the ranks.</p>
           </div>
-          <Trophy className="w-7 h-7 text-primary drop-shadow-[0_0_12px_hsl(var(--primary)/0.6)]" />
+          <div className="flex items-center gap-2">
+            <a
+              href="/draughts"
+              className="text-[11px] px-2.5 py-1.5 rounded-full bg-primary/15 border border-primary/30 text-primary hover:bg-primary/25"
+            >
+              ♟ Draughts
+            </a>
+            <Trophy className="w-7 h-7 text-primary drop-shadow-[0_0_12px_hsl(var(--primary)/0.6)]" />
+          </div>
         </header>
 
         {phase === "intro" && (
