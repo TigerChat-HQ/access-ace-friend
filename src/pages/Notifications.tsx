@@ -1,12 +1,13 @@
 import { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Heart, MessageCircle, UserPlus, Bell } from "lucide-react";
+import { ArrowLeft, Heart, MessageCircle, UserPlus, Bell, ShieldCheck } from "lucide-react";
 import { useNotificationsFeed, AppNotification } from "@/hooks/useNotificationsFeed";
 
 const iconFor = (type: AppNotification["type"]) => {
   if (type === "like" || type === "comment_like") return <Heart className="w-4 h-4 text-primary fill-primary" />;
   if (type === "comment" || type === "reply") return <MessageCircle className="w-4 h-4 text-primary" />;
   if (type === "follow") return <UserPlus className="w-4 h-4 text-primary" />;
+  if (type === "report_reply") return <ShieldCheck className="w-4 h-4 text-primary" />;
   return <Bell className="w-4 h-4 text-primary" />;
 };
 
@@ -17,6 +18,7 @@ const textFor = (n: AppNotification) => {
   if (n.type === "reply") return `${name} replied to your comment`;
   if (n.type === "comment_like") return `${name} liked your comment`;
   if (n.type === "follow") return `${name} started following you`;
+  if (n.type === "report_reply") return `An admin replied to your report`;
   return `${name} mentioned you`;
 };
 
