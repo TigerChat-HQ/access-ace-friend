@@ -270,11 +270,43 @@ const Draughts = () => {
 
   // Game view
   const validDest = new Set(movesForSelected.map((m) => m.to));
+  const lastFrom = match.last_move?.from;
+  const lastTo = match.last_move?.to;
+  // Counts of pieces remaining
+  let wCount = 0, bCount = 0;
+  for (const p of match.board) { if (!p) continue; if (p.c === "w") wCount++; else bCount++; }
+  const myCount = myColor === "w" ? wCount : bCount;
+  const oppCount = myColor === "w" ? bCount : wCount;
+
+  const winnerLabel = match.status === "finished"
+    ? match.winner === (myColor === "w" ? "white" : "black") ? "🏆 You won!" : "💀 You lost"
+    : null;
+
   const turnLabel = match.status === "finished"
-    ? `Winner: ${match.winner}`
-    : match.current_turn === myColor
-      ? "Your turn"
-      : aiThinking ? "AI thinking…" : "Opponent's turn";
+    ? winnerLabel || `Winner: ${match.winner}`
+    : !myColor
+      ? `Spectating · ${match.current_turn === "w" ? "White" : "Black"} to move`
+      : match.current_turn === myColor
+        ? "Your turn"
+        : aiThinking ? "AI thinking…" : "Opponent's turn";
+
+  const resign = async () => {
+    if (!match || !myColor || match.status !== "active") return;
+    if (!confirm("Resign this match?")) return;
+    await supabase.from("draft_matches").update({
+      status: "finished",
+      winner: myColor === "w" ? "black" : "white",
+    }).eq("id", match.id);
+  };
+
+  const shareMatch = async () => {
+    if (!match) return;
+    const url = `${window.location.origin}/draughts?match=${match.id}`;
+    try {
+      if (navigator.share) await navigator.share({ title: "Join my draughts match", url });
+      else { await navigator.clipboard.writeText(url); toast({ title: "Link copied" }); }
+    } catch {/* cancelled */}
+  };
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -282,18 +314,46 @@ const Draughts = () => {
         <button onClick={exitMatch} className="p-1 hover:bg-surface-hover rounded-full">
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </button>
-        <div className="flex-1">
-          <h1 className="text-base font-bold text-foreground">
-            {match.vs_ai ? "vs AI" : "Online match"}
+        <div className="flex-1 min-w-0">
+          <h1 className="text-base font-bold text-foreground truncate">
+            {match.vs_ai ? "vs Tiger AI" : match.status === "waiting" ? "Waiting for opponent…" : "Online match"}
           </h1>
           <p className="text-[10px] text-primary">{turnLabel}</p>
         </div>
+        {!match.vs_ai && match.status !== "finished" && (
+          <button onClick={shareMatch} className="p-2 rounded-full hover:bg-surface-hover" title="Share match">
+            <Share2 className="w-4 h-4 text-foreground" />
+          </button>
+        )}
+        {match.status === "active" && myColor && (
+          <button onClick={resign} className="p-2 rounded-full hover:bg-destructive/20" title="Resign">
+            <Flag className="w-4 h-4 text-destructive" />
+          </button>
+        )}
         {match.status === "finished" && (
           <Button size="sm" onClick={exitMatch}>
             <RotateCw className="w-3.5 h-3.5 mr-1" /> New game
           </Button>
         )}
       </header>
+
+      {/* Score bar */}
+      <div className="grid grid-cols-2 gap-2 px-3 py-2 border-b border-border/50 bg-card/30">
+        <div className={`flex items-center gap-2 p-2 rounded-lg ${myColor && match.current_turn === myColor && match.status === "active" ? "bg-primary/15 ring-1 ring-primary/40" : "bg-surface/40"}`}>
+          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-white to-zinc-300 border border-zinc-400 shadow" />
+          <div className="flex-1">
+            <p className="text-[10px] text-muted-foreground">{myColor === "w" ? "You" : myColor === "b" ? "Opponent" : "White"}</p>
+            <p className="text-sm font-bold text-foreground">{wCount} <span className="text-[10px] font-normal text-muted-foreground">pieces</span></p>
+          </div>
+        </div>
+        <div className={`flex items-center gap-2 p-2 rounded-lg ${myColor && match.current_turn !== myColor && match.status === "active" ? "bg-primary/15 ring-1 ring-primary/40" : "bg-surface/40"}`}>
+          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-zinc-800 to-black border border-zinc-700 shadow" />
+          <div className="flex-1">
+            <p className="text-[10px] text-muted-foreground">{myColor === "b" ? "You" : myColor === "w" ? (match.vs_ai ? "Tiger AI" : "Opponent") : "Black"}</p>
+            <p className="text-sm font-bold text-foreground">{bCount} <span className="text-[10px] font-normal text-muted-foreground">pieces</span></p>
+          </div>
+        </div>
+      </div>
 
       <div className="flex-1 flex items-center justify-center p-3 bg-gradient-to-br from-background to-surface">
         <div className="aspect-square w-full max-w-[440px] grid grid-cols-8 rounded-lg overflow-hidden shadow-2xl ring-1 ring-primary/30">
@@ -303,17 +363,18 @@ const Draughts = () => {
             const piece = match.board[i];
             const sel = selected === i;
             const dest = validDest.has(i);
+            const isLast = i === lastFrom || i === lastTo;
             return (
               <button
                 key={i}
                 onClick={() => onCellClick(i)}
                 className={`relative flex items-center justify-center transition-colors ${
                   dark ? "bg-amber-900/70" : "bg-amber-100/80"
-                } ${sel ? "ring-2 ring-primary ring-inset" : ""}`}
+                } ${sel ? "ring-2 ring-primary ring-inset" : ""} ${isLast && !sel ? "ring-2 ring-yellow-400/60 ring-inset" : ""}`}
               >
                 {piece && (
                   <div
-                    className={`w-[78%] h-[78%] rounded-full border-[3px] flex items-center justify-center shadow-lg ${
+                    className={`w-[78%] h-[78%] rounded-full border-[3px] flex items-center justify-center shadow-lg transition-transform ${sel ? "scale-110" : ""} ${
                       piece.c === "w"
                         ? "bg-gradient-to-br from-white to-zinc-300 border-zinc-400"
                         : "bg-gradient-to-br from-zinc-800 to-black border-zinc-700"
@@ -323,7 +384,7 @@ const Draughts = () => {
                   </div>
                 )}
                 {dest && (
-                  <span className="absolute w-3 h-3 rounded-full bg-primary/70 animate-pulse" />
+                  <span className={`absolute rounded-full bg-primary/70 animate-pulse ${piece ? "w-full h-full opacity-30" : "w-3 h-3"}`} />
                 )}
               </button>
             );
@@ -331,9 +392,18 @@ const Draughts = () => {
         </div>
       </div>
 
-      <div className="px-4 py-2 text-[11px] text-center text-muted-foreground border-t border-border/50">
-        Forced captures · multi-jump chains · king on last row
-      </div>
+      {match.status === "finished" && (
+        <div className="px-4 py-3 text-center bg-gradient-to-r from-primary/20 via-purple-500/20 to-primary/20 border-t border-primary/30">
+          <p className="text-base font-bold text-foreground">{winnerLabel || `Winner: ${match.winner}`}</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Pieces left — White: {wCount} · Black: {bCount}</p>
+        </div>
+      )}
+
+      {match.status !== "finished" && (
+        <div className="px-4 py-2 text-[11px] text-center text-muted-foreground border-t border-border/50">
+          Forced captures · multi-jump chains · king on last row
+        </div>
+      )}
     </div>
   );
 };
