@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
       }
       try {
         // Submit to queue
-        const MODEL = "fal-ai/ltx-video";
+        const MODEL = "fal-ai/wan/v2.2-5b/text-to-video";
         const submit = await fetch(`https://queue.fal.run/${MODEL}`, {
           method: "POST",
           headers: {
