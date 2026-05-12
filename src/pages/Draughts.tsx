@@ -52,6 +52,25 @@ const Draughts = () => {
     if (mode === "pvp" && !match) loadOpen();
   }, [mode, match]);
 
+  // Deep-link: open shared match
+  useEffect(() => {
+    const matchId = new URLSearchParams(window.location.search).get("match");
+    if (!matchId || !user || match) return;
+    (async () => {
+      const { data } = await supabase.from("draft_matches").select("*").eq("id", matchId).maybeSingle();
+      if (!data) return;
+      const row = data as any as MatchRow;
+      if (row.status === "waiting" && row.player_white !== user.id && !row.player_black) {
+        const { data: joined } = await supabase
+          .from("draft_matches")
+          .update({ player_black: user.id, status: "active" })
+          .eq("id", matchId).eq("status", "waiting").select().single();
+        if (joined) { setMatch(joined as any); setMode("pvp"); return; }
+      }
+      setMatch(row); setMode(row.vs_ai ? "ai" : "pvp");
+    })();
+  }, [user]);
+
   // Subscribe to match updates
   useEffect(() => {
     if (!match) return;
