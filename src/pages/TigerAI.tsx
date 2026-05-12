@@ -10,6 +10,7 @@ interface Msg {
   role: "user" | "assistant";
   content: string;
   image_url?: string;
+  video_url?: string;
 }
 
 const TIGER_AI_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tiger-ai`;
