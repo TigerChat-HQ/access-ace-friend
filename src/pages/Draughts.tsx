@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Bot, Users, Crown, Loader2, RotateCw } from "lucide-react";
+import { ArrowLeft, Bot, Users, Crown, Loader2, RotateCw, Flag, Share2, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +21,7 @@ interface MatchRow {
   current_turn: Color;
   status: string;
   winner: string | null;
+  last_move?: Move | null;
 }
 
 const Draughts = () => {
