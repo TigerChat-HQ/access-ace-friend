@@ -43,15 +43,83 @@ Deno.serve(async (req) => {
   try {
     const { messages, mode, image_prompt, edit_image_url, hq, video_prompt } = await req.json();
 
-    // ----- Video branch (not yet supported on Lovable AI Gateway) -----
+    // ----- Video branch (fal.ai - LTX Video, fast text-to-video) -----
     if (video_prompt) {
-      return new Response(
-        JSON.stringify({
-          error:
-            "Video generation isn't available on Tiger AI yet. Tap 'Send to admin' to request video gen — we'll wire it up to a video provider as soon as the team adds the key.",
-        }),
-        { status: 501, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      const FAL_KEY = Deno.env.get("FAL_KEY");
+      if (!FAL_KEY) {
+        return new Response(
+          JSON.stringify({ error: "Video provider not configured." }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      try {
+        // Submit to queue
+        const MODEL = "fal-ai/ltx-video";
+        const submit = await fetch(`https://queue.fal.run/${MODEL}`, {
+          method: "POST",
+          headers: {
+            Authorization: `Key ${FAL_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ prompt: String(video_prompt).slice(0, 1000) }),
+        });
+        if (!submit.ok) {
+          const t = await submit.text();
+          console.error("fal submit error:", submit.status, t);
+          return new Response(
+            JSON.stringify({ error: "Video provider rejected the request." }),
+            { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+        const sub = await submit.json();
+        const statusUrl: string = sub.status_url;
+        const responseUrl: string = sub.response_url;
+
+        // Poll up to ~90s
+        const start = Date.now();
+        while (Date.now() - start < 90000) {
+          await new Promise((r) => setTimeout(r, 2500));
+          const st = await fetch(statusUrl, {
+            headers: { Authorization: `Key ${FAL_KEY}` },
+          });
+          const stJson = await st.json();
+          if (stJson.status === "COMPLETED") break;
+          if (stJson.status === "FAILED") {
+            return new Response(
+              JSON.stringify({ error: "Video generation failed." }),
+              { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            );
+          }
+        }
+
+        const finalRes = await fetch(responseUrl, {
+          headers: { Authorization: `Key ${FAL_KEY}` },
+        });
+        if (!finalRes.ok) {
+          return new Response(
+            JSON.stringify({ error: "Video still rendering. Try again in a moment." }),
+            { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+        const finalJson = await finalRes.json();
+        const url = finalJson?.video?.url || finalJson?.video_url || null;
+        if (!url) {
+          return new Response(
+            JSON.stringify({ error: "Video URL not returned." }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+        return new Response(
+          JSON.stringify({ video_url: url, text: "Here's your clip 🐯🎬" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      } catch (e) {
+        console.error("video gen error:", e);
+        return new Response(
+          JSON.stringify({ error: e instanceof Error ? e.message : "Video gen error" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
     }
 
     // ----- Image generation / editing branch (non-streaming) -----

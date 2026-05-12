@@ -10,6 +10,7 @@ interface Msg {
   role: "user" | "assistant";
   content: string;
   image_url?: string;
+  video_url?: string;
 }
 
 const TIGER_AI_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tiger-ai`;
@@ -53,6 +54,10 @@ const TigerAI = () => {
     setMessages((m) => [...m, { role: "user", content: prompt }]);
     setInput("");
     setLoading(true);
+    setMessages((m) => [
+      ...m,
+      { role: "assistant", content: "🎬 Rendering your clip — this can take 30-90 seconds…" },
+    ]);
     try {
       const resp = await fetch(TIGER_AI_URL, {
         method: "POST",
@@ -60,15 +65,28 @@ const TigerAI = () => {
         body: JSON.stringify({ video_prompt: prompt }),
       });
       const data = await resp.json();
-      setMessages((m) => [
-        ...m,
-        {
+      if (!resp.ok || !data.video_url) {
+        setMessages((m) => {
+          const copy = [...m];
+          copy[copy.length - 1] = {
+            role: "assistant",
+            content: data?.error || "Video generation failed. Try again shortly.",
+          };
+          return copy;
+        });
+        return;
+      }
+      setMessages((m) => {
+        const copy = [...m];
+        copy[copy.length - 1] = {
           role: "assistant",
-          content:
-            data?.error ||
-            "Video generation is rolling out soon. Tap **Send to admin** to request it.",
-        },
-      ]);
+          content: data.text || "Here's your clip 🐯🎬",
+          video_url: data.video_url,
+        };
+        return copy;
+      });
+    } catch (e: any) {
+      toast({ title: "Video gen failed", description: e.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -215,6 +233,14 @@ const TigerAI = () => {
                 <ReactMarkdown>{m.content}</ReactMarkdown>
                 {m.image_url && (
                   <img src={m.image_url} alt="Tiger AI generated" className="mt-2 rounded-lg max-w-full" />
+                )}
+                {m.video_url && (
+                  <video
+                    src={m.video_url}
+                    controls
+                    playsInline
+                    className="mt-2 rounded-lg max-w-full bg-black"
+                  />
                 )}
               </div>
             </div>
