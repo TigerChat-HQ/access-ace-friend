@@ -234,6 +234,14 @@ const TigerAI = () => {
                 {m.image_url && (
                   <img src={m.image_url} alt="Tiger AI generated" className="mt-2 rounded-lg max-w-full" />
                 )}
+                {m.video_url && (
+                  <video
+                    src={m.video_url}
+                    controls
+                    playsInline
+                    className="mt-2 rounded-lg max-w-full bg-black"
+                  />
+                )}
               </div>
             </div>
           </div>
