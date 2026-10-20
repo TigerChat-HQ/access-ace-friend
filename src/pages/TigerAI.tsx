@@ -58,33 +58,44 @@ const TigerAI = () => {
       ...m,
       { role: "assistant", content: "🎬 Rendering your clip — this can take 30-90 seconds…" },
     ]);
-    try {
+    const setLast = (msg: Msg) =>
+      setMessages((m) => {
+        const copy = [...m];
+        copy[copy.length - 1] = msg;
+        return copy;
+      });
+    const call = async (body: object) => {
       const resp = await fetch(TIGER_AI_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${ANON}` },
-        body: JSON.stringify({ video_prompt: prompt }),
+        body: JSON.stringify(body),
       });
-      const data = await resp.json();
-      if (!resp.ok || !data.video_url) {
-        setMessages((m) => {
-          const copy = [...m];
-          copy[copy.length - 1] = {
-            role: "assistant",
-            content: data?.error || "Video generation failed. Try again shortly.",
-          };
-          return copy;
-        });
+      return { ok: resp.ok, data: await resp.json().catch(() => ({})) };
+    };
+    try {
+      const created = await call({ video_prompt: prompt });
+      if (!created.ok || !created.data.video_id) {
+        setLast({ role: "assistant", content: created.data?.error || "Video generation failed. Try again shortly." });
         return;
       }
-      setMessages((m) => {
-        const copy = [...m];
-        copy[copy.length - 1] = {
+      const started = Date.now();
+      while (Date.now() - started < 6 * 60 * 1000) {
+        await new Promise((r) => setTimeout(r, 7000));
+        const { ok, data } = await call({ video_id: created.data.video_id });
+        if (!ok || data.status === "failed") {
+          setLast({ role: "assistant", content: data?.error || "Video generation failed." });
+          return;
+        }
+        if (data.status === "completed" && data.video_url) {
+          setLast({ role: "assistant", content: data.text || "Here's your clip 🐯🎬", video_url: data.video_url });
+          return;
+        }
+        setLast({
           role: "assistant",
-          content: data.text || "Here's your clip 🐯🎬",
-          video_url: data.video_url,
-        };
-        return copy;
-      });
+          content: `🎬 Rendering your clip${data.progress ? ` — ${data.progress}%` : ""}… (1-3 min)`,
+        });
+      }
+      setLast({ role: "assistant", content: "Video is taking longer than expected. Please try again later." });
     } catch (e: any) {
       toast({ title: "Video gen failed", description: e.message, variant: "destructive" });
     } finally {
