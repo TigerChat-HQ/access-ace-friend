@@ -41,85 +41,56 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages, mode, image_prompt, edit_image_url, hq, video_prompt } = await req.json();
+    const { messages, mode, image_prompt, edit_image_url, hq, video_prompt, video_id } = await req.json();
+    const json = (b: unknown, status = 200) =>
+      new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const GW = "https://ai.gateway.lovable.dev/v1/videos";
+    const KEY = Deno.env.get("LOVABLE_API_KEY");
 
-    // ----- Video branch (fal.ai - LTX Video, fast text-to-video) -----
+    // ----- Video: create job (Lovable AI, Gemini Omni) -----
     if (video_prompt) {
-      const FAL_KEY = Deno.env.get("FAL_KEY");
-      if (!FAL_KEY) {
-        return new Response(
-          JSON.stringify({ error: "Video provider not configured." }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
+      if (!KEY) return json({ error: "AI not configured." }, 500);
+      const r = await fetch(GW, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-omni-1.1-flash",
+          input: `${String(video_prompt).slice(0, 1000)}. Cinematic, single continuous shot, consider micro-detail and timing; fitting ambient soundtrack.`,
+          response_format: { type: "video", resolution: "720p", duration: "5s", aspect_ratio: "9:16" },
+        }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        console.error("video create", r.status, d);
+        return json({ error: d?.error?.message || d?.message || "Video request failed." }, r.status);
       }
-      try {
-        // Submit to queue
-        const MODEL = "fal-ai/wan/v2.2-5b/text-to-video";
-        const submit = await fetch(`https://queue.fal.run/${MODEL}`, {
-          method: "POST",
-          headers: {
-            Authorization: `Key ${FAL_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ prompt: String(video_prompt).slice(0, 1000) }),
-        });
-        if (!submit.ok) {
-          const t = await submit.text();
-          console.error("fal submit error:", submit.status, t);
-          return new Response(
-            JSON.stringify({ error: "Video provider rejected the request." }),
-            { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-          );
-        }
-        const sub = await submit.json();
-        const statusUrl: string = sub.status_url;
-        const responseUrl: string = sub.response_url;
+      return json({ video_id: d.id, status: d.status });
+    }
 
-        // Poll up to ~90s
-        const start = Date.now();
-        while (Date.now() - start < 90000) {
-          await new Promise((r) => setTimeout(r, 2500));
-          const st = await fetch(statusUrl, {
-            headers: { Authorization: `Key ${FAL_KEY}` },
-          });
-          const stJson = await st.json();
-          if (stJson.status === "COMPLETED") break;
-          if (stJson.status === "FAILED") {
-            return new Response(
-              JSON.stringify({ error: "Video generation failed." }),
-              { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-            );
-          }
-        }
+    // ----- Video: poll job, store MP4 on completion -----
+    if (video_id) {
+      if (!KEY) return json({ error: "AI not configured." }, 500);
+      const id = String(video_id).replace(/[^a-zA-Z0-9_-]/g, "");
+      const r = await fetch(`${GW}/${id}`, { headers: { Authorization: `Bearer ${KEY}` } });
+      const job = await r.json().catch(() => ({}));
+      if (!r.ok) return json({ error: job?.error?.message || "Status check failed." }, r.status);
+      if (job.status === "failed") return json({ status: "failed", error: job.error?.message || "Video generation failed." });
+      if (job.status !== "completed") return json({ status: job.status, progress: job.progress ?? null });
 
-        const finalRes = await fetch(responseUrl, {
-          headers: { Authorization: `Key ${FAL_KEY}` },
-        });
-        if (!finalRes.ok) {
-          return new Response(
-            JSON.stringify({ error: "Video still rendering. Try again in a moment." }),
-            { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-          );
-        }
-        const finalJson = await finalRes.json();
-        const url = finalJson?.video?.url || finalJson?.video_url || null;
-        if (!url) {
-          return new Response(
-            JSON.stringify({ error: "Video URL not returned." }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-          );
-        }
-        return new Response(
-          JSON.stringify({ video_url: url, text: "Here's your clip 🐯🎬" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
-      } catch (e) {
-        console.error("video gen error:", e);
-        return new Response(
-          JSON.stringify({ error: e instanceof Error ? e.message : "Video gen error" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
+      const { createClient } = await import("npm:@supabase/supabase-js@2");
+      const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      const path = `${id}.mp4`;
+      await admin.storage.createBucket("ai-videos", { public: false }).catch(() => {});
+      const { data: existing } = await admin.storage.from("ai-videos").list("", { search: path });
+      if (!existing?.some((f) => f.name === path)) {
+        const c = await fetch(`${GW}/${id}/content`, { headers: { Authorization: `Bearer ${KEY}` } });
+        if (!c.ok) return json({ error: "Could not download video." }, 502);
+        const bytes = new Uint8Array(await c.arrayBuffer());
+        const up = await admin.storage.from("ai-videos").upload(path, bytes, { contentType: "video/mp4", upsert: true });
+        if (up.error) return json({ error: up.error.message }, 500);
       }
+      const { data: signed } = await admin.storage.from("ai-videos").createSignedUrl(path, 60 * 60 * 24 * 7);
+      return json({ status: "completed", video_url: signed?.signedUrl, text: "Here's your clip 🐯🎬" });
     }
 
     // ----- Image generation / editing branch (non-streaming) -----
