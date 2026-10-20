@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
-
 type SignalInsert = {
   caller_id: string;
   callee_id: string;
@@ -16,13 +15,24 @@ type SignalInsert = {
 const insertSignal = (data: SignalInsert) =>
   supabase.from("call_signals").insert(data as any);
 
+// STUN + public TURN relays so calls connect across mobile carriers / strict NATs.
 const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
+    { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+    {
+      urls: [
+        "turn:openrelay.metered.ca:80",
+        "turn:openrelay.metered.ca:443",
+        "turn:openrelay.metered.ca:443?transport=tcp",
+      ],
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
   ],
+  iceCandidatePoolSize: 4,
 };
+
+const RING_TIMEOUT_MS = 45000;
 
 export interface CallInfo {
   callId: string;
@@ -43,345 +53,287 @@ export const useWebRTC = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [duration, setDuration] = useState(0);
+  const [remoteStream, setRemoteStream] = useState<MediaStream>(() => new MediaStream());
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
-  const remoteStreamRef = useRef<MediaStream>(new MediaStream());
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const callIdRef = useRef<string | null>(null);
   const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const iceCandidatesQueue = useRef<RTCIceCandidateInit[]>([]);
+  const ringTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const iceQueue = useRef<RTCIceCandidateInit[]>([]);
+  const statusRef = useRef<CallStatus>("idle");
+  const callRef = useRef<CallInfo | null>(null);
+  const facingRef = useRef<"user" | "environment">("user");
 
-  // Clean up media tracks
+  useEffect(() => { statusRef.current = callStatus; }, [callStatus]);
+  useEffect(() => { callRef.current = activeCall; }, [activeCall]);
+
+  // Re-attach streams whenever video elements (re)mount
+  useEffect(() => {
+    if (localVideoRef.current && localStreamRef.current && localVideoRef.current.srcObject !== localStreamRef.current)
+      localVideoRef.current.srcObject = localStreamRef.current;
+    if (remoteVideoRef.current && remoteVideoRef.current.srcObject !== remoteStream)
+      remoteVideoRef.current.srcObject = remoteStream;
+  });
+
   const cleanupMedia = useCallback(() => {
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     localStreamRef.current = null;
     pcRef.current?.close();
     pcRef.current = null;
-    remoteStreamRef.current = new MediaStream();
-    if (durationTimerRef.current) clearInterval(durationTimerRef.current);
+    iceQueue.current = [];
+    setRemoteStream(new MediaStream());
+    [durationTimerRef, ringTimerRef, disconnectTimerRef].forEach((r) => {
+      if (r.current) { clearInterval(r.current as any); clearTimeout(r.current as any); r.current = null; }
+    });
     setDuration(0);
+    setIsMuted(false);
   }, []);
 
-  // Create peer connection
-  const createPeerConnection = useCallback((callInfo: CallInfo) => {
+  const finish = useCallback(() => {
+    cleanupMedia();
+    callIdRef.current = null;
+    setCallStatus("ended");
+    setTimeout(() => { setCallStatus("idle"); setActiveCall(null); }, 1500);
+  }, [cleanupMedia]);
+
+  const sendSignal = useCallback(async (info: CallInfo, type: string, data: any = {}, status = "active") => {
+    if (!user) return;
+    await insertSignal({
+      caller_id: info.callerId,
+      callee_id: info.calleeId,
+      conversation_id: info.conversationId,
+      call_type: info.callType,
+      signal_type: type,
+      signal_data: { ...data, callId: info.callId, from: user.id },
+      status,
+    });
+  }, [user]);
+
+  const endCall = useCallback(async () => {
+    const info = callRef.current;
+    if (info) await sendSignal(info, statusRef.current === "outgoing" ? "missed" : "hangup", {}, "ended");
+    finish();
+  }, [sendSignal, finish]);
+
+  const getMedia = async (video: boolean) =>
+    navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      video: video ? { facingMode: facingRef.current, width: { ideal: 1280 }, height: { ideal: 720 } } : false,
+    });
+
+  const createPeerConnection = useCallback((info: CallInfo) => {
     const pc = new RTCPeerConnection(ICE_SERVERS);
     pcRef.current = pc;
 
-    // Send ICE candidates via Supabase
-    pc.onicecandidate = async (event) => {
-      if (event.candidate && callInfo.callId) {
-        await insertSignal({
-          caller_id: callInfo.callerId,
-          callee_id: callInfo.calleeId,
-          conversation_id: callInfo.conversationId,
-          call_type: callInfo.callType,
-          signal_type: "ice-candidate",
-          signal_data: { candidate: event.candidate.toJSON() },
-          status: "active",
-        });
-      }
+    pc.onicecandidate = (e) => {
+      if (e.candidate) sendSignal(info, "ice-candidate", { candidate: e.candidate.toJSON() });
     };
 
-    // Handle remote tracks
-    pc.ontrack = (event) => {
-      event.streams[0]?.getTracks().forEach((track) => {
-        remoteStreamRef.current.addTrack(track);
+    pc.ontrack = (e) => {
+      setRemoteStream((prev) => {
+        const s = new MediaStream(prev.getTracks());
+        (e.streams[0]?.getTracks() || [e.track]).forEach((t) => {
+          if (!s.getTracks().includes(t)) s.addTrack(t);
+        });
+        return s;
       });
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = remoteStreamRef.current;
-      }
     };
 
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === "connected") {
+      const st = pc.connectionState;
+      if (st === "connected") {
+        if (disconnectTimerRef.current) { clearTimeout(disconnectTimerRef.current); disconnectTimerRef.current = null; }
+        if (ringTimerRef.current) { clearTimeout(ringTimerRef.current); ringTimerRef.current = null; }
         setCallStatus("connected");
-        durationTimerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
-      } else if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+        if (!durationTimerRef.current)
+          durationTimerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
+      } else if (st === "disconnected") {
+        // Give unstable networks time to recover, try ICE restart
+        try { pc.restartIce(); } catch {}
+        if (!disconnectTimerRef.current)
+          disconnectTimerRef.current = setTimeout(() => endCall(), 15000);
+      } else if (st === "failed") {
         endCall();
       }
     };
-
     return pc;
-  }, []);
+  }, [sendSignal, endCall]);
 
-  // Start an outgoing call
+  const flushIce = async () => {
+    const pc = pcRef.current;
+    if (!pc) return;
+    for (const c of iceQueue.current) { try { await pc.addIceCandidate(c); } catch {} }
+    iceQueue.current = [];
+  };
+
   const startCall = useCallback(async (
-    calleeId: string,
-    conversationId: string,
-    callType: "voice" | "video",
-    calleeName: string,
-    calleeAvatar: string,
+    calleeId: string, conversationId: string, callType: "voice" | "video",
+    calleeName: string, calleeAvatar: string,
   ) => {
-    if (!user || callStatus !== "idle") return;
-
-    const callId = crypto.randomUUID();
-    callIdRef.current = callId;
-
-    const callInfo: CallInfo = {
-      callId,
-      callerId: user.id,
-      calleeId,
-      conversationId,
-      callType,
-      callerName: calleeName,
-      callerAvatar: calleeAvatar,
+    if (!user || statusRef.current !== "idle") return;
+    const info: CallInfo = {
+      callId: crypto.randomUUID(), callerId: user.id, calleeId, conversationId, callType,
+      callerName: calleeName, callerAvatar: calleeAvatar,
     };
-    setActiveCall(callInfo);
+    callIdRef.current = info.callId;
+    callRef.current = info;
+    setActiveCall(info);
     setCallStatus("outgoing");
     setIsVideoOn(callType === "video");
-
     try {
-      // Get local media
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: callType === "video",
-      });
+      const stream = await getMedia(callType === "video");
       localStreamRef.current = stream;
-      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-
-      const pc = createPeerConnection(callInfo);
-
-      // Add local tracks
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-
-      // Create and send offer
+      const pc = createPeerConnection(info);
+      stream.getTracks().forEach((t) => pc.addTrack(t, stream));
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-
-      await insertSignal({
-        caller_id: user.id,
-        callee_id: calleeId,
-        conversation_id: conversationId,
-        call_type: callType,
-        signal_type: "offer",
-        signal_data: { sdp: offer.sdp, type: offer.type, callId },
-        status: "pending",
-      });
+      await sendSignal(info, "offer", { sdp: offer.sdp, type: offer.type }, "pending");
+      ringTimerRef.current = setTimeout(() => {
+        if (statusRef.current === "outgoing") endCall();
+      }, RING_TIMEOUT_MS);
     } catch (err) {
       console.error("Failed to start call:", err);
+      alert("Allow microphone" + (callType === "video" ? " and camera" : "") + " access to make calls.");
       cleanupMedia();
       setCallStatus("idle");
       setActiveCall(null);
     }
-  }, [user, callStatus, createPeerConnection, cleanupMedia]);
+  }, [user, createPeerConnection, cleanupMedia, sendSignal, endCall]);
 
-  // Accept an incoming call
-  const acceptCall = useCallback(async (callInfo: CallInfo, offerSdp: RTCSessionDescriptionInit) => {
+  const acceptCall = useCallback(async (info: CallInfo, offer: RTCSessionDescriptionInit) => {
     if (!user) return;
-
     setCallStatus("connecting");
-    callIdRef.current = callInfo.callId;
-
+    callIdRef.current = info.callId;
+    if (ringTimerRef.current) { clearTimeout(ringTimerRef.current); ringTimerRef.current = null; }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: callInfo.callType === "video",
-      });
+      const stream = await getMedia(info.callType === "video");
       localStreamRef.current = stream;
-      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-
-      const pc = createPeerConnection(callInfo);
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-
-      await pc.setRemoteDescription(new RTCSessionDescription(offerSdp));
-
-      // Process queued ICE candidates
-      for (const candidate of iceCandidatesQueue.current) {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
-      }
-      iceCandidatesQueue.current = [];
-
+      const pc = createPeerConnection(info);
+      stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+      await pc.setRemoteDescription(offer);
+      await flushIce();
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-
-      await insertSignal({
-        caller_id: callInfo.callerId,
-        callee_id: callInfo.calleeId,
-        conversation_id: callInfo.conversationId,
-        call_type: callInfo.callType,
-        signal_type: "answer",
-        signal_data: { sdp: answer.sdp, type: answer.type, callId: callInfo.callId },
-        status: "active",
-      });
+      await sendSignal(info, "answer", { sdp: answer.sdp, type: answer.type });
     } catch (err) {
       console.error("Failed to accept call:", err);
-      cleanupMedia();
-      setCallStatus("idle");
-      setActiveCall(null);
+      alert("Allow microphone/camera access to answer calls.");
+      await sendSignal(info, "reject", {}, "ended");
+      finish();
     }
-  }, [user, createPeerConnection, cleanupMedia]);
+  }, [user, createPeerConnection, sendSignal, finish]);
 
-  // Reject an incoming call
   const rejectCall = useCallback(async () => {
-    if (!activeCall || !user) return;
-    await insertSignal({
-      caller_id: activeCall.callerId,
-      callee_id: activeCall.calleeId,
-      conversation_id: activeCall.conversationId,
-      call_type: activeCall.callType,
-      signal_type: "reject",
-      signal_data: { callId: activeCall.callId },
-      status: "ended",
-    });
+    const info = callRef.current;
+    if (info) await sendSignal(info, "reject", {}, "ended");
     cleanupMedia();
+    callIdRef.current = null;
     setCallStatus("idle");
     setActiveCall(null);
-  }, [activeCall, user, cleanupMedia]);
+  }, [sendSignal, cleanupMedia]);
 
-  // End an active call
-  const endCall = useCallback(async () => {
-    if (!activeCall || !user) return;
-    await insertSignal({
-      caller_id: activeCall.callerId,
-      callee_id: activeCall.calleeId,
-      conversation_id: activeCall.conversationId,
-      call_type: activeCall.callType,
-      signal_type: "hangup",
-      signal_data: { callId: activeCall.callId },
-      status: "ended",
-    });
-    cleanupMedia();
-    setCallStatus("ended");
-    setTimeout(() => {
-      setCallStatus("idle");
-      setActiveCall(null);
-    }, 1500);
-  }, [activeCall, user, cleanupMedia]);
-
-  // Toggle mute
   const toggleMute = useCallback(() => {
-    const audioTrack = localStreamRef.current?.getAudioTracks()[0];
-    if (audioTrack) {
-      audioTrack.enabled = !audioTrack.enabled;
-      setIsMuted(!audioTrack.enabled);
-    }
+    const t = localStreamRef.current?.getAudioTracks()[0];
+    if (t) { t.enabled = !t.enabled; setIsMuted(!t.enabled); }
   }, []);
 
-  // Toggle video
   const toggleVideo = useCallback(() => {
-    const videoTrack = localStreamRef.current?.getVideoTracks()[0];
-    if (videoTrack) {
-      videoTrack.enabled = !videoTrack.enabled;
-      setIsVideoOn(videoTrack.enabled);
-    }
+    const t = localStreamRef.current?.getVideoTracks()[0];
+    if (t) { t.enabled = !t.enabled; setIsVideoOn(t.enabled); }
   }, []);
 
-  // Listen for incoming signals via Supabase Realtime
+  const switchCamera = useCallback(async () => {
+    const pc = pcRef.current;
+    const stream = localStreamRef.current;
+    if (!pc || !stream || !stream.getVideoTracks()[0]) return;
+    facingRef.current = facingRef.current === "user" ? "environment" : "user";
+    try {
+      const ns = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facingRef.current } });
+      const nt = ns.getVideoTracks()[0];
+      const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+      await sender?.replaceTrack(nt);
+      const old = stream.getVideoTracks()[0];
+      stream.removeTrack(old); old.stop(); stream.addTrack(nt);
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+    } catch (e) { console.error("switch camera failed", e); }
+  }, []);
+
+  // Signaling — one stable subscription per user, filtered server-side
   useEffect(() => {
     if (!user) return;
+    const handle = async (payload: any) => {
+      const s = payload.new as any;
+      const d = s.signal_data || {};
+      if (d.from === user.id) return; // ignore our own signals
+      const callId = d.callId;
+
+      switch (s.signal_type) {
+        case "offer": {
+          if (s.callee_id !== user.id) return;
+          if (statusRef.current !== "idle") {
+            // busy
+            await insertSignal({ caller_id: s.caller_id, callee_id: s.callee_id, conversation_id: s.conversation_id,
+              call_type: s.call_type, signal_type: "reject", signal_data: { callId, from: user.id, busy: true }, status: "ended" });
+            return;
+          }
+          const { data: p } = await supabase.from("profiles").select("display_name")
+            .eq("user_id", s.caller_id).maybeSingle();
+          const info: CallInfo = {
+            callId, callerId: s.caller_id, calleeId: s.callee_id, conversationId: s.conversation_id,
+            callType: s.call_type, callerName: p?.display_name || "Unknown",
+            callerAvatar: (p?.display_name || "U").slice(0, 2).toUpperCase(),
+          };
+          callIdRef.current = callId;
+          callRef.current = info;
+          setActiveCall(info);
+          setCallStatus("incoming");
+          setIsVideoOn(s.call_type === "video");
+          (window as any).__pendingOffer = { sdp: d.sdp, type: d.type };
+          ringTimerRef.current = setTimeout(() => {
+            if (statusRef.current === "incoming") { callIdRef.current = null; setCallStatus("idle"); setActiveCall(null); }
+          }, RING_TIMEOUT_MS);
+          break;
+        }
+        case "answer": {
+          if (callId !== callIdRef.current || !pcRef.current) return;
+          if (pcRef.current.signalingState !== "have-local-offer") return;
+          setCallStatus("connecting");
+          await pcRef.current.setRemoteDescription({ sdp: d.sdp, type: d.type });
+          await flushIce();
+          break;
+        }
+        case "ice-candidate": {
+          if (callId !== callIdRef.current || !d.candidate) return;
+          if (pcRef.current?.remoteDescription) {
+            try { await pcRef.current.addIceCandidate(d.candidate); } catch {}
+          } else iceQueue.current.push(d.candidate);
+          break;
+        }
+        case "hangup":
+        case "reject":
+        case "missed": {
+          if (callId !== callIdRef.current) return;
+          finish();
+          break;
+        }
+      }
+    };
 
     const channel = supabase
-      .channel("call-signals")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "call_signals",
-        },
-        async (payload) => {
-          const signal = payload.new as any;
-
-          // Only process signals meant for us
-          if (signal.caller_id !== user.id && signal.callee_id !== user.id) return;
-
-          const callId = signal.signal_data?.callId;
-
-          switch (signal.signal_type) {
-            case "offer": {
-              // Incoming call
-              if (signal.callee_id === user.id && callStatus === "idle") {
-                // Fetch caller profile
-                const { data: callerProfile } = await supabase
-                  .from("profiles")
-                  .select("display_name")
-                  .eq("user_id", signal.caller_id)
-                  .single();
-
-                const info: CallInfo = {
-                  callId: callId || signal.id,
-                  callerId: signal.caller_id,
-                  calleeId: signal.callee_id,
-                  conversationId: signal.conversation_id,
-                  callType: signal.call_type,
-                  callerName: callerProfile?.display_name || "Unknown",
-                  callerAvatar: (callerProfile?.display_name || "U").slice(0, 2).toUpperCase(),
-                };
-                setActiveCall(info);
-                setCallStatus("incoming");
-                setIsVideoOn(signal.call_type === "video");
-
-                // Store the offer SDP for when user accepts
-                (window as any).__pendingOffer = { sdp: signal.signal_data.sdp, type: signal.signal_data.type };
-              }
-              break;
-            }
-            case "answer": {
-              // Our outgoing call was answered
-              if (signal.callee_id === user.id || signal.caller_id === user.id) {
-                if (callIdRef.current === callId && pcRef.current) {
-                  setCallStatus("connecting");
-                  const answerDesc = new RTCSessionDescription({
-                    sdp: signal.signal_data.sdp,
-                    type: signal.signal_data.type,
-                  });
-                  await pcRef.current.setRemoteDescription(answerDesc);
-
-                  // Process queued ICE candidates
-                  for (const candidate of iceCandidatesQueue.current) {
-                    await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-                  }
-                  iceCandidatesQueue.current = [];
-                }
-              }
-              break;
-            }
-            case "ice-candidate": {
-              if (pcRef.current && pcRef.current.remoteDescription) {
-                await pcRef.current.addIceCandidate(new RTCIceCandidate(signal.signal_data.candidate));
-              } else {
-                iceCandidatesQueue.current.push(signal.signal_data.candidate);
-              }
-              break;
-            }
-            case "hangup":
-            case "reject": {
-              if (activeCall && callId === callIdRef.current) {
-                cleanupMedia();
-                setCallStatus("ended");
-                setTimeout(() => {
-                  setCallStatus("idle");
-                  setActiveCall(null);
-                }, 1500);
-              }
-              break;
-            }
-          }
-        }
-      )
+      .channel(`call-signals-${user.id}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "call_signals", filter: `callee_id=eq.${user.id}` }, handle)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "call_signals", filter: `caller_id=eq.${user.id}` }, handle)
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user, callStatus, activeCall, cleanupMedia]);
+    return () => { supabase.removeChannel(channel); };
+  }, [user, finish]);
 
   return {
-    callStatus,
-    activeCall,
-    isMuted,
-    isVideoOn,
-    duration,
-    localVideoRef,
-    remoteVideoRef,
-    remoteStream: remoteStreamRef.current,
-    startCall,
-    acceptCall,
-    rejectCall,
-    endCall,
-    toggleMute,
-    toggleVideo,
+    callStatus, activeCall, isMuted, isVideoOn, duration,
+    localVideoRef, remoteVideoRef, remoteStream,
+    startCall, acceptCall, rejectCall, endCall, toggleMute, toggleVideo, switchCamera,
   };
 };
