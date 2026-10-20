@@ -44,7 +44,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
     <div className={cn("flex mb-2 animate-fade-in group", isMe ? "justify-end" : "justify-start")}>
       {/* Actions menu - appears on hover */}
       {isMe && (
-        <div className="flex items-center mr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center mr-1 opacity-60 md:opacity-0 group-hover:opacity-100 transition-opacity">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="p-1 rounded-full hover:bg-surface-hover text-muted-foreground">
@@ -68,11 +68,11 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
 
       <div
         className={cn(
-          "max-w-[75%] rounded-2xl text-sm leading-relaxed",
+          "max-w-[78%] rounded-[1.35rem] text-[14.5px] leading-relaxed shadow-sm transition-transform active:scale-[0.98]",
           isImage && !message.text ? "p-1" : "px-4 py-2.5",
           isMe
-            ? cn(myBubbleClass || "bg-primary text-primary-foreground", "rounded-br-md")
-            : "glass text-foreground rounded-bl-md"
+            ? cn(myBubbleClass || "bg-primary text-primary-foreground", "rounded-br-md shadow-[0_4px_18px_-6px_hsl(var(--primary)/0.55)]")
+            : "bg-card/90 backdrop-blur border border-border/40 text-foreground rounded-bl-md"
         )}
       >
         {/* Reply preview */}
@@ -150,7 +150,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
 
       {/* Actions for other's messages */}
       {!isMe && (
-        <div className="flex items-center ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center ml-1 opacity-60 md:opacity-0 group-hover:opacity-100 transition-opacity">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="p-1 rounded-full hover:bg-surface-hover text-muted-foreground">
