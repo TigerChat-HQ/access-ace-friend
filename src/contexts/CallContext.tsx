@@ -1,3 +1,5 @@
+// @refresh reset
+// A call-hook update must remount this owner instead of reusing an old hook queue.
 import { createContext, useContext, ReactNode } from "react";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { CallDialog } from "@/components/chat/CallDialog";
@@ -18,19 +20,15 @@ export const CallProvider = ({ children }: { children: ReactNode }) => {
           isVideoOn={webrtc.isVideoOn}
           duration={webrtc.duration}
           remoteStream={webrtc.remoteStream}
+          localStream={webrtc.localStream}
           localVideoRef={webrtc.localVideoRef}
           remoteVideoRef={webrtc.remoteVideoRef}
-          onAccept={() => {
-            const pending = (window as any).__pendingOffer;
-            if (pending && webrtc.activeCall) {
-              webrtc.acceptCall(webrtc.activeCall, pending);
-              delete (window as any).__pendingOffer;
-            }
-          }}
+          onAccept={webrtc.acceptIncomingCall}
           onReject={webrtc.rejectCall}
           onEnd={webrtc.endCall}
           onToggleMute={webrtc.toggleMute}
           onToggleVideo={webrtc.toggleVideo}
+          onSwitchCamera={webrtc.switchCamera}
         />
       )}
     </Ctx.Provider>

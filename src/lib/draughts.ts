@@ -36,28 +36,33 @@ const dirs = (p: Piece) => {
 function jumpsFrom(board: Board, from: number, piece: Piece, captured: number[] = []): Move[] {
   const r = Math.floor(from / 8), c = from % 8;
   const out: Move[] = [];
-  const dirOpts = piece.k ? [[-1, -1], [-1, 1], [1, -1], [1, 1]] : dirs(piece);
-  for (const [dr, dc] of dirOpts) {
-    const mr = r + dr, mc = c + dc;
-    const tr = r + 2 * dr, tc = c + 2 * dc;
-    if (!inB(tr, tc)) continue;
-    const midI = idx(mr, mc), toI = idx(tr, tc);
+  for (const [dr, dc] of dirs(piece)) {
+    let mr = r + dr, mc = c + dc;
+    if (piece.k) {
+      while (inB(mr, mc) && !board[idx(mr, mc)]) { mr += dr; mc += dc; }
+    }
+    if (!inB(mr, mc)) continue;
+    const midI = idx(mr, mc);
     const mid = board[midI];
-    if (!mid || mid.c === piece.c) continue;
-    if (captured.includes(midI)) continue;
-    if (board[toI] && toI !== from) continue;
-    // simulate
-    const nb = board.slice();
-    nb[from] = null;
-    nb[midI] = null;
-    const promote = piece.c === "w" ? tr === 0 : tr === 7;
-    nb[toI] = { c: piece.c, k: piece.k || promote };
-    const nextCaps = [...captured, midI];
-    const further = jumpsFrom(nb, toI, nb[toI]!, nextCaps);
-    if (further.length) {
-      for (const f of further) out.push({ from, to: f.to, captures: [midI, ...f.captures], promote: f.promote });
-    } else {
-      out.push({ from: from, to: toI, captures: nextCaps, promote });
+    if (!mid || mid.c === piece.c || captured.includes(midI)) continue;
+    let tr = mr + dr, tc = mc + dc;
+    while (inB(tr, tc) && !board[idx(tr, tc)]) {
+      const toI = idx(tr, tc);
+      const nb = board.slice();
+      nb[from] = null;
+      nb[midI] = null;
+      const promote = piece.c === "w" ? tr === 0 : tr === 7;
+      const movedPiece = { c: piece.c, k: piece.k || promote };
+      nb[toI] = movedPiece;
+      const nextCaps = [...captured, midI];
+      const further = jumpsFrom(nb, toI, movedPiece, nextCaps);
+      if (further.length) {
+        for (const f of further) out.push({ from, to: f.to, captures: f.captures, promote: promote || f.promote });
+      } else {
+        out.push({ from, to: toI, captures: nextCaps, promote });
+      }
+      if (!piece.k) break;
+      tr += dr; tc += dc;
     }
   }
   return out;
@@ -78,12 +83,13 @@ export function legalMoves(board: Board, color: Color): Move[] {
     if (!p || p.c !== color) continue;
     const r = Math.floor(i / 8), c = i % 8;
     for (const [dr, dc] of dirs(p)) {
-      const tr = r + dr, tc = c + dc;
-      if (!inB(tr, tc)) continue;
-      const t = idx(tr, tc);
-      if (board[t]) continue;
-      const promote = color === "w" ? tr === 0 : tr === 7;
-      quiets.push({ from: i, to: t, captures: [], promote });
+      let tr = r + dr, tc = c + dc;
+      while (inB(tr, tc) && !board[idx(tr, tc)]) {
+        const promote = color === "w" ? tr === 0 : tr === 7;
+        quiets.push({ from: i, to: idx(tr, tc), captures: [], promote });
+        if (!p.k) break;
+        tr += dr; tc += dc;
+      }
     }
   }
   return quiets;
@@ -91,7 +97,8 @@ export function legalMoves(board: Board, color: Color): Move[] {
 
 export function applyMove(board: Board, m: Move): Board {
   const nb = board.slice();
-  const piece = nb[m.from]!;
+  const piece = nb[m.from];
+  if (!piece) throw new Error("Cannot move an empty square");
   nb[m.from] = null;
   for (const ci of m.captures) nb[ci] = null;
   nb[m.to] = { c: piece.c, k: piece.k || m.promote };
