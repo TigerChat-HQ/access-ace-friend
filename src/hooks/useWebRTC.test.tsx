@@ -14,6 +14,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   }, removeChannel: vi.fn(),
 } }));
 import { useWebRTC } from "./useWebRTC";
+import { CallProvider, useCall } from "@/contexts/CallContext";
 
 class FakeStream {
   getTracks() { return [{ stop: mocks.stop, kind: "video", enabled: true }]; }
@@ -53,6 +54,18 @@ describe("call signaling reliability", () => {
     await act(async () => { await result.current.endCall(); });
     expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({ signal_type: "hangup", signal_data: expect.objectContaining({ reason: "missed", callId: "call" }) }));
     expect(result.current.callStatus).toBe("ended");
+    unmount();
+  });
+  it("keeps the provider hook order stable across rerenders and call transitions", async () => {
+    const { result, rerender, unmount } = renderHook(() => useCall(), { wrapper: CallProvider });
+    expect(result.current.callStatus).toBe("idle");
+    rerender();
+    await act(async () => { await result.current.startCall("other", "chat", "video", "Other", "OT"); });
+    expect(result.current.callStatus).toBe("outgoing");
+    rerender();
+    await act(async () => { await result.current.endCall(); });
+    expect(result.current.callStatus).toBe("ended");
+    rerender();
     unmount();
   });
 });
