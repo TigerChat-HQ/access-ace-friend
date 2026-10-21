@@ -1,3 +1,5 @@
+// @refresh reset
+// A call-hook update must remount this owner instead of reusing an old hook queue.
 import { createContext, useContext, ReactNode } from "react";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { CallDialog } from "@/components/chat/CallDialog";
