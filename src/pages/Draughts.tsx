@@ -181,6 +181,18 @@ const Draughts = () => {
     setMode("pvp");
   };
 
+  const [codeInput, setCodeInput] = useState("");
+  const joinByCode = async () => {
+    const code = codeInput.trim().toLowerCase();
+    if (code.length < 4) { toast({ title: "Enter the match code", variant: "destructive" }); return; }
+    const { data } = await supabase.from("draft_matches").select("*")
+      .eq("status", "waiting").eq("vs_ai", false).limit(200);
+    const found = ((data as any[]) || []).find((m) => m.id.toLowerCase().startsWith(code));
+    if (!found) { toast({ title: "No active match with that code", variant: "destructive" }); return; }
+    if (found.player_white === user?.id) { setMatch(found); setMode("pvp"); return; }
+    await joinMatch(found);
+  };
+
   const moves: Move[] = useMemo(() => {
     if (!match || !isMyTurn) return [];
     return legalMoves(match.board, match.current_turn);
@@ -262,6 +274,16 @@ const Draughts = () => {
               <Button onClick={createPvP} disabled={creating} className="w-full">
                 {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create new match"}
               </Button>
+              <div className="flex gap-2">
+                <input
+                  value={codeInput}
+                  onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+                  placeholder="Enter match code (e.g. A1B2C3)"
+                  maxLength={8}
+                  className="flex-1 h-10 px-3 rounded-md bg-card border border-border/50 text-foreground text-sm tracking-widest uppercase"
+                />
+                <Button onClick={joinByCode}>Join</Button>
+              </div>
               <Button onClick={() => setMode("menu")} variant="outline" className="w-full">Back</Button>
               <p className="text-xs font-semibold text-muted-foreground mt-4">Open matches</p>
               {openMatches.length === 0 && (
@@ -274,7 +296,7 @@ const Draughts = () => {
                   disabled={m.player_white === user?.id}
                   className="w-full p-3 rounded-lg bg-card border border-border/50 flex items-center justify-between text-sm disabled:opacity-50"
                 >
-                  <span className="text-foreground">Match {m.id.slice(0, 6)}</span>
+                  <span className="text-foreground">Code <b className="tracking-widest">{m.id.slice(0, 6).toUpperCase()}</b></span>
                   <span className="text-primary text-xs font-semibold">
                     {m.player_white === user?.id ? "Yours" : "Join"}
                   </span>
@@ -355,6 +377,21 @@ const Draughts = () => {
           </Button>
         )}
       </header>
+
+      {!match.vs_ai && match.status === "waiting" && (
+        <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-primary/30 bg-primary/10">
+          <div>
+            <p className="text-[10px] text-muted-foreground">Share this code with your opponent</p>
+            <p className="text-lg font-bold tracking-[0.3em] text-primary">{match.id.slice(0, 6).toUpperCase()}</p>
+          </div>
+          <Button size="sm" variant="outline" onClick={async () => {
+            await navigator.clipboard.writeText(match.id.slice(0, 6).toUpperCase());
+            toast({ title: "Code copied" });
+          }}>
+            <Copy className="w-3.5 h-3.5 mr-1" /> Copy
+          </Button>
+        </div>
+      )}
 
       {/* Score bar */}
       <div className="grid grid-cols-2 gap-2 px-3 py-2 border-b border-border/50 bg-card/30">
