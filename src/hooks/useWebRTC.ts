@@ -56,6 +56,7 @@ export const useWebRTC = () => {
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [duration, setDuration] = useState(0);
   const [remoteStream, setRemoteStream] = useState<MediaStream>(() => new MediaStream());
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -85,6 +86,7 @@ export const useWebRTC = () => {
   const cleanupMedia = useCallback(() => {
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     localStreamRef.current = null;
+    setLocalStream(null);
     pcRef.current?.close();
     pcRef.current = null;
     iceQueue.current = [];
@@ -162,6 +164,7 @@ export const useWebRTC = () => {
     pc.onconnectionstatechange = () => {
       const st = pc.connectionState;
       if (st === "connected") {
+        statusRef.current = "connected";
         if (disconnectTimerRef.current) { clearTimeout(disconnectTimerRef.current); disconnectTimerRef.current = null; }
         if (ringTimerRef.current) { clearTimeout(ringTimerRef.current); ringTimerRef.current = null; }
         setCallStatus("connected");
@@ -205,6 +208,7 @@ export const useWebRTC = () => {
       const stream = await getMedia(callType === "video");
       if (callIdRef.current !== info.callId) { stream.getTracks().forEach(t => t.stop()); return; }
       localStreamRef.current = stream;
+      setLocalStream(stream);
       const pc = createPeerConnection(info);
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
       const offer = await pc.createOffer();
@@ -235,6 +239,7 @@ export const useWebRTC = () => {
       const stream = await getMedia(info.callType === "video");
       if (callIdRef.current !== info.callId) { stream.getTracks().forEach(t => t.stop()); return; }
       localStreamRef.current = stream;
+      setLocalStream(stream);
       const pc = createPeerConnection(info);
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
       await pc.setRemoteDescription(offer);
@@ -378,7 +383,7 @@ export const useWebRTC = () => {
 
   return {
     callStatus, activeCall, isMuted, isVideoOn, duration,
-    localVideoRef, remoteVideoRef, remoteStream,
+    localVideoRef, remoteVideoRef, remoteStream, localStream,
     startCall, acceptCall, acceptIncomingCall, rejectCall, endCall, toggleMute, toggleVideo, switchCamera,
   };
 };

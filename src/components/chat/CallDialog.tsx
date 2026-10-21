@@ -10,6 +10,7 @@ interface CallDialogProps {
   isVideoOn: boolean;
   duration: number;
   remoteStream: MediaStream;
+  localStream: MediaStream | null;
   localVideoRef: React.RefObject<HTMLVideoElement>;
   remoteVideoRef: React.RefObject<HTMLVideoElement>;
   onAccept: () => void;
@@ -58,6 +59,7 @@ export const CallDialog = ({
   isVideoOn,
   duration,
   remoteStream,
+  localStream,
   localVideoRef,
   remoteVideoRef,
   onAccept,
@@ -77,6 +79,10 @@ export const CallDialog = ({
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const [soundOn, setSoundOn] = useState(true);
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
+
+  useEffect(() => {
+    if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
+  }, [localStream, localVideoRef, callStatus, isVideoOn]);
 
   useEffect(() => {
     const media = isVideo ? remoteVideoRef.current : remoteAudioRef.current;

@@ -18,6 +18,7 @@ export const CallProvider = ({ children }: { children: ReactNode }) => {
           isVideoOn={webrtc.isVideoOn}
           duration={webrtc.duration}
           remoteStream={webrtc.remoteStream}
+          localStream={webrtc.localStream}
           localVideoRef={webrtc.localVideoRef}
           remoteVideoRef={webrtc.remoteVideoRef}
           onAccept={webrtc.acceptIncomingCall}
