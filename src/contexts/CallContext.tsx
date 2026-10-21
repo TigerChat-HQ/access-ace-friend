@@ -20,17 +20,12 @@ export const CallProvider = ({ children }: { children: ReactNode }) => {
           remoteStream={webrtc.remoteStream}
           localVideoRef={webrtc.localVideoRef}
           remoteVideoRef={webrtc.remoteVideoRef}
-          onAccept={() => {
-            const pending = (window as any).__pendingOffer;
-            if (pending && webrtc.activeCall) {
-              webrtc.acceptCall(webrtc.activeCall, pending);
-              delete (window as any).__pendingOffer;
-            }
-          }}
+          onAccept={webrtc.acceptIncomingCall}
           onReject={webrtc.rejectCall}
           onEnd={webrtc.endCall}
           onToggleMute={webrtc.toggleMute}
           onToggleVideo={webrtc.toggleVideo}
+          onSwitchCamera={webrtc.switchCamera}
         />
       )}
     </Ctx.Provider>
