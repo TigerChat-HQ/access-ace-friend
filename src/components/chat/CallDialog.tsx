@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
-import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, Volume2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, Volume2, VolumeX, SwitchCamera } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { CallInfo, CallStatus } from "@/hooks/useWebRTC";
 
 interface CallDialogProps {
@@ -16,44 +17,36 @@ interface CallDialogProps {
   onEnd: () => void;
   onToggleMute: () => void;
   onToggleVideo: () => void;
+  onSwitchCamera: () => void;
 }
 
 // Ringtone using Web Audio API
 const useRingtone = (shouldPlay: boolean) => {
-  const ctxRef = useRef<AudioContext | null>(null);
-  const oscRef = useRef<OscillatorNode | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   useEffect(() => {
-    if (!shouldPlay) {
-      oscRef.current?.stop();
-      ctxRef.current?.close().catch(() => {});
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      return;
-    }
+    if (!shouldPlay) return;
+    let ctx: AudioContext | undefined;
+    let osc: OscillatorNode | undefined;
+    let interval: ReturnType<typeof setInterval> | undefined;
     try {
-      const ctx = new AudioContext();
-      ctxRef.current = ctx;
-      const osc = ctx.createOscillator();
+      ctx = new AudioContext();
+      osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      oscRef.current = osc;
-      osc.type = "sine";
       osc.frequency.value = 440;
-      gain.gain.value = 0;
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start();
       let on = true;
       gain.gain.setValueAtTime(0.15, ctx.currentTime);
-      intervalRef.current = setInterval(() => {
+      const audio = ctx;
+      interval = setInterval(() => {
         on = !on;
-        gain.gain.setTargetAtTime(on ? 0.15 : 0, ctx.currentTime, 0.05);
-      }, on ? 1000 : 2000);
+        gain.gain.setTargetAtTime(on ? 0.15 : 0, audio.currentTime, 0.05);
+      }, 1000);
     } catch {}
     return () => {
-      oscRef.current?.stop();
-      ctxRef.current?.close().catch(() => {});
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (interval) clearInterval(interval);
+      osc?.stop();
+      void ctx?.close().catch(() => {});
     };
   }, [shouldPlay]);
 };
@@ -72,6 +65,7 @@ export const CallDialog = ({
   onEnd,
   onToggleMute,
   onToggleVideo,
+  onSwitchCamera,
 }: CallDialogProps) => {
   const isVideo = callInfo.callType === "video";
   const isIncoming = callStatus === "incoming";
@@ -80,12 +74,24 @@ export const CallDialog = ({
 
   useRingtone(callStatus === "incoming" || callStatus === "outgoing");
 
-  // Attach remote stream to video element
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
+  const [soundOn, setSoundOn] = useState(true);
+  const [playbackBlocked, setPlaybackBlocked] = useState(false);
+
   useEffect(() => {
-    if (remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = remoteStream;
+    const media = isVideo ? remoteVideoRef.current : remoteAudioRef.current;
+    if (!media) return;
+    media.srcObject = remoteStream;
+    media.muted = !soundOn;
+    if (remoteStream.getTracks().length > 0) {
+      void media.play().then(() => setPlaybackBlocked(false)).catch(() => setPlaybackBlocked(true));
     }
-  }, [remoteStream, remoteVideoRef]);
+  }, [remoteStream, remoteVideoRef, callStatus, isVideo, soundOn]);
+
+  const resumePlayback = () => {
+    const media = isVideo ? remoteVideoRef.current : remoteAudioRef.current;
+    if (media) void media.play().then(() => setPlaybackBlocked(false)).catch(() => setPlaybackBlocked(true));
+  };
 
   const formatDuration = (s: number) => {
     const m = Math.floor(s / 60);
@@ -105,9 +111,10 @@ export const CallDialog = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-between py-16 overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-b from-primary/10 via-background to-black animate-pulse opacity-50" />
+    <div className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-between py-16 overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/10 via-background to-background animate-pulse opacity-50" />
 
+      {!isVideo && <audio ref={remoteAudioRef} autoPlay />}
       {/* Remote video (full screen background when connected) */}
       {isVideo && callStatus === "connected" && (
         <video
@@ -130,8 +137,8 @@ export const CallDialog = ({
       )}
 
       {/* Top section - avatar & status */}
-      <div className="relative z-10 text-center">
-        <div className="relative mx-auto w-32 h-32 mb-6">
+      <div className={`relative z-10 text-center ${isVideo && callStatus === "connected" ? "bg-background/70 rounded-lg px-4 py-2 max-w-[60%]" : ""}`}>
+        <div className={`relative mx-auto w-32 h-32 mb-6 ${isVideo && callStatus === "connected" ? "hidden" : ""}`}>
           {(callStatus === "outgoing" || callStatus === "incoming") && (
             <>
               <div className="absolute inset-0 rounded-full border-2 border-primary/40 animate-ping" />
@@ -145,7 +152,7 @@ export const CallDialog = ({
             {contactAvatar}
           </div>
           {callStatus === "connected" && (
-            <div className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-primary border-2 border-black" />
+            <div className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-primary border-2 border-background" />
           )}
         </div>
 
@@ -162,63 +169,67 @@ export const CallDialog = ({
 
       {/* Bottom controls */}
       <div className="relative z-10 flex flex-col items-center gap-6">
+        {playbackBlocked && <Button onClick={resumePlayback} variant="secondary"><Volume2 className="w-4 h-4 mr-2" />Enable call sound</Button>}
         {/* Incoming call: Accept / Reject */}
         {isIncoming ? (
           <div className="flex items-center gap-12">
-            <button
-              onClick={onReject}
-              className="p-5 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-all active:scale-95 shadow-lg shadow-destructive/30"
+            <Button
+              aria-label="Decline call" title="Decline call" variant="ghost" onClick={onReject}
+              className="h-auto p-5 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-all active:scale-95 shadow-lg shadow-destructive/30"
             >
               <PhoneOff className="w-7 h-7" />
-            </button>
-            <button
-              onClick={onAccept}
-              className="p-5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-all active:scale-95 shadow-lg shadow-primary/30 animate-pulse"
+            </Button>
+            <Button
+              aria-label="Accept call" title="Accept call" variant="ghost" onClick={onAccept}
+              className="h-auto p-5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-all active:scale-95 shadow-lg shadow-primary/30 animate-pulse"
             >
               {isVideo ? <Video className="w-7 h-7" /> : <Phone className="w-7 h-7" />}
-            </button>
+            </Button>
           </div>
         ) : (
           <>
             {/* Active call controls */}
-            <div className="flex items-center gap-8">
-              <button
-                onClick={onToggleMute}
-                className={`flex flex-col items-center gap-1 ${isMuted ? "text-destructive" : "text-foreground"}`}
+            <div className="flex items-center gap-2 sm:gap-6">
+              <Button
+                aria-label={isMuted ? "Unmute microphone" : "Mute microphone"} title="Microphone" variant="ghost" onClick={onToggleMute}
+                className={`h-auto px-2 flex flex-col items-center gap-1 ${isMuted ? "text-destructive" : "text-foreground"}`}
               >
                 <div className={`p-4 rounded-full transition-colors ${isMuted ? "bg-destructive/20" : "bg-surface-hover"}`}>
                   {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
                 </div>
                 <span className="text-[10px] text-muted-foreground">Mute</span>
-              </button>
+              </Button>
 
               {isVideo && (
-                <button
-                  onClick={onToggleVideo}
-                  className={`flex flex-col items-center gap-1 ${!isVideoOn ? "text-destructive" : "text-foreground"}`}
+                <Button
+                  aria-label={isVideoOn ? "Turn camera off" : "Turn camera on"} title="Camera" variant="ghost" onClick={onToggleVideo}
+                  className={`h-auto px-2 flex flex-col items-center gap-1 ${!isVideoOn ? "text-destructive" : "text-foreground"}`}
                 >
                   <div className={`p-4 rounded-full transition-colors ${!isVideoOn ? "bg-destructive/20" : "bg-surface-hover"}`}>
                     {isVideoOn ? <Video className="w-6 h-6" /> : <VideoOff className="w-6 h-6" />}
                   </div>
                   <span className="text-[10px] text-muted-foreground">Camera</span>
-                </button>
+                </Button>
               )}
 
-              <button className="flex flex-col items-center gap-1 text-foreground">
+              <Button variant="ghost" title="Call sound" aria-label={soundOn ? "Mute call sound" : "Enable call sound"} onClick={() => setSoundOn(v => !v)} className="h-auto px-2 flex flex-col items-center gap-1 text-foreground">
                 <div className="p-4 rounded-full bg-surface-hover transition-colors">
-                  <Volume2 className="w-6 h-6" />
+                  {soundOn ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />}
                 </div>
-                <span className="text-[10px] text-muted-foreground">Speaker</span>
-              </button>
+                <span className="text-[10px] text-muted-foreground">Sound</span>
+              </Button>
             </div>
 
+            {isVideo && callStatus === "connected" && (
+              <Button variant="secondary" size="icon" onClick={onSwitchCamera} aria-label="Switch camera" title="Switch camera"><SwitchCamera className="w-5 h-5" /></Button>
+            )}
             {/* End call */}
-            <button
-              onClick={onEnd}
-              className="p-5 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-all active:scale-95 shadow-lg shadow-destructive/30"
+            <Button
+              aria-label="End call" title="End call" variant="ghost" onClick={onEnd}
+              className="h-auto p-5 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-all active:scale-95 shadow-lg shadow-destructive/30"
             >
               <PhoneOff className="w-7 h-7" />
-            </button>
+            </Button>
           </>
         )}
       </div>
