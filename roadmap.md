@@ -1,4 +1,7 @@
 # Requested updates
+- [ ] Add Contact with admin replies and report-style notifications; verify submission and reply.
+- [ ] Prepare sitemap for manual submission and connect/verify Google Search Console.
+- [ ] Modernize chats/calls, draughts, profiles/stories, and Developer Panel presentation.
 - [x] Add flying kings and rule tests (5 passing).
 - [x] Teach Tiger AI the user-provided boss and wife names without changing permissions; deployed response verified.
 - [x] Repair live call audio/video attachment, camera switching, instant ringing, terminal signaling, and reconnect negotiation; 3 call tests passing.
