@@ -546,6 +546,7 @@ export type Database = {
           is_read: boolean
           post_id: string | null
           recipient_id: string
+          report_id: string | null
           type: string
         }
         Insert: {
@@ -556,6 +557,7 @@ export type Database = {
           is_read?: boolean
           post_id?: string | null
           recipient_id: string
+          report_id?: string | null
           type: string
         }
         Update: {
@@ -566,9 +568,18 @@ export type Database = {
           is_read?: boolean
           post_id?: string | null
           recipient_id?: string
+          report_id?: string | null
           type?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "notifications_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "reports"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       post_comments: {
         Row: {
@@ -735,6 +746,7 @@ export type Database = {
           admin_reply: string | null
           admin_reply_at: string | null
           admin_reply_media_url: string | null
+          contact_subject: string | null
           created_at: string
           id: string
           reason: string
@@ -748,6 +760,7 @@ export type Database = {
           admin_reply?: string | null
           admin_reply_at?: string | null
           admin_reply_media_url?: string | null
+          contact_subject?: string | null
           created_at?: string
           id?: string
           reason: string
@@ -761,6 +774,7 @@ export type Database = {
           admin_reply?: string | null
           admin_reply_at?: string | null
           admin_reply_media_url?: string | null
+          contact_subject?: string | null
           created_at?: string
           id?: string
           reason?: string
@@ -981,6 +995,14 @@ export type Database = {
       is_conversation_member: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
+      }
+      reply_to_report: {
+        Args: { _media_url?: string; _reply: string; _report_id: string }
+        Returns: undefined
+      }
+      send_contact_message: {
+        Args: { _message: string; _subject: string }
+        Returns: string
       }
     }
     Enums: {
