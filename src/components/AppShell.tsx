@@ -1,5 +1,7 @@
 import { Outlet, NavLink, useLocation } from "react-router-dom";
-import { Home, MessageCircle, Users, Sparkles, User as UserIcon, Trophy } from "lucide-react";
+import { Home, MessageCircle, Users, Sparkles, User as UserIcon, Trophy, Mail, Settings, Bot, Bell } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import logo from "@/assets/tigerchats-logo.png";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLockGate } from "@/components/AppLockGate";
 import { CallProvider } from "@/contexts/CallContext";
@@ -26,19 +28,26 @@ export const AppShell = () => {
     <AppLockGate>
       <CallProvider>
         <AnnouncementGate>
-          <div className="h-[100dvh] flex flex-col bg-background">
-            <main className="flex-1 overflow-hidden">
+          <div className="h-[100dvh] flex bg-background">
+            <aside className="hidden lg:flex w-56 shrink-0 flex-col border-r border-border bg-card p-4 gap-2">
+              <div className="flex items-center gap-2 py-4 mb-4 font-bold"><img src={logo} alt="" className="w-9 h-9" />TIGERCHATS</div>
+              {items.map(({to, icon: Icon, label}) => <Button key={label} asChild variant={location.pathname === to ? "secondary" : "ghost"} className="justify-start"><NavLink to={to} end={to === "/"}><Icon className="w-4 h-4 mr-3" />{label}</NavLink></Button>)}
+              <div className="border-t border-border my-3" />
+              {[{to:"/tiger-ai", icon:Bot, label:"Tiger AI"}, {to:"/contact",icon:Mail,label:"Contact admin"},{to:"/notifications",icon:Bell,label:"Notifications"},{to:"/settings",icon:Settings,label:"Settings"}].map(({to,icon:Icon,label}) => <Button asChild variant="ghost" key={to} className="justify-start"><NavLink to={to}><Icon className="w-4 h-4 mr-3" />{label}</NavLink></Button>)}
+            </aside>
+            <div className="flex flex-1 flex-col min-h-0 min-w-0">
+            <main className="flex-1 min-h-0 min-w-0 overflow-hidden">
               <Outlet />
             </main>
             {!hideBar && (
-              <nav className="flex items-center justify-around border-t border-border/50 bg-card/80 backdrop-blur-md px-1 py-1.5 safe-area-bottom">
+              <nav aria-label="Main navigation" className="lg:hidden flex items-center justify-around border-t border-border/50 bg-card/80 backdrop-blur-md px-1 py-1.5 safe-area-bottom">
                 {items.map(({ to, icon: Icon, label, badge }) => (
                   <NavLink
                     key={label}
                     to={to}
                     end={to === "/"}
                     className={({ isActive }) =>
-                      `relative flex flex-col items-center justify-center px-2 py-1.5 rounded-lg transition-colors ${
+                      `relative flex flex-col flex-1 min-w-0 items-center justify-center px-1 py-1.5 rounded-lg transition-colors ${
                         isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
                       }`
                     }
@@ -56,6 +65,7 @@ export const AppShell = () => {
                 ))}
               </nav>
             )}
+            </div>
           </div>
         </AnnouncementGate>
       </CallProvider>

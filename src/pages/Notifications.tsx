@@ -18,7 +18,7 @@ const textFor = (n: AppNotification) => {
   if (n.type === "reply") return `${name} replied to your comment`;
   if (n.type === "comment_like") return `${name} liked your comment`;
   if (n.type === "follow") return `${name} started following you`;
-  if (n.type === "report_reply") return `An admin replied to your report`;
+  if (n.type === "report_reply") return `An admin replied to your message or report`;
   return `${name} mentioned you`;
 };
 
@@ -66,7 +66,7 @@ const Notifications = () => {
           <ul>
             {items.map((n) => {
               const initials = (n.actor?.display_name || n.actor?.username || "U").slice(0, 2).toUpperCase();
-              const target = n.post_id ? `/post/${n.post_id}` : `/u/${n.actor_id}`;
+              const target = n.type === "report_reply" ? `/contact${n.report_id ? `?report=${n.report_id}` : ""}` : n.post_id ? `/post/${n.post_id}` : `/u/${n.actor_id}`;
               return (
                 <li key={n.id}>
                   <Link

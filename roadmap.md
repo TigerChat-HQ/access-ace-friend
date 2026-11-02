@@ -1,4 +1,5 @@
 # Requested updates
+- [ ] Address Tiger AI developer-mode request with a safe integration prompt and explicit limits on autonomous source changes.
 - [ ] Add Contact with admin replies and report-style notifications; verify submission and reply.
 - [ ] Prepare sitemap for manual submission and connect/verify Google Search Console.
 - [ ] Modernize chats/calls, draughts, profiles/stories, and Developer Panel presentation.

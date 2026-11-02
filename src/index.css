@@ -35,8 +35,8 @@
     --neon-glow: 160 100% 45%;
     --neon-purple: 280 100% 65%;
     --neon-blue: 210 100% 60%;
-    --surface: 0 0% 8%;
-    --surface-hover: 0 0% 12%;
+    --surface: 0 0% 96%;
+    --surface-hover: 0 0% 92%;
   }
 
   .dark {
@@ -83,11 +83,27 @@
   body {
     @apply bg-background text-foreground;
   }
+  :root {
+    --board-dark: 160 16% 24%;
+    --board-light: 150 18% 84%;
+    --piece-white: 0 0% 96%;
+    --piece-black: 0 0% 12%;
+    --piece-crown: 43 85% 55%;
+  }
+  button:focus-visible, a:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 3px;
+  }
 
 }
 
 
 @layer utilities {
+  .draught-dark { background: hsl(var(--board-dark)); }
+  .draught-light { background: hsl(var(--board-light)); }
+  .draught-piece { width: 78%; aspect-ratio: 1; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid hsl(var(--border)); color: hsl(var(--piece-crown)); box-shadow: 0 3px 5px hsl(var(--piece-black) / 0.4), inset 0 0 0 3px hsl(var(--piece-white) / 0.12); }
+  .draught-white { background: hsl(var(--piece-white)); }
+  .draught-black { background: hsl(var(--piece-black)); }
   .neon-glow {
     box-shadow: 0 0 15px hsl(var(--neon-glow) / 0.3), 0 0 30px hsl(var(--neon-glow) / 0.1);
   }
@@ -134,4 +150,7 @@
   .animate-pulse-ring {
     animation: pulse-ring 1.4s ease-out infinite;
   }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }

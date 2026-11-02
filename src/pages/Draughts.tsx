@@ -249,12 +249,12 @@ const Draughts = () => {
               <button
                 onClick={startAI}
                 disabled={creating}
-                className="w-full p-4 rounded-xl bg-gradient-to-br from-primary/20 to-purple-500/20 border border-primary/40 flex items-center gap-3 hover:scale-[1.01] transition-transform"
+                className="w-full p-4 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/40 flex items-center gap-3 hover:scale-[1.01] transition-transform"
               >
                 <Bot className="w-7 h-7 text-primary" />
                 <div className="text-left">
                   <p className="font-bold text-foreground">Play vs AI</p>
-                  <p className="text-xs text-muted-foreground">Minimax depth 4 — you play white</p>
+                  <p className="text-xs text-muted-foreground">Tiger AI · White moves first</p>
                 </div>
               </button>
               <button
@@ -279,6 +279,7 @@ const Draughts = () => {
                   value={codeInput}
                   onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
                   placeholder="Enter match code (e.g. A1B2C3)"
+                  aria-label="Match code"
                   maxLength={8}
                   className="flex-1 h-10 px-3 rounded-md bg-card border border-border/50 text-foreground text-sm tracking-widest uppercase"
                 />
@@ -411,7 +412,7 @@ const Draughts = () => {
         </div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center p-3 bg-gradient-to-br from-background to-surface">
+      <div className="flex-1 min-h-0 overflow-y-auto flex items-center justify-center p-3 bg-gradient-to-br from-background to-surface">
         <div className="aspect-square w-full max-w-[440px] grid grid-cols-8 rounded-lg overflow-hidden shadow-2xl ring-1 ring-primary/30">
           {Array.from({ length: 64 }).map((_, i) => {
             const r = Math.floor(i / 8), c = i % 8;
@@ -423,20 +424,21 @@ const Draughts = () => {
             return (
               <button
                 key={i}
+                aria-label={`Square ${i + 1}${piece ? ` ${piece.c === "w" ? "white" : "black"} piece` : " empty"}`}
                 onClick={() => onCellClick(i)}
                 className={`relative flex items-center justify-center transition-colors ${
-                  dark ? "bg-amber-900/70" : "bg-amber-100/80"
-                } ${sel ? "ring-2 ring-primary ring-inset" : ""} ${isLast && !sel ? "ring-2 ring-yellow-400/60 ring-inset" : ""}`}
+                  dark ? "draught-dark" : "draught-light"
+                } ${sel ? "ring-2 ring-primary ring-inset" : ""} ${isLast && !sel ? "ring-2 ring-primary/60 ring-inset" : ""}`}
               >
                 {piece && (
                   <div
                     className={`w-[78%] h-[78%] rounded-full border-[3px] flex items-center justify-center shadow-lg transition-transform ${sel ? "scale-110" : ""} ${
                       piece.c === "w"
-                        ? "bg-gradient-to-br from-white to-zinc-300 border-zinc-400"
-                        : "bg-gradient-to-br from-zinc-800 to-black border-zinc-700"
+                        ? "draught-white border-border"
+                        : "draught-black border-border"
                     }`}
                   >
-                    {piece.k && <Crown className={`w-1/2 h-1/2 ${piece.c === "w" ? "text-amber-600" : "text-amber-400"}`} />}
+                    {piece.k && <Crown className={`w-1/2 h-1/2 ${piece.c === "w" ? "text-primary" : "text-primary"}`} />}
                   </div>
                 )}
                 {dest && (
@@ -449,7 +451,7 @@ const Draughts = () => {
       </div>
 
       {match.status === "finished" && (
-        <div className="px-4 py-3 text-center bg-gradient-to-r from-primary/20 via-purple-500/20 to-primary/20 border-t border-primary/30">
+        <div className="px-4 py-3 text-center bg-gradient-to-r from-primary/20 via-accent/20 to-primary/20 border-t border-primary/30">
           <p className="text-base font-bold text-foreground">{winnerLabel || `Winner: ${match.winner}`}</p>
           <p className="text-[10px] text-muted-foreground mt-0.5">Pieces left — White: {wCount} · Black: {bCount}</p>
         </div>

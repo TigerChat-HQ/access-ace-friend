@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Camera, User, Bell, Shield, Palette, LogOut,
-  ChevronRight, Moon, Sun, Globe, Lock, Fingerprint,
+  ChevronRight, Moon, Sun, Globe, Lock, Fingerprint, Mail,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAppLock, isWebAuthnSupported } from "@/hooks/useAppLock";
@@ -245,7 +245,7 @@ const Settings = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-full overflow-y-auto bg-background">
       <div className="max-w-lg mx-auto">
         <div className="flex items-center gap-3 px-4 py-4 border-b border-border/50 glass sticky top-0 z-10">
           <button onClick={() => activeSection ? setActiveSection(null) : navigate("/")} className="p-1 hover:bg-surface-hover rounded-full transition-colors">
@@ -288,6 +288,7 @@ const Settings = () => {
             ))}
 
             <div className="pt-4 space-y-2">
+              <Button variant="outline" onClick={() => navigate("/contact")} className="w-full justify-start h-12"><Mail className="w-5 h-5 mr-3 text-primary" />Contact admin</Button>
               <button onClick={handleSignOut} className="w-full flex items-center gap-4 p-4 glass rounded-xl hover:bg-destructive/10 transition-colors text-left">
                 <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
                   <LogOut className="w-5 h-5 text-destructive" />

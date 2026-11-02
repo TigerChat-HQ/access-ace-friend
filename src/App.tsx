@@ -26,6 +26,9 @@ import NotFound from "./pages/NotFound";
 import TigerAI from "./pages/TigerAI";
 import Game from "./pages/Game";
 import Draughts from "./pages/Draughts";
+import Contact from "./pages/Contact";
+import PublicDraughts from "./pages/PublicDraughts";
+import { HelmetProvider } from "react-helmet-async";
 
 const queryClient = new QueryClient();
 
@@ -50,6 +53,7 @@ const AuthRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 const App = () => (
+  <HelmetProvider>
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <LanguageProvider>
@@ -63,6 +67,8 @@ const App = () => (
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/install" element={<Install />} />
+                <Route path="/tanzanian-draft-game" element={<PublicDraughts />} />
+                <Route path="/contact" element={<Contact />} />
 
                 <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
                   <Route path="/" element={<Feed />} />
@@ -90,6 +96,7 @@ const App = () => (
       </LanguageProvider>
     </ThemeProvider>
   </QueryClientProvider>
+  </HelmetProvider>
 );
 
 export default App;
