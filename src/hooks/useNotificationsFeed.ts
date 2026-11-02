@@ -9,6 +9,7 @@ export interface AppNotification {
   type: "like" | "comment" | "follow" | "mention" | "reply" | "comment_like" | "report_reply";
   post_id: string | null;
   comment_id: string | null;
+  report_id?: string | null;
   is_read: boolean;
   created_at: string;
   actor?: {
@@ -58,7 +59,7 @@ export const useNotificationsFeed = () => {
   useEffect(() => {
     if (!user) return;
     const channel = supabase
-      .channel(`notif:${user.id}`)
+      .channel(`notif:${user.id}:${crypto.randomUUID()}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications", filter: `recipient_id=eq.${user.id}` },

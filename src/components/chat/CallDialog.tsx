@@ -117,7 +117,7 @@ export const CallDialog = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-between py-16 overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-between gap-6 px-3 py-6 sm:py-12 overflow-y-auto">
       <div className="absolute inset-0 bg-gradient-to-b from-primary/10 via-background to-background animate-pulse opacity-50" />
 
       {!isVideo && <audio ref={remoteAudioRef} autoPlay />}
@@ -138,7 +138,7 @@ export const CallDialog = ({
           autoPlay
           muted
           playsInline
-          className="absolute top-4 right-4 w-32 h-44 rounded-2xl object-cover border-2 border-primary/50 z-20 shadow-lg"
+          className="absolute top-4 right-4 w-24 sm:w-32 aspect-[3/4] rounded-lg object-cover border-2 border-primary/50 z-20 shadow-lg"
         />
       )}
 
@@ -162,7 +162,7 @@ export const CallDialog = ({
           )}
         </div>
 
-        <h2 className="text-2xl font-bold text-foreground">{contactName}</h2>
+        <h2 className="text-2xl font-bold text-foreground break-words">{contactName}</h2>
         <p className="text-sm text-muted-foreground mt-2 min-h-[20px]">
           {callStatus === "outgoing" && <span className="animate-pulse">{statusText()}</span>}
           {callStatus === "incoming" && <span className="animate-pulse text-primary">{statusText()}</span>}

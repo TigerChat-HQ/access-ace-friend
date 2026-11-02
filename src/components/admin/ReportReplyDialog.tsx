@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles, Send, X, ImageIcon, Loader2 } from "lucide-react";
+import { reportReplySchema } from "@/lib/contact";
 
 interface Props {
   open: boolean;
@@ -43,35 +44,19 @@ export const ReportReplyDialog = ({ open, onClose, report, onReplied }: Props) =
   };
 
   const send = async () => {
-    if (!reply.trim()) {
-      toast({ title: "Write a reply first", variant: "destructive" });
+    const parsed = reportReplySchema.safeParse({ reportId: report?.id, reply, mediaUrl });
+    if (!parsed.success) {
+      toast({ title: parsed.error.issues[0]?.message || "Check your reply", variant: "destructive" });
       return;
     }
     setSending(true);
-    const { data: u } = await supabase.auth.getUser();
-    const adminId = u?.user?.id;
-    const { error } = await supabase
-      .from("reports")
-      .update({
-        admin_reply: reply,
-        admin_reply_media_url: mediaUrl,
-        admin_reply_at: new Date().toISOString(),
-        replied_by: adminId,
-        status: "resolved",
-      })
-      .eq("id", report.id);
+    const { error } = await supabase.rpc("reply_to_report", {
+      _report_id: parsed.data.reportId, _reply: parsed.data.reply, _media_url: parsed.data.mediaUrl ?? undefined,
+    });
     setSending(false);
     if (error) {
       toast({ title: "Failed", description: error.message, variant: "destructive" });
       return;
-    }
-    // Notify the reporter that an admin replied
-    if (adminId && report?.reporter_id && report.reporter_id !== adminId) {
-      await supabase.from("notifications").insert({
-        recipient_id: report.reporter_id,
-        actor_id: adminId,
-        type: "report_reply",
-      });
     }
     toast({ title: "Reply sent & user notified" });
     onReplied();
@@ -102,6 +87,7 @@ export const ReportReplyDialog = ({ open, onClose, report, onReplied }: Props) =
               value={reply}
               onChange={(e) => setReply(e.target.value)}
               rows={4}
+              maxLength={4000}
               placeholder="Thank you for your feedback..."
               className="mt-1 w-full bg-background border border-border/50 rounded-lg px-3 py-2 text-sm text-foreground"
             />
