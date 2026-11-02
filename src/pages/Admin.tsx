@@ -165,14 +165,14 @@ const Admin = () => {
         <Button
           onClick={openSuperGroup}
           disabled={creating}
-          className="w-full bg-gradient-to-r from-primary to-purple-500 text-primary-foreground"
+          className="w-full"
         >
           <Crown className="w-4 h-4 mr-2" />
           {creating ? "Opening..." : "Open Admin Super Group"}
         </Button>
 
         {(isSuperiorAdmin || isAdmin) && <AnnouncementComposer />}
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
           <Stat icon={Users} label="Users" value={stats.users} />
           <Stat icon={FileText} label="Posts" value={stats.posts} />
           <Stat icon={MessageSquare} label="Comments" value={stats.comments} />
@@ -194,8 +194,8 @@ const Admin = () => {
                     <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="gPosts" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(280 90% 65%)" stopOpacity={0.6} />
-                    <stop offset="100%" stopColor="hsl(280 90% 65%)" stopOpacity={0} />
+                    <stop offset="0%" stopColor="hsl(var(--accent))" stopOpacity={0.6} />
+                    <stop offset="100%" stopColor="hsl(var(--accent))" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -203,7 +203,7 @@ const Admin = () => {
                 <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} allowDecimals={false} />
                 <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
                 <Area type="monotone" dataKey="users" stroke="hsl(var(--primary))" fill="url(#gUsers)" />
-                <Area type="monotone" dataKey="posts" stroke="hsl(280 90% 65%)" fill="url(#gPosts)" />
+                <Area type="monotone" dataKey="posts" stroke="hsl(var(--accent))" fill="url(#gPosts)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -213,7 +213,7 @@ const Admin = () => {
           <h2 className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-2">
             Engagement breakdown
           </h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="bg-card border border-border/50 rounded-xl p-3 h-44">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={engagement}>
@@ -230,7 +230,7 @@ const Admin = () => {
                 <PieChart>
                   <Pie data={engagement} dataKey="value" nameKey="name" innerRadius={28} outerRadius={55} paddingAngle={2}>
                     {engagement.map((_, i) => (
-                      <Cell key={i} fill={["hsl(var(--primary))", "hsl(280 90% 65%)", "hsl(200 90% 60%)", "hsl(40 90% 60%)"][i % 4]} />
+                      <Cell key={i} fill={["hsl(var(--primary))", "hsl(var(--accent))", "hsl(var(--neon-blue))", "hsl(var(--piece-crown))"][i % 4]} />
                     ))}
                   </Pie>
                   <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
@@ -242,7 +242,7 @@ const Admin = () => {
 
         <section>
           <h2 className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-2 flex items-center gap-2">
-            <Flag className="w-3.5 h-3.5" /> Reports ({reports.filter((r) => r.status === "pending").length} pending)
+            <Flag className="w-3.5 h-3.5" /> Reports & Contact ({reports.filter((r) => r.status === "pending").length} pending)
           </h2>
           <div className="space-y-2">
             {reports.length === 0 ? (
@@ -250,10 +250,10 @@ const Admin = () => {
             ) : (
               reports.map((r) => (
                 <div key={r.id} className="bg-card border border-border/50 rounded-lg p-3 text-sm">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-foreground capitalize">
-                        {r.target_type} report — <span className="text-muted-foreground">{r.reason}</span>
+                        {r.contact_subject || `${r.target_type} report`} — <span className="text-muted-foreground break-words">{r.reason}</span>
                       </p>
                       <p className="text-[10px] text-muted-foreground">
                         {new Date(r.created_at).toLocaleString()} · status: {r.status}
