@@ -307,6 +307,78 @@ export type Database = {
         }
         Relationships: []
       }
+      dev_audit_log: {
+        Row: {
+          action: string
+          actor: string
+          created_at: string
+          details: Json | null
+          id: string
+          task_id: string | null
+        }
+        Insert: {
+          action: string
+          actor: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          task_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          task_id?: string | null
+        }
+        Relationships: []
+      }
+      dev_tasks: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string | null
+          id: string
+          plan: Json | null
+          priority: string
+          risk: string
+          source_report_id: string | null
+          status: string
+          summary: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          plan?: Json | null
+          priority?: string
+          risk?: string
+          source_report_id?: string | null
+          status?: string
+          summary?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          plan?: Json | null
+          priority?: string
+          risk?: string
+          source_report_id?: string | null
+          status?: string
+          summary?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       draft_matches: {
         Row: {
           board: Json

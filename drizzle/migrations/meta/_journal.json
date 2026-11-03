@@ -15,6 +15,13 @@
       "when": 1793533279362,
       "tag": "0001_contact_messages_and_atomic_report_replies",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793713659907,
+      "tag": "0002_tiger_dev_tasks_and_audit",
+      "breakpoints": true
     }
   ]
 }
