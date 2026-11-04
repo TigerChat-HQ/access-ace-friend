@@ -29,6 +29,13 @@
       "when": 1793765125317,
       "tag": "0003_owner_bootstrap_and_dama_multiplayer",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793765159466,
+      "tag": "0004_validated_moves_and_developer_proposals",
+      "breakpoints": true
     }
   ]
 }
