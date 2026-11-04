@@ -338,11 +338,16 @@ export type Database = {
         Row: {
           base_sha: string
           branch: string | null
+          commit_sha: string | null
           created_at: string
           created_by: string
           id: string
+          deployment_status: string | null
+          merge_sha: string | null
+          merged_at: string | null
           original: string
           path: string
+          pr_number: number | null
           pr_url: string | null
           proposed: string
           security: Json
@@ -353,11 +358,16 @@ export type Database = {
         Insert: {
           base_sha: string
           branch?: string | null
+          commit_sha?: string | null
           created_at?: string
           created_by: string
           id?: string
+          deployment_status?: string | null
+          merge_sha?: string | null
+          merged_at?: string | null
           original: string
           path: string
+          pr_number?: number | null
           pr_url?: string | null
           proposed: string
           security?: Json
@@ -368,11 +378,16 @@ export type Database = {
         Update: {
           base_sha?: string
           branch?: string | null
+          commit_sha?: string | null
           created_at?: string
           created_by?: string
           id?: string
+          deployment_status?: string | null
+          merge_sha?: string | null
+          merged_at?: string | null
           original?: string
           path?: string
+          pr_number?: number | null
           pr_url?: string | null
           proposed?: string
           security?: Json
