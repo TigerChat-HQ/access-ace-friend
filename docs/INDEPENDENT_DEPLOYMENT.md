@@ -36,4 +36,4 @@ Back up and verify schema, Auth, Storage and RLS before applying migrations. Con
 
 ## Remaining work
 
-Replace every Lovable AI Gateway call and the Lovable GitHub connector with direct OpenAI/GitHub APIs; regenerate the Bun lockfile using Bun; run CI/build/tests; configure hosting and secrets; migrate and verify source project data. The migration is not complete until all these release gates pass.
+Tiger AI chat, admin image generation and developer editing/planning/recommendations now call OpenAI/GitHub directly on this branch. Video generation is temporarily disabled rather than left on Lovable. Regenerate the Bun lockfile using Bun; run CI/build/tests; configure hosting and secrets; migrate and verify source project data. The migration is not complete until all these release gates pass.
