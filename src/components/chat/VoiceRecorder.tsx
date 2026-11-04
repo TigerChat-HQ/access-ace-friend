@@ -1,24 +1,32 @@
 import { useState, useRef, useEffect } from "react";
 import { Mic, Square, Send, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface VoiceRecorderProps {
-  onSend: (audioBlob: Blob, duration: number) => void;
+  onSend: (audioBlob: Blob, duration: number) => void | Promise<void>;
   onCancel: () => void;
 }
 
 export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
-  const [isRecording, setIsRecording] = useState(true);
+  const [isRecording, setIsRecording] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
   const [duration, setDuration] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const activeRef = useRef(false);
 
   useEffect(() => {
-    startRecording();
+    activeRef.current = true;
+    void startRecording();
     return () => {
+      activeRef.current = false;
       if (mediaRecorderRef.current?.state === "recording") {
         mediaRecorderRef.current.stop();
       }
+      streamRef.current?.getTracks().forEach(track => track.stop());
     };
   }, []);
 
@@ -31,7 +39,10 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      if (!activeRef.current) { stream.getTracks().forEach(track => track.stop()); return; }
+      streamRef.current = stream;
+      const mimeType = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus"].find(type => MediaRecorder.isTypeSupported(type));
+      const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
 
@@ -40,15 +51,16 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
       };
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        setAudioBlob(blob);
+        const blob = new Blob(chunksRef.current, { type: mediaRecorder.mimeType || chunksRef.current[0]?.type || "audio/webm" });
+        if (activeRef.current) setAudioBlob(blob);
         stream.getTracks().forEach((t) => t.stop());
       };
 
       mediaRecorder.start();
       setIsRecording(true);
     } catch {
-      onCancel();
+      streamRef.current?.getTracks().forEach(track => track.stop());
+      if (activeRef.current) setError("Microphone unavailable. Allow microphone access and try again.");
     }
   };
 
@@ -59,8 +71,12 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
     setIsRecording(false);
   };
 
-  const handleSend = () => {
-    if (audioBlob) onSend(audioBlob, duration);
+  const handleSend = async () => {
+    if (!audioBlob?.size || sending) return;
+    setSending(true); setError("");
+    try { await onSend(audioBlob, duration); }
+    catch (error) { setError(error instanceof Error ? error.message : "Voice note not sent. Try again."); }
+    finally { if (activeRef.current) setSending(false); }
   };
 
   const formatDuration = (s: number) => {
@@ -71,9 +87,9 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
 
   return (
     <div className="flex items-center gap-3 p-3 border-t border-border/50 glass">
-      <button onClick={onCancel} className="p-2 rounded-full hover:bg-surface-hover text-destructive transition-colors">
+      <Button size="icon" variant="ghost" aria-label="Cancel voice note" disabled={sending} onClick={onCancel} className="text-destructive">
         <Trash2 className="w-5 h-5" />
-      </button>
+      </Button>
 
       <div className="flex-1 flex items-center gap-3">
         {isRecording && <div className="w-2.5 h-2.5 rounded-full bg-destructive animate-pulse" />}
@@ -93,15 +109,16 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
         </div>
         <span className="text-xs text-muted-foreground font-mono min-w-[36px]">{formatDuration(duration)}</span>
       </div>
+      {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
 
       {isRecording ? (
-        <button onClick={stopRecording} className="p-2.5 rounded-full bg-destructive text-destructive-foreground">
+        <Button size="icon" variant="destructive" aria-label="Stop recording" onClick={stopRecording}>
           <Square className="w-4 h-4" />
-        </button>
+        </Button>
       ) : (
-        <button onClick={handleSend} className="p-2.5 rounded-full bg-primary text-primary-foreground neon-glow">
+        <Button size="icon" aria-label="Send voice note" disabled={!audioBlob?.size || sending} onClick={() => void handleSend()}>
           <Send className="w-4 h-4" />
-        </button>
+        </Button>
       )}
     </div>
   );
