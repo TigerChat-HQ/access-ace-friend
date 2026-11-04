@@ -32,7 +32,7 @@ export const FollowListDialog = ({ open, onOpenChange, userId, mode }: Props) =>
       const col = mode === "followers" ? "follower_id" : "following_id";
       const filterCol = mode === "followers" ? "following_id" : "follower_id";
       const { data: rows } = await supabase.from("follows").select(`${col}`).eq(filterCol, userId);
-      const ids = (rows || []).map((r: any) => r[col]).filter(Boolean);
+      const ids = (rows || []).map((r) => r[col]).filter(Boolean);
       if (ids.length) {
         const { data: profs } = await supabase
           .from("profiles")
@@ -43,7 +43,7 @@ export const FollowListDialog = ({ open, onOpenChange, userId, mode }: Props) =>
 
       if (user) {
         const { data: mine } = await supabase.from("follows").select("following_id").eq("follower_id", user.id);
-        setMyFollowing(new Set((mine || []).map((r: any) => r.following_id)));
+        setMyFollowing(new Set((mine || []).map((r) => r.following_id)));
       }
       setLoading(false);
     })();

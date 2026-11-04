@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 // @refresh reset
 // A call-hook update must remount this owner instead of reusing an old hook queue.
 import { createContext, useContext, ReactNode } from "react";

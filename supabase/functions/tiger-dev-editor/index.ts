@@ -49,12 +49,12 @@ async function readFile(path: string) {
 
 async function waitForChecks(sha: string, timeoutMs = 120000) {
   const deadline = Date.now() + timeoutMs;
-  let last: any[] = [];
+  let last: Array<Record<string, unknown>> = [];
   while (Date.now() < deadline) {
     const result = await github(`commits/${encodeURIComponent(sha)}/check-runs`);
     last = result.check_runs || [];
-    if (last.length && last.every((check: any) => ["success", "neutral", "skipped"].includes(check.conclusion))) return { ok: true, checks: last };
-    if (last.some((check: any) => ["failure", "cancelled", "timed_out", "action_required"].includes(check.conclusion))) return { ok: false, checks: last };
+    if (last.length && last.every((check) => ["success", "neutral", "skipped"].includes(check.conclusion))) return { ok: true, checks: last };
+    if (last.some((check) => ["failure", "cancelled", "timed_out", "action_required"].includes(check.conclusion))) return { ok: false, checks: last };
     await sleep(5000);
   }
   return { ok: false, timedOut: true, checks: last };
@@ -62,11 +62,11 @@ async function waitForChecks(sha: string, timeoutMs = 120000) {
 
 async function waitForDeployment(sha: string, timeoutMs = 90000) {
   const deadline = Date.now() + timeoutMs;
-  let runs: any[] = [];
+  let runs: Array<Record<string, unknown>> = [];
   while (Date.now() < deadline) {
     const result = await github("actions/runs?branch=main&event=push&per_page=20");
-    runs = (result.workflow_runs || []).filter((run: any) => run.head_sha === sha);
-    const deploy = runs.find((run: any) => run.name === "Deploy TIGERCHATS Supabase");
+    runs = (result.workflow_runs || []).filter((run) => run.head_sha === sha);
+    const deploy = runs.find((run) => run.name === "Deploy TIGERCHATS Supabase");
     if (deploy && deploy.status === "completed") return { status: deploy.conclusion || "unknown", run: deploy };
     await sleep(5000);
   }
@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
 
     if (p.action === "files") {
       const tree = await github("git/trees/main?recursive=1");
-      return json({ repo: REPO, autonomous: true, files: tree.tree.filter((f: any) => f.type === "blob" && checkCode(f.path, "").allowed).map((f: any) => f.path) });
+      return json({ repo: REPO, autonomous: true, files: tree.tree.filter((f) => f.type === "blob" && checkCode(f.path, "").allowed).map((f) => f.path) });
     }
     if (p.action === "read") {
       if (!p.path) return json({ error: "File required" }, 400);
@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
           { role: "system", content: "Propose a minimal change to the one authorized source file for the approved task. Preserve existing behavior. Never modify authentication, authorization, credentials, payment, deletion, private-data handling, audit controls, or deployment policy. Return JSON with exactly content (complete updated file string) and summary (short explanation). No markdown." },
           { role: "user", content: JSON.stringify({ task: { title: task.title, summary: task.summary, plan: task.plan }, file }) },
         ], text: { format: { type: "json_object" } } });
-        const text = result.output.filter((item) => item.type === "message").flatMap((item: any) => item.content).filter((item: any) => item.type === "output_text").map((item: any) => item.text).join("");
+        const text = result.output.filter((item) => item.type === "message").flatMap((item) => item.content).filter((item) => item.type === "output_text").map((item) => item.text).join("");
         const generated = z.object({ content: z.string().max(60000), summary: z.string().max(2000) }).parse(JSON.parse(text));
         content = generated.content; summary = generated.summary;
       }
@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
       await audit(db, "pull_request_opened", { proposal_id: proposal.id, pr_number: pr.number, pr_url: pr.html_url }, task.id);
 
       const checks = await waitForChecks(commitSha);
-      await audit(db, "ci_completed", { proposal_id: proposal.id, commit_sha: commitSha, passed: checks.ok, timed_out: checks.timedOut || false, checks: checks.checks?.map((c: any) => ({ name: c.name, conclusion: c.conclusion })) }, task.id);
+      await audit(db, "ci_completed", { proposal_id: proposal.id, commit_sha: commitSha, passed: checks.ok, timed_out: checks.timedOut || false, checks: checks.checks?.map((c) => ({ name: c.name, conclusion: c.conclusion })) }, task.id);
       if (!checks.ok) throw new Error(checks.timedOut ? "CI did not complete before the autonomous merge deadline" : "CI failed; autonomous merge was blocked");
 
       const merged = await github(`pulls/${pr.number}/merge`, "PUT", { merge_method: "squash", commit_title: `Tiger AI: ${task.title}` });

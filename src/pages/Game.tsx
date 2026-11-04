@@ -48,14 +48,14 @@ const Game = () => {
       ]);
       setTrophies((tro || []) as TrophyRow[]);
       if (lb && lb.length) {
-        const ids = Array.from(new Set(lb.map((l: any) => l.user_id)));
+        const ids = Array.from(new Set(lb.map((l) => l.user_id)));
         const { data: profs } = await supabase.from("profiles").select("user_id,display_name,avatar_url").in("user_id", ids);
-        const byId = new Map((profs || []).map((p: any) => [p.user_id, p]));
-        setLeaders(lb.map((l: any) => ({ ...l, profile: byId.get(l.user_id) })));
+        const byId = new Map((profs || []).map((p) => [p.user_id, p]));
+        setLeaders(lb.map((l) => ({ ...l, profile: byId.get(l.user_id) })));
       }
       if (user) {
         const { data: mine } = await supabase.from("user_trophies").select("trophy_tier").eq("user_id", user.id);
-        setMyTrophies((mine || []).map((m: any) => m.trophy_tier));
+        setMyTrophies((mine || []).map((m) => m.trophy_tier));
       }
     })();
   }, [user]);
@@ -84,7 +84,7 @@ const Game = () => {
       toast({ title: "No questions available", description: error?.message, variant: "destructive" });
       return;
     }
-    const shuffled = (data as any[])
+    const shuffled = (data as unknown[])
       .map((q) => ({ ...q, options: Array.isArray(q.options) ? q.options : JSON.parse(q.options) }))
       .sort(() => Math.random() - 0.5)
       .slice(0, 10) as Question[];

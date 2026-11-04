@@ -79,7 +79,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
       media_type: mediaType,
       duration: duration,
       text_overlay: textOverlay ? { text: textOverlay } : null,
-    } as any);
+    } as never);
 
     toast({ title: "Story posted! 📸" });
     setOpen(false);

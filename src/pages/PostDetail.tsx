@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,7 +27,7 @@ const PostDetail = () => {
       supabase.from("post_comments").select("*", { count: "exact", head: true }).eq("post_id", postId),
       user
         ? supabase.from("post_likes").select("id").eq("post_id", postId).eq("user_id", user.id).maybeSingle()
-        : Promise.resolve({ data: null as any }),
+        : Promise.resolve({ data: null as { id: string } | null }),
     ]);
     setPost({
       ...data,

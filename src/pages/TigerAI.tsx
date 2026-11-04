@@ -96,7 +96,7 @@ const TigerAI = () => {
         });
       }
       setLast({ role: "assistant", content: "Video is taking longer than expected. Please try again later." });
-    } catch (e: any) {
+    } catch (e) {
       toast({ title: "Video gen failed", description: e.message, variant: "destructive" });
     } finally {
       setLoading(false);
@@ -119,7 +119,7 @@ const TigerAI = () => {
         ...m,
         { role: "assistant", content: data.text || "Here you go 🐯", image_url: data.image_url },
       ]);
-    } catch (e: any) {
+    } catch (e) {
       toast({ title: "Image gen failed", description: e.message, variant: "destructive" });
     } finally {
       setLoading(false);

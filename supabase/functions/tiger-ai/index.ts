@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
       const model = hq
         ? "google/gemini-3-pro-image-preview"
         : "google/gemini-3.1-flash-image-preview";
-      const userContent: any[] = [
+      const userContent: Array<Record<string, unknown>> = [
         { type: "text", text: String(image_prompt || "Edit this image") },
       ];
       if (edit_image_url) {

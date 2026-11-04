@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", userId);
-    const allowed = (roles || []).some((r: any) =>
+    const allowed = (roles || []).some((r) =>
       ["admin", "superior_admin", "moderator"].includes(r.role),
     );
     if (!allowed) {
@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ url: pub.publicUrl }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
+  } catch (e) {
     return new Response(JSON.stringify({ error: e?.message || "Server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

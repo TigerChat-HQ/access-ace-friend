@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
 
     const { data: likedPosts } = likedIds.length
       ? await supabase.from("posts").select("caption, hashtags").in("id", likedIds)
-      : { data: [] as any[] };
+      : { data: [] as unknown[] };
 
     const interestText = (likedPosts || [])
       .map((p) => `${p.caption || ""} ${(p.hashtags || []).join(" ")}`)
@@ -73,8 +73,8 @@ Deno.serve(async (req) => {
       supabase.from("blocks").select("blocker_id").eq("blocked_id", user.id),
     ]);
     const blocked = new Set<string>([
-      ...(blocksA || []).map((b: any) => b.blocked_id),
-      ...(blocksB || []).map((b: any) => b.blocker_id),
+      ...(blocksA || []).map((b) => b.blocked_id),
+      ...(blocksB || []).map((b) => b.blocker_id),
     ]);
     const filtered = candidates.filter((c) => !blocked.has(c.user_id));
 

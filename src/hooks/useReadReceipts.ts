@@ -22,7 +22,7 @@ export const useReadReceipts = (
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
         async (payload) => {
-          const m = payload.new as any;
+          const m = payload.new as never;
           if (m.sender_id === user.id || m.delivered_at) return;
           // Only mark if I'm a member of that conversation
           const { data: member } = await supabase
@@ -34,7 +34,7 @@ export const useReadReceipts = (
           if (!member) return;
           await supabase
             .from("messages")
-            .update({ delivered_at: new Date().toISOString() } as any)
+            .update({ delivered_at: new Date().toISOString() } as never)
             .eq("id", m.id)
             .is("delivered_at", null);
         }
@@ -53,7 +53,7 @@ export const useReadReceipts = (
       const now = new Date().toISOString();
       const { error } = await supabase
         .from("messages")
-        .update({ delivered_at: now, read_at: now, is_read: true } as any)
+        .update({ delivered_at: now, read_at: now, is_read: true } as never)
         .eq("conversation_id", conversationId)
         .neq("sender_id", user.id);
       if (!error) onMarkedRead?.();

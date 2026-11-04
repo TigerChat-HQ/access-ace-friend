@@ -9,7 +9,7 @@ import { reportReplySchema } from "@/lib/contact";
 interface Props {
   open: boolean;
   onClose: () => void;
-  report: any;
+  report: Record<string, unknown>;
   onReplied: () => void;
 }
 

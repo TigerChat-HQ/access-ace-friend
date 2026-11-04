@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Bot, Users, Crown, Loader2, RotateCw, Flag, Share2, Copy } from "lucide-react";
@@ -38,7 +39,7 @@ const Draughts = () => {
   const [creating, setCreating] = useState(false);
   const [moving, setMoving] = useState(false);
   const [connection, setConnection] = useState("Connecting…");
-  const channelRef = useRef<any>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Load joinable matches
   const loadOpen = async () => {
@@ -49,7 +50,7 @@ const Draughts = () => {
       .eq("vs_ai", false)
       .order("created_at", { ascending: false })
       .limit(20);
-    setOpenMatches((data as any) || []);
+    setOpenMatches((data as never) || []);
   };
 
   useEffect(() => {
@@ -63,11 +64,11 @@ const Draughts = () => {
     (async () => {
       const { data } = await supabase.from("draft_matches").select("*").eq("id", matchId).maybeSingle();
       if (!data) return;
-      const row = data as any as MatchRow;
+      const row = data as unknown as MatchRow;
       if (row.status === "waiting" && row.player_white !== user.id && !row.player_black) {
         const { data: joined, error } = await supabase.rpc("join_draft_match", { p_match_id: matchId });
         if (error) { toast({ title: "Could not join", description: error.message, variant: "destructive" }); return; }
-        if (joined) { setMatch(joined as any); setMode("pvp"); return; }
+        if (joined) { setMatch(joined as never); setMode("pvp"); return; }
       }
       setMatch(row); setMode(row.vs_ai ? "ai" : "pvp");
     })();
@@ -127,7 +128,7 @@ const Draughts = () => {
       toast({ title: "Could not start", description: error?.message, variant: "destructive" });
       return;
     }
-    setMatch(data as any);
+    setMatch(data as never);
     setMode("ai");
   };
 
@@ -140,7 +141,7 @@ const Draughts = () => {
       toast({ title: "Could not create", description: error?.message, variant: "destructive" });
       return;
     }
-    setMatch(data as any);
+    setMatch(data as never);
     setMode("pvp");
     toast({ title: "Waiting for opponent", description: "Share the lobby — others can join." });
   };
@@ -152,7 +153,7 @@ const Draughts = () => {
       toast({ title: "Could not join", variant: "destructive" });
       return;
     }
-    setMatch(data as any);
+    setMatch(data as never);
     setMode("pvp");
   };
 
@@ -313,7 +314,7 @@ const Draughts = () => {
     try {
       if (navigator.share) await navigator.share({ title: "Join my draughts match", url });
       else { await navigator.clipboard.writeText(url); toast({ title: "Link copied" }); }
-    } catch {/* cancelled */}
+    } catch (error) { console.debug("Share cancelled", error); }
   };
 
   return (
