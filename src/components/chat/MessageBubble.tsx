@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo } from "react";
 import { Message } from "@/types/chat";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { Check, CheckCheck, Play, Pause, FileText, Download, Reply, Forward, Trash2, MoreVertical } from "lucide-react";
 import {
   DropdownMenu,
@@ -21,6 +22,7 @@ interface MessageBubbleProps {
 export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDelete, myBubbleClass }: MessageBubbleProps) => {
   const isMe = message.senderId === "me";
   const [playing, setPlaying] = useState(false);
+  const [audioError, setAudioError] = useState("");
   const [imgLoaded, setImgLoaded] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -29,11 +31,11 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
     []
   );
 
-  const toggleAudio = () => {
+  const toggleAudio = async () => {
     if (!audioRef.current) return;
+    setAudioError("");
     if (playing) audioRef.current.pause();
-    else audioRef.current.play();
-    setPlaying(!playing);
+    else try { await audioRef.current.play(); } catch { setPlaying(false); setAudioError("Could not play voice note. Try again."); }
   };
 
   const isFile = message.type === "file";
@@ -90,10 +92,10 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
 
         {isVoice && message.mediaUrl ? (
           <div className="flex items-center gap-3 min-w-[160px]">
-            <audio ref={audioRef} src={message.mediaUrl} onEnded={() => setPlaying(false)} className="hidden" />
-            <button onClick={toggleAudio} className="shrink-0">
+            <audio ref={audioRef} src={message.mediaUrl} preload="metadata" onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onError={() => { setPlaying(false); setAudioError("Voice note unavailable"); }} onEnded={() => setPlaying(false)} className="hidden" />
+            <Button size="icon" variant="ghost" aria-label={playing ? "Pause voice note" : "Play voice note"} onClick={() => void toggleAudio()} className="shrink-0">
               {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-            </button>
+            </Button>
             <div className="flex-1 flex items-center gap-0.5">
               {waveformHeights.map((h, i) => (
                 <div
@@ -134,6 +136,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
         ) : (
           <p>{message.text}</p>
         )}
+        {audioError && <p role="alert" className="text-xs">{audioError}</p>}
         <div className={cn("flex items-center gap-1 mt-1", isMe ? "justify-end" : "justify-start", isImage && !message.text && "px-2 pb-1")}>
           <span className="text-[10px] opacity-60">{message.time}</span>
           {isMe && (

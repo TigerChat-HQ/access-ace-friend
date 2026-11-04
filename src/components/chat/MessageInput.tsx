@@ -3,10 +3,11 @@ import { Send, Smile, Paperclip, Mic, X, FileText, Reply } from "lucide-react";
 import { VoiceRecorder } from "./VoiceRecorder";
 import { Message } from "@/types/chat";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 interface MessageInputProps {
   onSend: (text: string) => void;
-  onSendVoice?: (blob: Blob, duration: number) => void;
+  onSendVoice?: (blob: Blob, duration: number) => void | Promise<void>;
   onSendFile?: (file: File) => void;
   onTyping?: () => void;
   replyTo?: Message | null;
@@ -58,8 +59,9 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
   if (isRecording) {
     return (
       <VoiceRecorder
-        onSend={(blob, duration) => {
-          onSendVoice?.(blob, duration);
+        onSend={async (blob, duration) => {
+          if (!onSendVoice) throw new Error("Voice notes unavailable");
+          await onSendVoice(blob, duration);
           setIsRecording(false);
         }}
         onCancel={() => setIsRecording(false)}
@@ -132,12 +134,12 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
             <Send className="w-4 h-4" />
           </button>
         ) : (
-          <button
+          <Button size="icon" aria-label="Record voice note" disabled={!onSendVoice}
             onClick={() => setIsRecording(true)}
             className="p-2.5 rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-all neon-glow"
           >
             <Mic className="w-4 h-4" />
-          </button>
+          </Button>
         )}
       </div>
     </div>

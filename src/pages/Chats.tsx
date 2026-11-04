@@ -110,20 +110,24 @@ const Chats = () => {
   };
 
   const handleSendVoice = async (blob: Blob, duration: number) => {
-    if (!activeChat || !user) return;
-    const filePath = `${user.id}/${Date.now()}.webm`;
-    const { error: uploadError } = await supabase.storage.from("chat-media").upload(filePath, blob);
-    if (uploadError) return toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
+    if (!activeChat || !user) throw new Error("Select a chat before sending");
+    const extension = blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "webm";
+    const filePath = `${user.id}/${crypto.randomUUID()}.${extension}`;
+    const { error: uploadError } = await supabase.storage.from("chat-media").upload(filePath, blob, { contentType: blob.type });
+    if (uploadError) throw new Error(uploadError.message);
     const { data: { publicUrl } } = supabase.storage.from("chat-media").getPublicUrl(filePath);
     const mins = Math.floor(duration / 60);
     const secs = duration % 60;
-    await supabase.from("messages").insert({
+    const { error } = await supabase.from("messages").insert({
       conversation_id: activeChat,
       sender_id: user.id,
       content: `${mins}:${secs.toString().padStart(2, "0")}`,
       message_type: "voice",
       media_url: publicUrl,
+      reply_to_id: replyTo?.id || null,
     });
+    if (error) { await supabase.storage.from("chat-media").remove([filePath]); throw new Error(error.message); }
+    setReplyTo(null);
   };
 
   const handleSendFile = async (file: File) => {
