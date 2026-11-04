@@ -14,7 +14,7 @@ export default defineConfig(() => ({
     VitePWA({
       registerType: "autoUpdate",
       devOptions: { enabled: false },
-      workbox: { navigateFallbackDenylist: [/^\\/~oauth/] },
+      workbox: { navigateFallbackDenylist: [/^\/~oauth/] },
       manifest: {
         name: "TIGERCHATS",
         short_name: "TIGERCHATS",
