@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
       const commit = await github(`contents/${proposal.path}`, "PUT", { message: `Tiger AI: ${task.title}`, content: encoded, sha: proposal.base_sha, branch });
       const commitSha = commit.commit?.sha;
       await audit(db, "commit_created", { proposal_id: proposal.id, branch, commit_sha: commitSha, path: proposal.path }, task.id);
-      const pr = await github("pulls", "POST", { title: `Tiger AI: ${task.title}`, head: branch, base: "main", draft: false, body: `Autonomous Tiger AI change.\n\nApproved task: ${task.id}\n\n${proposal.summary}\n\nPolicy screening passed. CI must pass before automatic merge.` });
+      const pr = await github("pulls", "POST", { title: `Tiger AI: ${task.title}`, head: branch, base: "main", draft: false, body: `Tiger AI proposed change; human review required.\n\nApproved task: ${task.id}\n\n${proposal.summary}\n\nPolicy screening passed. CI must pass and a human reviewer must approve before merge.` });
       await db.from("dev_code_proposals").update({ branch, pr_url: pr.html_url, commit_sha: commitSha, pr_number: pr.number }).eq("id", proposal.id);
       await audit(db, "pull_request_opened", { proposal_id: proposal.id, pr_number: pr.number, pr_url: pr.html_url }, task.id);
 
