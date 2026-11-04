@@ -1,6 +1,9 @@
 name: Regenerate Bun lockfile
 
 on:
+  push:
+    branches: [migration/remove-lovable]
+    paths: [package.json, .github/workflows/regenerate-bun-lock.yml]
   workflow_dispatch:
 
 permissions:
