@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Bot, Sparkles, RefreshCw, ListTodo, History, Code2, Plus, ChevronDown, ChevronUp, ShieldCheck } from "lucide-react";
+import { TigerDeveloperEditor } from "./TigerDeveloperEditor";
 
 type Task = {
   id: string; title: string; summary: string | null; category: string; priority: string;
@@ -139,12 +140,7 @@ export const TigerCommandCenter = () => {
         </div>)}
       </div>}
 
-      {tab === "developer" && <div className="rounded-lg border border-border p-3 space-y-2">
-        <div className="flex items-center gap-2 text-sm font-medium"><ShieldCheck className="h-4 w-4 text-primary" /> Developer integration status</div>
-        <p className="text-sm text-muted-foreground">Task planning, status updates and audit logging are connected to Supabase. GitHub repository access alone does not enable safe autonomous code execution.</p>
-        <div className="text-xs space-y-1"><p>• Code changes: not yet enabled from this dashboard.</p><p>• Isolated build and test runner: not configured.</p><p>• Production deployment and rollback: not configured.</p></div>
-        <p className="text-xs text-muted-foreground">These controls must be implemented server-side with restricted credentials, isolated execution and human approval for sensitive changes.</p>
-      </div>}
+      {tab === "developer" && <TigerDeveloperEditor tasks={tasks} onChanged={load} />}
     </section>
   );
 };
