@@ -134,7 +134,7 @@ export const TigerCommandCenter = () => {
         <h3 className="text-sm font-medium">Recent activity</h3>
         {audit.length === 0 && <p className="text-sm text-muted-foreground">No audit events yet.</p>}
         {audit.map(item => <div key={item.id} className="rounded-md border border-border/60 p-2 text-xs">
-          <p className="font-medium">{item.action.replaceAll("_", " ")}</p>
+          <p className="font-medium">{item.action.replace(/_/g, " ")}</p>
           <p className="text-muted-foreground">{item.details?.title || "Command Center event"} · {item.actor === "tiger_ai" ? "Tiger AI" : "Admin"} · {new Date(item.created_at).toLocaleString()}</p>
         </div>)}
       </div>}
