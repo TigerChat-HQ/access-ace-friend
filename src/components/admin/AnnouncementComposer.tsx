@@ -16,6 +16,7 @@ export const AnnouncementComposer = () => {
   const [priority, setPriority] = useState<"normal" | "high" | "emergency">("normal");
   const [list, setList] = useState<Tables<"announcements">[]>([]);
   const [busy, setBusy] = useState(false);
+  const [deleteMessage, setDeleteMessage] = useState<{ text: string; error: boolean } | null>(null);
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.from("announcements").select("*").order("created_at", { ascending: false }).limit(50);
@@ -42,30 +43,38 @@ export const AnnouncementComposer = () => {
 
   const remove = async (id: string) => {
     setBusy(true);
-    const { data, error } = await supabase
-      .from("announcements")
-      .delete()
-      .eq("id", id)
-      .select("id")
-      .maybeSingle();
-    setBusy(false);
+    setDeleteMessage({ text: "Deleting announcement…", error: false });
+    try {
+      const { data, error } = await supabase
+        .from("announcements")
+        .delete()
+        .eq("id", id)
+        .select("id")
+        .maybeSingle();
 
-    if (error) {
-      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
-      return;
-    }
-    if (!data) {
-      toast({
-        title: "Announcement was not deleted",
-        description: "No row was deleted. Refresh the page and check your admin permissions.",
-        variant: "destructive",
-      });
-      await load();
-      return;
-    }
+      if (error) {
+        setDeleteMessage({ text: `Delete failed: ${error.message}`, error: true });
+        toast({ title: "Delete failed", description: error.message, variant: "destructive" });
+        return;
+      }
+      if (!data) {
+        setDeleteMessage({
+          text: "Not deleted: the server returned no deleted row. Check admin permissions and refresh.",
+          error: true,
+        });
+        await load();
+        return;
+      }
 
-    setList((current) => current.filter((announcement) => announcement.id !== id));
-    toast({ title: "Announcement deleted" });
+      setList((current) => current.filter((announcement) => announcement.id !== id));
+      setDeleteMessage({ text: "Announcement deleted successfully.", error: false });
+      toast({ title: "Announcement deleted" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error while deleting.";
+      setDeleteMessage({ text: `Delete failed: ${message}`, error: true });
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -85,6 +94,11 @@ export const AnnouncementComposer = () => {
         ))}
         <Button onClick={publish} disabled={busy || !title.trim()} className="ml-auto">Publish to all</Button>
       </div>
+      {deleteMessage && (
+        <p role="status" aria-live="polite" className={`text-xs ${deleteMessage.error ? "text-destructive" : "text-muted-foreground"}`}>
+          {deleteMessage.text}
+        </p>
+      )}
       {list.length > 0 && (
         <div className="space-y-2 pt-2 border-t border-border/30">
           <p className="text-xs text-muted-foreground">Recent</p>
