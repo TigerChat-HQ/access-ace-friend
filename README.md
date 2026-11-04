@@ -1,26 +1,39 @@
-# Coding final 7
+# TIGERCHAT
 
-I have accunt but i fail to login as administrator
+TIGERCHAT is a React + Vite application using Supabase for authentication, database access, and Edge Functions.
 
-This project was built with [Lovable](https://lovable.dev).
+## Current backend
 
-**Live app**: https://access-ace-friend.lovable.app
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/8f4e1e08-fcf6-410f-8bf5-37eaba0fc80d).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+- Supabase project: `dngilyoyhmgazhuuaxfh`
+- Supabase region: `eu-central-1`
+- Frontend Supabase configuration: `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`
+- Edge Functions are maintained in `supabase/functions/`
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+Requirements: Bun (recommended) or Node.js.
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+git clone https://github.com/TigerChat-HQ/access-ace-friend.git
+cd access-ace-friend
+bun install
+bun run dev
 ```
+
+## Verification
+
+```sh
+bun run lint
+bun run test
+bun run build
+```
+
+## Supabase deployment
+
+The Supabase project is managed independently from the frontend hosting. Database migrations are in `supabase/migrations/`; Edge Functions are in `supabase/functions/`.
+
+The GitHub Actions workflow `.github/workflows/deploy-supabase.yml` deploys migrations and functions when the repository has a `SUPABASE_ACCESS_TOKEN` Actions secret configured. If that secret is not available, the workflow deliberately skips CLI deployment rather than failing. Do not put service-role keys or private API keys in frontend variables.
+
+## Frontend hosting
+
+A production frontend hosting target has not yet been configured in this repository. The Vite production build is generated with `bun run build` in `dist/`.
