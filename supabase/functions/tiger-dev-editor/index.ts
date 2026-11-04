@@ -1,7 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3";
-import { generateResponse, GatewayError } from "npm:@lovable.dev/ai-gateway@0.1.11";
 import { checkCode } from "./policy.ts";
 
 const REPO = "TigerChat-HQ/access-ace-friend";
@@ -18,14 +17,13 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function github(path: string, method = "GET", body?: unknown) {
   const key = Deno.env.get("GITHUB_API_KEY");
-  const lovable = Deno.env.get("LOVABLE_API_KEY");
-  if (!key || !lovable) throw new Error("GitHub connection is not configured");
-  const response = await fetch(`https://connector-gateway.lovable.dev/github/repos/${REPO}/${path}`, {
+  if (!key) throw new Error("GITHUB_API_KEY is not configured in Supabase Edge Function secrets");
+  const response = await fetch(`https://api.github.com/repos/${REPO}/${path}`, {
     method,
     headers: {
-      Authorization: `Bearer ${lovable}`,
-      "X-Connection-Api-Key": key,
+      Authorization: `Bearer ${key}`,
       Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
       "Content-Type": "application/json",
     },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -107,12 +105,25 @@ Deno.serve(async (req) => {
       let content = p.content;
       let summary = "Autonomous Tiger AI proposed change";
       if (content === undefined) {
-        const result = await generateResponse({ model: "openai/gpt-6-astra", input: [
-          { role: "system", content: "Propose a minimal change to the one authorized source file for the approved task. Preserve existing behavior. Never modify authentication, authorization, credentials, payment, deletion, private-data handling, audit controls, or deployment policy. Return JSON with exactly content (complete updated file string) and summary (short explanation). No markdown." },
-          { role: "user", content: JSON.stringify({ task: { title: task.title, summary: task.summary, plan: task.plan }, file }) },
-        ], text: { format: { type: "json_object" } } });
-        const text = result.output.filter((item) => item.type === "message").flatMap((item) => item.content).filter((item) => item.type === "output_text").map((item) => item.text).join("");
-        const generated = z.object({ content: z.string().max(60000), summary: z.string().max(2000) }).parse(JSON.parse(text));
+        const openAiKey = Deno.env.get("OPENAI_API_KEY");
+        if (!openAiKey) return json({ error: "OPENAI_API_KEY is not configured in Supabase Edge Function secrets." }, 503);
+        const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${openAiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "gpt-6.1-sol",
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system", content: "Propose a minimal change to the one authorized source file for the approved task. Preserve existing behavior. Never modify authentication, authorization, credentials, payment, deletion, private-data handling, audit controls, or deployment policy. Return JSON with exactly content (complete updated file string) and summary (short explanation). No markdown." },
+              { role: "user", content: JSON.stringify({ task: { title: task.title, summary: task.summary, plan: task.plan }, file }) },
+            ],
+          }),
+        });
+        const aiJson = await aiResponse.json().catch(() => ({}));
+        if (!aiResponse.ok) throw new Error(aiJson?.error?.message || `OpenAI API error (${aiResponse.status})`);
+        const outputText = aiJson?.choices?.[0]?.message?.content;
+        if (typeof outputText !== "string") throw new Error("OpenAI returned no proposal text");
+        const generated = z.object({ content: z.string().max(60000), summary: z.string().max(2000) }).parse(JSON.parse(outputText));
         content = generated.content; summary = generated.summary;
       }
       if (content === file.content) return json({ error: "No code changes proposed" }, 400);
@@ -168,7 +179,6 @@ Deno.serve(async (req) => {
       throw error;
     }
   } catch (error) {
-    if (error instanceof GatewayError) return json({ error: `AI suggestion failed: ${error.code}`, recovery: error.recovery }, error.httpStatus || 502);
     return json({ error: error instanceof Error ? error.message : "Editor failed" }, 500);
   }
 });
