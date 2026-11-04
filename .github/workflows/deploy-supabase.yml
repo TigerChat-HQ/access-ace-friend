@@ -18,10 +18,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Explain missing deployment credentials
+      - name: Require deployment credentials
         if: ${{ env.SUPABASE_ACCESS_TOKEN == '' }}
         run: |
-          echo "::warning::Supabase deployment skipped. Configure SUPABASE_ACCESS_TOKEN as a GitHub Actions secret to enable autonomous deployment."
+          echo "::error::Supabase deployment blocked. Configure SUPABASE_ACCESS_TOKEN as a GitHub Actions secret before publishing migrations and Edge Functions."
+          exit 1
 
       - name: Setup Supabase CLI
         if: ${{ env.SUPABASE_ACCESS_TOKEN != '' }}

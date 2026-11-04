@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { Tables } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,14 +14,18 @@ export const AnnouncementComposer = () => {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [priority, setPriority] = useState<"normal" | "high" | "emergency">("normal");
-  const [list, setList] = useState<any[]>([]);
+  const [list, setList] = useState<Tables<"announcements">[]>([]);
   const [busy, setBusy] = useState(false);
 
-  const load = async () => {
-    const { data } = await supabase.from("announcements").select("*").order("created_at", { ascending: false }).limit(20);
+  const load = useCallback(async () => {
+    const { data, error } = await supabase.from("announcements").select("*").order("created_at", { ascending: false }).limit(50);
+    if (error) {
+      toast({ title: "Could not load announcements", description: error.message, variant: "destructive" });
+      return;
+    }
     setList(data || []);
-  };
-  useEffect(() => { load(); }, []);
+  }, [toast]);
+  useEffect(() => { void load(); }, [load]);
 
   const publish = async () => {
     if (!user || !title.trim()) return;
@@ -32,12 +37,19 @@ export const AnnouncementComposer = () => {
     if (error) { toast({ title: "Failed", description: error.message, variant: "destructive" }); return; }
     toast({ title: "Published", description: "All users will see this popup." });
     setTitle(""); setBody(""); setPriority("normal");
-    load();
+    void load();
   };
 
   const remove = async (id: string) => {
-    await supabase.from("announcements").update({ is_active: false }).eq("id", id);
-    load();
+    setBusy(true);
+    const { error } = await supabase.from("announcements").delete().eq("id", id);
+    setBusy(false);
+    if (error) {
+      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Announcement deleted" });
+    void load();
   };
 
   return (
@@ -65,11 +77,9 @@ export const AnnouncementComposer = () => {
               <span className={`w-2 h-2 rounded-full ${a.is_active ? "bg-primary" : "bg-muted"}`} />
               <span className="flex-1 truncate font-medium">{a.title}</span>
               <span className="text-[10px] text-muted-foreground uppercase">{a.priority}</span>
-              {a.is_active && (
-                <button onClick={() => remove(a.id)} className="p-1 hover:bg-destructive/20 rounded">
+              <button type="button" disabled={busy} onClick={() => void remove(a.id)} className="p-1 hover:bg-destructive/20 rounded disabled:opacity-50" aria-label={`Delete ${a.title}`}>
                   <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                </button>
-              )}
+              </button>
             </div>
           ))}
         </div>

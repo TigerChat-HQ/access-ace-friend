@@ -7,12 +7,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Bot, Sparkles, RefreshCw, ListTodo, History, Code2, Plus, ChevronDown, ChevronUp, ShieldCheck, ExternalLink, Upload } from "lucide-react";
 import { TigerDeveloperEditor } from "./TigerDeveloperEditor";
+import { FunctionsHttpError } from "@supabase/supabase-js";
+import { Tables } from "@/integrations/supabase/types";
 
-type Task = {
-  id: string; title: string; summary: string | null; category: string; priority: string;
-  risk: string; status: string; plan: any; created_at: string;
-};
-type Audit = { id: string; actor: string; action: string; details: any; created_at: string };
+type TaskPlan = { steps?: string[]; tests?: string[] };
+type Task = Tables<"dev_tasks"> & { plan: TaskPlan | null };
+type Audit = Tables<"dev_audit_log">;
 
 const NEXT: Record<string, string[]> = {
   planned: ["approved", "rejected"], approved: ["in_progress", "rejected"],
@@ -38,7 +38,10 @@ export const TigerCommandCenter = () => {
       supabase.from("dev_tasks").select("*").order("created_at", { ascending: false }).limit(50),
       supabase.from("dev_audit_log").select("*").order("created_at", { ascending: false }).limit(50),
     ]);
-    if (te || ae) toast({ title: "Could not load Command Center", description: te?.message || ae?.message, variant: "destructive" });
+    if (te || ae) {
+      const description = te?.message || ae?.message || "Command Center tables are not available yet.";
+      toast({ title: "Command Center unavailable", description, variant: "destructive" });
+    }
     setTasks((t as Task[]) || []);
     setAudit((a as Audit[]) || []);
     setLoading(false);
@@ -49,7 +52,7 @@ export const TigerCommandCenter = () => {
   const call = async (body: Record<string, unknown>) => {
     const { data, error } = await supabase.functions.invoke("tiger-dev-planner", { body });
     if (error) {
-      const detail = (error as any).context?.text ? await (error as any).context.text() : error.message;
+      const detail = error instanceof FunctionsHttpError ? await error.context.text() : error.message;
       throw new Error(detail);
     }
     if (data?.error) throw new Error(data.error);
@@ -65,8 +68,8 @@ export const TigerCommandCenter = () => {
       setTitle(""); setSummary(""); setCategory("feature"); setShowCreate(false);
       toast({ title: "Task created", description: "Task added to the development plan." });
       await load();
-    } catch (err: any) {
-      toast({ title: "Task creation failed", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Task creation failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
     } finally { setBusy(false); }
   };
 
@@ -76,20 +79,20 @@ export const TigerCommandCenter = () => {
       const r = await call({ action: "triage" });
       toast({ title: r.created ? `Tiger AI planned ${r.created} new task(s)` : "No new feedback to plan" });
       await load();
-    } catch (err: any) { toast({ title: "Planning failed", description: err.message, variant: "destructive" }); }
+    } catch (err: unknown) { toast({ title: "Planning failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" }); }
     finally { setBusy(false); }
   };
 
   const setStatus = async (id: string, status: string) => {
     try { await call({ action: "set_status", id, status }); await load(); }
-    catch (err: any) { toast({ title: "Update failed", description: err.message, variant: "destructive" }); }
+    catch (err: unknown) { toast({ title: "Update failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" }); }
   };
 
   const openGitHub = (path = "") => {
     window.open(`https://github.com/TigerChat-HQ/access-ace-friend${path}`, "_blank", "noopener,noreferrer");
   };
 
-  const riskVariant = (risk: string) => (risk === "high" ? "destructive" : risk === "medium" ? "secondary" : "outline") as any;
+  const riskVariant = (risk: string): "destructive" | "secondary" | "outline" => risk === "high" ? "destructive" : risk === "medium" ? "secondary" : "outline";
 
   return (
     <section className="space-y-4">
