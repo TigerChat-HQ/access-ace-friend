@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Mail, Lock, User, Eye, EyeOff, ArrowRight } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { authReturnPath } from "@/lib/auth-return";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 
 const Auth = () => {
@@ -16,6 +17,8 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const next = authReturnPath(params.get("next"));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +35,7 @@ const Auth = () => {
           password,
           options: {
             data: { display_name: displayName },
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: new URL(`/auth?next=${encodeURIComponent(next)}`, window.location.origin).href,
           },
         });
         if (error) throw error;
