@@ -62,9 +62,12 @@ Deno.serve(async (req) => {
     const fresh = (reports || []).filter((r: any) => !done.has(r.id)).slice(0, 10);
     if (!fresh.length) return json({ created: 0 });
 
+    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!lovableApiKey) return json({ error: "AI triage is not configured. Add LOVABLE_API_KEY to Supabase Edge Function secrets." }, 503);
+
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
-      headers: { Authorization: `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${lovableApiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         response_format: { type: "json_object" },
