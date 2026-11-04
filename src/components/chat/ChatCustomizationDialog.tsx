@@ -112,29 +112,3 @@ export const ChatCustomizationDialog = ({ conversationId }: Props) => {
     </Dialog>
   );
 };
-
-export const wallpaperClass = (key: string | null): string => {
-  const w = WALLPAPERS.find((x) => x.key === key);
-  return w?.bg || "";
-};
-
-export const bubbleColorClass = (key: string | null): string => {
-  switch (key) {
-    case "blue":
-      return "bg-blue-500 text-white";
-    case "purple":
-      return "bg-purple-500 text-white";
-    case "pink":
-      return "bg-pink-500 text-white";
-    case "orange":
-      return "bg-orange-500 text-white";
-    default:
-      return "bg-primary text-primary-foreground";
-  }
-};
-
-export const fontSizeClass = (size: ChatPrefs["font_size"]): string => {
-  if (size === "small") return "text-xs";
-  if (size === "large") return "text-base";
-  return "text-sm";
-};
