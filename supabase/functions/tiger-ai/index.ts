@@ -26,15 +26,12 @@ const MODE_PROMPTS: Record<string, string> = {
     "Summarize the user's feedback into 1-2 crisp sentences for the developer. Then add a single suggested action prefixed with 'Action: '.",
 };
 
-async function callGateway(body: unknown, stream = true) {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-  return fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+async function callOpenAI(body: unknown, stream = true) {
+  const apiKey = Deno.env.get("OPENAI_API_KEY");
+  if (!apiKey) throw new Error("OPENAI_API_KEY is not configured in Supabase Edge Function secrets");
+  return fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({ stream, ...(body as object) }),
   });
 }
@@ -46,87 +43,49 @@ Deno.serve(async (req) => {
     const { messages, mode, image_prompt, edit_image_url, hq, video_prompt, video_id } = await req.json();
     const json = (b: unknown, status = 200) =>
       new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    const GW = "https://ai.gateway.lovable.dev/v1/videos";
-    const KEY = Deno.env.get("LOVABLE_API_KEY");
+    
 
-    // ----- Video: create job (Lovable AI, Gemini Omni) -----
-    if (video_prompt) {
-      if (!KEY) return json({ error: "AI not configured." }, 500);
-      const r = await fetch(GW, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "google/gemini-omni-1.1-flash",
-          input: `${String(video_prompt).slice(0, 1000)}. Cinematic, single continuous shot, consider micro-detail and timing; fitting ambient soundtrack.`,
-          response_format: { type: "video", resolution: "720p", duration: "5s", aspect_ratio: "9:16" },
-        }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        console.error("video create", r.status, d);
-        return json({ error: d?.error?.message || d?.message || "Video request failed." }, r.status);
-      }
-      return json({ video_id: d.id, status: d.status });
+    // Video generation is intentionally unavailable until a supported direct-provider workflow is integrated.
+    if (video_prompt || video_id) {
+      return json({ error: "Video generation is temporarily unavailable while TIGERCHATS migrates away from Lovable. Chat and image generation remain available." }, 501);
     }
 
-    // ----- Video: poll job, store MP4 on completion -----
-    if (video_id) {
-      if (!KEY) return json({ error: "AI not configured." }, 500);
-      const id = String(video_id).replace(/[^a-zA-Z0-9_-]/g, "");
-      const r = await fetch(`${GW}/${id}`, { headers: { Authorization: `Bearer ${KEY}` } });
-      const job = await r.json().catch(() => ({}));
-      if (!r.ok) return json({ error: job?.error?.message || "Status check failed." }, r.status);
-      if (job.status === "failed") return json({ status: "failed", error: job.error?.message || "Video generation failed." });
-      if (job.status !== "completed") return json({ status: job.status, progress: job.progress ?? null });
-
-      const { createClient } = await import("npm:@supabase/supabase-js@2");
-      const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-      const path = `${id}.mp4`;
-      await admin.storage.createBucket("ai-videos", { public: false }).catch(() => {});
-      const { data: existing } = await admin.storage.from("ai-videos").list("", { search: path });
-      if (!existing?.some((f) => f.name === path)) {
-        const c = await fetch(`${GW}/${id}/content`, { headers: { Authorization: `Bearer ${KEY}` } });
-        if (!c.ok) return json({ error: "Could not download video." }, 502);
-        const bytes = new Uint8Array(await c.arrayBuffer());
-        const up = await admin.storage.from("ai-videos").upload(path, bytes, { contentType: "video/mp4", upsert: true });
-        if (up.error) return json({ error: up.error.message }, 500);
-      }
-      const { data: signed } = await admin.storage.from("ai-videos").createSignedUrl(path, 60 * 60 * 24 * 7);
-      return json({ status: "completed", video_url: signed?.signedUrl, text: "Here's your clip 🐯🎬" });
-    }
-
-    // ----- Image generation / editing branch (non-streaming) -----
+    // ----- OpenAI image generation / editing (non-streaming) -----
     if (image_prompt || edit_image_url) {
-      const model = hq
-        ? "google/gemini-3-pro-image-preview"
-        : "google/gemini-3.1-flash-image-preview";
-      const userContent: Array<Record<string, unknown>> = [
-        { type: "text", text: String(image_prompt || "Edit this image") },
-      ];
+      const apiKey = Deno.env.get("OPENAI_API_KEY");
+      if (!apiKey) return json({ error: "OPENAI_API_KEY is not configured in Supabase Edge Function secrets." }, 503);
+      const endpoint = edit_image_url ? "https://api.openai.com/v1/images/edits" : "https://api.openai.com/v1/images/generations";
+      let response: Response;
       if (edit_image_url) {
-        userContent.push({ type: "image_url", image_url: { url: String(edit_image_url) } });
-      }
-      const r = await callGateway(
-        {
-          model,
-          messages: [{ role: "user", content: userContent }],
-          modalities: ["image", "text"],
-        },
-        false,
-      );
-      if (!r.ok) {
-        const t = await r.text();
-        return new Response(JSON.stringify({ error: t || "Image gen failed" }), {
-          status: r.status,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        const sourceUrl = new URL(String(edit_image_url));
+        const supabaseHost = new URL(Deno.env.get("SUPABASE_URL")!).hostname;
+        if (sourceUrl.protocol !== "https:" || sourceUrl.hostname !== supabaseHost) {
+          return json({ error: "Image editing only accepts images stored in this TIGERCHATS Supabase project." }, 400);
+        }
+        const source = await fetch(sourceUrl);
+        if (!source.ok) return json({ error: "Could not retrieve the image to edit." }, 400);
+        const blob = await source.blob();
+        if (!blob.type.startsWith("image/") || blob.size > 20 * 1024 * 1024) {
+          return json({ error: "Image must be a supported image smaller than 20 MB." }, 400);
+        }
+        const form = new FormData();
+        form.set("model", "gpt-image-2");
+        form.set("prompt", String(image_prompt || "Edit this image").slice(0, 4000));
+        form.set("image", new File([blob], "source-image.png", { type: blob.type || "image/png" }));
+        form.set("size", hq ? "1536x1024" : "1024x1024");
+        response = await fetch(endpoint, { method: "POST", headers: { Authorization: `Bearer ${apiKey}` }, body: form });
+      } else {
+        response = await fetch(endpoint, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "gpt-image-2", prompt: String(image_prompt).slice(0, 4000), size: hq ? "1536x1024" : "1024x1024", quality: hq ? "high" : "medium" }),
         });
       }
-      const data = await r.json();
-      const url = data.choices?.[0]?.message?.images?.[0]?.image_url?.url || null;
-      const text = data.choices?.[0]?.message?.content || "";
-      return new Response(JSON.stringify({ image_url: url, text }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) return json({ error: result?.error?.message || "OpenAI image generation failed." }, response.status);
+      const b64 = result?.data?.[0]?.b64_json;
+      if (!b64) return json({ error: "OpenAI returned no image data." }, 502);
+      return json({ image_url: `data:image/png;base64,${b64}`, text: result?.data?.[0]?.revised_prompt || "" });
     }
 
     if (!Array.isArray(messages)) {
@@ -138,8 +97,8 @@ Deno.serve(async (req) => {
 
     const sys = (mode && MODE_PROMPTS[mode]) || SYSTEM_PROMPT;
 
-    const r = await callGateway({
-      model: "google/gemini-3-flash-preview",
+    const r = await callOpenAI({
+      model: "gpt-6.1-sol",
       messages: [{ role: "system", content: sys }, ...messages],
     });
 
@@ -150,13 +109,13 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       if (r.status === 402)
-        return new Response(JSON.stringify({ error: "Workspace AI credits exhausted." }), {
+        return new Response(JSON.stringify({ error: "OpenAI API quota or billing limit reached." }), {
           status: 402,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       const t = await r.text();
-      console.error("AI gateway error:", r.status, t);
-      return new Response(JSON.stringify({ error: "AI gateway error" }), {
+      console.error("OpenAI API error:", r.status, t);
+      return new Response(JSON.stringify({ error: "OpenAI API error" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

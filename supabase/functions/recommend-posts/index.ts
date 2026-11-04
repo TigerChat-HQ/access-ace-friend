@@ -1,4 +1,4 @@
-// AI-powered post recommendations using Lovable AI
+// AI-powered post recommendations using OpenAI
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -85,21 +85,21 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 3) Ask Lovable AI to rank
+    // 3) Ask OpenAI to rank
     const candidateText = filtered
       .map((c, i) => `[${i}] ${c.caption || "(no caption)"} ${(c.hashtags || []).join(" ")}`)
       .join("\n")
       .slice(0, 6000);
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
-    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
+    const aiResp = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: "gpt-6.1-sol",
         messages: [
           {
             role: "system",

@@ -1,7 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3";
-import { generateResponse, GatewayError } from "npm:@lovable.dev/ai-gateway@0.1.11";
 import { checkCode } from "./policy.ts";
 
 const REPO = "TigerChat-HQ/access-ace-friend";
@@ -18,14 +17,13 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function github(path: string, method = "GET", body?: unknown) {
   const key = Deno.env.get("GITHUB_API_KEY");
-  const lovable = Deno.env.get("LOVABLE_API_KEY");
-  if (!key || !lovable) throw new Error("GitHub connection is not configured");
-  const response = await fetch(`https://connector-gateway.lovable.dev/github/repos/${REPO}/${path}`, {
+  if (!key) throw new Error("GITHUB_API_KEY is not configured in Supabase Edge Function secrets");
+  const response = await fetch(`https://api.github.com/repos/${REPO}/${path}`, {
     method,
     headers: {
-      Authorization: `Bearer ${lovable}`,
-      "X-Connection-Api-Key": key,
+      Authorization: `Bearer ${key}`,
       Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
       "Content-Type": "application/json",
     },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -107,12 +105,25 @@ Deno.serve(async (req) => {
       let content = p.content;
       let summary = "Autonomous Tiger AI proposed change";
       if (content === undefined) {
-        const result = await generateResponse({ model: "openai/gpt-6-astra", input: [
-          { role: "system", content: "Propose a minimal change to the one authorized source file for the approved task. Preserve existing behavior. Never modify authentication, authorization, credentials, payment, deletion, private-data handling, audit controls, or deployment policy. Return JSON with exactly content (complete updated file string) and summary (short explanation). No markdown." },
-          { role: "user", content: JSON.stringify({ task: { title: task.title, summary: task.summary, plan: task.plan }, file }) },
-        ], text: { format: { type: "json_object" } } });
-        const text = result.output.filter((item) => item.type === "message").flatMap((item) => item.content).filter((item) => item.type === "output_text").map((item) => item.text).join("");
-        const generated = z.object({ content: z.string().max(60000), summary: z.string().max(2000) }).parse(JSON.parse(text));
+        const openAiKey = Deno.env.get("OPENAI_API_KEY");
+        if (!openAiKey) return json({ error: "OPENAI_API_KEY is not configured in Supabase Edge Function secrets." }, 503);
+        const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${openAiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "gpt-6.1-sol",
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system", content: "Propose a minimal change to the one authorized source file for the approved task. Preserve existing behavior. Never modify authentication, authorization, credentials, payment, deletion, private-data handling, audit controls, or deployment policy. Return JSON with exactly content (complete updated file string) and summary (short explanation). No markdown." },
+              { role: "user", content: JSON.stringify({ task: { title: task.title, summary: task.summary, plan: task.plan }, file }) },
+            ],
+          }),
+        });
+        const aiJson = await aiResponse.json().catch(() => ({}));
+        if (!aiResponse.ok) throw new Error(aiJson?.error?.message || `OpenAI API error (${aiResponse.status})`);
+        const outputText = aiJson?.choices?.[0]?.message?.content;
+        if (typeof outputText !== "string") throw new Error("OpenAI returned no proposal text");
+        const generated = z.object({ content: z.string().max(60000), summary: z.string().max(2000) }).parse(JSON.parse(outputText));
         content = generated.content; summary = generated.summary;
       }
       if (content === file.content) return json({ error: "No code changes proposed" }, 400);
@@ -144,31 +155,26 @@ Deno.serve(async (req) => {
       const commit = await github(`contents/${proposal.path}`, "PUT", { message: `Tiger AI: ${task.title}`, content: encoded, sha: proposal.base_sha, branch });
       const commitSha = commit.commit?.sha;
       await audit(db, "commit_created", { proposal_id: proposal.id, branch, commit_sha: commitSha, path: proposal.path }, task.id);
-      const pr = await github("pulls", "POST", { title: `Tiger AI: ${task.title}`, head: branch, base: "main", draft: false, body: `Autonomous Tiger AI change.\n\nApproved task: ${task.id}\n\n${proposal.summary}\n\nPolicy screening passed. CI must pass before automatic merge.` });
+      const pr = await github("pulls", "POST", { title: `Tiger AI: ${task.title}`, head: branch, base: "main", draft: false, body: `Tiger AI proposed change; human review required.\n\nApproved task: ${task.id}\n\n${proposal.summary}\n\nPolicy screening passed. CI must pass and a human reviewer must approve before merge.` });
       await db.from("dev_code_proposals").update({ branch, pr_url: pr.html_url, commit_sha: commitSha, pr_number: pr.number }).eq("id", proposal.id);
       await audit(db, "pull_request_opened", { proposal_id: proposal.id, pr_number: pr.number, pr_url: pr.html_url }, task.id);
 
+      // Safety gate: never merge generated code automatically. Keep the PR open for human review.
       const checks = await waitForChecks(commitSha);
       await audit(db, "ci_completed", { proposal_id: proposal.id, commit_sha: commitSha, passed: checks.ok, timed_out: checks.timedOut || false, checks: checks.checks?.map((c) => ({ name: c.name, conclusion: c.conclusion })) }, task.id);
-      if (!checks.ok) throw new Error(checks.timedOut ? "CI did not complete before the autonomous merge deadline" : "CI failed; autonomous merge was blocked");
-
-      const merged = await github(`pulls/${pr.number}/merge`, "PUT", { merge_method: "squash", commit_title: `Tiger AI: ${task.title}` });
-      if (!merged.merged) throw new Error(merged.message || "GitHub did not merge the pull request");
-      await db.from("dev_code_proposals").update({ status: "merged", merged_at: new Date().toISOString(), merge_sha: merged.sha || null }).eq("id", proposal.id);
-      await audit(db, "merged_to_main", { proposal_id: proposal.id, pr_number: pr.number, merge_sha: merged.sha || null }, task.id);
-
-      const deployment = await waitForDeployment(merged.sha || commitSha);
-      await db.from("dev_code_proposals").update({ deployment_status: deployment.status }).eq("id", proposal.id);
-      await audit(db, "deployment_checked", { proposal_id: proposal.id, status: deployment.status, run_id: deployment.run?.id || null, run_url: deployment.run?.html_url || null }, task.id);
-      await db.from("dev_tasks").update({ status: deployment.status === "failure" ? "in_progress" : "done", updated_at: new Date().toISOString() }).eq("id", task.id);
-      return json({ autonomous: true, merged: true, pr_url: pr.html_url, branch, commit_sha: commitSha, merge_sha: merged.sha, deployment });
+      await db.from("dev_code_proposals").update({
+        status: checks.ok ? "awaiting_review" : "checks_pending_or_failed",
+        deployment_status: checks.ok ? "not_deployed_manual_review_required" : "blocked",
+      }).eq("id", proposal.id);
+      await audit(db, "manual_review_required", { proposal_id: proposal.id, pr_number: pr.number, pr_url: pr.html_url, checks_passed: checks.ok, checks_timed_out: checks.timedOut || false }, task.id);
+      await db.from("dev_tasks").update({ status: "in_progress", updated_at: new Date().toISOString() }).eq("id", task.id);
+      return json({ autonomous: false, merged: false, review_required: true, checks_passed: checks.ok, pr_url: pr.html_url, branch, commit_sha: commitSha });
     } catch (error) {
       await db.from("dev_code_proposals").update({ status: "failed", branch }).eq("id", proposal.id);
       await audit(db, "autonomous_change_failed", { proposal_id: proposal.id, branch, error: error instanceof Error ? error.message : String(error) }, task.id);
       throw error;
     }
   } catch (error) {
-    if (error instanceof GatewayError) return json({ error: `AI suggestion failed: ${error.code}`, recovery: error.recovery }, error.httpStatus || 502);
     return json({ error: error instanceof Error ? error.message : "Editor failed" }, 500);
   }
 });

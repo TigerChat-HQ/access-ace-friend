@@ -62,17 +62,17 @@ Deno.serve(async (req) => {
     const fresh = (reports || []).filter((r) => !done.has(r.id)).slice(0, 10);
     if (!fresh.length) return json({ created: 0 });
 
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!lovableApiKey) return json({ error: "AI triage is not configured. Add LOVABLE_API_KEY to Supabase Edge Function secrets." }, 503);
+    const openAiApiKey = Deno.env.get("OPENAI_API_KEY");
+    if (!openAiApiKey) return json({ error: "AI triage is not configured. Add OPENAI_API_KEY to Supabase Edge Function secrets." }, 503);
 
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
-      headers: { Authorization: `Bearer ${lovableApiKey}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${openAiApiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "gpt-6.1-sol",
         response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: "You are Tiger AI's development planner for TIGERCHATS, a React + Lovable Cloud messaging app (chats, stories, calls, draughts, Tiger AI, Developer Panel). For each user feedback item return a dev task. Respond as JSON: {\"tasks\":[{\"report_id\":string,\"title\":string,\"summary\":string,\"category\":\"bug\"|\"feature\"|\"ux\"|\"performance\"|\"security\",\"priority\":\"low\"|\"medium\"|\"high\"|\"critical\",\"risk\":\"low\"|\"medium\"|\"high\",\"steps\":string[],\"areas\":string[],\"tests\":string[]}]}. Mark risk high for anything touching data deletion, payments, sign-in, permissions or private data. Skip spam by omitting it." },
+          { role: "system", content: "You are Tiger AI's development planner for TIGERCHATS, a React + Supabase messaging app (chats, stories, calls, draughts, Tiger AI, Developer Panel). For each user feedback item return a dev task. Respond as JSON: {\"tasks\":[{\"report_id\":string,\"title\":string,\"summary\":string,\"category\":\"bug\"|\"feature\"|\"ux\"|\"performance\"|\"security\",\"priority\":\"low\"|\"medium\"|\"high\"|\"critical\",\"risk\":\"low\"|\"medium\"|\"high\",\"steps\":string[],\"areas\":string[],\"tests\":string[]}]}. Mark risk high for anything touching data deletion, payments, sign-in, permissions or private data. Skip spam by omitting it." },
           { role: "user", content: JSON.stringify(fresh.map((r) => ({ report_id: r.id, type: r.target_type, subject: r.contact_subject, text: r.reason }))) },
         ],
       }),
