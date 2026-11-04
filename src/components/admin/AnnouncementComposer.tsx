@@ -42,14 +42,30 @@ export const AnnouncementComposer = () => {
 
   const remove = async (id: string) => {
     setBusy(true);
-    const { error } = await supabase.from("announcements").delete().eq("id", id);
+    const { data, error } = await supabase
+      .from("announcements")
+      .delete()
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
     setBusy(false);
+
     if (error) {
       toast({ title: "Delete failed", description: error.message, variant: "destructive" });
       return;
     }
+    if (!data) {
+      toast({
+        title: "Announcement was not deleted",
+        description: "No row was deleted. Refresh the page and check your admin permissions.",
+        variant: "destructive",
+      });
+      await load();
+      return;
+    }
+
+    setList((current) => current.filter((announcement) => announcement.id !== id));
     toast({ title: "Announcement deleted" });
-    void load();
   };
 
   return (
@@ -78,7 +94,7 @@ export const AnnouncementComposer = () => {
               <span className="flex-1 truncate font-medium">{a.title}</span>
               <span className="text-[10px] text-muted-foreground uppercase">{a.priority}</span>
               <button type="button" disabled={busy} onClick={() => void remove(a.id)} className="p-1 hover:bg-destructive/20 rounded disabled:opacity-50" aria-label={`Delete ${a.title}`}>
-                  <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                <Trash2 className="w-3.5 h-3.5 text-destructive" />
               </button>
             </div>
           ))}
