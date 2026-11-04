@@ -36,11 +36,11 @@ jobs:
 
       - name: Link Supabase project
         if: ${{ env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_DB_PASSWORD != '' }}
-        run: supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
       - name: Apply database migrations
         if: ${{ env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_DB_PASSWORD != '' }}
-        run: supabase db push --linked
+        run: supabase db push --remote --yes
 
       - name: Deploy Tiger AI planner function
         if: ${{ env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_DB_PASSWORD != '' }}
