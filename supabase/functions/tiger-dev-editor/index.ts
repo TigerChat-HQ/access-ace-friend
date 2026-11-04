@@ -159,20 +159,16 @@ Deno.serve(async (req) => {
       await db.from("dev_code_proposals").update({ branch, pr_url: pr.html_url, commit_sha: commitSha, pr_number: pr.number }).eq("id", proposal.id);
       await audit(db, "pull_request_opened", { proposal_id: proposal.id, pr_number: pr.number, pr_url: pr.html_url }, task.id);
 
+      // Safety gate: never merge generated code automatically. Keep the PR open for human review.
       const checks = await waitForChecks(commitSha);
       await audit(db, "ci_completed", { proposal_id: proposal.id, commit_sha: commitSha, passed: checks.ok, timed_out: checks.timedOut || false, checks: checks.checks?.map((c) => ({ name: c.name, conclusion: c.conclusion })) }, task.id);
-      if (!checks.ok) throw new Error(checks.timedOut ? "CI did not complete before the autonomous merge deadline" : "CI failed; autonomous merge was blocked");
-
-      const merged = await github(`pulls/${pr.number}/merge`, "PUT", { merge_method: "squash", commit_title: `Tiger AI: ${task.title}` });
-      if (!merged.merged) throw new Error(merged.message || "GitHub did not merge the pull request");
-      await db.from("dev_code_proposals").update({ status: "merged", merged_at: new Date().toISOString(), merge_sha: merged.sha || null }).eq("id", proposal.id);
-      await audit(db, "merged_to_main", { proposal_id: proposal.id, pr_number: pr.number, merge_sha: merged.sha || null }, task.id);
-
-      const deployment = await waitForDeployment(merged.sha || commitSha);
-      await db.from("dev_code_proposals").update({ deployment_status: deployment.status }).eq("id", proposal.id);
-      await audit(db, "deployment_checked", { proposal_id: proposal.id, status: deployment.status, run_id: deployment.run?.id || null, run_url: deployment.run?.html_url || null }, task.id);
-      await db.from("dev_tasks").update({ status: deployment.status === "failure" ? "in_progress" : "done", updated_at: new Date().toISOString() }).eq("id", task.id);
-      return json({ autonomous: true, merged: true, pr_url: pr.html_url, branch, commit_sha: commitSha, merge_sha: merged.sha, deployment });
+      await db.from("dev_code_proposals").update({
+        status: checks.ok ? "awaiting_review" : "checks_pending_or_failed",
+        deployment_status: checks.ok ? "not_deployed_manual_review_required" : "blocked",
+      }).eq("id", proposal.id);
+      await audit(db, "manual_review_required", { proposal_id: proposal.id, pr_number: pr.number, pr_url: pr.html_url, checks_passed: checks.ok, checks_timed_out: checks.timedOut || false }, task.id);
+      await db.from("dev_tasks").update({ status: "in_progress", updated_at: new Date().toISOString() }).eq("id", task.id);
+      return json({ autonomous: false, merged: false, review_required: true, checks_passed: checks.ok, pr_url: pr.html_url, branch, commit_sha: commitSha });
     } catch (error) {
       await db.from("dev_code_proposals").update({ status: "failed", branch }).eq("id", proposal.id);
       await audit(db, "autonomous_change_failed", { proposal_id: proposal.id, branch, error: error instanceof Error ? error.message : String(error) }, task.id);
