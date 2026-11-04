@@ -15,39 +15,66 @@ const Auth = () => {
   const [displayName, setDisplayName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const next = authReturnPath(params.get("next"));
+  const confirmationRedirect = new URL(`/auth?next=${encodeURIComponent(next)}`, window.location.origin).href;
+
+  const resendConfirmation = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      toast({ title: "Enter your email", description: "Add your account email before requesting a new confirmation link.", variant: "destructive" });
+      return;
+    }
+    setLoading(true);
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: normalizedEmail,
+      options: { emailRedirectTo: confirmationRedirect },
+    });
+    if (error) {
+      toast({ title: "Could not resend confirmation", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Confirmation email sent", description: "Check your inbox and spam folder, then open the newest link." });
+    }
+    setLoading(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setNeedsEmailConfirmation(false);
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
         if (error) throw error;
         toast({ title: "Welcome back! 🐯", description: "You're now logged in." });
       } else {
         const { error } = await supabase.auth.signUp({
-          email,
+          email: email.trim().toLowerCase(),
           password,
           options: {
             data: { display_name: displayName },
-            emailRedirectTo: new URL(`/auth?next=${encodeURIComponent(next)}`, window.location.origin).href,
+            emailRedirectTo: confirmationRedirect,
           },
         });
         if (error) throw error;
+        setNeedsEmailConfirmation(true);
         toast({
           title: "Account created! 🎉",
           description: "Check your email to verify your account.",
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Something went wrong. Please try again.";
+      const emailNotConfirmed = message.toLowerCase().includes("email not confirmed") || message.toLowerCase().includes("email_not_confirmed");
+      setNeedsEmailConfirmation(emailNotConfirmed);
       toast({
-        title: "Error",
-        description: error.message,
+        title: emailNotConfirmed ? "Email not confirmed" : "Error",
+        description: emailNotConfirmed ? "Confirm your email address before signing in, or request a new confirmation link below." : message,
         variant: "destructive",
       });
     } finally {
@@ -139,6 +166,15 @@ const Auth = () => {
             >
               Forgot Password?
             </button>
+          )}
+
+          {needsEmailConfirmation && (
+            <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-center">
+              <p className="text-xs text-muted-foreground">Your account still needs email verification.</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => void resendConfirmation()} disabled={loading} className="w-full">
+                Resend confirmation email
+              </Button>
+            </div>
           )}
 
           <p className="text-center text-sm text-muted-foreground">

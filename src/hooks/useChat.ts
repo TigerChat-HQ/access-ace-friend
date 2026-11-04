@@ -5,6 +5,11 @@ import { Tables } from "@/integrations/supabase/types";
 
 type Message = Tables<"messages">;
 type Profile = Tables<"profiles">;
+type Conversation = Tables<"conversations"> & {
+  lastMessage: Message | null;
+  otherProfile: Profile | null;
+  unreadCount: number;
+};
 
 export const useMessages = (conversationId: string | null) => {
   const [messages, setMessages] = useState<(Message & { sender_profile?: Profile })[]>([]);
@@ -13,11 +18,13 @@ export const useMessages = (conversationId: string | null) => {
   const fetchMessages = useCallback(async () => {
     if (!conversationId) return;
     setLoading(true);
-    const { data } = await supabase
+    setMessages([]);
+    const { data, error } = await supabase
       .from("messages")
       .select("*")
       .eq("conversation_id", conversationId)
       .order("created_at", { ascending: true });
+    if (error) console.error("Failed to load messages", error);
     if (data) setMessages(data);
     setLoading(false);
   }, [conversationId]);
@@ -41,7 +48,8 @@ export const useMessages = (conversationId: string | null) => {
           filter: `conversation_id=eq.${conversationId}`,
         },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new as Message]);
+          const incoming = payload.new as Message;
+          setMessages((prev) => prev.some((m) => m.id === incoming.id) ? prev : [...prev, incoming]);
         }
       )
       .on(
@@ -86,7 +94,7 @@ export const useSendMessage = () => {
 
 export const useConversations = () => {
   const { user } = useAuth();
-  const [conversations, setConversations] = useState<any[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchConversations = useCallback(async () => {
@@ -161,6 +169,22 @@ export const useConversations = () => {
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
+
+  // Keep the sidebar preview and unread indicators current while the user is
+  // on the Chats page, including messages received in another conversation.
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`conversation-list:${user.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => {
+        void fetchConversations();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversation_members", filter: `user_id=eq.${user.id}` }, () => {
+        void fetchConversations();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user, fetchConversations]);
 
   return { conversations, loading, refetch: fetchConversations };
 };

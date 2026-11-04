@@ -28,7 +28,13 @@ import { Tables } from "@/integrations/supabase/types";
 import { Message } from "@/types/chat";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 
-type Story = Tables<"stories"> & { profile?: Tables<"profiles"> };
+type Story = Tables<"stories"> & {
+  profile?: Tables<"profiles">;
+  music_url?: string | null;
+  media_type?: string | null;
+  text_overlay?: string | null;
+  duration?: number | null;
+};
 
 const Chats = () => {
   const { user } = useAuth();
@@ -100,13 +106,14 @@ const Chats = () => {
     if (!activeChat || !user) return;
     const replyId = replyTo?.id;
     setReplyTo(null);
-    await supabase.from("messages").insert({
+    const { error } = await supabase.from("messages").insert({
       conversation_id: activeChat,
       sender_id: user.id,
       content: text,
       message_type: "text",
       reply_to_id: replyId || null,
     });
+    if (error) toast({ title: "Message not sent", description: error.message, variant: "destructive" });
   };
 
   const handleSendVoice = async (blob: Blob, duration: number) => {
@@ -132,19 +139,23 @@ const Chats = () => {
 
   const handleSendFile = async (file: File) => {
     if (!activeChat || !user) return;
-    const ext = file.name.split(".").pop();
+    const ext = file.name.split(".").pop() || "bin";
     const filePath = `${user.id}/${Date.now()}.${ext}`;
     const { error: uploadError } = await supabase.storage.from("chat-media").upload(filePath, file);
     if (uploadError) return toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
     const { data: { publicUrl } } = supabase.storage.from("chat-media").getPublicUrl(filePath);
     const msgType = file.type.startsWith("image/") ? "image" : "file";
-    await supabase.from("messages").insert({
+    const { error } = await supabase.from("messages").insert({
       conversation_id: activeChat,
       sender_id: user.id,
       content: msgType === "image" ? "" : file.name,
       message_type: msgType,
       media_url: publicUrl,
     });
+    if (error) {
+      await supabase.storage.from("chat-media").remove([filePath]);
+      toast({ title: "File not sent", description: error.message, variant: "destructive" });
+    }
   };
 
   const handleDeleteMessage = async (messageId: string) => {
@@ -155,10 +166,9 @@ const Chats = () => {
 
   const messageMap = new Map<string, Message>();
   const uiMessages = messages.map((msg) => {
-    const anyMsg = msg as any;
-    const status: Message["status"] = anyMsg.read_at
+    const status: Message["status"] = msg.read_at
       ? "read"
-      : anyMsg.delivered_at
+      : msg.delivered_at
       ? "delivered"
       : "sent";
     const m: Message = {
@@ -171,7 +181,7 @@ const Chats = () => {
       mediaUrl: msg.media_url || undefined,
     };
     messageMap.set(msg.id, m);
-    return { ui: m, replyToId: (msg as any).reply_to_id as string | null };
+    return { ui: m, replyToId: msg.reply_to_id };
   });
 
   // Compute search matches
@@ -217,10 +227,10 @@ const Chats = () => {
     avatar: (s.profile?.display_name || "U").slice(0, 2).toUpperCase(),
     imageUrl: s.image_url,
     caption: s.caption || undefined,
-    musicUrl: (s as any).music_url || undefined,
-    mediaType: ((s as any).media_type || "image") as "image" | "video",
-    textOverlay: (s as any).text_overlay || null,
-    duration: (s as any).duration || null,
+    musicUrl: s.music_url || undefined,
+    mediaType: (s.media_type || "image") as "image" | "video",
+    textOverlay: s.text_overlay || null,
+    duration: s.duration || null,
   }));
 
   const activeConvoName = activeConvo?.otherProfile?.display_name || activeConvo?.name || "Chat";
