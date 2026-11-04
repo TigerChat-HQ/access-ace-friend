@@ -1,0 +1,30 @@
+name: Regenerate Bun lockfile
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: migration/remove-lovable
+          persist-credentials: true
+      - uses: oven-sh/setup-bun@v2
+      - name: Regenerate lockfile from public package registries
+        run: bun install --lockfile-only
+      - name: Commit lockfile
+        run: |
+          if ! git diff --quiet -- bun.lock; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add bun.lock
+            git commit -m "Regenerate Bun lockfile without Lovable dependencies"
+            git push origin migration/remove-lovable
+          else
+            echo "Lockfile already current"
+          fi
