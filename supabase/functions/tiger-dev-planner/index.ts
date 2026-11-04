@@ -33,6 +33,26 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (body.action === "create_task") {
+      const title = typeof body.title === "string" ? body.title.trim() : "";
+      const summary = typeof body.summary === "string" ? body.summary.trim() : "";
+      const allowedCategories = ["bug", "feature", "ux", "performance", "security"];
+      if (!title || title.length > 200) return json({ error: "Task title is required (max 200 characters)" }, 400);
+      if (summary.length > 2000) return json({ error: "Task summary is too long" }, 400);
+      const category = allowedCategories.includes(body.category) ? body.category : "feature";
+      const risk = PROTECTED.test(title + " " + summary) ? "high" : "medium";
+      const { data: task, error } = await sb.from("dev_tasks").insert({
+        title, summary: summary || null, category, priority: "medium", risk,
+        status: "planned", plan: { steps: [], areas: [], tests: [] }, created_by: u.user.id,
+      }).select("id, title").single();
+      if (error) return json({ error: error.message }, 500);
+      await sb.from("dev_audit_log").insert({
+        task_id: task.id, actor: u.user.id, action: "task_created",
+        details: { title: task.title, category },
+      });
+      return json({ ok: true, task });
+    }
+
     if (body.action !== "triage") return json({ error: "Unknown action" }, 400);
 
     const { data: existing } = await sb.from("dev_tasks").select("source_report_id").not("source_report_id", "is", null);
