@@ -385,9 +385,11 @@ export type Database = {
           created_at: string
           current_turn: string
           id: string
+          join_code: string
           last_move: Json | null
           player_black: string | null
           player_white: string
+          revision: number
           status: string
           updated_at: string
           vs_ai: boolean
@@ -398,9 +400,11 @@ export type Database = {
           created_at?: string
           current_turn?: string
           id?: string
+          join_code?: string
           last_move?: Json | null
           player_black?: string | null
           player_white: string
+          revision?: number
           status?: string
           updated_at?: string
           vs_ai?: boolean
@@ -411,9 +415,11 @@ export type Database = {
           created_at?: string
           current_turn?: string
           id?: string
+          join_code?: string
           last_move?: Json | null
           player_black?: string | null
           player_white?: string
+          revision?: number
           status?: string
           updated_at?: string
           vs_ai?: boolean
@@ -652,6 +658,21 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      owner_bootstrap: {
+        Row: {
+          owner_user_id: string | null
+          singleton: boolean
+        }
+        Insert: {
+          owner_user_id?: string | null
+          singleton?: boolean
+        }
+        Update: {
+          owner_user_id?: string | null
+          singleton?: boolean
+        }
+        Relationships: []
       }
       post_comments: {
         Row: {
@@ -1052,6 +1073,30 @@ export type Database = {
         Args: { _other_user_id: string }
         Returns: string
       }
+      create_draft_match: {
+        Args: { p_vs_ai?: boolean }
+        Returns: {
+          board: Json
+          created_at: string
+          current_turn: string
+          id: string
+          join_code: string
+          last_move: Json | null
+          player_black: string | null
+          player_white: string
+          revision: number
+          status: string
+          updated_at: string
+          vs_ai: boolean
+          winner: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "draft_matches"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_group_conversation: {
         Args: { _member_ids: string[]; _name: string }
         Returns: string
@@ -1067,6 +1112,30 @@ export type Database = {
       is_conversation_member: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
+      }
+      join_draft_match: {
+        Args: { p_code?: string; p_match_id?: string }
+        Returns: {
+          board: Json
+          created_at: string
+          current_turn: string
+          id: string
+          join_code: string
+          last_move: Json | null
+          player_black: string | null
+          player_white: string
+          revision: number
+          status: string
+          updated_at: string
+          vs_ai: boolean
+          winner: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "draft_matches"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       reply_to_report: {
         Args: { _media_url?: string; _reply: string; _report_id: string }
