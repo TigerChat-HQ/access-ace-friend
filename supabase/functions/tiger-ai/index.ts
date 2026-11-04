@@ -57,9 +57,17 @@ Deno.serve(async (req) => {
       const endpoint = edit_image_url ? "https://api.openai.com/v1/images/edits" : "https://api.openai.com/v1/images/generations";
       let response: Response;
       if (edit_image_url) {
-        const source = await fetch(String(edit_image_url));
+        const sourceUrl = new URL(String(edit_image_url));
+        const supabaseHost = new URL(Deno.env.get("SUPABASE_URL")!).hostname;
+        if (sourceUrl.protocol !== "https:" || sourceUrl.hostname !== supabaseHost) {
+          return json({ error: "Image editing only accepts images stored in this TIGERCHATS Supabase project." }, 400);
+        }
+        const source = await fetch(sourceUrl);
         if (!source.ok) return json({ error: "Could not retrieve the image to edit." }, 400);
         const blob = await source.blob();
+        if (!blob.type.startsWith("image/") || blob.size > 20 * 1024 * 1024) {
+          return json({ error: "Image must be a supported image smaller than 20 MB." }, 400);
+        }
         const form = new FormData();
         form.set("model", "gpt-image-2");
         form.set("prompt", String(image_prompt || "Edit this image").slice(0, 4000));
@@ -107,7 +115,7 @@ Deno.serve(async (req) => {
         });
       const t = await r.text();
       console.error("OpenAI API error:", r.status, t);
-      return new Response(JSON.stringify({ error: "AI gateway error" }), {
+      return new Response(JSON.stringify({ error: "OpenAI API error" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
