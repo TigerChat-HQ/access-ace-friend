@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -55,7 +55,7 @@ export const TigerCommandCenter = () => {
     return data;
   };
 
-  const createTask = async (e: React.FormEvent) => {
+  const createTask = async (e: FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
     setBusy(true);
