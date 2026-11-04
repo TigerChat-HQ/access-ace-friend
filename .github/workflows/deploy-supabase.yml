@@ -3,10 +3,6 @@ name: Deploy TIGERCHATS Supabase
 on:
   push:
     branches: [main]
-    paths:
-      - "supabase/migrations/**"
-      - "supabase/functions/tiger-dev-planner/**"
-      - ".github/workflows/deploy-supabase.yml"
   workflow_dispatch:
 
 permissions:
@@ -25,7 +21,7 @@ jobs:
       - name: Explain missing deployment credentials
         if: ${{ env.SUPABASE_ACCESS_TOKEN == '' }}
         run: |
-          echo "::notice::Supabase deployment skipped. Configure SUPABASE_ACCESS_TOKEN as a GitHub Actions secret to enable automatic database and Edge Function deployment."
+          echo "::warning::Supabase deployment skipped. Configure SUPABASE_ACCESS_TOKEN as a GitHub Actions secret to enable autonomous deployment."
 
       - name: Setup Supabase CLI
         if: ${{ env.SUPABASE_ACCESS_TOKEN != '' }}
@@ -41,6 +37,14 @@ jobs:
         if: ${{ env.SUPABASE_ACCESS_TOKEN != '' }}
         run: supabase db push --linked --yes
 
-      - name: Deploy Tiger AI planner function
+      - name: Deploy all Edge Functions
         if: ${{ env.SUPABASE_ACCESS_TOKEN != '' }}
-        run: supabase functions deploy tiger-dev-planner --project-ref "$SUPABASE_PROJECT_ID"
+        shell: bash
+        run: |
+          for function_dir in supabase/functions/*; do
+            if [[ -f "$function_dir/index.ts" ]]; then
+              function_name="$(basename "$function_dir")"
+              echo "Deploying $function_name"
+              supabase functions deploy "$function_name" --project-ref "$SUPABASE_PROJECT_ID"
+            fi
+          done
