@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Bot, Sparkles, RefreshCw, ListTodo, History, Code2, Plus, ChevronDown, ChevronUp, ShieldCheck } from "lucide-react";
+import { Bot, Sparkles, RefreshCw, ListTodo, History, Code2, Plus, ChevronDown, ChevronUp, ShieldCheck, ExternalLink, Upload } from "lucide-react";
 import { TigerDeveloperEditor } from "./TigerDeveloperEditor";
 
 type Task = {
@@ -85,6 +85,10 @@ export const TigerCommandCenter = () => {
     catch (err: any) { toast({ title: "Update failed", description: err.message, variant: "destructive" }); }
   };
 
+  const openGitHub = (path = "") => {
+    window.open(`https://github.com/TigerChat-HQ/access-ace-friend${path}`, "_blank", "noopener,noreferrer");
+  };
+
   const riskVariant = (risk: string) => (risk === "high" ? "destructive" : risk === "medium" ? "secondary" : "outline") as any;
 
   return (
@@ -92,6 +96,29 @@ export const TigerCommandCenter = () => {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide flex items-center gap-2"><Bot className="w-4 h-4 text-primary" /> Tiger AI Command Center</h2>
         <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw className={`w-3.5 h-3.5 mr-1 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <button type="button" onClick={() => setTab("tasks")} className="rounded-lg border border-border/60 bg-card p-3 text-left transition-colors hover:border-primary/60 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          <span className="flex items-center gap-2 text-sm font-medium"><ListTodo className="w-4 h-4 text-primary" /> Task manager & planner</span>
+          <span className="mt-1 block text-xs text-muted-foreground">Create, review, and move development tasks through their workflow.</span>
+        </button>
+        <button type="button" onClick={() => setTab("audit")} className="rounded-lg border border-border/60 bg-card p-3 text-left transition-colors hover:border-primary/60 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          <span className="flex items-center gap-2 text-sm font-medium"><History className="w-4 h-4 text-primary" /> Audit history</span>
+          <span className="mt-1 block text-xs text-muted-foreground">Open the recent activity log for Command Center actions.</span>
+        </button>
+        <button type="button" onClick={() => openGitHub()} className="rounded-lg border border-border/60 bg-card p-3 text-left transition-colors hover:border-primary/60 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          <span className="flex items-center gap-2 text-sm font-medium"><Code2 className="w-4 h-4 text-primary" /> Code connection <ExternalLink className="w-3.5 h-3.5 ml-auto" /></span>
+          <span className="mt-1 block text-xs text-muted-foreground">Open the connected TigerChat-HQ GitHub repository.</span>
+        </button>
+        <button type="button" onClick={() => openGitHub("/actions")} className="rounded-lg border border-border/60 bg-card p-3 text-left transition-colors hover:border-primary/60 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          <span className="flex items-center gap-2 text-sm font-medium"><ShieldCheck className="w-4 h-4 text-primary" /> Tests & security checks <ExternalLink className="w-3.5 h-3.5 ml-auto" /></span>
+          <span className="mt-1 block text-xs text-muted-foreground">Open GitHub Actions to run and inspect repository checks.</span>
+        </button>
+        <button type="button" onClick={() => openGitHub("/releases")} className="rounded-lg border border-border/60 bg-card p-3 text-left transition-colors hover:border-primary/60 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:col-span-2">
+          <span className="flex items-center gap-2 text-sm font-medium"><Upload className="w-4 h-4 text-primary" /> Publishing & undo <ExternalLink className="w-3.5 h-3.5 ml-auto" /></span>
+          <span className="mt-1 block text-xs text-muted-foreground">Open GitHub releases to publish or review versions and rollback options.</span>
+        </button>
       </div>
 
       <div className="grid grid-cols-3 gap-2">

@@ -61,7 +61,7 @@ const Chats = () => {
   const { messages } = useMessages(activeChat);
   const { typingUsers, notifyTyping } = useTypingIndicator(activeChat);
   useNotifications();
-  useReadReceipts(activeChat, !!activeChat);
+  useReadReceipts(activeChat, !!activeChat, refetchConversations);
   useScreenshotProtection(!!activeChat);
   const { prefs: chatPrefs } = useChatPreferences(activeChat);
 
