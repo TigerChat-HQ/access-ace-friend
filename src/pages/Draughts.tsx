@@ -22,6 +22,8 @@ interface MatchRow {
   status: string;
   winner: string | null;
   last_move?: Move | null;
+  join_code: string;
+  revision: number;
 }
 
 const Draughts = () => {
@@ -34,6 +36,8 @@ const Draughts = () => {
   const [aiThinking, setAiThinking] = useState(false);
   const [openMatches, setOpenMatches] = useState<MatchRow[]>([]);
   const [creating, setCreating] = useState(false);
+  const [moving, setMoving] = useState(false);
+  const [connection, setConnection] = useState("Connecting…");
   const channelRef = useRef<any>(null);
 
   // Load joinable matches
@@ -61,10 +65,8 @@ const Draughts = () => {
       if (!data) return;
       const row = data as any as MatchRow;
       if (row.status === "waiting" && row.player_white !== user.id && !row.player_black) {
-        const { data: joined } = await supabase
-          .from("draft_matches")
-          .update({ player_black: user.id, status: "active" })
-          .eq("id", matchId).eq("status", "waiting").select().single();
+        const { data: joined, error } = await supabase.rpc("join_draft_match", { p_match_id: matchId });
+        if (error) { toast({ title: "Could not join", description: error.message, variant: "destructive" }); return; }
         if (joined) { setMatch(joined as any); setMode("pvp"); return; }
       }
       setMatch(row); setMode(row.vs_ai ? "ai" : "pvp");
@@ -74,16 +76,22 @@ const Draughts = () => {
   // Subscribe to match updates
   useEffect(() => {
     if (!match) return;
+    const refresh = async () => {
+      const { data } = await supabase.from("draft_matches").select("*").eq("id", match.id).single();
+      if (data) setMatch(data as unknown as MatchRow);
+    };
     const ch = supabase
       .channel(`draft:${match.id}`)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "draft_matches", filter: `id=eq.${match.id}` },
-        (payload) => setMatch(payload.new as MatchRow),
+        (payload) => setMatch(previous => !previous || payload.new.revision >= previous.revision ? payload.new as MatchRow : previous),
       )
-      .subscribe();
+      .subscribe(status => { setConnection(status === "SUBSCRIBED" ? "Live" : "Reconnecting…"); if (status === "SUBSCRIBED") void refresh(); });
+    window.addEventListener("focus", refresh);
+    const retry = window.setInterval(refresh, 10000);
     channelRef.current = ch;
-    return () => { supabase.removeChannel(ch); };
+    return () => { window.removeEventListener("focus", refresh); window.clearInterval(retry); supabase.removeChannel(ch); };
   }, [match?.id]);
 
   const myColor: Color | null = useMemo(() => {
@@ -93,7 +101,7 @@ const Draughts = () => {
     return null;
   }, [match, user]);
 
-  const isMyTurn = match && myColor && match.current_turn === myColor && match.status === "active";
+  const isMyTurn = match && myColor && match.current_turn === myColor && match.status === "active" && !moving;
 
   // AI move trigger
   useEffect(() => {
@@ -102,24 +110,9 @@ const Draughts = () => {
     if (match.current_turn !== "b") return; // AI plays black
     setAiThinking(true);
     const t = setTimeout(async () => {
-      const aiMove = pickAIMove(match.board, "b", 4);
-      if (!aiMove) {
-        await supabase.from("draft_matches").update({
-          status: "finished",
-          winner: "white",
-        }).eq("id", match.id);
-        setAiThinking(false);
-        return;
-      }
-      const newBoard = applyMove(match.board, aiMove);
-      const w = winner(newBoard, "w");
-      await supabase.from("draft_matches").update({
-        board: newBoard as any,
-        current_turn: "w",
-        last_move: aiMove as any,
-        status: w ? "finished" : "active",
-        winner: w === "w" ? "white" : w === "b" ? "black" : null,
-      }).eq("id", match.id);
+      const { data, error } = await supabase.functions.invoke("dama-move", { body: { id: match.id, revision: match.revision, ai: true } });
+      if (data?.match) setMatch(data.match);
+      if (error) toast({ title: "AI move failed", description: error.message, variant: "destructive" });
       setAiThinking(false);
     }, 350);
     return () => clearTimeout(t);
@@ -128,13 +121,7 @@ const Draughts = () => {
   const startAI = async () => {
     if (!user) return;
     setCreating(true);
-    const { data, error } = await supabase.from("draft_matches").insert({
-      player_white: user.id,
-      vs_ai: true,
-      board: initialBoard() as any,
-      current_turn: "w",
-      status: "active",
-    }).select().single();
+    const { data, error } = await supabase.rpc("create_draft_match", { p_vs_ai: true });
     setCreating(false);
     if (error || !data) {
       toast({ title: "Could not start", description: error?.message, variant: "destructive" });
@@ -147,13 +134,7 @@ const Draughts = () => {
   const createPvP = async () => {
     if (!user) return;
     setCreating(true);
-    const { data, error } = await supabase.from("draft_matches").insert({
-      player_white: user.id,
-      vs_ai: false,
-      board: initialBoard() as any,
-      current_turn: "w",
-      status: "waiting",
-    }).select().single();
+    const { data, error } = await supabase.rpc("create_draft_match", { p_vs_ai: false });
     setCreating(false);
     if (error || !data) {
       toast({ title: "Could not create", description: error?.message, variant: "destructive" });
@@ -166,13 +147,7 @@ const Draughts = () => {
 
   const joinMatch = async (m: MatchRow) => {
     if (!user) return;
-    const { data, error } = await supabase
-      .from("draft_matches")
-      .update({ player_black: user.id, status: "active" })
-      .eq("id", m.id)
-      .eq("status", "waiting")
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc("join_draft_match", { p_match_id: m.id });
     if (error || !data) {
       toast({ title: "Could not join", variant: "destructive" });
       return;
@@ -183,14 +158,9 @@ const Draughts = () => {
 
   const [codeInput, setCodeInput] = useState("");
   const joinByCode = async () => {
-    const code = codeInput.trim().toLowerCase();
-    if (code.length < 4) { toast({ title: "Enter the match code", variant: "destructive" }); return; }
-    const { data } = await supabase.from("draft_matches").select("*")
-      .eq("status", "waiting").eq("vs_ai", false).limit(200);
-    const found = ((data as any[]) || []).find((m) => m.id.toLowerCase().startsWith(code));
-    if (!found) { toast({ title: "No active match with that code", variant: "destructive" }); return; }
-    if (found.player_white === user?.id) { setMatch(found); setMode("pvp"); return; }
-    await joinMatch(found);
+    const { data, error } = await supabase.rpc("join_draft_match", { p_code: codeInput.trim().toUpperCase() });
+    if (error || !data) { toast({ title: "Could not join", description: error?.message, variant: "destructive" }); return; }
+    setMatch(data as unknown as MatchRow); setMode("pvp");
   };
 
   const moves: Move[] = useMemo(() => {
@@ -213,17 +183,14 @@ const Draughts = () => {
     if (selected == null) return;
     const move = movesForSelected.find((m) => m.to === i);
     if (!move) return;
-    const newBoard = applyMove(match.board, move);
-    const next: Color = myColor === "w" ? "b" : "w";
-    const w = winner(newBoard, next);
     setSelected(null);
-    await supabase.from("draft_matches").update({
-      board: newBoard as any,
-      current_turn: next,
-      last_move: move as any,
-      status: w ? "finished" : "active",
-      winner: w === "w" ? "white" : w === "b" ? "black" : null,
-    }).eq("id", match.id);
+    setMoving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("dama-move", { body: { id: match.id, revision: match.revision, from: move.from, to: move.to, captures: move.captures } });
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+      setMatch(data.match);
+    } catch (error) { toast({ title: "Move not saved", description: error instanceof Error ? error.message : "Try again", variant: "destructive" }); }
+    finally { setMoving(false); }
   };
 
   const exitMatch = () => {
@@ -278,7 +245,7 @@ const Draughts = () => {
                 <input
                   value={codeInput}
                   onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
-                  placeholder="Enter match code (e.g. A1B2C3)"
+                  placeholder="8-character match code"
                   aria-label="Match code"
                   maxLength={8}
                   className="flex-1 h-10 px-3 rounded-md bg-card border border-border/50 text-foreground text-sm tracking-widest uppercase"
@@ -297,7 +264,7 @@ const Draughts = () => {
                   disabled={m.player_white === user?.id}
                   className="w-full p-3 rounded-lg bg-card border border-border/50 flex items-center justify-between text-sm disabled:opacity-50"
                 >
-                  <span className="text-foreground">Code <b className="tracking-widest">{m.id.slice(0, 6).toUpperCase()}</b></span>
+                  <span className="text-foreground">Code <b className="tracking-widest">{m.join_code}</b></span>
                   <span className="text-primary text-xs font-semibold">
                     {m.player_white === user?.id ? "Yours" : "Join"}
                   </span>
@@ -335,10 +302,9 @@ const Draughts = () => {
   const resign = async () => {
     if (!match || !myColor || match.status !== "active") return;
     if (!confirm("Resign this match?")) return;
-    await supabase.from("draft_matches").update({
-      status: "finished",
-      winner: myColor === "w" ? "black" : "white",
-    }).eq("id", match.id);
+    const { data, error } = await supabase.rpc("resign_draft_match", { p_id: match.id });
+    if (error) toast({ title: "Could not resign", description: error.message, variant: "destructive" });
+    else setMatch(data as unknown as MatchRow);
   };
 
   const shareMatch = async () => {
@@ -360,7 +326,7 @@ const Draughts = () => {
           <h1 className="text-base font-bold text-foreground truncate">
             {match.vs_ai ? "vs Tiger AI" : match.status === "waiting" ? "Waiting for opponent…" : "Online match"}
           </h1>
-          <p className="text-[10px] text-primary">{turnLabel}</p>
+          <p className="text-[10px] text-primary">{turnLabel} · {connection}</p>
         </div>
         {!match.vs_ai && match.status !== "finished" && (
           <button onClick={shareMatch} className="p-2 rounded-full hover:bg-surface-hover" title="Share match">
@@ -383,10 +349,10 @@ const Draughts = () => {
         <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-primary/30 bg-primary/10">
           <div>
             <p className="text-[10px] text-muted-foreground">Share this code with your opponent</p>
-            <p className="text-lg font-bold tracking-[0.3em] text-primary">{match.id.slice(0, 6).toUpperCase()}</p>
+            <p className="text-lg font-bold text-primary">{match.join_code}</p>
           </div>
           <Button size="sm" variant="outline" onClick={async () => {
-            await navigator.clipboard.writeText(match.id.slice(0, 6).toUpperCase());
+            await navigator.clipboard.writeText(match.join_code);
             toast({ title: "Code copied" });
           }}>
             <Copy className="w-3.5 h-3.5 mr-1" /> Copy
