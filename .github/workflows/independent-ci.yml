@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [migration/remove-lovable]
+    branches: [main, migration/remove-lovable]
 
 permissions:
   contents: read
