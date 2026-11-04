@@ -18,30 +18,29 @@ jobs:
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID || 'dngilyoyhmgazhuuaxfh' }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Explain missing deployment credentials
-        if: ${{ env.SUPABASE_ACCESS_TOKEN == '' || env.SUPABASE_DB_PASSWORD == '' }}
+        if: ${{ env.SUPABASE_ACCESS_TOKEN == '' }}
         run: |
-          echo "::notice::Supabase deployment skipped. Configure SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD as GitHub Actions secrets to enable automatic database and Edge Function deployment."
+          echo "::notice::Supabase deployment skipped. Configure SUPABASE_ACCESS_TOKEN as a GitHub Actions secret to enable automatic database and Edge Function deployment."
 
       - name: Setup Supabase CLI
-        if: ${{ env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_DB_PASSWORD != '' }}
+        if: ${{ env.SUPABASE_ACCESS_TOKEN != '' }}
         uses: supabase/setup-cli@v1
         with:
           version: latest
 
       - name: Link Supabase project
-        if: ${{ env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_DB_PASSWORD != '' }}
+        if: ${{ env.SUPABASE_ACCESS_TOKEN != '' }}
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
       - name: Apply database migrations
-        if: ${{ env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_DB_PASSWORD != '' }}
+        if: ${{ env.SUPABASE_ACCESS_TOKEN != '' }}
         run: supabase db push --remote --yes
 
       - name: Deploy Tiger AI planner function
-        if: ${{ env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_DB_PASSWORD != '' }}
+        if: ${{ env.SUPABASE_ACCESS_TOKEN != '' }}
         run: supabase functions deploy tiger-dev-planner --project-ref "$SUPABASE_PROJECT_ID"
