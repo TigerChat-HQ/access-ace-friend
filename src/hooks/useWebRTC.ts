@@ -18,16 +18,11 @@ const insertSignal = async (data: SignalInsert) => {
   if (error) throw error;
 };
 
-// STUN + public TURN relays so calls connect across mobile carriers / strict NATs.
 const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
     { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
     {
-      urls: [
-        "turn:openrelay.metered.ca:80",
-        "turn:openrelay.metered.ca:443",
-        "turn:openrelay.metered.ca:443?transport=tcp",
-      ],
+      urls: ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443", "turn:openrelay.metered.ca:443?transport=tcp"],
       username: "openrelayproject",
       credential: "openrelayproject",
     },
@@ -36,6 +31,7 @@ const ICE_SERVERS: RTCConfiguration = {
 };
 
 const RING_TIMEOUT_MS = 45000;
+const RECENT_CALL_WINDOW_MS = 60000;
 
 export interface CallInfo {
   callId: string;
@@ -48,6 +44,8 @@ export interface CallInfo {
 }
 
 export type CallStatus = "idle" | "outgoing" | "incoming" | "connecting" | "connected" | "ended";
+
+type QueuedIce = { info: CallInfo; candidate: RTCIceCandidateInit };
 
 export const useWebRTC = () => {
   const { user } = useAuth();
@@ -69,6 +67,8 @@ export const useWebRTC = () => {
   const ringTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const iceQueue = useRef<RTCIceCandidateInit[]>([]);
+  const localIceQueue = useRef<QueuedIce[]>([]);
+  const signalReadyCallId = useRef<string | null>(null);
   const statusRef = useRef<CallStatus>("idle");
   const callRef = useRef<CallInfo | null>(null);
   const facingRef = useRef<"user" | "environment">("user");
@@ -76,7 +76,6 @@ export const useWebRTC = () => {
   useEffect(() => { statusRef.current = callStatus; }, [callStatus]);
   useEffect(() => { callRef.current = activeCall; }, [activeCall]);
 
-  // Re-attach streams whenever video elements (re)mount
   useEffect(() => {
     if (localVideoRef.current && localStreamRef.current && localVideoRef.current.srcObject !== localStreamRef.current)
       localVideoRef.current.srcObject = localStreamRef.current;
@@ -85,16 +84,18 @@ export const useWebRTC = () => {
   });
 
   const cleanupMedia = useCallback(() => {
-    localStreamRef.current?.getTracks().forEach((t) => t.stop());
+    localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
     setLocalStream(null);
     pcRef.current?.close();
     pcRef.current = null;
     iceQueue.current = [];
+    localIceQueue.current = [];
+    signalReadyCallId.current = null;
     pendingOfferRef.current = null;
     setRemoteStream(new MediaStream());
-    [durationTimerRef, ringTimerRef, disconnectTimerRef].forEach((r) => {
-      if (r.current) { clearInterval(r.current as any); clearTimeout(r.current as any); r.current = null; }
+    [durationTimerRef, ringTimerRef, disconnectTimerRef].forEach((ref) => {
+      if (ref.current) { clearInterval(ref.current as any); clearTimeout(ref.current as any); ref.current = null; }
     });
     setDuration(0);
     setIsMuted(false);
@@ -109,7 +110,7 @@ export const useWebRTC = () => {
   }, [cleanupMedia]);
 
   const sendSignal = useCallback(async (info: CallInfo, type: string, data: any = {}, status = "active") => {
-    if (!user) return;
+    if (!user) throw new Error("You must be signed in to call.");
     await insertSignal({
       caller_id: info.callerId,
       callee_id: info.calleeId,
@@ -121,6 +122,17 @@ export const useWebRTC = () => {
     });
   }, [user]);
 
+  // Do not publish ICE candidates before the offer/answer exists in the database;
+  // otherwise a fast candidate insert can arrive before the call invitation.
+  const flushLocalIce = useCallback(async (info: CallInfo) => {
+    signalReadyCallId.current = info.callId;
+    const queued = localIceQueue.current.filter((item) => item.info.callId === info.callId);
+    localIceQueue.current = localIceQueue.current.filter((item) => item.info.callId !== info.callId);
+    for (const item of queued) {
+      await sendSignal(info, "ice-candidate", { candidate: item.candidate });
+    }
+  }, [sendSignal]);
+
   const endCall = useCallback(async () => {
     const info = callRef.current;
     try {
@@ -129,18 +141,26 @@ export const useWebRTC = () => {
     finally { finish(); }
   }, [sendSignal, finish]);
 
-  const getMedia = async (video: boolean) =>
-    navigator.mediaDevices.getUserMedia({
+  const getMedia = async (video: boolean) => {
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error("Calls require a supported browser and a secure HTTPS connection.");
+    return navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       video: video ? { facingMode: facingRef.current, width: { ideal: 1280 }, height: { ideal: 720 } } : false,
     });
+  };
 
   const createPeerConnection = useCallback((info: CallInfo) => {
     const pc = new RTCPeerConnection(ICE_SERVERS);
     pcRef.current = pc;
 
-    pc.onicecandidate = (e) => {
-      if (e.candidate) void sendSignal(info, "ice-candidate", { candidate: e.candidate.toJSON() }).catch(error => console.error("Call signal failed:", error));
+    pc.onicecandidate = (event) => {
+      if (!event.candidate) return;
+      const candidate = event.candidate.toJSON();
+      if (signalReadyCallId.current !== info.callId) {
+        localIceQueue.current.push({ info, candidate });
+      } else {
+        void sendSignal(info, "ice-candidate", { candidate }).catch((error) => console.error("Call ICE signal failed:", error));
+      }
     };
 
     pc.onnegotiationneeded = async () => {
@@ -152,47 +172,43 @@ export const useWebRTC = () => {
       } catch (error) { console.error("Call reconnect failed:", error); }
     };
 
-    pc.ontrack = (e) => {
+    pc.ontrack = (event) => {
       setRemoteStream((prev) => {
-        const s = new MediaStream(prev.getTracks());
-        (e.streams[0]?.getTracks() || [e.track]).forEach((t) => {
-          if (!s.getTracks().includes(t)) s.addTrack(t);
+        const stream = new MediaStream(prev.getTracks());
+        (event.streams[0]?.getTracks() || [event.track]).forEach((track) => {
+          if (!stream.getTracks().includes(track)) stream.addTrack(track);
         });
-        return s;
+        return stream;
       });
     };
 
     pc.onconnectionstatechange = () => {
-      const st = pc.connectionState;
-      if (st === "connected") {
+      const state = pc.connectionState;
+      if (state === "connected") {
         statusRef.current = "connected";
         if (disconnectTimerRef.current) { clearTimeout(disconnectTimerRef.current); disconnectTimerRef.current = null; }
         if (ringTimerRef.current) { clearTimeout(ringTimerRef.current); ringTimerRef.current = null; }
         setCallStatus("connected");
-        if (!durationTimerRef.current)
-          durationTimerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
-      } else if (st === "disconnected") {
-        // Give unstable networks time to recover, try ICE restart
+        if (!durationTimerRef.current) durationTimerRef.current = setInterval(() => setDuration((value) => value + 1), 1000);
+      } else if (state === "disconnected") {
         try { pc.restartIce(); } catch {}
-        if (!disconnectTimerRef.current)
-          disconnectTimerRef.current = setTimeout(() => endCall(), 15000);
-      } else if (st === "failed") {
-        endCall();
+        if (!disconnectTimerRef.current) disconnectTimerRef.current = setTimeout(() => { void endCall(); }, 15000);
+      } else if (state === "failed") {
+        void endCall();
       }
     };
     return pc;
   }, [sendSignal, endCall, user?.id]);
 
-  const flushIce = async () => {
+  const flushRemoteIce = async () => {
     const pc = pcRef.current;
     if (!pc) return;
-    for (const c of iceQueue.current) { try { await pc.addIceCandidate(c); } catch {} }
+    for (const candidate of iceQueue.current) { try { await pc.addIceCandidate(candidate); } catch (error) { console.warn("Queued ICE candidate rejected:", error); } }
     iceQueue.current = [];
   };
 
   const startCall = useCallback(async (
-    calleeId: string, conversationId: string, callType: "voice" | "video",
-    calleeName: string, calleeAvatar: string,
+    calleeId: string, conversationId: string, callType: "voice" | "video", calleeName: string, calleeAvatar: string,
   ) => {
     if (!user || statusRef.current !== "idle") return;
     const info: CallInfo = {
@@ -205,22 +221,23 @@ export const useWebRTC = () => {
     setActiveCall(info);
     setCallStatus("outgoing");
     setIsVideoOn(callType === "video");
+    localIceQueue.current = [];
+    signalReadyCallId.current = null;
     try {
       const stream = await getMedia(callType === "video");
-      if (callIdRef.current !== info.callId) { stream.getTracks().forEach(t => t.stop()); return; }
+      if (callIdRef.current !== info.callId) { stream.getTracks().forEach((track) => track.stop()); return; }
       localStreamRef.current = stream;
       setLocalStream(stream);
       const pc = createPeerConnection(info);
-      stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       await sendSignal(info, "offer", { sdp: offer.sdp, type: offer.type }, "pending");
-      ringTimerRef.current = setTimeout(() => {
-        if (statusRef.current === "outgoing") endCall();
-      }, RING_TIMEOUT_MS);
-    } catch (err) {
-      console.error("Failed to start call:", err);
-      alert(err instanceof DOMException ? "Allow microphone" + (callType === "video" ? " and camera" : "") + " access to make calls." : "The call could not be sent. Check your connection and try again.");
+      await flushLocalIce(info);
+      ringTimerRef.current = setTimeout(() => { if (statusRef.current === "outgoing") void endCall(); }, RING_TIMEOUT_MS);
+    } catch (error) {
+      console.error("Failed to start call:", error);
+      alert(error instanceof DOMException ? `Allow microphone${callType === "video" ? " and camera" : ""} access to make calls.` : "The call could not be sent. Check HTTPS, permissions, and your connection.");
       cleanupMedia();
       callIdRef.current = null;
       callRef.current = null;
@@ -228,7 +245,7 @@ export const useWebRTC = () => {
       setCallStatus("idle");
       setActiveCall(null);
     }
-  }, [user, createPeerConnection, cleanupMedia, sendSignal, endCall]);
+  }, [user, createPeerConnection, cleanupMedia, sendSignal, flushLocalIce, endCall]);
 
   const acceptCall = useCallback(async (info: CallInfo, offer: RTCSessionDescriptionInit) => {
     if (!user) return;
@@ -236,26 +253,29 @@ export const useWebRTC = () => {
     setCallStatus("connecting");
     callIdRef.current = info.callId;
     if (ringTimerRef.current) { clearTimeout(ringTimerRef.current); ringTimerRef.current = null; }
+    localIceQueue.current = [];
+    signalReadyCallId.current = null;
     try {
       const stream = await getMedia(info.callType === "video");
-      if (callIdRef.current !== info.callId) { stream.getTracks().forEach(t => t.stop()); return; }
+      if (callIdRef.current !== info.callId) { stream.getTracks().forEach((track) => track.stop()); return; }
       localStreamRef.current = stream;
       setLocalStream(stream);
       const pc = createPeerConnection(info);
-      stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
       await pc.setRemoteDescription(offer);
-      await flushIce();
+      await flushRemoteIce();
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       await sendSignal(info, "answer", { sdp: answer.sdp, type: answer.type });
+      await flushLocalIce(info);
       ringTimerRef.current = setTimeout(() => { if (statusRef.current === "connecting") void endCall(); }, RING_TIMEOUT_MS);
-    } catch (err) {
-      console.error("Failed to accept call:", err);
-      alert("Allow microphone/camera access to answer calls.");
+    } catch (error) {
+      console.error("Failed to accept call:", error);
+      alert("Allow microphone/camera access and check your connection to answer the call.");
       try { await sendSignal(info, "reject", {}, "ended"); }
       finally { finish(); }
     }
-  }, [user, createPeerConnection, sendSignal, finish, endCall]);
+  }, [user, createPeerConnection, sendSignal, flushLocalIce, finish, endCall]);
 
   const acceptIncomingCall = useCallback(() => {
     const info = callRef.current;
@@ -271,13 +291,13 @@ export const useWebRTC = () => {
   }, [sendSignal, finish]);
 
   const toggleMute = useCallback(() => {
-    const t = localStreamRef.current?.getAudioTracks()[0];
-    if (t) { t.enabled = !t.enabled; setIsMuted(!t.enabled); }
+    const track = localStreamRef.current?.getAudioTracks()[0];
+    if (track) { track.enabled = !track.enabled; setIsMuted(!track.enabled); }
   }, []);
 
   const toggleVideo = useCallback(() => {
-    const t = localStreamRef.current?.getVideoTracks()[0];
-    if (t) { t.enabled = !t.enabled; setIsVideoOn(t.enabled); }
+    const track = localStreamRef.current?.getVideoTracks()[0];
+    if (track) { track.enabled = !track.enabled; setIsVideoOn(track.enabled); }
   }, []);
 
   const switchCamera = useCallback(async () => {
@@ -286,98 +306,109 @@ export const useWebRTC = () => {
     if (!pc || !stream || !stream.getVideoTracks()[0]) return;
     const nextFacing = facingRef.current === "user" ? "environment" : "user";
     try {
-      const ns = await navigator.mediaDevices.getUserMedia({ video: { facingMode: nextFacing } });
-      const nt = ns.getVideoTracks()[0];
-      if (!nt) return;
-      nt.enabled = stream.getVideoTracks()[0].enabled;
-      const sender = pc.getSenders().find((s) => s.track?.kind === "video");
-      await sender?.replaceTrack(nt);
-      const old = stream.getVideoTracks()[0];
-      stream.removeTrack(old); old.stop(); stream.addTrack(nt);
+      const nextStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: nextFacing } });
+      const nextTrack = nextStream.getVideoTracks()[0];
+      if (!nextTrack) return;
+      nextTrack.enabled = stream.getVideoTracks()[0].enabled;
+      const sender = pc.getSenders().find((item) => item.track?.kind === "video");
+      await sender?.replaceTrack(nextTrack);
+      const oldTrack = stream.getVideoTracks()[0];
+      stream.removeTrack(oldTrack);
+      oldTrack.stop();
+      stream.addTrack(nextTrack);
       facingRef.current = nextFacing;
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-    } catch (e) { console.error("switch camera failed", e); }
+    } catch (error) { console.error("Switch camera failed:", error); }
   }, []);
 
-  // Signaling — one stable subscription per user, filtered server-side
   useEffect(() => {
     if (!user) return;
-    const handle = async (payload: any) => {
-      const s = payload.new as any;
-      const d = s.signal_data || {};
-      if (d.from === user.id) return; // ignore our own signals
-      const callId = d.callId;
+    let disposed = false;
 
-      switch (s.signal_type) {
+    const handle = async (payload: any) => {
+      const signal = payload.new as any;
+      const data = signal.signal_data || {};
+      if (data.from === user.id) return;
+      const callId = data.callId;
+      if (!callId) return;
+
+      switch (signal.signal_type) {
         case "offer": {
-          if (s.callee_id !== user.id) return;
-          if (d.renegotiate && callId === callIdRef.current && pcRef.current && callRef.current) {
+          if (signal.callee_id !== user.id) return;
+          if (data.renegotiate && callId === callIdRef.current && pcRef.current && callRef.current) {
             const pc = pcRef.current;
-            await pc.setRemoteDescription({ sdp: d.sdp, type: d.type });
-            await flushIce();
+            await pc.setRemoteDescription({ sdp: data.sdp, type: data.type });
+            await flushRemoteIce();
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             await sendSignal(callRef.current, "answer", { sdp: answer.sdp, type: answer.type });
             return;
           }
-          if (statusRef.current !== "idle") {
-            // busy
-            await insertSignal({ caller_id: s.caller_id, callee_id: s.callee_id, conversation_id: s.conversation_id,
-              call_type: s.call_type, signal_type: "reject", signal_data: { callId, from: user.id, busy: true }, status: "ended" });
-            return;
-          }
+          if (callId === callIdRef.current || statusRef.current !== "idle") return;
           const info: CallInfo = {
-            callId, callerId: s.caller_id, calleeId: s.callee_id, conversationId: s.conversation_id,
-            callType: s.call_type, callerName: "Incoming caller", callerAvatar: "U",
+            callId, callerId: signal.caller_id, calleeId: signal.callee_id,
+            conversationId: signal.conversation_id, callType: signal.call_type,
+            callerName: "Incoming caller", callerAvatar: "U",
           };
           callIdRef.current = callId;
           callRef.current = info;
           statusRef.current = "incoming";
           setActiveCall(info);
           setCallStatus("incoming");
-          setIsVideoOn(s.call_type === "video");
-          pendingOfferRef.current = { sdp: d.sdp, type: d.type };
-          ringTimerRef.current = setTimeout(() => {
-            if (statusRef.current === "incoming") void endCall();
-          }, RING_TIMEOUT_MS);
-          void supabase.from("profiles").select("display_name").eq("user_id", s.caller_id).maybeSingle().then(({ data: p }) => {
+          setIsVideoOn(signal.call_type === "video");
+          pendingOfferRef.current = { sdp: data.sdp, type: data.type };
+          ringTimerRef.current = setTimeout(() => { if (statusRef.current === "incoming") void endCall(); }, RING_TIMEOUT_MS);
+          void supabase.from("profiles").select("display_name").eq("user_id", signal.caller_id).maybeSingle().then(({ data: profile }) => {
             if (callIdRef.current !== callId) return;
-            const named = { ...info, callerName: p?.display_name || "Unknown", callerAvatar: (p?.display_name || "U").slice(0, 2).toUpperCase() };
-            callRef.current = named; setActiveCall(named);
+            const named = { ...info, callerName: profile?.display_name || "Unknown", callerAvatar: (profile?.display_name || "U").slice(0, 2).toUpperCase() };
+            callRef.current = named;
+            setActiveCall(named);
           });
           break;
         }
         case "answer": {
-          if (callId !== callIdRef.current || !pcRef.current) return;
-          if (pcRef.current.signalingState !== "have-local-offer") return;
+          if (callId !== callIdRef.current || !pcRef.current || pcRef.current.signalingState !== "have-local-offer") return;
           if (statusRef.current !== "connected") { statusRef.current = "connecting"; setCallStatus("connecting"); }
-          await pcRef.current.setRemoteDescription({ sdp: d.sdp, type: d.type });
-          await flushIce();
+          await pcRef.current.setRemoteDescription({ sdp: data.sdp, type: data.type });
+          await flushRemoteIce();
           break;
         }
         case "ice-candidate": {
-          if (callId !== callIdRef.current || !d.candidate) return;
+          if (callId !== callIdRef.current || !data.candidate) return;
           if (pcRef.current?.remoteDescription) {
-            try { await pcRef.current.addIceCandidate(d.candidate); } catch {}
-          } else iceQueue.current.push(d.candidate);
+            try { await pcRef.current.addIceCandidate(data.candidate); }
+            catch (error) { console.warn("ICE candidate rejected:", error); }
+          } else iceQueue.current.push(data.candidate);
           break;
         }
         case "hangup":
         case "reject":
-        case "missed": {
-          if (callId !== callIdRef.current) return;
-          finish();
+        case "missed":
+          if (callId === callIdRef.current) finish();
           break;
-        }
       }
     };
 
     const channel = supabase
       .channel(`call-signals-${user.id}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "call_signals", filter: `callee_id=eq.${user.id}` }, payload => { void handle(payload).catch(error => console.error("Call signal processing failed:", error)); })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "call_signals", filter: `caller_id=eq.${user.id}` }, payload => { void handle(payload).catch(error => console.error("Call signal processing failed:", error)); })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "call_signals", filter: `callee_id=eq.${user.id}` }, (payload) => { void handle(payload).catch((error) => console.error("Incoming call signal failed:", error)); })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "call_signals", filter: `caller_id=eq.${user.id}` }, (payload) => { void handle(payload).catch((error) => console.error("Call signal failed:", error)); })
+      .subscribe(async (status) => {
+        if (status !== "SUBSCRIBED") return;
+        // Recover an invitation that arrived while this app was reconnecting. Only consider
+        // recent calls and discard any whose callId already has an answer/end signal.
+        const since = new Date(Date.now() - RECENT_CALL_WINDOW_MS).toISOString();
+        const { data: recent } = await supabase.from("call_signals").select("*")
+          .eq("callee_id", user.id).gte("created_at", since).order("created_at", { ascending: true }).limit(50);
+        if (disposed || !recent?.length) return;
+        const completed = new Set(recent.filter((row: any) => ["answer", "hangup", "reject", "missed"].includes(row.signal_type))
+          .map((row: any) => row.signal_data?.callId).filter(Boolean));
+        const pendingOffer = recent.find((row: any) => row.signal_type === "offer" && row.status === "pending" &&
+          !completed.has(row.signal_data?.callId));
+        if (pendingOffer) await handle({ new: pendingOffer });
+      });
+
+    return () => { disposed = true; void supabase.removeChannel(channel); };
   }, [user, finish, endCall, sendSignal]);
 
   useEffect(() => () => { cleanupMedia(); }, [user?.id, cleanupMedia]);
