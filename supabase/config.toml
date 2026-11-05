@@ -1,1 +1,5 @@
 project_id = "mlzvjsyzulotdadjcyau"
+
+[functions.send-call-push]
+# The endpoint is invoked by a database webhook authenticated with CALL_PUSH_WEBHOOK_SECRET.
+verify_jwt = false

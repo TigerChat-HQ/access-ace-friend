@@ -13,20 +13,51 @@ const tryShowSwNotification = async (payload: { title: string; body: string; url
   return false;
 };
 
+const decodeApplicationServerKey = (key: string) => {
+  const padding = "=".repeat((4 - (key.length % 4)) % 4);
+  const base64 = (key + padding).replace(/-/g, "+").replace(/_/g, "/");
+  return Uint8Array.from(window.atob(base64), (char) => char.charCodeAt(0));
+};
+
 export const useNotifications = () => {
   const { user } = useAuth();
 
   const requestPermission = useCallback(async () => {
-    if (!("Notification" in window)) return false;
-    if (Notification.permission === "granted") return true;
-    if (Notification.permission === "denied") return false;
-    const result = await Notification.requestPermission();
-    return result === "granted";
-  }, []);
+    if (!("Notification" in window) || !user) return false;
+    const permission = Notification.permission === "granted"
+      ? "granted"
+      : Notification.permission === "denied"
+      ? "denied"
+      : await Notification.requestPermission();
+    if (permission !== "granted") return false;
+
+    const applicationServerKey = import.meta.env.VITE_WEB_PUSH_PUBLIC_KEY;
+    if (!applicationServerKey || !("serviceWorker" in navigator) || !("PushManager" in window)) return true;
+
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: decodeApplicationServerKey(applicationServerKey),
+        });
+      }
+      const { error } = await (supabase as any).from("push_subscriptions").upsert(
+        { user_id: user.id, endpoint: subscription.endpoint, subscription: subscription.toJSON() },
+        { onConflict: "endpoint" },
+      );
+      if (error) console.warn("Could not save push subscription:", error.message);
+    } catch (error) {
+      // Notifications remain available in an open tab even if Web Push setup is unavailable.
+      console.warn("Web Push subscription failed:", error);
+    }
+    return true;
+  }, [user]);
 
   const showNotification = useCallback(
     async (title: string, body: string, opts?: { url?: string; tag?: string; icon?: string; force?: boolean }) => {
-      if (Notification.permission !== "granted") return;
+      if (!("Notification" in window) || Notification.permission !== "granted") return;
       if (!opts?.force && !document.hidden) return;
       const payload = {
         title,
@@ -35,7 +66,6 @@ export const useNotifications = () => {
         tag: opts?.tag || "tigerchats",
         icon: opts?.icon || "/pwa-icon-192.png",
       };
-      // Prefer SW so it persists as a bubble; fall back to page Notification
       const ok = await tryShowSwNotification(payload);
       if (!ok) {
         const n = new Notification(title, {
@@ -134,10 +164,10 @@ export const useNotifications = () => {
     };
   }, [user, showNotification]);
 
-  // Request permission on mount
+  // Request permission and register this browser for background push while the user is signed in.
   useEffect(() => {
-    requestPermission();
-  }, [requestPermission]);
+    if (user) void requestPermission();
+  }, [user, requestPermission]);
 
   return { requestPermission, showNotification };
 };
