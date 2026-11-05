@@ -63,7 +63,7 @@ describe("useReadReceipts", () => {
     mocks.memberData = { user_id: "user-123" };
   });
 
-  it("marks all existing unread messages as delivered and read when conversation is active", async () => {
+  it("marks existing unread messages delivered and read when the active conversation opens", async () => {
     renderHook(() => useReadReceipts("convo-1", true));
 
     expect(mocks.update).toHaveBeenCalledWith(
@@ -75,13 +75,11 @@ describe("useReadReceipts", () => {
     );
   });
 
-  it("marks incoming realtime message as read and delivered if user is actively viewing that conversation", async () => {
+  it("marks an incoming realtime message read and delivered when its conversation is active", async () => {
     renderHook(() => useReadReceipts("convo-1", true));
     mocks.update.mockClear();
 
-    const insertListener = mocks.handlers.find(
-      (h) => h.table === "messages"
-    );
+    const insertListener = mocks.handlers.find((handler) => handler.table === "messages");
     expect(insertListener).toBeDefined();
 
     await act(async () => {
@@ -92,6 +90,7 @@ describe("useReadReceipts", () => {
           sender_id: "user-other",
           delivered_at: null,
           read_at: null,
+          is_read: false,
         },
       });
     });
@@ -105,14 +104,11 @@ describe("useReadReceipts", () => {
     );
   });
 
-  it("marks incoming message only as delivered if conversation is not currently active", async () => {
+  it("marks incoming messages delivered but not read when their conversation is not active", async () => {
     renderHook(() => useReadReceipts("convo-1", false));
     mocks.update.mockClear();
 
-    const insertListener = mocks.handlers.find(
-      (h) => h.table === "messages"
-    );
-
+    const insertListener = mocks.handlers.find((handler) => handler.table === "messages");
     await act(async () => {
       await insertListener?.cb({
         new: {
@@ -121,19 +117,12 @@ describe("useReadReceipts", () => {
           sender_id: "user-other",
           delivered_at: null,
           read_at: null,
+          is_read: false,
         },
       });
     });
 
-    expect(mocks.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        delivered_at: expect.any(String),
-      })
-    );
-    expect(mocks.update).not.toHaveBeenCalledWith(
-      expect.objectContaining({
-        is_read: true,
-      })
-    );
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ delivered_at: expect.any(String) }));
+    expect(mocks.update).not.toHaveBeenCalledWith(expect.objectContaining({ is_read: true }));
   });
 });
