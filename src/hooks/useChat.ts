@@ -162,6 +162,29 @@ export const useConversations = () => {
     fetchConversations();
   }, [fetchConversations]);
 
+  // Subscribe to real-time message changes to keep unread badges and last messages in sync
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`conversations-messages:${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "messages",
+        },
+        () => {
+          fetchConversations();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, fetchConversations]);
+
   return { conversations, loading, refetch: fetchConversations };
 };
 
