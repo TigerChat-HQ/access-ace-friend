@@ -63,7 +63,7 @@ export const PostCard = ({ post, onChanged }: Props) => {
         await navigator.clipboard.writeText(url);
         toast({ title: "Link copied" });
       }
-    } catch (error) { console.debug("Non-critical operation failed", error); }
+    } catch {}
   };
 
   const initials = (post.profile?.display_name || post.profile?.username || "U").slice(0, 2).toUpperCase();

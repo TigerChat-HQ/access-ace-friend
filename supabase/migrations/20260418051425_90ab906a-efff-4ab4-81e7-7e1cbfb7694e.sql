@@ -4,7 +4,7 @@ CREATE TABLE public.notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   recipient_id UUID NOT NULL,
   actor_id UUID NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('like','comment','follow','mention','reply','comment_like')),
+  type TEXT NOT NULL CHECK (type IN ('like','comment','follow','mention')),
   post_id UUID,
   comment_id UUID,
   is_read BOOLEAN NOT NULL DEFAULT false,

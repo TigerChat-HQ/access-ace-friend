@@ -1,4 +1,4 @@
-// AI-powered post recommendations using OpenAI
+// AI-powered post recommendations using Lovable AI
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
 
     const { data: likedPosts } = likedIds.length
       ? await supabase.from("posts").select("caption, hashtags").in("id", likedIds)
-      : { data: [] as unknown[] };
+      : { data: [] as any[] };
 
     const interestText = (likedPosts || [])
       .map((p) => `${p.caption || ""} ${(p.hashtags || []).join(" ")}`)
@@ -73,8 +73,8 @@ Deno.serve(async (req) => {
       supabase.from("blocks").select("blocker_id").eq("blocked_id", user.id),
     ]);
     const blocked = new Set<string>([
-      ...(blocksA || []).map((b) => b.blocked_id),
-      ...(blocksB || []).map((b) => b.blocker_id),
+      ...(blocksA || []).map((b: any) => b.blocked_id),
+      ...(blocksB || []).map((b: any) => b.blocker_id),
     ]);
     const filtered = candidates.filter((c) => !blocked.has(c.user_id));
 
@@ -85,21 +85,21 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 3) Ask OpenAI to rank
+    // 3) Ask Lovable AI to rank
     const candidateText = filtered
       .map((c, i) => `[${i}] ${c.caption || "(no caption)"} ${(c.hashtags || []).join(" ")}`)
       .join("\n")
       .slice(0, 6000);
 
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
-    const aiResp = await fetch("https://api.openai.com/v1/chat/completions", {
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-6.1-sol",
+        model: "google/gemini-2.5-flash-lite",
         messages: [
           {
             role: "system",

@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Tables } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,19 +13,14 @@ export const AnnouncementComposer = () => {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [priority, setPriority] = useState<"normal" | "high" | "emergency">("normal");
-  const [list, setList] = useState<Tables<"announcements">[]>([]);
+  const [list, setList] = useState<any[]>([]);
   const [busy, setBusy] = useState(false);
-  const [deleteMessage, setDeleteMessage] = useState<{ text: string; error: boolean } | null>(null);
 
-  const load = useCallback(async () => {
-    const { data, error } = await supabase.from("announcements").select("*").order("created_at", { ascending: false }).limit(50);
-    if (error) {
-      toast({ title: "Could not load announcements", description: error.message, variant: "destructive" });
-      return;
-    }
+  const load = async () => {
+    const { data } = await supabase.from("announcements").select("*").order("created_at", { ascending: false }).limit(20);
     setList(data || []);
-  }, [toast]);
-  useEffect(() => { void load(); }, [load]);
+  };
+  useEffect(() => { load(); }, []);
 
   const publish = async () => {
     if (!user || !title.trim()) return;
@@ -38,43 +32,12 @@ export const AnnouncementComposer = () => {
     if (error) { toast({ title: "Failed", description: error.message, variant: "destructive" }); return; }
     toast({ title: "Published", description: "All users will see this popup." });
     setTitle(""); setBody(""); setPriority("normal");
-    void load();
+    load();
   };
 
   const remove = async (id: string) => {
-    setBusy(true);
-    setDeleteMessage({ text: "Deleting announcement…", error: false });
-    try {
-      const { data, error } = await supabase
-        .from("announcements")
-        .delete()
-        .eq("id", id)
-        .select("id")
-        .maybeSingle();
-
-      if (error) {
-        setDeleteMessage({ text: `Delete failed: ${error.message}`, error: true });
-        toast({ title: "Delete failed", description: error.message, variant: "destructive" });
-        return;
-      }
-      if (!data) {
-        setDeleteMessage({
-          text: "Not deleted: the server returned no deleted row. Check admin permissions and refresh.",
-          error: true,
-        });
-        await load();
-        return;
-      }
-
-      setList((current) => current.filter((announcement) => announcement.id !== id));
-      setDeleteMessage({ text: "Announcement deleted successfully.", error: false });
-      toast({ title: "Announcement deleted" });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unexpected error while deleting.";
-      setDeleteMessage({ text: `Delete failed: ${message}`, error: true });
-    } finally {
-      setBusy(false);
-    }
+    await supabase.from("announcements").update({ is_active: false }).eq("id", id);
+    load();
   };
 
   return (
@@ -94,11 +57,6 @@ export const AnnouncementComposer = () => {
         ))}
         <Button onClick={publish} disabled={busy || !title.trim()} className="ml-auto">Publish to all</Button>
       </div>
-      {deleteMessage && (
-        <p role="status" aria-live="polite" className={`text-xs ${deleteMessage.error ? "text-destructive" : "text-muted-foreground"}`}>
-          {deleteMessage.text}
-        </p>
-      )}
       {list.length > 0 && (
         <div className="space-y-2 pt-2 border-t border-border/30">
           <p className="text-xs text-muted-foreground">Recent</p>
@@ -107,9 +65,11 @@ export const AnnouncementComposer = () => {
               <span className={`w-2 h-2 rounded-full ${a.is_active ? "bg-primary" : "bg-muted"}`} />
               <span className="flex-1 truncate font-medium">{a.title}</span>
               <span className="text-[10px] text-muted-foreground uppercase">{a.priority}</span>
-              <button type="button" disabled={busy} onClick={() => void remove(a.id)} className="p-1 hover:bg-destructive/20 rounded disabled:opacity-50" aria-label={`Delete ${a.title}`}>
-                <Trash2 className="w-3.5 h-3.5 text-destructive" />
-              </button>
+              {a.is_active && (
+                <button onClick={() => remove(a.id)} className="p-1 hover:bg-destructive/20 rounded">
+                  <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                </button>
+              )}
             </div>
           ))}
         </div>

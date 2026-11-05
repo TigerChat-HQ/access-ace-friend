@@ -14,7 +14,7 @@ export const useFollow = (targetUserId: string | undefined) => {
     const [{ data: mine }, { count: followers }, { count: following }] = await Promise.all([
       user
         ? supabase.from("follows").select("id").eq("follower_id", user.id).eq("following_id", targetUserId).maybeSingle()
-        : Promise.resolve({ data: null as { id: string } | null }),
+        : Promise.resolve({ data: null as any }),
       supabase.from("follows").select("*", { count: "exact", head: true }).eq("following_id", targetUserId),
       supabase.from("follows").select("*", { count: "exact", head: true }).eq("follower_id", targetUserId),
     ]);

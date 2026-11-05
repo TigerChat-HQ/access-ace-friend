@@ -1,4 +1,4 @@
-// Admin-only AI image generation via OpenAI.
+// Admin-only AI image generation via Lovable AI Gateway.
 // Verifies caller is admin/superior_admin/moderator before generating.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
 
@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", userId);
-    const allowed = (roles || []).some((r) =>
+    const allowed = (roles || []).some((r: any) =>
       ["admin", "superior_admin", "moderator"].includes(r.role),
     );
     if (!allowed) {
@@ -58,17 +58,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    const apiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: "OPENAI_API_KEY is not configured in Supabase Edge Function secrets." }), {
-        status: 503,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const aiRes = await fetch("https://api.openai.com/v1/images/generations", {
+    const apiKey = Deno.env.get("LOVABLE_API_KEY");
+    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "gpt-image-2", prompt, size: "1024x1024", quality: "medium" }),
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-image",
+        messages: [{ role: "user", content: prompt }],
+        modalities: ["image", "text"],
+      }),
     });
 
     if (aiRes.status === 429) {
@@ -79,20 +80,21 @@ Deno.serve(async (req) => {
     }
     if (aiRes.status === 402) {
       return new Response(
-        JSON.stringify({ error: "OpenAI API billing or quota limit reached." }),
+        JSON.stringify({ error: "AI credits exhausted. Add credits in workspace settings." }),
         { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
     if (!aiRes.ok) {
       const txt = await aiRes.text();
-      return new Response(JSON.stringify({ error: `OpenAI image error: ${txt}` }), {
+      return new Response(JSON.stringify({ error: `AI error: ${txt}` }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const aiJson = await aiRes.json();
-    const dataUrl = aiJson?.data?.[0]?.b64_json ? `data:image/png;base64,${aiJson.data[0].b64_json}` : null;
+    const dataUrl =
+      aiJson?.choices?.[0]?.message?.images?.[0]?.image_url?.url || null;
     if (!dataUrl) {
       return new Response(JSON.stringify({ error: "No image returned" }), {
         status: 500,
@@ -126,7 +128,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ url: pub.publicUrl }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e) {
+  } catch (e: any) {
     return new Response(JSON.stringify({ error: e?.message || "Server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

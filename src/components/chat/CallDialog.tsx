@@ -43,7 +43,7 @@ const useRingtone = (shouldPlay: boolean) => {
         on = !on;
         gain.gain.setTargetAtTime(on ? 0.15 : 0, audio.currentTime, 0.05);
       }, 1000);
-    } catch (error) { console.debug("Non-critical operation failed", error); }
+    } catch {}
     return () => {
       if (interval) clearInterval(interval);
       osc?.stop();

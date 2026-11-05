@@ -9,12 +9,12 @@ type SignalInsert = {
   conversation_id?: string;
   call_type: string;
   signal_type: string;
-  signal_data?: Record<string, unknown>;
+  signal_data?: any;
   status?: string;
 };
 
 const insertSignal = async (data: SignalInsert) => {
-  const { error } = await supabase.from("call_signals").insert(data as never);
+  const { error } = await supabase.from("call_signals").insert(data as any);
   if (error) throw error;
 };
 
@@ -94,7 +94,7 @@ export const useWebRTC = () => {
     pendingOfferRef.current = null;
     setRemoteStream(new MediaStream());
     [durationTimerRef, ringTimerRef, disconnectTimerRef].forEach((r) => {
-      if (r.current) { clearInterval(r.current as never); clearTimeout(r.current as never); r.current = null; }
+      if (r.current) { clearInterval(r.current as any); clearTimeout(r.current as any); r.current = null; }
     });
     setDuration(0);
     setIsMuted(false);
@@ -108,7 +108,7 @@ export const useWebRTC = () => {
     setTimeout(() => { statusRef.current = "idle"; callRef.current = null; setCallStatus("idle"); setActiveCall(null); }, 1500);
   }, [cleanupMedia]);
 
-  const sendSignal = useCallback(async (info: CallInfo, type: string, data: Record<string, unknown> = {}, status = "active") => {
+  const sendSignal = useCallback(async (info: CallInfo, type: string, data: any = {}, status = "active") => {
     if (!user) return;
     await insertSignal({
       caller_id: info.callerId,
@@ -173,7 +173,7 @@ export const useWebRTC = () => {
           durationTimerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
       } else if (st === "disconnected") {
         // Give unstable networks time to recover, try ICE restart
-        try { pc.restartIce(); } catch (error) { console.debug("Non-critical operation failed", error); }
+        try { pc.restartIce(); } catch {}
         if (!disconnectTimerRef.current)
           disconnectTimerRef.current = setTimeout(() => endCall(), 15000);
       } else if (st === "failed") {
@@ -186,7 +186,7 @@ export const useWebRTC = () => {
   const flushIce = async () => {
     const pc = pcRef.current;
     if (!pc) return;
-    for (const c of iceQueue.current) { try { await pc.addIceCandidate(c); } catch (error) { console.debug("Non-critical operation failed", error); } }
+    for (const c of iceQueue.current) { try { await pc.addIceCandidate(c); } catch {} }
     iceQueue.current = [];
   };
 
@@ -302,8 +302,8 @@ export const useWebRTC = () => {
   // Signaling — one stable subscription per user, filtered server-side
   useEffect(() => {
     if (!user) return;
-    const handle = async (payload) => {
-      const s = payload.new as never;
+    const handle = async (payload: any) => {
+      const s = payload.new as any;
       const d = s.signal_data || {};
       if (d.from === user.id) return; // ignore our own signals
       const callId = d.callId;
@@ -358,7 +358,7 @@ export const useWebRTC = () => {
         case "ice-candidate": {
           if (callId !== callIdRef.current || !d.candidate) return;
           if (pcRef.current?.remoteDescription) {
-            try { await pcRef.current.addIceCandidate(d.candidate); } catch (error) { console.debug("Non-critical operation failed", error); }
+            try { await pcRef.current.addIceCandidate(d.candidate); } catch {}
           } else iceQueue.current.push(d.candidate);
           break;
         }

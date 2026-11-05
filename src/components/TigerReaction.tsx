@@ -14,7 +14,7 @@ interface TigerReactionLayerProps {
 
 const playRoar = () => {
   try {
-    const ctx = new (window.AudioContext || (window as never).webkitAudioContext)();
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sawtooth";
@@ -26,7 +26,7 @@ const playRoar = () => {
     osc.start();
     osc.stop(ctx.currentTime + 0.7);
     setTimeout(() => ctx.close().catch(() => {}), 800);
-  } catch (error) { console.debug("Non-critical operation failed", error); }
+  } catch {}
 };
 
 export const TigerReactionLayer = ({ trigger }: TigerReactionLayerProps) => {

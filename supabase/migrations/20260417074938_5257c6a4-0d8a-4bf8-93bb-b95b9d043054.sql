@@ -45,7 +45,10 @@ ON public.user_roles FOR DELETE
 TO authenticated
 USING (public.has_role(auth.uid(), 'admin'));
 
--- First registered user is granted admin by the signup trigger added in a later migration.
+-- Seed admin
+INSERT INTO public.user_roles (user_id, role)
+VALUES ('77e53235-b3b4-47ea-9acc-044475055bbf', 'admin')
+ON CONFLICT (user_id, role) DO NOTHING;
 
 -- 2. Profiles: add username
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS username TEXT UNIQUE;

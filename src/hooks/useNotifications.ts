@@ -9,7 +9,7 @@ const tryShowSwNotification = async (payload: { title: string; body: string; url
       reg.active.postMessage({ type: "show-notification", payload });
       return true;
     }
-  } catch (error) { console.debug("Non-critical operation failed", error); }
+  } catch {}
   return false;
 };
 
@@ -64,7 +64,7 @@ export const useNotifications = () => {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
         async (payload) => {
-          const msg = payload.new as never;
+          const msg = payload.new as any;
           if (msg.sender_id === user.id) return;
 
           const { data: profile } = await supabase
@@ -105,7 +105,7 @@ export const useNotifications = () => {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications", filter: `recipient_id=eq.${user.id}` },
         async (payload) => {
-          const n = payload.new as never;
+          const n = payload.new as any;
           const { data: actor } = await supabase
             .from("profiles")
             .select("display_name, username")

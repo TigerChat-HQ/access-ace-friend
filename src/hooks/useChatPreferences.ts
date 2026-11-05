@@ -24,13 +24,13 @@ export const useChatPreferences = (conversationId: string | null) => {
     }
     setLoading(true);
     supabase
-      .from("chat_preferences" as never)
+      .from("chat_preferences" as any)
       .select("*")
       .eq("user_id", user.id)
       .eq("conversation_id", conversationId)
       .maybeSingle()
       .then(({ data }) => {
-        if (data) setPrefs({ ...DEFAULT, ...(data as never) });
+        if (data) setPrefs({ ...DEFAULT, ...(data as any) });
         else setPrefs(DEFAULT);
         setLoading(false);
       });
@@ -40,7 +40,7 @@ export const useChatPreferences = (conversationId: string | null) => {
     if (!user || !conversationId) return;
     const merged = { ...prefs, ...next };
     setPrefs(merged);
-    await supabase.from("chat_preferences" as never).upsert(
+    await supabase.from("chat_preferences" as any).upsert(
       {
         user_id: user.id,
         conversation_id: conversationId,

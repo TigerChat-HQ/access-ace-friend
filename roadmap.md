@@ -1,8 +1,4 @@
 # Requested updates
-- [ ] Grant both admin and superior_admin to the first signup only; verify the rule.
-- [ ] Verify and complete online Dama invites and realtime moves.
-- [ ] Verify and complete voice-note recording/playback in direct and group chats.
-- [ ] Implement Tiger AI Phase 2 authorized file viewing, proposed diffs, approved-task changes, security checks and audit; keep unavailable execution/deployment disabled.
 - [ ] Address Tiger AI developer-mode request with a safe integration prompt and explicit limits on autonomous source changes.
 - [ ] Add Contact with admin replies and report-style notifications; verify submission and reply.
 - [ ] Prepare sitemap for manual submission and connect/verify Google Search Console.

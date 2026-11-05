@@ -16,8 +16,7 @@ import { TigerChatBackground } from "@/components/chat/TigerChatBackground";
 import { InviteMembersDialog } from "@/components/chat/InviteMembersDialog";
 import { ForwardDialog } from "@/components/chat/ForwardDialog";
 import { GroupAdminDialog } from "@/components/chat/GroupAdminDialog";
-import { ChatCustomizationDialog } from "@/components/chat/ChatCustomizationDialog";
-import { wallpaperClass, bubbleColorClass, fontSizeClass } from "@/components/chat/chatCustomization";
+import { ChatCustomizationDialog, wallpaperClass, bubbleColorClass, fontSizeClass } from "@/components/chat/ChatCustomizationDialog";
 import { useChatPreferences } from "@/hooks/useChatPreferences";
 import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
@@ -29,13 +28,7 @@ import { Tables } from "@/integrations/supabase/types";
 import { Message } from "@/types/chat";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 
-type Story = Tables<"stories"> & {
-  profile?: Tables<"profiles">;
-  music_url?: string | null;
-  media_type?: string | null;
-  text_overlay?: string | null;
-  duration?: number | null;
-};
+type Story = Tables<"stories"> & { profile?: Tables<"profiles"> };
 
 const Chats = () => {
   const { user } = useAuth();
@@ -68,7 +61,7 @@ const Chats = () => {
   const { messages } = useMessages(activeChat);
   const { typingUsers, notifyTyping } = useTypingIndicator(activeChat);
   useNotifications();
-  useReadReceipts(activeChat, !!activeChat, refetchConversations);
+  useReadReceipts(activeChat, !!activeChat);
   useScreenshotProtection(!!activeChat);
   const { prefs: chatPrefs } = useChatPreferences(activeChat);
 
@@ -107,56 +100,47 @@ const Chats = () => {
     if (!activeChat || !user) return;
     const replyId = replyTo?.id;
     setReplyTo(null);
-    const { error } = await supabase.from("messages").insert({
+    await supabase.from("messages").insert({
       conversation_id: activeChat,
       sender_id: user.id,
       content: text,
       message_type: "text",
       reply_to_id: replyId || null,
     });
-    if (error) toast({ title: "Message not sent", description: error.message, variant: "destructive" });
   };
 
   const handleSendVoice = async (blob: Blob, duration: number) => {
-    if (!activeChat || !user) throw new Error("Select a chat before sending");
-    const extension = blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "webm";
-    const filePath = `${user.id}/${crypto.randomUUID()}.${extension}`;
-    const { error: uploadError } = await supabase.storage.from("chat-media").upload(filePath, blob, { contentType: blob.type });
-    if (uploadError) throw new Error(uploadError.message);
+    if (!activeChat || !user) return;
+    const filePath = `${user.id}/${Date.now()}.webm`;
+    const { error: uploadError } = await supabase.storage.from("chat-media").upload(filePath, blob);
+    if (uploadError) return toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
     const { data: { publicUrl } } = supabase.storage.from("chat-media").getPublicUrl(filePath);
     const mins = Math.floor(duration / 60);
     const secs = duration % 60;
-    const { error } = await supabase.from("messages").insert({
+    await supabase.from("messages").insert({
       conversation_id: activeChat,
       sender_id: user.id,
       content: `${mins}:${secs.toString().padStart(2, "0")}`,
       message_type: "voice",
       media_url: publicUrl,
-      reply_to_id: replyTo?.id || null,
     });
-    if (error) { await supabase.storage.from("chat-media").remove([filePath]); throw new Error(error.message); }
-    setReplyTo(null);
   };
 
   const handleSendFile = async (file: File) => {
     if (!activeChat || !user) return;
-    const ext = file.name.split(".").pop() || "bin";
+    const ext = file.name.split(".").pop();
     const filePath = `${user.id}/${Date.now()}.${ext}`;
     const { error: uploadError } = await supabase.storage.from("chat-media").upload(filePath, file);
     if (uploadError) return toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
     const { data: { publicUrl } } = supabase.storage.from("chat-media").getPublicUrl(filePath);
     const msgType = file.type.startsWith("image/") ? "image" : "file";
-    const { error } = await supabase.from("messages").insert({
+    await supabase.from("messages").insert({
       conversation_id: activeChat,
       sender_id: user.id,
       content: msgType === "image" ? "" : file.name,
       message_type: msgType,
       media_url: publicUrl,
     });
-    if (error) {
-      await supabase.storage.from("chat-media").remove([filePath]);
-      toast({ title: "File not sent", description: error.message, variant: "destructive" });
-    }
   };
 
   const handleDeleteMessage = async (messageId: string) => {
@@ -167,9 +151,10 @@ const Chats = () => {
 
   const messageMap = new Map<string, Message>();
   const uiMessages = messages.map((msg) => {
-    const status: Message["status"] = msg.read_at
+    const anyMsg = msg as any;
+    const status: Message["status"] = anyMsg.read_at
       ? "read"
-      : msg.delivered_at
+      : anyMsg.delivered_at
       ? "delivered"
       : "sent";
     const m: Message = {
@@ -182,7 +167,7 @@ const Chats = () => {
       mediaUrl: msg.media_url || undefined,
     };
     messageMap.set(msg.id, m);
-    return { ui: m, replyToId: msg.reply_to_id };
+    return { ui: m, replyToId: (msg as any).reply_to_id as string | null };
   });
 
   // Compute search matches
@@ -228,10 +213,10 @@ const Chats = () => {
     avatar: (s.profile?.display_name || "U").slice(0, 2).toUpperCase(),
     imageUrl: s.image_url,
     caption: s.caption || undefined,
-    musicUrl: s.music_url || undefined,
-    mediaType: (s.media_type || "image") as "image" | "video",
-    textOverlay: s.text_overlay || null,
-    duration: s.duration || null,
+    musicUrl: (s as any).music_url || undefined,
+    mediaType: ((s as any).media_type || "image") as "image" | "video",
+    textOverlay: (s as any).text_overlay || null,
+    duration: (s as any).duration || null,
   }));
 
   const activeConvoName = activeConvo?.otherProfile?.display_name || activeConvo?.name || "Chat";

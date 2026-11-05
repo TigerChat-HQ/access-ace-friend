@@ -6,11 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
  * Marks incoming messages in a conversation as delivered (always)
  * and as read when the chat is open + tab visible.
  */
-export const useReadReceipts = (
-  conversationId: string | null,
-  isActive: boolean,
-  onMarkedRead?: () => void,
-) => {
+export const useReadReceipts = (conversationId: string | null, isActive: boolean) => {
   const { user } = useAuth();
 
   // Mark delivered on any incoming message in any of my conversations
@@ -22,7 +18,7 @@ export const useReadReceipts = (
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
         async (payload) => {
-          const m = payload.new as never;
+          const m = payload.new as any;
           if (m.sender_id === user.id || m.delivered_at) return;
           // Only mark if I'm a member of that conversation
           const { data: member } = await supabase
@@ -34,7 +30,7 @@ export const useReadReceipts = (
           if (!member) return;
           await supabase
             .from("messages")
-            .update({ delivered_at: new Date().toISOString() } as never)
+            .update({ delivered_at: new Date().toISOString() } as any)
             .eq("id", m.id)
             .is("delivered_at", null);
         }
@@ -45,18 +41,17 @@ export const useReadReceipts = (
     };
   }, [user]);
 
-  // Mark all incoming messages as delivered/read when chat is open.
-  // Refresh the conversation list immediately so its unread badge disappears.
+  // Mark all unread+undelivered as delivered/read when chat is open
   useEffect(() => {
     if (!user || !conversationId || !isActive) return;
     const markAll = async () => {
       const now = new Date().toISOString();
-      const { error } = await supabase
+      await supabase
         .from("messages")
-        .update({ delivered_at: now, read_at: now, is_read: true } as never)
+        .update({ delivered_at: now, read_at: now, is_read: true } as any)
         .eq("conversation_id", conversationId)
-        .neq("sender_id", user.id);
-      if (!error) onMarkedRead?.();
+        .neq("sender_id", user.id)
+        .is("read_at", null);
     };
     markAll();
     const onVis = () => {
@@ -64,5 +59,5 @@ export const useReadReceipts = (
     };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
-  }, [user, conversationId, isActive, onMarkedRead]);
+  }, [user, conversationId, isActive]);
 };

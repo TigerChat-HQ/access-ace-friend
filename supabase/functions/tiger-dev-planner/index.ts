@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
     const { data: u } = await sb.auth.getUser(token);
     if (!u?.user) return json({ error: "Unauthorized" }, 401);
     const { data: roles } = await sb.from("user_roles").select("role").eq("user_id", u.user.id);
-    if (!(roles || []).some((r) => ["admin", "superior_admin"].includes(r.role)))
+    if (!(roles || []).some((r: any) => ["admin", "superior_admin"].includes(r.role)))
       return json({ error: "Admin access required" }, 403);
 
     const body = await req.json().catch(() => ({}));
@@ -33,56 +33,33 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
-    if (body.action === "create_task") {
-      const title = typeof body.title === "string" ? body.title.trim() : "";
-      const summary = typeof body.summary === "string" ? body.summary.trim() : "";
-      const allowedCategories = ["bug", "feature", "ux", "performance", "security"];
-      if (!title || title.length > 200) return json({ error: "Task title is required (max 200 characters)" }, 400);
-      if (summary.length > 2000) return json({ error: "Task summary is too long" }, 400);
-      const category = allowedCategories.includes(body.category) ? body.category : "feature";
-      const risk = PROTECTED.test(title + " " + summary) ? "high" : "medium";
-      const { data: task, error } = await sb.from("dev_tasks").insert({
-        title, summary: summary || null, category, priority: "medium", risk,
-        status: "planned", plan: { steps: [], areas: [], tests: [] }, created_by: u.user.id,
-      }).select("id, title").single();
-      if (error) return json({ error: error.message }, 500);
-      await sb.from("dev_audit_log").insert({
-        task_id: task.id, actor: u.user.id, action: "task_created",
-        details: { title: task.title, category },
-      });
-      return json({ ok: true, task });
-    }
-
     if (body.action !== "triage") return json({ error: "Unknown action" }, 400);
 
     const { data: existing } = await sb.from("dev_tasks").select("source_report_id").not("source_report_id", "is", null);
-    const done = new Set((existing || []).map((t) => t.source_report_id));
+    const done = new Set((existing || []).map((t: any) => t.source_report_id));
     const { data: reports } = await sb.from("reports").select("id, reason, target_type, contact_subject, created_at")
       .in("target_type", ["feedback", "recommendation"]).order("created_at", { ascending: false }).limit(40);
-    const fresh = (reports || []).filter((r) => !done.has(r.id)).slice(0, 10);
+    const fresh = (reports || []).filter((r: any) => !done.has(r.id)).slice(0, 10);
     if (!fresh.length) return json({ created: 0 });
 
-    const openAiApiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openAiApiKey) return json({ error: "AI triage is not configured. Add OPENAI_API_KEY to Supabase Edge Function secrets." }, 503);
-
-    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
-      headers: { Authorization: `Bearer ${openAiApiKey}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gpt-6.1-sol",
+        model: "google/gemini-3-flash-preview",
         response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: "You are Tiger AI's development planner for TIGERCHATS, a React + Supabase messaging app (chats, stories, calls, draughts, Tiger AI, Developer Panel). For each user feedback item return a dev task. Respond as JSON: {\"tasks\":[{\"report_id\":string,\"title\":string,\"summary\":string,\"category\":\"bug\"|\"feature\"|\"ux\"|\"performance\"|\"security\",\"priority\":\"low\"|\"medium\"|\"high\"|\"critical\",\"risk\":\"low\"|\"medium\"|\"high\",\"steps\":string[],\"areas\":string[],\"tests\":string[]}]}. Mark risk high for anything touching data deletion, payments, sign-in, permissions or private data. Skip spam by omitting it." },
-          { role: "user", content: JSON.stringify(fresh.map((r) => ({ report_id: r.id, type: r.target_type, subject: r.contact_subject, text: r.reason }))) },
+          { role: "system", content: "You are Tiger AI's development planner for TIGERCHATS, a React + Lovable Cloud messaging app (chats, stories, calls, draughts, Tiger AI, Developer Panel). For each user feedback item return a dev task. Respond as JSON: {\"tasks\":[{\"report_id\":string,\"title\":string,\"summary\":string,\"category\":\"bug\"|\"feature\"|\"ux\"|\"performance\"|\"security\",\"priority\":\"low\"|\"medium\"|\"high\"|\"critical\",\"risk\":\"low\"|\"medium\"|\"high\",\"steps\":string[],\"areas\":string[],\"tests\":string[]}]}. Mark risk high for anything touching data deletion, payments, sign-in, permissions or private data. Skip spam by omitting it." },
+          { role: "user", content: JSON.stringify(fresh.map((r: any) => ({ report_id: r.id, type: r.target_type, subject: r.contact_subject, text: r.reason }))) },
         ],
       }),
     });
     if (!aiRes.ok) return json({ error: `AI error ${aiRes.status}`, details: await aiRes.text() }, aiRes.status === 429 || aiRes.status === 402 ? aiRes.status : 502);
     const ai = await aiRes.json();
-    let tasks: Array<Record<string, unknown>> = [];
+    let tasks: any[] = [];
     try { tasks = JSON.parse(ai.choices?.[0]?.message?.content || "{}").tasks || []; } catch { tasks = []; }
 
-    const ids = new Set(fresh.map((r) => r.id));
+    const ids = new Set(fresh.map((r: any) => r.id));
     const rows = tasks.filter((t) => ids.has(t.report_id) && t.title).map((t) => {
       const text = `${t.title} ${t.summary} ${(t.steps || []).join(" ")}`;
       return {
@@ -99,7 +76,7 @@ Deno.serve(async (req) => {
     if (!rows.length) return json({ created: 0 });
     const { data: inserted, error } = await sb.from("dev_tasks").insert(rows).select("id, title");
     if (error) return json({ error: error.message }, 500);
-    await sb.from("dev_audit_log").insert((inserted || []).map((t) => ({
+    await sb.from("dev_audit_log").insert((inserted || []).map((t: any) => ({
       task_id: t.id, actor: "tiger_ai", action: "task_planned", details: { title: t.title },
     })));
     return json({ created: inserted?.length || 0 });

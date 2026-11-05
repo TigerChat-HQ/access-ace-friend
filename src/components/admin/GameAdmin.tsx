@@ -49,7 +49,7 @@ export const GameAdmin = () => {
       supabase.from("trophies").select("*").order("min_score"),
     ]);
     setQuestions(
-      ((q as unknown[]) || []).map((row) => ({
+      ((q as any[]) || []).map((row) => ({
         ...row,
         options: Array.isArray(row.options) ? row.options : JSON.parse(row.options || "[]"),
       })),
@@ -71,7 +71,7 @@ export const GameAdmin = () => {
       category: draft.category,
       difficulty: draft.difficulty,
       question: draft.question,
-      options: draft.options as never,
+      options: draft.options as any,
       correct_index: draft.correct_index,
       explanation: draft.explanation || null,
       is_active: draft.is_active,
@@ -88,7 +88,7 @@ export const GameAdmin = () => {
       .from("game_questions")
       .update({
         ...patch,
-        options: patch.options ? (patch.options as never) : undefined,
+        options: patch.options ? (patch.options as any) : undefined,
       })
       .eq("id", id);
     if (error) return toast({ title: "Update failed", description: error.message, variant: "destructive" });

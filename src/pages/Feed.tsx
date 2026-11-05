@@ -29,7 +29,7 @@ const Feed = () => {
         if (cancelled || error) return;
         const ids = (data?.post_ids as string[]) || [];
         if (ids.length) setAiOrder(ids);
-      } catch (error) { console.debug("Non-critical operation failed", error); }
+      } catch {}
     })();
     return () => {
       cancelled = true;

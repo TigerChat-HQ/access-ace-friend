@@ -20,23 +20,23 @@ export const TrendingRail = () => {
   useEffect(() => {
     (async () => {
       const { data: trending } = await supabase
-        .from("trending_posts" as never)
+        .from("trending_posts" as any)
         .select("id, like_count, comment_count")
         .order("score", { ascending: false })
         .limit(10);
-      if (!trending || (trending as unknown[]).length === 0) {
+      if (!trending || (trending as any[]).length === 0) {
         setLoading(false);
         return;
       }
-      const ids = (trending as unknown[]).map((t) => t.id);
+      const ids = (trending as any[]).map((t: any) => t.id);
       const { data: postsData } = await supabase
         .from("posts")
         .select("id, user_id, media_url, media_type, caption")
         .in("id", ids);
       if (postsData) {
-        const map = new Map((trending as unknown[]).map((t) => [t.id, t]));
+        const map = new Map((trending as any[]).map((t: any) => [t.id, t]));
         const merged = postsData
-          .map((p) => ({ ...p, ...(map.get(p.id) as never) }))
+          .map((p) => ({ ...p, ...(map.get(p.id) as any) }))
           .sort((a, b) => (b.like_count + b.comment_count) - (a.like_count + a.comment_count));
         setPosts(merged as TrendingPost[]);
       }
