@@ -21,7 +21,13 @@ import { useChatPreferences } from "@/hooks/useChatPreferences";
 import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
 import { StoryUploadDialog } from "@/components/chat/StoryUploadDialog";
-import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, X, ChevronUp, ChevronDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, Trash2, X, ChevronUp, ChevronDown } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
@@ -138,6 +144,32 @@ const Chats = () => {
       message_type: msgType,
       media_url: publicUrl,
     });
+  };
+
+  const handleDeleteChat = async (mode: "me" | "everyone") => {
+    if (!activeChat || !user) return;
+    const confirmed = mode === "everyone"
+      ? window.confirm("Delete this conversation for everyone? All members will lose access to its messages. This cannot be undone.")
+      : window.confirm("Delete this conversation for you? Other members will still see it.");
+    if (!confirmed) return;
+
+    const result = mode === "everyone"
+      ? await supabase.from("conversations").delete().eq("id", activeChat).select("id").maybeSingle()
+      : await supabase.from("conversation_members").delete()
+          .eq("conversation_id", activeChat).eq("user_id", user.id).select("id").maybeSingle();
+
+    if (result.error || !result.data) {
+      toast({
+        title: "Chat deletion failed",
+        description: result.error?.message || "You may not have permission to delete this chat.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setActiveChat(null);
+    await refetchConversations();
+    toast({ title: mode === "everyone" ? "Chat deleted for everyone" : "Chat deleted for you" });
   };
 
   const handleDeleteMessage = async (messageId: string) => {
@@ -387,6 +419,21 @@ const Chats = () => {
                   </>
                 )}
                 <ChatCustomizationDialog conversationId={activeConvo.id} />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary" title="Chat options" aria-label="Chat options">
+                      <MoreVertical className="w-4 h-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => void handleDeleteChat("me")}>
+                      <Trash2 className="w-4 h-4 mr-2" /> Delete for me
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => void handleDeleteChat("everyone")}>
+                      <Trash2 className="w-4 h-4 mr-2" /> Delete for everyone
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 
