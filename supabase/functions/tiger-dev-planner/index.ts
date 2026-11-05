@@ -33,6 +33,19 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (body.action === "propose_code") {
+      if (typeof body.id !== "string") return json({ error: "Invalid input" }, 400);
+      const { data: task } = await sb.from("dev_tasks").select("*").eq("id", body.id).single();
+      if (!task) return json({ error: "Task not found" }, 404);
+      if (!["approved", "in_progress"].includes(task.status)) return json({ error: "Approve the task first" }, 400);
+      if (task.plan?.pr?.url) return json({ pr: task.plan.pr });
+      const r = await proposeCode(task);
+      if ("error" in r) return json(r, 502);
+      await sb.from("dev_tasks").update({ status: "in_progress", plan: { ...task.plan, pr: r.pr }, updated_at: new Date().toISOString() }).eq("id", task.id);
+      await sb.from("dev_audit_log").insert({ task_id: task.id, actor: "tiger_ai", action: "pr_opened", details: { title: task.title, url: r.pr.url, files: r.pr.files } });
+      return json({ pr: r.pr });
+    }
+
     if (body.action !== "triage") return json({ error: "Unknown action" }, 400);
 
     const { data: existing } = await sb.from("dev_tasks").select("source_report_id").not("source_report_id", "is", null);
