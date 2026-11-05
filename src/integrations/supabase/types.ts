@@ -334,6 +334,62 @@ export type Database = {
         }
         Relationships: []
       }
+      dev_code_proposals: {
+        Row: {
+          base_sha: string
+          branch: string | null
+          created_at: string
+          created_by: string
+          id: string
+          original: string
+          path: string
+          pr_url: string | null
+          proposed: string
+          security: Json
+          status: string
+          summary: string
+          task_id: string
+        }
+        Insert: {
+          base_sha: string
+          branch?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          original: string
+          path: string
+          pr_url?: string | null
+          proposed: string
+          security?: Json
+          status?: string
+          summary: string
+          task_id: string
+        }
+        Update: {
+          base_sha?: string
+          branch?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          original?: string
+          path?: string
+          pr_url?: string | null
+          proposed?: string
+          security?: Json
+          status?: string
+          summary?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dev_code_proposals_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "dev_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dev_tasks: {
         Row: {
           category: string
@@ -385,9 +441,11 @@ export type Database = {
           created_at: string
           current_turn: string
           id: string
+          join_code: string
           last_move: Json | null
           player_black: string | null
           player_white: string
+          revision: number
           status: string
           updated_at: string
           vs_ai: boolean
@@ -398,9 +456,11 @@ export type Database = {
           created_at?: string
           current_turn?: string
           id?: string
+          join_code?: string
           last_move?: Json | null
           player_black?: string | null
           player_white: string
+          revision?: number
           status?: string
           updated_at?: string
           vs_ai?: boolean
@@ -411,9 +471,11 @@ export type Database = {
           created_at?: string
           current_turn?: string
           id?: string
+          join_code?: string
           last_move?: Json | null
           player_black?: string | null
           player_white?: string
+          revision?: number
           status?: string
           updated_at?: string
           vs_ai?: boolean
@@ -652,6 +714,21 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      owner_bootstrap: {
+        Row: {
+          owner_user_id: string | null
+          singleton: boolean
+        }
+        Insert: {
+          owner_user_id?: string | null
+          singleton?: boolean
+        }
+        Update: {
+          owner_user_id?: string | null
+          singleton?: boolean
+        }
+        Relationships: []
       }
       post_comments: {
         Row: {
@@ -1048,9 +1125,65 @@ export type Database = {
       }
     }
     Functions: {
+      commit_draft_move: {
+        Args: {
+          p_board: Json
+          p_id: string
+          p_move: Json
+          p_revision: number
+          p_status: string
+          p_turn: string
+          p_winner: string
+        }
+        Returns: {
+          board: Json
+          created_at: string
+          current_turn: string
+          id: string
+          join_code: string
+          last_move: Json | null
+          player_black: string | null
+          player_white: string
+          revision: number
+          status: string
+          updated_at: string
+          vs_ai: boolean
+          winner: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "draft_matches"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_direct_conversation: {
         Args: { _other_user_id: string }
         Returns: string
+      }
+      create_draft_match: {
+        Args: { p_vs_ai?: boolean }
+        Returns: {
+          board: Json
+          created_at: string
+          current_turn: string
+          id: string
+          join_code: string
+          last_move: Json | null
+          player_black: string | null
+          player_white: string
+          revision: number
+          status: string
+          updated_at: string
+          vs_ai: boolean
+          winner: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "draft_matches"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       create_group_conversation: {
         Args: { _member_ids: string[]; _name: string }
@@ -1068,9 +1201,57 @@ export type Database = {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
       }
+      join_draft_match: {
+        Args: { p_code?: string; p_match_id?: string }
+        Returns: {
+          board: Json
+          created_at: string
+          current_turn: string
+          id: string
+          join_code: string
+          last_move: Json | null
+          player_black: string | null
+          player_white: string
+          revision: number
+          status: string
+          updated_at: string
+          vs_ai: boolean
+          winner: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "draft_matches"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       reply_to_report: {
         Args: { _media_url?: string; _reply: string; _report_id: string }
         Returns: undefined
+      }
+      resign_draft_match: {
+        Args: { p_id: string }
+        Returns: {
+          board: Json
+          created_at: string
+          current_turn: string
+          id: string
+          join_code: string
+          last_move: Json | null
+          player_black: string | null
+          player_white: string
+          revision: number
+          status: string
+          updated_at: string
+          vs_ai: boolean
+          winner: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "draft_matches"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       send_contact_message: {
         Args: { _message: string; _subject: string }
