@@ -32,7 +32,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
   const toggleAudio = () => {
     if (!audioRef.current) return;
     if (playing) audioRef.current.pause();
-    else audioRef.current.play();
+    else void audioRef.current.play();
     setPlaying(!playing);
   };
 
@@ -42,7 +42,6 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
 
   return (
     <div className={cn("flex mb-2 animate-fade-in group", isMe ? "justify-end" : "justify-start")}>
-      {/* Actions menu - appears on hover */}
       {isMe && (
         <div className="flex items-center mr-1 opacity-60 md:opacity-0 group-hover:opacity-100 transition-opacity">
           <DropdownMenu>
@@ -75,7 +74,6 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
             : "bg-card/90 backdrop-blur border border-border/40 text-foreground rounded-bl-md"
         )}
       >
-        {/* Reply preview */}
         {replyMessage && (
           <div className={cn(
             "mb-2 px-3 py-1.5 rounded-lg border-l-2 text-[11px]",
@@ -95,12 +93,8 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
               {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
             </button>
             <div className="flex-1 flex items-center gap-0.5">
-              {waveformHeights.map((h, i) => (
-                <div
-                  key={i}
-                  className={cn("w-1 rounded-full", isMe ? "bg-primary-foreground/60" : "bg-foreground/40")}
-                  style={{ height: `${h}px` }}
-                />
+              {waveformHeights.map((height, index) => (
+                <div key={index} className={cn("w-1 rounded-full", isMe ? "bg-primary-foreground/60" : "bg-foreground/40")} style={{ height: `${height}px` }} />
               ))}
             </div>
             <span className="text-[10px] opacity-60">{message.text || "0:00"}</span>
@@ -138,17 +132,16 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
           <span className="text-[10px] opacity-60">{message.time}</span>
           {isMe && (
             message.status === "read" ? (
-              <CheckCheck className="w-3.5 h-3.5 text-neon-blue" />
+              <CheckCheck aria-label="Read" className="w-3.5 h-3.5 text-primary" />
             ) : message.status === "delivered" ? (
-              <CheckCheck className="w-3.5 h-3.5 opacity-60" />
+              <CheckCheck aria-label="Delivered" className="w-3.5 h-3.5 opacity-60" />
             ) : (
-              <Check className="w-3.5 h-3.5 opacity-60" />
+              <Check aria-label="Sent" className="w-3.5 h-3.5 opacity-60" />
             )
           )}
         </div>
       </div>
 
-      {/* Actions for other's messages */}
       {!isMe && (
         <div className="flex items-center ml-1 opacity-60 md:opacity-0 group-hover:opacity-100 transition-opacity">
           <DropdownMenu>
