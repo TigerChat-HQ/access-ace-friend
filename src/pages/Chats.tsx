@@ -21,13 +21,7 @@ import { useChatPreferences } from "@/hooks/useChatPreferences";
 import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
 import { StoryUploadDialog } from "@/components/chat/StoryUploadDialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, Trash2, X, ChevronUp, ChevronDown } from "lucide-react";
+import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, EyeOff, Trash2, X, ChevronUp, ChevronDown } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
@@ -35,6 +29,18 @@ import { Message } from "@/types/chat";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 
 type Story = Tables<"stories"> & { profile?: Tables<"profiles"> };
+
+const HIDDEN_CHATS_STORAGE_KEY = "tigerchats:hidden-chats";
+
+const readHiddenChatMap = (): Record<string, number> => {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(HIDDEN_CHATS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
 
 const Chats = () => {
   const { user } = useAuth();
@@ -53,6 +59,7 @@ const Chats = () => {
   const webrtc = useCall();
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [forwardMsg, setForwardMsg] = useState<{ content: string; type: string; mediaUrl?: string } | null>(null);
+  const [hiddenChats, setHiddenChats] = useState<Record<string, number>>(() => readHiddenChatMap());
 
   const [chatSearchOpen, setChatSearchOpen] = useState(false);
   const [chatSearch, setChatSearch] = useState("");
@@ -68,6 +75,33 @@ const Chats = () => {
   useReadReceipts(activeChat, !!activeChat);
   useScreenshotProtection(!!activeChat);
   const { prefs: chatPrefs } = useChatPreferences(activeChat);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(HIDDEN_CHATS_STORAGE_KEY, JSON.stringify(hiddenChats));
+    }
+  }, [hiddenChats]);
+
+  useEffect(() => {
+    if (!activeChat || !hiddenChats[activeChat]) return;
+    setActiveChat(null);
+  }, [activeChat, hiddenChats]);
+
+  useEffect(() => {
+    if (!conversations.length) return;
+    setHiddenChats((prev) => {
+      const next = { ...prev };
+      for (const chatId of Object.keys(prev)) {
+        const convo = conversations.find((item) => item.id === chatId);
+        const hiddenAt = prev[chatId] ?? 0;
+        const lastMessageAt = convo?.lastMessage?.created_at ? new Date(convo.lastMessage.created_at).getTime() : 0;
+        if (lastMessageAt > hiddenAt) {
+          delete next[chatId];
+        }
+      }
+      return next;
+    });
+  }, [conversations]);
 
   useEffect(() => {
     const fetchStories = async () => {
@@ -146,30 +180,9 @@ const Chats = () => {
     });
   };
 
-  const handleDeleteChat = async (mode: "me" | "everyone") => {
-    if (!activeChat || !user) return;
-    const confirmed = mode === "everyone"
-      ? window.confirm("Delete this conversation for everyone? All members will lose access to its messages. This cannot be undone.")
-      : window.confirm("Delete this conversation for you? Other members will still see it.");
-    if (!confirmed) return;
-
-    const result = mode === "everyone"
-      ? await supabase.from("conversations").delete().eq("id", activeChat).select("id").maybeSingle()
-      : await supabase.from("conversation_members").delete()
-          .eq("conversation_id", activeChat).eq("user_id", user.id).select("id").maybeSingle();
-
-    if (result.error || !result.data) {
-      toast({
-        title: "Chat deletion failed",
-        description: result.error?.message || "You may not have permission to delete this chat.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setActiveChat(null);
-    await refetchConversations();
-    toast({ title: mode === "everyone" ? "Chat deleted for everyone" : "Chat deleted for you" });
+  const handleHideChat = (conversationId: string) => {
+    setHiddenChats((prev) => ({ ...prev, [conversationId]: Date.now() }));
+    if (activeChat === conversationId) setActiveChat(null);
   };
 
   const handleDeleteMessage = async (messageId: string) => {
@@ -222,6 +235,7 @@ const Chats = () => {
     const name = c.otherProfile?.display_name || c.name || "";
     return name.toLowerCase().includes(search.toLowerCase());
   });
+  const visibleConversations = filteredConversations.filter((c) => !hiddenChats[c.id]);
 
   const storyBarData = [
     { id: "add", userId: "me", userName: "Your Story", avatar: "➕", viewed: false },
@@ -336,14 +350,14 @@ const Chats = () => {
             <div className="flex items-center justify-center py-20">
               <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
-          ) : filteredConversations.length === 0 ? (
+          ) : visibleConversations.length === 0 ? (
             <div className="text-center py-20 px-4">
               <MessageCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">No conversations yet</p>
               <p className="text-xs text-muted-foreground mt-1">Tap the ✏️ icon to start a new chat!</p>
             </div>
           ) : (
-            filteredConversations.map((convo) => (
+            visibleConversations.map((convo) => (
               <ChatListItem
                 key={convo.id}
                 contact={{
@@ -419,21 +433,14 @@ const Chats = () => {
                   </>
                 )}
                 <ChatCustomizationDialog conversationId={activeConvo.id} />
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary" title="Chat options" aria-label="Chat options">
-                      <MoreVertical className="w-4 h-4" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => void handleDeleteChat("me")}>
-                      <Trash2 className="w-4 h-4 mr-2" /> Delete for me
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => void handleDeleteChat("everyone")}>
-                      <Trash2 className="w-4 h-4 mr-2" /> Delete for everyone
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <button
+                  onClick={() => handleHideChat(activeConvo.id)}
+                  className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary"
+                  title="Hide chat"
+                  aria-label="Hide chat"
+                >
+                  <EyeOff className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
