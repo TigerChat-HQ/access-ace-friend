@@ -22,9 +22,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
       - name: Dependency vulnerabilities
-        run: npm audit --audit-level=critical --omit=dev --package-lock-only
+        run: npm audit --audit-level=high --omit=dev --package-lock-only
       - name: Secret leak scan
         run: |
           if git grep -nE "(sk-[A-Za-z0-9]{32,}|SUPABASE_SERVICE_ROLE_KEY\s*=\s*['"]ey|-----BEGIN [A-Z ]*PRIVATE KEY-----)" -- . ':!.github'; then
