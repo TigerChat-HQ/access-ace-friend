@@ -15,6 +15,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useAppLock, isWebAuthnSupported } from "@/hooks/useAppLock";
 import tigerLogo from "@/assets/tigerchats-logo.png";
+import { ringtoneOptions, getStoredRingtone, setStoredRingtone, type RingtoneId } from "@/lib/ringtones";
 
 const SettingToggle = ({
   label, description, value, onChange, icon,
@@ -50,6 +51,8 @@ const Settings = () => {
   const [readReceipts, setReadReceipts] = useState(true);
   const [lastSeen, setLastSeen] = useState(true);
   const [isPrivate, setIsPrivate] = useState(false);
+  const [incomingCallTone, setIncomingCallTone] = useState<RingtoneId>(() => getStoredRingtone("incoming_call"));
+  const [incomingSmsTone, setIncomingSmsTone] = useState<RingtoneId>(() => getStoredRingtone("incoming_sms"));
   const appLock = useAppLock();
 
   const toggleAppLock = async (v: boolean) => {
@@ -119,6 +122,12 @@ const Settings = () => {
     navigate("/");
   };
 
+  const updateTone = (kind: "incoming_call" | "incoming_sms", value: RingtoneId) => {
+    setStoredRingtone(kind, value);
+    if (kind === "incoming_call") setIncomingCallTone(value);
+    else setIncomingSmsTone(value);
+  };
+
   const settingSections = [
     { id: "profile", icon: User, label: t("editProfile"), description: t("nameDesc") },
     { id: "notifications", icon: Bell, label: t("notifications"), description: t("notifDesc") },
@@ -139,11 +148,7 @@ const Settings = () => {
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
                 <div className="w-24 h-24 rounded-full bg-secondary flex items-center justify-center overflow-hidden">
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-                  ) : (
-                    <User className="w-10 h-10 text-muted-foreground" />
-                  )}
+                  {avatarUrl ? <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" /> : <User className="w-10 h-10 text-muted-foreground" />}
                 </div>
                 <label className="absolute bottom-0 right-0 p-2 rounded-full bg-primary text-primary-foreground cursor-pointer hover:opacity-90 transition-opacity">
                   <Camera className="w-4 h-4" />
@@ -161,9 +166,7 @@ const Settings = () => {
                 <label className="text-xs text-muted-foreground mb-1 block">{t("bio")}</label>
                 <Textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder={t("bioPlaceholder")} className="bg-surface border-border/50 resize-none" rows={3} />
               </div>
-              <Button onClick={updateProfile} disabled={loading} className="w-full neon-glow">
-                {loading ? t("saving") : t("save")}
-              </Button>
+              <Button onClick={updateProfile} disabled={loading} className="w-full neon-glow">{loading ? t("saving") : t("save")}</Button>
             </div>
           </div>
         );
@@ -172,36 +175,31 @@ const Settings = () => {
           <div className="space-y-4 animate-fade-in">
             <SettingToggle label={t("pushNotifications")} description={t("pushDesc")} value={notifications} onChange={setNotifications} />
             <SettingToggle label={t("sound")} description={t("soundDesc")} value={soundEnabled} onChange={setSoundEnabled} />
+            <div className="space-y-2">
+              <label htmlFor="incoming-call-tone" className="text-sm font-medium text-foreground">Incoming call ringtone</label>
+              <select id="incoming-call-tone" value={incomingCallTone} onChange={(e) => updateTone("incoming_call", e.target.value as RingtoneId)} className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground">
+                {ringtoneOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="incoming-sms-tone" className="text-sm font-medium text-foreground">Incoming SMS ringtone</label>
+              <select id="incoming-sms-tone" value={incomingSmsTone} onChange={(e) => updateTone("incoming_sms", e.target.value as RingtoneId)} className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground">
+                {ringtoneOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+              </select>
+            </div>
           </div>
         );
       case "privacy":
         return (
           <div className="space-y-4 animate-fade-in">
-            <SettingToggle
-              label="Private account"
-              description="Only approved followers can see your posts"
-              value={isPrivate}
-              onChange={updatePrivacy}
-              icon={<Lock className="w-5 h-5" />}
-            />
+            <SettingToggle label="Private account" description="Only approved followers can see your posts" value={isPrivate} onChange={updatePrivacy} icon={<Lock className="w-5 h-5" />} />
             <SettingToggle label={t("readReceipts")} description={t("readReceiptsDesc")} value={readReceipts} onChange={setReadReceipts} />
             <SettingToggle label={t("lastSeen")} description={t("lastSeenDesc")} value={lastSeen} onChange={setLastSeen} />
-            {isWebAuthnSupported() && (
-              <SettingToggle
-                label="Biometric app lock"
-                description="Require fingerprint / Face ID to open TIGERCHATS"
-                value={appLock.enabled}
-                onChange={toggleAppLock}
-                icon={<Fingerprint className="w-5 h-5" />}
-              />
-            )}
+            {isWebAuthnSupported() && <SettingToggle label="Biometric app lock" description="Require fingerprint / Face ID to open TIGERCHATS" value={appLock.enabled} onChange={toggleAppLock} icon={<Fingerprint className="w-5 h-5" />} />}
             <div className="pt-4 border-t border-border/50">
               <button className="flex items-center gap-3 w-full py-3 text-left">
                 <Lock className="w-5 h-5 text-muted-foreground" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground">{t("twoFactor")}</p>
-                  <p className="text-xs text-muted-foreground">{t("twoFactorDesc")}</p>
-                </div>
+                <div className="flex-1"><p className="text-sm font-medium text-foreground">{t("twoFactor")}</p><p className="text-xs text-muted-foreground">{t("twoFactorDesc")}</p></div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground" />
               </button>
             </div>
@@ -210,31 +208,11 @@ const Settings = () => {
       case "appearance":
         return (
           <div className="space-y-4 animate-fade-in">
-            <SettingToggle
-              label={theme === "dark" ? t("darkMode") : t("lightMode")}
-              description={theme === "dark" ? t("useDarkTheme") : t("useLightTheme")}
-              value={theme === "dark"}
-              onChange={toggleTheme}
-              icon={theme === "dark" ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-            />
+            <SettingToggle label={theme === "dark" ? t("darkMode") : t("lightMode")} description={theme === "dark" ? t("useDarkTheme") : t("useLightTheme")} value={theme === "dark"} onChange={toggleTheme} icon={theme === "dark" ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />} />
             <div className="pt-4 border-t border-border/50">
-              <div className="flex items-center gap-3 mb-3">
-                <Globe className="w-5 h-5 text-muted-foreground" />
-                <p className="text-sm font-medium text-foreground">{t("language")}</p>
-              </div>
+              <div className="flex items-center gap-3 mb-3"><Globe className="w-5 h-5 text-muted-foreground" /><p className="text-sm font-medium text-foreground">{t("language")}</p></div>
               <div className="space-y-1">
-                {languages.map((lang) => (
-                  <button
-                    key={lang.code}
-                    onClick={() => setLanguage(lang.code)}
-                    className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors ${
-                      language === lang.code ? "bg-primary/10 text-primary" : "hover:bg-surface-hover text-foreground"
-                    }`}
-                  >
-                    <span className="text-sm">{lang.label}</span>
-                    {language === lang.code && <div className="w-2 h-2 rounded-full bg-primary" />}
-                  </button>
-                ))}
+                {languages.map((lang) => <button key={lang.code} onClick={() => setLanguage(lang.code)} className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors ${language === lang.code ? "bg-primary/10 text-primary" : "hover:bg-surface-hover text-foreground"}`}><span className="text-sm">{lang.label}</span>{language === lang.code && <div className="w-2 h-2 rounded-full bg-primary" />}</button>)}
               </div>
             </div>
           </div>
@@ -248,60 +226,24 @@ const Settings = () => {
     <div className="h-full overflow-y-auto bg-background">
       <div className="max-w-lg mx-auto">
         <div className="flex items-center gap-3 px-4 py-4 border-b border-border/50 glass sticky top-0 z-10">
-          <button onClick={() => activeSection ? setActiveSection(null) : navigate("/")} className="p-1 hover:bg-surface-hover rounded-full transition-colors">
-            <ArrowLeft className="w-5 h-5 text-foreground" />
-          </button>
-          <h1 className="text-lg font-bold text-foreground">
-            {activeSection ? settingSections.find(s => s.id === activeSection)?.label : t("settings")}
-          </h1>
+          <button onClick={() => activeSection ? setActiveSection(null) : navigate("/")} className="p-1 hover:bg-surface-hover rounded-full transition-colors"><ArrowLeft className="w-5 h-5 text-foreground" /></button>
+          <h1 className="text-lg font-bold text-foreground">{activeSection ? settingSections.find(s => s.id === activeSection)?.label : t("settings")}</h1>
         </div>
 
-        {activeSection ? (
-          <div className="p-4">{renderSection()}</div>
-        ) : (
+        {activeSection ? <div className="p-4">{renderSection()}</div> : (
           <div className="p-4 space-y-2">
             <div className="glass rounded-2xl p-4 flex items-center gap-4 mb-4">
-              <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center overflow-hidden">
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-                ) : (
-                  <img src={tigerLogo} alt="Profile" className="w-12 h-12" width={512} height={512} />
-                )}
-              </div>
-              <div className="flex-1">
-                <h2 className="font-semibold text-foreground">{displayName || "Set your name"}</h2>
-                <p className="text-xs text-muted-foreground">{user?.email}</p>
-              </div>
+              <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center overflow-hidden">{avatarUrl ? <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" /> : <img src={tigerLogo} alt="Profile" className="w-12 h-12" width={512} height={512} />}</div>
+              <div className="flex-1"><h2 className="font-semibold text-foreground">{displayName || "Set your name"}</h2><p className="text-xs text-muted-foreground">{user?.email}</p></div>
             </div>
 
-            {settingSections.map((section) => (
-              <button key={section.id} onClick={() => setActiveSection(section.id)} className="w-full flex items-center gap-4 p-4 glass rounded-xl hover:bg-surface-hover transition-colors text-left">
-                <div className="w-10 h-10 rounded-full bg-surface flex items-center justify-center">
-                  <section.icon className="w-5 h-5 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground">{section.label}</p>
-                  <p className="text-xs text-muted-foreground">{section.description}</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </button>
-            ))}
+            {settingSections.map((section) => <button key={section.id} onClick={() => setActiveSection(section.id)} className="w-full flex items-center gap-4 p-4 glass rounded-xl hover:bg-surface-hover transition-colors text-left"><div className="w-10 h-10 rounded-full bg-surface flex items-center justify-center"><section.icon className="w-5 h-5 text-primary" /></div><div className="flex-1"><p className="text-sm font-medium text-foreground">{section.label}</p><p className="text-xs text-muted-foreground">{section.description}</p></div><ChevronRight className="w-4 h-4 text-muted-foreground" /></button>)}
 
             <div className="pt-4 space-y-2">
               <Button variant="outline" onClick={() => navigate("/contact")} className="w-full justify-start h-12"><Mail className="w-5 h-5 mr-3 text-primary" />Contact admin</Button>
-              <button onClick={handleSignOut} className="w-full flex items-center gap-4 p-4 glass rounded-xl hover:bg-destructive/10 transition-colors text-left">
-                <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
-                  <LogOut className="w-5 h-5 text-destructive" />
-                </div>
-                <span className="text-sm font-medium text-destructive">{t("signOut")}</span>
-              </button>
+              <button onClick={handleSignOut} className="w-full flex items-center gap-4 p-4 glass rounded-xl hover:bg-destructive/10 transition-colors text-left"><div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center"><LogOut className="w-5 h-5 text-destructive" /></div><span className="text-sm font-medium text-destructive">{t("signOut")}</span></button>
             </div>
-
-            <div className="text-center py-6 space-y-1">
-              <img src={tigerLogo} alt="TIGERCHATS" className="w-10 h-10 mx-auto opacity-30" width={512} height={512} />
-              <p className="text-xs text-muted-foreground">TIGERCHATS v1.0</p>
-              <p className="text-[10px] text-muted-foreground">{t("encrypted")}</p>
-            </div>
+            <div className="text-center py-6 space-y-1"><img src={tigerLogo} alt="TIGERCHATS" className="w-10 h-10 mx-auto opacity-30" width={512} height={512} /><p className="text-xs text-muted-foreground">TIGERCHATS v1.0</p><p className="text-[10px] text-muted-foreground">{t("encrypted")}</p></div>
           </div>
         )}
       </div>

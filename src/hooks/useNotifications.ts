@@ -1,6 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { playRingtone } from "@/lib/ringtones";
 
 const tryShowSwNotification = async (payload: { title: string; body: string; url: string; tag: string }) => {
   try {
@@ -26,7 +27,7 @@ export const useNotifications = () => {
 
   const showNotification = useCallback(
     async (title: string, body: string, opts?: { url?: string; tag?: string; icon?: string; force?: boolean }) => {
-      if (Notification.permission !== "granted") return;
+      if (!("Notification" in window) || Notification.permission !== "granted") return;
       if (!opts?.force && !document.hidden) return;
       const payload = {
         title,
@@ -35,7 +36,6 @@ export const useNotifications = () => {
         tag: opts?.tag || "tigerchats",
         icon: opts?.icon || "/pwa-icon-192.png",
       };
-      // Prefer SW so it persists as a bubble; fall back to page Notification
       const ok = await tryShowSwNotification(payload);
       if (!ok) {
         const n = new Notification(title, {
@@ -54,49 +54,44 @@ export const useNotifications = () => {
     []
   );
 
-  // Listen for new chat messages
+  // Incoming chat messages use the independently selected SMS tone, in the app or in the background.
   useEffect(() => {
     if (!user) return;
-
     const channel = supabase
       .channel("notifications-msg")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        async (payload) => {
-          const msg = payload.new as any;
-          if (msg.sender_id === user.id) return;
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, async (payload) => {
+        const msg = payload.new as any;
+        if (msg.sender_id === user.id) return;
 
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("display_name")
-            .eq("user_id", msg.sender_id)
-            .single();
+        playRingtone("incoming_sms");
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("display_name")
+          .eq("user_id", msg.sender_id)
+          .single();
 
-          const senderName = profile?.display_name || "Someone";
-          const body =
-            msg.message_type === "voice"
-              ? "🎤 Voice message"
-              : msg.message_type === "image"
-              ? "📷 Image"
-              : msg.message_type === "file"
-              ? "📎 File"
-              : msg.content || "New message";
+        const senderName = profile?.display_name || "Someone";
+        const body =
+          msg.message_type === "voice"
+            ? "🎤 Voice message"
+            : msg.message_type === "image"
+            ? "📷 Image"
+            : msg.message_type === "file"
+            ? "📎 File"
+            : msg.content || "New message";
 
-          showNotification(senderName, body, {
-            url: `/chats?c=${msg.conversation_id}`,
-            tag: `msg-${msg.conversation_id}`,
-          });
-        }
-      )
+        showNotification(senderName, body, {
+          url: `/chats?c=${msg.conversation_id}`,
+          tag: `msg-${msg.conversation_id}`,
+        });
+      })
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [user, showNotification]);
 
-  // Listen for social notifications (likes, comments, follows)
   useEffect(() => {
     if (!user) return;
     const channel = supabase
@@ -130,11 +125,10 @@ export const useNotifications = () => {
       )
       .subscribe();
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [user, showNotification]);
 
-  // Request permission on mount
   useEffect(() => {
     requestPermission();
   }, [requestPermission]);
