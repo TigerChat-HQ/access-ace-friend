@@ -22,7 +22,11 @@ const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
     { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
     {
-      urls: ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443", "turn:openrelay.metered.ca:443?transport=tcp"],
+      urls: [
+        "turn:openrelay.metered.ca:80",
+        "turn:openrelay.metered.ca:443",
+        "turn:openrelay.metered.ca:443?transport=tcp",
+      ],
       username: "openrelayproject",
       credential: "openrelayproject",
     },
@@ -69,9 +73,15 @@ export const useWebRTC = () => {
   const iceQueue = useRef<RTCIceCandidateInit[]>([]);
   const localIceQueue = useRef<QueuedIce[]>([]);
   const signalReadyCallId = useRef<string | null>(null);
+  const processedSignalIds = useRef<Set<string>>(new Set());
   const statusRef = useRef<CallStatus>("idle");
   const callRef = useRef<CallInfo | null>(null);
   const facingRef = useRef<"user" | "environment">("user");
+
+  const getSignalKey = useCallback((signal: any, fallbackCallId?: string) => {
+    const callId = signal?.signal_data?.callId || signal?.callId || fallbackCallId || signal?.id;
+    return callId ? `${signal?.signal_type ?? "signal"}:${callId}` : null;
+  }, []);
 
   useEffect(() => { statusRef.current = callStatus; }, [callStatus]);
   useEffect(() => { callRef.current = activeCall; }, [activeCall]);
@@ -93,6 +103,7 @@ export const useWebRTC = () => {
     localIceQueue.current = [];
     signalReadyCallId.current = null;
     pendingOfferRef.current = null;
+    processedSignalIds.current.clear();
     setRemoteStream(new MediaStream());
     [durationTimerRef, ringTimerRef, disconnectTimerRef].forEach((ref) => {
       if (ref.current) { clearInterval(ref.current as any); clearTimeout(ref.current as any); ref.current = null; }
@@ -122,8 +133,6 @@ export const useWebRTC = () => {
     });
   }, [user]);
 
-  // Do not publish ICE candidates before the offer/answer exists in the database;
-  // otherwise a fast candidate insert can arrive before the call invitation.
   const flushLocalIce = useCallback(async (info: CallInfo) => {
     signalReadyCallId.current = info.callId;
     const queued = localIceQueue.current.filter((item) => item.info.callId === info.callId);
@@ -329,8 +338,12 @@ export const useWebRTC = () => {
       const signal = payload.new as any;
       const data = signal.signal_data || {};
       if (data.from === user.id) return;
-      const callId = data.callId;
+      const callId = data.callId || signal.id;
       if (!callId) return;
+
+      const signalKey = getSignalKey(signal, callId);
+      if (signalKey && processedSignalIds.current.has(signalKey)) return;
+      if (signalKey) processedSignalIds.current.add(signalKey);
 
       switch (signal.signal_type) {
         case "offer": {
@@ -395,21 +408,18 @@ export const useWebRTC = () => {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "call_signals", filter: `caller_id=eq.${user.id}` }, (payload) => { void handle(payload).catch((error) => console.error("Call signal failed:", error)); })
       .subscribe(async (status) => {
         if (status !== "SUBSCRIBED") return;
-        // Recover an invitation that arrived while this app was reconnecting. Only consider
-        // recent calls and discard any whose callId already has an answer/end signal.
         const since = new Date(Date.now() - RECENT_CALL_WINDOW_MS).toISOString();
         const { data: recent } = await supabase.from("call_signals").select("*")
           .eq("callee_id", user.id).gte("created_at", since).order("created_at", { ascending: true }).limit(50);
         if (disposed || !recent?.length) return;
         const completed = new Set(recent.filter((row: any) => ["answer", "hangup", "reject", "missed"].includes(row.signal_type))
           .map((row: any) => row.signal_data?.callId).filter(Boolean));
-        const pendingOffer = recent.find((row: any) => row.signal_type === "offer" && row.status === "pending" &&
-          !completed.has(row.signal_data?.callId));
+        const pendingOffer = recent.find((row: any) => row.signal_type === "offer" && row.status === "pending" && !completed.has(row.signal_data?.callId));
         if (pendingOffer) await handle({ new: pendingOffer });
       });
 
     return () => { disposed = true; void supabase.removeChannel(channel); };
-  }, [user, finish, endCall, sendSignal]);
+  }, [user, finish, endCall, sendSignal, getSignalKey]);
 
   useEffect(() => () => { cleanupMedia(); }, [user?.id, cleanupMedia]);
 
