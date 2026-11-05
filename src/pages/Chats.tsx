@@ -21,6 +21,7 @@ import { useChatPreferences } from "@/hooks/useChatPreferences";
 import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
 import { StoryUploadDialog } from "@/components/chat/StoryUploadDialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, EyeOff, Trash2, X, ChevronUp, ChevronDown } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -95,9 +96,7 @@ const Chats = () => {
         const convo = conversations.find((item) => item.id === chatId);
         const hiddenAt = prev[chatId] ?? 0;
         const lastMessageAt = convo?.lastMessage?.created_at ? new Date(convo.lastMessage.created_at).getTime() : 0;
-        if (lastMessageAt > hiddenAt) {
-          delete next[chatId];
-        }
+        if (lastMessageAt > hiddenAt) delete next[chatId];
       }
       return next;
     });
@@ -109,11 +108,7 @@ const Chats = () => {
       if (data) {
         const enriched = await Promise.all(
           data.map(async (story) => {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("*")
-              .eq("user_id", story.user_id)
-              .single();
+            const { data: profile } = await supabase.from("profiles").select("*").eq("user_id", story.user_id).single();
             return { ...story, profile };
           })
         );
@@ -185,6 +180,37 @@ const Chats = () => {
     if (activeChat === conversationId) setActiveChat(null);
   };
 
+  const handleDeleteChat = async (mode: "me" | "everyone") => {
+    if (!activeChat || !user) return;
+    const confirmed = mode === "everyone"
+      ? window.confirm("Delete this conversation for everyone? All members will lose access to its messages. This cannot be undone.")
+      : window.confirm("Delete this conversation for you? Other members will still see it.");
+    if (!confirmed) return;
+
+    const result = mode === "everyone"
+      ? await supabase.from("conversations").delete().eq("id", activeChat).select("id").maybeSingle()
+      : await supabase.from("conversation_members").delete()
+          .eq("conversation_id", activeChat).eq("user_id", user.id).select("id").maybeSingle();
+
+    if (result.error || !result.data) {
+      toast({
+        title: "Chat deletion failed",
+        description: result.error?.message || "You may not have permission to delete this chat.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setHiddenChats((prev) => {
+      const next = { ...prev };
+      delete next[activeChat];
+      return next;
+    });
+    setActiveChat(null);
+    await refetchConversations();
+    toast({ title: mode === "everyone" ? "Chat deleted for everyone" : "Chat deleted for you" });
+  };
+
   const handleDeleteMessage = async (messageId: string) => {
     const { error } = await supabase.from("messages").delete().eq("id", messageId);
     if (error) toast({ title: "Delete failed", description: error.message, variant: "destructive" });
@@ -219,9 +245,7 @@ const Chats = () => {
     return uiMessages.filter(({ ui }) => ui.text.toLowerCase().includes(q)).map(({ ui }) => ui.id);
   }, [chatSearch, uiMessages]);
 
-  useEffect(() => {
-    setMatchIdx(0);
-  }, [chatSearch]);
+  useEffect(() => { setMatchIdx(0); }, [chatSearch]);
 
   useEffect(() => {
     if (!matchIds.length) return;
@@ -284,31 +308,18 @@ const Chats = () => {
   return (
     <div className="h-full flex overflow-hidden bg-background">
       {storyViewerIndex !== null && storyViewerData.length > 0 && (
-        <StoryViewer
-          stories={storyViewerData}
-          initialIndex={storyViewerIndex}
-          onClose={() => setStoryViewerIndex(null)}
-          currentUserId={user?.id}
-        />
+        <StoryViewer stories={storyViewerData} initialIndex={storyViewerIndex} onClose={() => setStoryViewerIndex(null)} currentUserId={user?.id} />
       )}
 
       {forwardMsg && (
-        <ForwardDialog
-          open={!!forwardMsg}
-          onClose={() => setForwardMsg(null)}
-          messageContent={forwardMsg.content}
-          messageType={forwardMsg.type}
-          mediaUrl={forwardMsg.mediaUrl}
-        />
+        <ForwardDialog open={!!forwardMsg} onClose={() => setForwardMsg(null)} messageContent={forwardMsg.content} messageType={forwardMsg.type} mediaUrl={forwardMsg.mediaUrl} />
       )}
 
       <div className={`${showSidebar ? "flex" : "hidden"} md:flex flex-col w-full md:w-[380px] lg:w-[420px] border-r border-border/50 bg-card/50`}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
           <div className="flex items-center gap-2.5">
             <img src={tigerLogo} alt="TIGERCHATS" className="w-9 h-9" width={512} height={512} />
-            <h1 className="text-lg font-bold tracking-tight text-foreground">
-              TIGER<span className="text-primary">CHATS</span>
-            </h1>
+            <h1 className="text-lg font-bold tracking-tight text-foreground">TIGER<span className="text-primary">CHATS</span></h1>
           </div>
           <div className="flex items-center gap-1">
             <NewDmDialog onStarted={(id) => { setActiveChat(id); refetchConversations(); }} />
@@ -330,26 +341,15 @@ const Chats = () => {
         <div className="px-4 py-2">
           <div className="flex items-center gap-2 bg-surface rounded-xl px-3 py-2">
             <Search className="w-4 h-4 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search chats..."
-              className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
-            />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search chats..." className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none" />
           </div>
         </div>
 
-        <StoriesBar
-          stories={storyBarData}
-          onStoryClick={(index) => setStoryViewerIndex(index)}
-          onAddStory={() => {}}
-        />
+        <StoriesBar stories={storyBarData} onStoryClick={(index) => setStoryViewerIndex(index)} onAddStory={() => {}} />
 
         <div className="flex-1 overflow-y-auto scrollbar-thin">
           {convosLoading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            </div>
+            <div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
           ) : visibleConversations.length === 0 ? (
             <div className="text-center py-20 px-4">
               <MessageCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
@@ -365,9 +365,7 @@ const Chats = () => {
                   name: convo.otherProfile?.display_name || convo.name || "Chat",
                   avatar: (convo.otherProfile?.display_name || "C").slice(0, 2).toUpperCase(),
                   lastMessage: convo.lastMessage?.content || "No messages yet",
-                  time: convo.lastMessage
-                    ? new Date(convo.lastMessage.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                    : "",
+                  time: convo.lastMessage ? new Date(convo.lastMessage.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "",
                   unread: convo.unreadCount,
                   online: convo.otherProfile?.is_online || false,
                 }}
@@ -383,105 +381,47 @@ const Chats = () => {
         {activeConvo ? (
           <div className="flex flex-col h-full">
             <div className="flex items-center gap-3 px-4 py-3 glass border-b border-border/50">
-              <button onClick={() => setActiveChat(null)} className="md:hidden p-1 hover:bg-surface-hover rounded-full transition-colors">
-                <ArrowLeft className="w-5 h-5 text-foreground" />
-              </button>
+              <button onClick={() => setActiveChat(null)} className="md:hidden p-1 hover:bg-surface-hover rounded-full transition-colors"><ArrowLeft className="w-5 h-5 text-foreground" /></button>
               <div className="relative">
-                <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-sm font-semibold text-secondary-foreground">
-                  {activeConvoAvatar}
-                </div>
-                {activeConvo.otherProfile?.is_online && (
-                  <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background" />
-                )}
+                <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-sm font-semibold text-secondary-foreground">{activeConvoAvatar}</div>
+                {activeConvo.otherProfile?.is_online && <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background" />}
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-sm text-foreground">{activeConvoName}</h3>
                 <p className="text-[11px] text-muted-foreground">
-                  {isTyping ? (
-                    <span className="text-primary animate-pulse">typing...</span>
-                  ) : isGroup ? (
-                    <span>Group</span>
-                  ) : activeConvo.otherProfile?.is_online ? (
-                    <span className="text-primary">online</span>
-                  ) : (
-                    "last seen recently"
-                  )}
+                  {isTyping ? <span className="text-primary animate-pulse">typing...</span> : isGroup ? <span>Group</span> : activeConvo.otherProfile?.is_online ? <span className="text-primary">online</span> : "last seen recently"}
                 </p>
               </div>
               <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setChatSearchOpen((o) => !o)}
-                  className={`p-2 rounded-full hover:bg-surface-hover transition-colors ${chatSearchOpen ? "text-primary" : "text-muted-foreground hover:text-primary"}`}
-                  title="Search messages"
-                >
-                  <Search className="w-4 h-4" />
-                </button>
-                <button onClick={() => handleStartCall(false)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary">
-                  <Phone className="w-4 h-4" />
-                </button>
-                <button onClick={() => handleStartCall(true)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary">
-                  <Video className="w-4 h-4" />
-                </button>
-                {isGroup && (
-                  <>
-                    <InviteMembersDialog
-                      conversationId={activeConvo.id}
-                      existingMemberIds={[user?.id || ""]}
-                      onInvited={() => refetchConversations()}
-                    />
-                    <GroupAdminDialog conversationId={activeConvo.id} />
-                  </>
-                )}
+                <button onClick={() => setChatSearchOpen((o) => !o)} className={`p-2 rounded-full hover:bg-surface-hover transition-colors ${chatSearchOpen ? "text-primary" : "text-muted-foreground hover:text-primary"}`} title="Search messages"><Search className="w-4 h-4" /></button>
+                <button onClick={() => handleStartCall(false)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary"><Phone className="w-4 h-4" /></button>
+                <button onClick={() => handleStartCall(true)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary"><Video className="w-4 h-4" /></button>
+                {isGroup && <>
+                  <InviteMembersDialog conversationId={activeConvo.id} existingMemberIds={[user?.id || ""]} onInvited={() => refetchConversations()} />
+                  <GroupAdminDialog conversationId={activeConvo.id} />
+                </>}
                 <ChatCustomizationDialog conversationId={activeConvo.id} />
-                <button
-                  onClick={() => handleHideChat(activeConvo.id)}
-                  className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary"
-                  title="Hide chat"
-                  aria-label="Hide chat"
-                >
-                  <EyeOff className="w-4 h-4" />
-                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary" title="Chat options" aria-label="Chat options"><MoreVertical className="w-4 h-4" /></button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => handleHideChat(activeConvo.id)}><EyeOff className="w-4 h-4 mr-2" /> Hide chat</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => void handleDeleteChat("me")}><Trash2 className="w-4 h-4 mr-2" /> Delete for me</DropdownMenuItem>
+                    <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => void handleDeleteChat("everyone")}><Trash2 className="w-4 h-4 mr-2" /> Delete for everyone</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 
             {chatSearchOpen && (
               <div className="flex items-center gap-2 px-4 py-2 border-b border-border/50 bg-card/80">
                 <Search className="w-4 h-4 text-muted-foreground" />
-                <input
-                  autoFocus
-                  value={chatSearch}
-                  onChange={(e) => setChatSearch(e.target.value)}
-                  placeholder="Search in conversation..."
-                  className="flex-1 bg-transparent text-sm outline-none text-foreground placeholder:text-muted-foreground"
-                />
-                {chatSearch && (
-                  <span className="text-[11px] text-muted-foreground tabular-nums">
-                    {matchIds.length === 0 ? "0" : `${matchIdx + 1}/${matchIds.length}`}
-                  </span>
-                )}
-                <button
-                  onClick={() => setMatchIdx((i) => (matchIds.length ? (i - 1 + matchIds.length) % matchIds.length : 0))}
-                  disabled={!matchIds.length}
-                  className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30"
-                >
-                  <ChevronUp className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setMatchIdx((i) => (matchIds.length ? (i + 1) % matchIds.length : 0))}
-                  disabled={!matchIds.length}
-                  className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30"
-                >
-                  <ChevronDown className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => {
-                    setChatSearchOpen(false);
-                    setChatSearch("");
-                  }}
-                  className="p-1 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                <input autoFocus value={chatSearch} onChange={(e) => setChatSearch(e.target.value)} placeholder="Search in conversation..." className="flex-1 bg-transparent text-sm outline-none text-foreground placeholder:text-muted-foreground" />
+                {chatSearch && <span className="text-[11px] text-muted-foreground tabular-nums">{matchIds.length === 0 ? "0" : `${matchIdx + 1}/${matchIds.length}`}</span>}
+                <button onClick={() => setMatchIdx((i) => (matchIds.length ? (i - 1 + matchIds.length) % matchIds.length : 0))} disabled={!matchIds.length} className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30"><ChevronUp className="w-4 h-4" /></button>
+                <button onClick={() => setMatchIdx((i) => (matchIds.length ? (i + 1) % matchIds.length : 0))} disabled={!matchIds.length} className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30"><ChevronDown className="w-4 h-4" /></button>
+                <button onClick={() => { setChatSearchOpen(false); setChatSearch(""); }} className="p-1 text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
               </div>
             )}
 
@@ -491,50 +431,22 @@ const Chats = () => {
                 const isMatch = matchSet.has(ui.id);
                 const isActive = ui.id === activeMatchId;
                 return (
-                  <div
-                    key={ui.id}
-                    data-msg-id={ui.id}
-                    className={
-                      isActive
-                        ? "rounded-lg ring-2 ring-primary ring-offset-2 ring-offset-background transition-all"
-                        : isMatch
-                        ? "rounded-lg ring-1 ring-primary/40 transition-all"
-                        : ""
-                    }
-                  >
-                    <MessageBubble
-                      message={ui}
-                      replyMessage={replyToId ? messageMap.get(replyToId) || null : null}
-                      onReply={(msg) => setReplyTo(msg)}
-                      onForward={(msg) => setForwardMsg({ content: msg.text, type: msg.type, mediaUrl: msg.mediaUrl })}
-                      onDelete={handleDeleteMessage}
-                      myBubbleClass={bubbleColorClass(chatPrefs.bubble_color)}
-                    />
+                  <div key={ui.id} data-msg-id={ui.id} className={isActive ? "rounded-lg ring-2 ring-primary ring-offset-2 ring-offset-background transition-all" : isMatch ? "rounded-lg ring-1 ring-primary/40 transition-all" : ""}>
+                    <MessageBubble message={ui} replyMessage={replyToId ? messageMap.get(replyToId) || null : null} onReply={(msg) => setReplyTo(msg)} onForward={(msg) => setForwardMsg({ content: msg.text, type: msg.type, mediaUrl: msg.mediaUrl })} onDelete={handleDeleteMessage} myBubbleClass={bubbleColorClass(chatPrefs.bubble_color)} />
                   </div>
                 );
               })}
               <div ref={messagesEndRef} />
             </div>
 
-            <MessageInput
-              onSend={handleSend}
-              onSendVoice={handleSendVoice}
-              onSendFile={handleSendFile}
-              onTyping={notifyTyping}
-              replyTo={replyTo}
-              onCancelReply={() => setReplyTo(null)}
-            />
+            <MessageInput onSend={handleSend} onSendVoice={handleSendVoice} onSendFile={handleSendFile} onTyping={notifyTyping} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} />
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-8">
             <img src={tigerLogo} alt="TIGERCHATS" className="w-24 h-24 opacity-30" width={512} height={512} />
             <div>
-              <h2 className="text-xl font-bold text-foreground mb-1">
-                Welcome to <span className="text-primary">TIGERCHATS</span>
-              </h2>
-              <p className="text-sm text-muted-foreground max-w-sm">
-                Select a chat to start messaging.
-              </p>
+              <h2 className="text-xl font-bold text-foreground mb-1">Welcome to <span className="text-primary">TIGERCHATS</span></h2>
+              <p className="text-sm text-muted-foreground max-w-sm">Select a chat to start messaging.</p>
             </div>
           </div>
         )}
