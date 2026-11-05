@@ -102,6 +102,13 @@ export const useConversations = () => {
 
       return { ...convo, lastMessage: lastMsg, otherProfile, unreadCount: unreadCount || 0 };
     }));
+
+    // Sort by the newest actual message so a newly active chat always rises to the top.
+    enriched.sort((a, b) => {
+      const aTime = new Date(a.lastMessage?.created_at || a.updated_at || a.created_at || 0).getTime();
+      const bTime = new Date(b.lastMessage?.created_at || b.updated_at || b.created_at || 0).getTime();
+      return bTime - aTime;
+    });
     setConversations(enriched);
     setLoading(false);
   }, [user]);
