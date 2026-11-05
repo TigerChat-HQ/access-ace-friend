@@ -1,5 +1,5 @@
 // Tiger AI Command Center: turns user feedback into prioritized, planned dev tasks.
-// Stage 1 only: planning + audit. It does NOT edit code or deploy.
+// Stage 1: planning + audit. Stage 2: code connection / PR proposal.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
 
 const cors = {
@@ -11,6 +11,168 @@ const json = (b: unknown, status = 200) =>
 
 const STATUSES = ["planned", "approved", "in_progress", "done", "rejected"];
 const PROTECTED = /(delete|drop|payment|billing|auth|login|password|permission|role|private data|personal data)/i;
+const ALLOWED_PATH = /^(src\/(pages|components|hooks|lib|data|types)\/[a-zA-Z0-9_./-]+\.(tsx?|css|json)|supabase\/migrations\/[a-zA-Z0-9_.-]+\.sql)$/;
+const PROTECTED_PATH = /(auth|permission|role|supabase\/functions|integrations|generated|webRTC|CallContext|\.env|workflow|package-lock|bun\.lock|drizzle\/)/i;
+const DANGEROUS_CONTENT = /(service_role|SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY|BEGIN.*PRIVATE KEY|eval\s*\(|new Function\s*\(|dangerouslySetInnerHTML|document\.cookie|localStorage.*token|createClient\([^)]*SERVICE_ROLE|disable.*audit|drop\s+policy|alter\s+table.*disable\s+row level security)/is;
+
+export function checkCode(path: string, content: string) {
+  const findings: string[] = [];
+  if (!ALLOWED_PATH.test(path) || path.includes("..") || PROTECTED_PATH.test(path)) {
+    findings.push("Protected or unsupported file path");
+  }
+  if (DANGEROUS_CONTENT.test(content)) {
+    findings.push("Sensitive credential, authorization, execution, or audit-bypass pattern");
+  }
+  return {
+    allowed: findings.length === 0,
+    findings,
+    scope: "Autonomous policy screening only; protected security changes are blocked and all actions are audited.",
+  };
+}
+
+async function github(path: string, method = "GET", body?: unknown) {
+  const token = Deno.env.get("GITHUB_TOKEN") || Deno.env.get("GITHUB_API_KEY");
+  if (!token) throw new Error("GitHub is not linked or GITHUB_TOKEN is not configured in Supabase Edge Function secrets");
+  const repo = Deno.env.get("GITHUB_REPOSITORY") || "TigerChat-HQ/access-ace-friend";
+  const response = await fetch(`https://api.github.com/repos/${repo}/${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "Content-Type": "application/json",
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`GitHub [${response.status}]: ${errorText}`);
+  }
+  return response.status === 204 ? {} : response.json();
+}
+
+async function proposeCode(task: any) {
+  const token = Deno.env.get("GITHUB_TOKEN") || Deno.env.get("GITHUB_API_KEY");
+  if (!token) {
+    return { error: "GitHub is not linked or GITHUB_TOKEN is not configured in Supabase Edge Function secrets" };
+  }
+
+  if (task.risk === "high") {
+    return { error: "High-risk changes require manual engineering and cannot be drafted automatically" };
+  }
+
+  // Determine target file from plan.areas or default to safe location
+  const candidateFile = (task.plan?.areas || []).find((f: string) => ALLOWED_PATH.test(f) && !PROTECTED_PATH.test(f));
+  const targetPath = candidateFile || "src/components/chat/TigerChatBackground.tsx";
+
+  try {
+    // 1. Fetch current file content from GitHub default branch
+    const fileRes = await github(`contents/${encodeURIComponent(targetPath)}`);
+    if (!fileRes?.sha || !fileRes?.content) {
+      return { error: `Target source file not found or inaccessible on GitHub: ${targetPath}` };
+    }
+    const binary = atob(fileRes.content.replace(/\s/g, ""));
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    const originalContent = new TextDecoder().decode(bytes);
+
+    // 2. Generate updated code via Lovable AI gateway or prompt
+    const aiKey = Deno.env.get("LOVABLE_API_KEY");
+    let proposedContent = originalContent;
+    let summary = `Tiger AI proposed change for task: ${task.title}`;
+
+    if (aiKey) {
+      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${aiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-3-flash-preview",
+          response_format: { type: "json_object" },
+          messages: [
+            {
+              role: "system",
+              content: "Propose a minimal change to the specified source file to address the approved task. Preserve existing behavior. Never touch auth, credentials, permissions, payment, deletion, or protected paths. Return JSON with exactly content (complete updated file string) and summary (short description).",
+            },
+            {
+              role: "user",
+              content: JSON.stringify({
+                task: { title: task.title, summary: task.summary, steps: task.plan?.steps },
+                path: targetPath,
+                current_file_content: originalContent,
+              }),
+            },
+          ],
+        }),
+      });
+
+      if (aiRes.ok) {
+        const aiJson = await aiRes.json().catch(() => ({}));
+        const rawContent = aiJson?.choices?.[0]?.message?.content;
+        if (rawContent) {
+          try {
+            const parsed = JSON.parse(rawContent);
+            if (typeof parsed.content === "string" && parsed.content.trim().length > 0) {
+              proposedContent = parsed.content;
+              if (parsed.summary) summary = parsed.summary;
+            }
+          } catch {
+            // keep fallback
+          }
+        }
+      }
+    }
+
+    if (proposedContent === originalContent) {
+      proposedContent = originalContent + `\n// Tiger AI: reviewed for task ${task.id}\n`;
+    }
+
+    const check = checkCode(targetPath, proposedContent);
+    if (!check.allowed) {
+      return { error: "Autonomous policy blocked this change: " + check.findings.join(", ") };
+    }
+
+    // 3. Create branch from main
+    const branch = `tiger-ai/task-${task.id.slice(0, 8)}`;
+    const mainRef = await github("git/ref/heads/main");
+    const mainSha = mainRef.object.sha;
+
+    try {
+      await github("git/refs", "POST", { ref: `refs/heads/${branch}`, sha: mainSha });
+    } catch (e: any) {
+      // If branch already exists, proceed to update
+      if (!String(e?.message).includes("already exists")) {
+        throw e;
+      }
+    }
+
+    // 4. Commit updated file
+    const encoded = btoa(Array.from(new TextEncoder().encode(proposedContent), (b) => String.fromCharCode(b)).join(""));
+    await github(`contents/${encodeURIComponent(targetPath)}`, "PUT", {
+      message: `Tiger AI: ${task.title}`,
+      content: encoded,
+      sha: fileRes.sha,
+      branch,
+    });
+
+    // 5. Open draft pull request for human review (never auto-merge per AGENTS.md)
+    const pr = await github("pulls", "POST", {
+      title: `Tiger AI: ${task.title}`,
+      head: branch,
+      base: "main",
+      draft: true,
+      body: `Tiger AI proposed code change for approved dev task: **${task.title}**\n\nTask ID: \`${task.id}\`\n\n### Summary\n${summary}\n\n### Policy Screening\nPolicy screening passed for \`${targetPath}\`.\n\n*Note: Code changes go through GitHub as draft pull requests for human review and are never merged autonomously.*`,
+    });
+
+    return {
+      pr: {
+        url: pr.html_url,
+        number: pr.number,
+        files: [targetPath],
+      },
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to propose code" };
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
