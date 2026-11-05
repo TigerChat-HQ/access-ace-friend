@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePresence } from "@/hooks/usePresence";
@@ -23,6 +23,19 @@ export const useMessages = (conversationId: string | null) => {
     setLoading(false);
   }, [conversationId]);
 
+  const deleteMessage = useCallback(async (messageId: string, mode: "me" | "everyone" = "everyone") => {
+    if (mode === "me") {
+      setMessages((prev) => prev.filter((message) => message.id !== messageId));
+      return { error: null };
+    }
+
+    const { error } = await supabase.from("messages").delete().eq("id", messageId);
+    if (!error) {
+      setMessages((prev) => prev.filter((message) => message.id !== messageId));
+    }
+    return { error };
+  }, []);
+
   useEffect(() => { void fetchMessages(); }, [fetchMessages]);
 
   useEffect(() => {
@@ -45,7 +58,7 @@ export const useMessages = (conversationId: string | null) => {
     return () => { void supabase.removeChannel(channel); };
   }, [conversationId]);
 
-  return { messages, loading, refetch: fetchMessages };
+  return { messages, loading, refetch: fetchMessages, deleteMessage };
 };
 
 export const useSendMessage = () => {
@@ -148,3 +161,4 @@ export const useCreateConversation = () => {
   };
   return { createDirectConversation };
 };
+
