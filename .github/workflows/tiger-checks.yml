@@ -1,0 +1,32 @@
+name: Tiger AI checks
+# Runs tests, build and security checks on every suggested update (pull request).
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    name: Tests and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - run: bun run test
+      - run: bun run build
+
+  security:
+    name: Security check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Dependency vulnerabilities
+        run: npm audit --audit-level=high --omit=dev --package-lock-only
+      - name: Secret leak scan
+        run: |
+          if git grep -nE "(sk-[A-Za-z0-9]{32,}|SUPABASE_SERVICE_ROLE_KEY\s*=\s*['\"]ey|-----BEGIN [A-Z ]*PRIVATE KEY-----)" -- . ':!.github'; then
+            echo "Possible secret found in code"; exit 1
+          fi
