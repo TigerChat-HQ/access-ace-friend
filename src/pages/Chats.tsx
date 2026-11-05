@@ -48,14 +48,12 @@ const Chats = () => {
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [forwardMsg, setForwardMsg] = useState<{ content: string; type: string; mediaUrl?: string } | null>(null);
 
-  // In-chat message search
   const [chatSearchOpen, setChatSearchOpen] = useState(false);
   const [chatSearch, setChatSearch] = useState("");
   const [matchIdx, setMatchIdx] = useState(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
-  
 
   const { conversations, loading: convosLoading, refetch: refetchConversations } = useConversations();
   const { messages } = useMessages(activeChat);
@@ -89,7 +87,6 @@ const Chats = () => {
     if (!chatSearchOpen) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, chatSearchOpen]);
 
-  // Reset search on chat change
   useEffect(() => {
     setChatSearchOpen(false);
     setChatSearch("");
@@ -148,15 +145,15 @@ const Chats = () => {
     if (error) toast({ title: "Delete failed", description: error.message, variant: "destructive" });
   };
 
-
   const messageMap = new Map<string, Message>();
   const uiMessages = messages.map((msg) => {
     const anyMsg = msg as any;
-    const status: Message["status"] = anyMsg.read_at
+    const status: Message["status"] = anyMsg.read_at || anyMsg.is_read
       ? "read"
       : anyMsg.delivered_at
       ? "delivered"
       : "sent";
+
     const m: Message = {
       id: msg.id,
       senderId: msg.sender_id === user?.id ? "me" : msg.sender_id,
@@ -166,11 +163,11 @@ const Chats = () => {
       type: msg.message_type as Message["type"],
       mediaUrl: msg.media_url || undefined,
     };
+
     messageMap.set(msg.id, m);
     return { ui: m, replyToId: (msg as any).reply_to_id as string | null };
   });
 
-  // Compute search matches
   const matchIds = useMemo(() => {
     const q = chatSearch.trim().toLowerCase();
     if (!q) return [] as string[];
@@ -181,7 +178,6 @@ const Chats = () => {
     setMatchIdx(0);
   }, [chatSearch]);
 
-  // Scroll active match into view
   useEffect(() => {
     if (!matchIds.length) return;
     const id = matchIds[matchIdx];
@@ -250,8 +246,6 @@ const Chats = () => {
         />
       )}
 
-      {/* CallDialog rendered globally by CallProvider */}
-
       {forwardMsg && (
         <ForwardDialog
           open={!!forwardMsg}
@@ -262,9 +256,6 @@ const Chats = () => {
         />
       )}
 
-      
-
-      {/* Sidebar */}
       <div className={`${showSidebar ? "flex" : "hidden"} md:flex flex-col w-full md:w-[380px] lg:w-[420px] border-r border-border/50 bg-card/50`}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
           <div className="flex items-center gap-2.5">
@@ -342,7 +333,6 @@ const Chats = () => {
         </div>
       </div>
 
-      {/* Chat Area */}
       <div className={`${!showSidebar ? "flex" : "hidden"} md:flex flex-1 flex-col`}>
         {activeConvo ? (
           <div className="flex flex-col h-full">
