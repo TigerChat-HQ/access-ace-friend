@@ -56,9 +56,8 @@ async function github(path: string, method = "GET", body?: unknown) {
 }
 
 async function proposeCode(task: any) {
-  const token = Deno.env.get("GITHUB_TOKEN") || Deno.env.get("GITHUB_API_KEY");
-  if (!token) {
-    return { error: "GitHub is not linked or GITHUB_TOKEN is not configured in Supabase Edge Function secrets" };
+  if (!Deno.env.get("LOVABLE_API_KEY") || !Deno.env.get("GITHUB_API_KEY")) {
+    return { error: "GitHub connection is not linked to this project" };
   }
 
   if (task.risk === "high") {
