@@ -93,7 +93,8 @@ const Stories = () => {
         ) : (
           <div className="grid grid-cols-3 gap-2">
             {stories.map((s, i) => {
-              const isVideo = (s.media_type as string | undefined) === "video";
+              const metadata = s as Story & { media_type?: string | null };
+              const isVideo = metadata.media_type === "video";
               return (
                 <button
                   key={s.id}
