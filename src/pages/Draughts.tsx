@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Bot, Users, Crown, Loader2, RotateCw, Flag, Share2, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json, Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -12,17 +13,10 @@ import {
 
 type Mode = "menu" | "ai" | "pvp";
 
-interface MatchRow {
-  id: string;
-  player_white: string;
-  player_black: string | null;
-  vs_ai: boolean;
+type MatchRow = Omit<Tables<"draft_matches">, "board" | "last_move"> & {
   board: Board;
-  current_turn: Color;
-  status: string;
-  winner: string | null;
-  last_move?: Move | null;
-}
+  last_move: Move | null;
+};
 
 const Draughts = () => {
   const nav = useNavigate();
@@ -34,7 +28,7 @@ const Draughts = () => {
   const [aiThinking, setAiThinking] = useState(false);
   const [openMatches, setOpenMatches] = useState<MatchRow[]>([]);
   const [creating, setCreating] = useState(false);
-  const channelRef = useRef<any>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Load joinable matches
   const loadOpen = async () => {
@@ -45,7 +39,7 @@ const Draughts = () => {
       .eq("vs_ai", false)
       .order("created_at", { ascending: false })
       .limit(20);
-    setOpenMatches((data as any) || []);
+    setOpenMatches((data as unknown as MatchRow[] | null) ?? []);
   };
 
   useEffect(() => {
@@ -59,13 +53,13 @@ const Draughts = () => {
     (async () => {
       const { data } = await supabase.from("draft_matches").select("*").eq("id", matchId).maybeSingle();
       if (!data) return;
-      const row = data as any as MatchRow;
+      const row = data as unknown as MatchRow;
       if (row.status === "waiting" && row.player_white !== user.id && !row.player_black) {
         const { data: joined } = await supabase
           .from("draft_matches")
           .update({ player_black: user.id, status: "active" })
           .eq("id", matchId).eq("status", "waiting").select().single();
-        if (joined) { setMatch(joined as any); setMode("pvp"); return; }
+        if (joined) { setMatch(joined as unknown as MatchRow); setMode("pvp"); return; }
       }
       setMatch(row); setMode(row.vs_ai ? "ai" : "pvp");
     })();
@@ -114,9 +108,9 @@ const Draughts = () => {
       const newBoard = applyMove(match.board, aiMove);
       const w = winner(newBoard, "w");
       await supabase.from("draft_matches").update({
-        board: newBoard as any,
+        board: newBoard as unknown as Json,
         current_turn: "w",
-        last_move: aiMove as any,
+        last_move: aiMove as unknown as Json,
         status: w ? "finished" : "active",
         winner: w === "w" ? "white" : w === "b" ? "black" : null,
       }).eq("id", match.id);
@@ -131,7 +125,7 @@ const Draughts = () => {
     const { data, error } = await supabase.from("draft_matches").insert({
       player_white: user.id,
       vs_ai: true,
-      board: initialBoard() as any,
+      board: initialBoard() as unknown as Json,
       current_turn: "w",
       status: "active",
     }).select().single();
@@ -140,7 +134,7 @@ const Draughts = () => {
       toast({ title: "Could not start", description: error?.message, variant: "destructive" });
       return;
     }
-    setMatch(data as any);
+    setMatch(data as unknown as MatchRow);
     setMode("ai");
   };
 
@@ -150,7 +144,7 @@ const Draughts = () => {
     const { data, error } = await supabase.from("draft_matches").insert({
       player_white: user.id,
       vs_ai: false,
-      board: initialBoard() as any,
+      board: initialBoard() as unknown as Json,
       current_turn: "w",
       status: "waiting",
     }).select().single();
@@ -159,7 +153,7 @@ const Draughts = () => {
       toast({ title: "Could not create", description: error?.message, variant: "destructive" });
       return;
     }
-    setMatch(data as any);
+    setMatch(data as unknown as MatchRow);
     setMode("pvp");
     toast({ title: "Waiting for opponent", description: "Share the lobby — others can join." });
   };
@@ -177,7 +171,7 @@ const Draughts = () => {
       toast({ title: "Could not join", variant: "destructive" });
       return;
     }
-    setMatch(data as any);
+    setMatch(data as unknown as MatchRow);
     setMode("pvp");
   };
 
@@ -187,7 +181,8 @@ const Draughts = () => {
     if (code.length < 4) { toast({ title: "Enter the match code", variant: "destructive" }); return; }
     const { data } = await supabase.from("draft_matches").select("*")
       .eq("status", "waiting").eq("vs_ai", false).limit(200);
-    const found = ((data as any[]) || []).find((m) => m.id.toLowerCase().startsWith(code));
+    const matchRows = (data ?? []) as unknown as MatchRow[];
+    const found = matchRows.find((candidate) => candidate.id.toLowerCase().startsWith(code));
     if (!found) { toast({ title: "No active match with that code", variant: "destructive" }); return; }
     if (found.player_white === user?.id) { setMatch(found); setMode("pvp"); return; }
     await joinMatch(found);
@@ -218,9 +213,9 @@ const Draughts = () => {
     const w = winner(newBoard, next);
     setSelected(null);
     await supabase.from("draft_matches").update({
-      board: newBoard as any,
+      board: newBoard as unknown as Json,
       current_turn: next,
-      last_move: move as any,
+      last_move: move as unknown as Json,
       status: w ? "finished" : "active",
       winner: w === "w" ? "white" : w === "b" ? "black" : null,
     }).eq("id", match.id);
