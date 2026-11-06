@@ -27,6 +27,6 @@ jobs:
         run: npm audit --audit-level=high --omit=dev --package-lock-only
       - name: Secret leak scan
         run: |
-          if git grep -nE "(sk-[A-Za-z0-9]{32,}|SUPABASE_SERVICE_ROLE_KEY\s*=\s*['"]ey|-----BEGIN [A-Z ]*PRIVATE KEY-----)" -- . ':!.github'; then
+          if git grep -nE 'sk-[A-Za-z0-9]{32,}|SUPABASE_SERVICE_ROLE_KEY[[:space:]]*=|-----BEGIN [A-Z ]*PRIVATE KEY-----' -- . ':!.github'; then
             echo "Possible secret found in code"; exit 1
           fi
