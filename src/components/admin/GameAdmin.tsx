@@ -4,6 +4,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Plus, Save, Trash2, Eye, EyeOff, Trophy as TrophyIcon } from "lucide-react";
 
+type QuestionRow = Omit<Question, "options"> & { options: unknown };
+
 type Question = {
   id: string;
   category: string;
@@ -22,6 +24,18 @@ type Trophy = {
   min_score: number;
   icon: string;
   color: string;
+};
+
+const parseOptions = (value: unknown): string[] => {
+  if (Array.isArray(value)) return value.filter((option): option is string => typeof option === "string");
+  if (typeof value !== "string" || value.length === 0) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((option): option is string => typeof option === "string") : [];
+  } catch (error: unknown) {
+    console.warn("Could not parse game question options:", error);
+    return [];
+  }
 };
 
 const blankQuestion = (): Question => ({
@@ -49,9 +63,9 @@ export const GameAdmin = () => {
       supabase.from("trophies").select("*").order("min_score"),
     ]);
     setQuestions(
-      ((q as any[]) || []).map((row) => ({
+      ((q as unknown as QuestionRow[] | null) ?? []).map((row) => ({
         ...row,
-        options: Array.isArray(row.options) ? row.options : JSON.parse(row.options || "[]"),
+        options: parseOptions(row.options),
       })),
     );
     setTrophies((t as Trophy[]) || []);
@@ -71,7 +85,7 @@ export const GameAdmin = () => {
       category: draft.category,
       difficulty: draft.difficulty,
       question: draft.question,
-      options: draft.options as any,
+      options: draft.options,
       correct_index: draft.correct_index,
       explanation: draft.explanation || null,
       is_active: draft.is_active,
@@ -88,7 +102,7 @@ export const GameAdmin = () => {
       .from("game_questions")
       .update({
         ...patch,
-        options: patch.options ? (patch.options as any) : undefined,
+        options: patch.options,
       })
       .eq("id", id);
     if (error) return toast({ title: "Update failed", description: error.message, variant: "destructive" });
