@@ -22,7 +22,7 @@ import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
 import { StoryUploadDialog } from "@/components/chat/StoryUploadDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, EyeOff, Trash2, X, ChevronUp, ChevronDown, Archive, RotateCcw, Palette, UserPlus, Settings } from "lucide-react";
+import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, EyeOff, Trash2, X, ChevronUp, ChevronDown, Archive, RotateCcw, Palette, UserPlus, Settings, LogOut } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
@@ -168,6 +168,49 @@ const Chats = () => {
   const handleHideChat = (conversationId: string) => {
     setHiddenChats((prev) => ({ ...prev, [conversationId]: Date.now() }));
     if (activeChat === conversationId) setActiveChat(null);
+  };
+
+  const handleExitGroup = async () => {
+    if (!activeConvo || !user || activeConvo.type !== "group") return;
+    const confirmed = window.confirm("Exit this group? You will no longer receive its messages unless you are added again.");
+    if (!confirmed) return;
+
+    // Remove the user's admin role first, then their group membership.
+    const { error: adminError } = await supabase
+      .from("group_admins")
+      .delete()
+      .eq("conversation_id", activeConvo.id)
+      .eq("user_id", user.id);
+    if (adminError) {
+      toast({ title: "Could not exit group", description: adminError.message, variant: "destructive" });
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("conversation_members")
+      .delete()
+      .eq("conversation_id", activeConvo.id)
+      .eq("user_id", user.id)
+      .select("user_id")
+      .maybeSingle();
+
+    if (error || !data) {
+      toast({
+        title: "Could not exit group",
+        description: error?.message || "Your group membership could not be removed.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setHiddenChats((prev) => {
+      const next = { ...prev };
+      delete next[activeConvo.id];
+      return next;
+    });
+    setActiveChat(null);
+    await refetchConversations();
+    toast({ title: "You left the group" });
   };
 
   const handleDeleteChat = async (mode: "me" | "everyone") => {
@@ -436,6 +479,11 @@ const Chats = () => {
                         <MoreVertical className="w-4 h-4 mr-2" /> More
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent>
+                        {isGroup && (
+                          <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => void handleExitGroup()}>
+                            <LogOut className="w-4 h-4 mr-2" /> Exit group
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onSelect={() => handleHideChat(activeConvo.id)}>
                           <EyeOff className="w-4 h-4 mr-2" /> Hide chat
                         </DropdownMenuItem>
