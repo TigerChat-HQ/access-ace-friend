@@ -19,7 +19,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/setup-node@v4
         with:
-          node-version: 20.20.2
+          node-version: 22.22.0
       - uses: oven-sh/setup-bun@v2
       - name: Refresh npm lockfile
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund --legacy-peer-deps
@@ -35,4 +35,5 @@ jobs:
             exit 0
           fi
           git commit -m "chore(deps): refresh lockfiles"
+          git pull --rebase origin fix/tigerchat-lint-batch
           git push
