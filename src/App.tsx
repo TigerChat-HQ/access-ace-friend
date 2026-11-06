@@ -79,6 +79,7 @@ const App = () => (
                   <Route path="/stories" element={<Stories />} />
                   <Route path="/u/:userId" element={<Profile />} />
                   <Route path="/profile/:userId" element={<Profile />} />
+                  <Route path="/@:userId" element={<Profile />} />
                   <Route path="/post/:postId" element={<PostDetail />} />
                   <Route path="/admin" element={<Admin />} />
                   <Route path="/notifications" element={<Notifications />} />
