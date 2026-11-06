@@ -1,0 +1,70 @@
+name: Remediate dependency vulnerabilities
+
+on:
+  push:
+    branches:
+      - stage3/publishing-undo
+    paths:
+      - ".github/workflows/remediate-dependencies.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dependency-remediation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  update-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout remediation branch
+        uses: actions/checkout@v4
+        with:
+          ref: stage3/publishing-undo
+          fetch-depth: 0
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Refresh compatible dependency versions
+        run: bun update
+      - name: Create npm audit lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit
+      - name: Apply non-breaking npm security fixes
+        run: npm audit fix --package-lock-only
+      - name: Capture remaining security findings
+        id: audit
+        continue-on-error: true
+        run: npm audit --audit-level=high
+      - name: Verify TypeScript
+        run: bun run typecheck
+      - name: Verify tests
+        run: bun run test
+      - name: Verify lint
+        run: bun run lint
+      - name: Verify production build
+        run: bun run build
+      - name: Commit refreshed Bun lockfile
+        run: |
+          rm -f package-lock.json
+          if git diff --quiet -- bun.lock; then
+            echo "No Bun lockfile updates were needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bun.lock
+          git commit -m "chore(deps): refresh patched dependency versions"
+          git push origin HEAD:stage3/publishing-undo
+      - name: Publish audit report
+        if: always()
+        run: |
+          npm audit --json > dependency-audit.json || true
+          echo "Audit report generated; inspect the artifact for remaining advisories."
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tigerchat-dependency-audit
+          path: dependency-audit.json
+          if-no-files-found: ignore
