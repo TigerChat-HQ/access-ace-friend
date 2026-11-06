@@ -5,6 +5,11 @@ import { Tables } from "@/integrations/supabase/types";
 
 type Message = Tables<"messages">;
 type Profile = Tables<"profiles">;
+type ConversationItem = Tables<"conversations"> & {
+  lastMessage: Message | null;
+  otherProfile: Profile | null;
+  unreadCount: number;
+};
 
 export const useMessages = (conversationId: string | null) => {
   const [messages, setMessages] = useState<(Message & { sender_profile?: Profile })[]>([]);
@@ -61,7 +66,7 @@ export const useSendMessage = () => {
 
 export const useConversations = () => {
   const { user } = useAuth();
-  const [conversations, setConversations] = useState<any[]>([]);
+  const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchConversations = useCallback(async () => {
@@ -78,7 +83,7 @@ export const useConversations = () => {
     const { data: convos } = await supabase
       .from("conversations").select("*").in("id", convoIds).order("updated_at", { ascending: false });
 
-    const enriched = await Promise.all((convos || []).map(async (convo) => {
+    const enriched: ConversationItem[] = await Promise.all((convos || []).map(async (convo) => {
       const { data: lastMsg } = await supabase.from("messages").select("*")
         .eq("conversation_id", convo.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
       const { data: members } = await supabase.from("conversation_members").select("user_id")
