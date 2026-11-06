@@ -29,7 +29,9 @@ const Feed = () => {
         if (cancelled || error) return;
         const ids = (data?.post_ids as string[]) || [];
         if (ids.length) setAiOrder(ids);
-      } catch {}
+      } catch (error: unknown) {
+        console.warn("Could not load recommended feed order:", error);
+      }
     })();
     return () => {
       cancelled = true;
