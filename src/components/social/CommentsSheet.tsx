@@ -18,7 +18,7 @@ interface Comment {
   likedByMe: boolean;
 }
 
-interface CommentRow extends Omit<Comment, "profile" | "likeCount" | "likedByMe"> {}
+type CommentRow = Omit<Comment, "profile" | "likeCount" | "likedByMe">;
 
 interface CommentLike { comment_id: string; user_id: string }
 
