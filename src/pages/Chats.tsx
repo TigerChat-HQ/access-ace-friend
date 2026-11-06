@@ -377,7 +377,7 @@ const Chats = () => {
         </div>
       </div>
 
-      <div className={`${!showSidebar ? "flex" : "hidden"} md:flex flex-1 flex-col`}>
+      <div className={`${!showSidebar ? "flex" : "hidden"} md:flex flex-1 min-w-0 flex-col`}>
         {activeConvo ? (
           <div className="flex flex-col h-full">
             <div className="flex items-center gap-3 px-4 py-3 glass border-b border-border/50">
@@ -425,7 +425,7 @@ const Chats = () => {
               </div>
             )}
 
-            <div ref={messagesScrollRef} className={`flex-1 overflow-y-auto scrollbar-thin p-4 space-y-1 relative ${wallpaperClass(chatPrefs.wallpaper)} ${fontSizeClass(chatPrefs.font_size)}`}>
+            <div ref={messagesScrollRef} className={`flex-1 min-w-0 overflow-y-auto overflow-x-hidden scrollbar-thin p-4 space-y-1 relative ${wallpaperClass(chatPrefs.wallpaper)} ${fontSizeClass(chatPrefs.font_size)}`}>
               {(!chatPrefs.wallpaper || chatPrefs.wallpaper === "default") && <TigerChatBackground />}
               {uiMessages.map(({ ui, replyToId }) => {
                 const isMatch = matchSet.has(ui.id);
