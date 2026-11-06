@@ -100,7 +100,15 @@ export const TigerCommandCenter = () => {
 
   const call = useCallback(async (body: Record<string, unknown>): Promise<PlannerResponse> => {
     const { data, error } = await supabase.functions.invoke("tiger-dev-planner", { body });
-    if (error) throw new Error(error.message);
+    if (error) {
+      const context = (error as { context?: unknown }).context;
+      let detail = error.message;
+      if (context instanceof Response) {
+        const payload = await context.clone().json().catch(() => null) as { error?: string; message?: string } | null;
+        detail = payload?.error || payload?.message || `Edge Function returned HTTP ${context.status}`;
+      }
+      throw new Error(detail);
+    }
     return (data ?? {}) as PlannerResponse;
   }, []);
 
