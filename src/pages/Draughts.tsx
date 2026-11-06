@@ -144,7 +144,7 @@ const Draughts = () => {
     const { data, error } = await supabase.from("draft_matches").insert({
       player_white: user.id,
       vs_ai: false,
-      board: initialBoard() as any,
+      board: initialBoard() as unknown as Json,
       current_turn: "w",
       status: "waiting",
     }).select().single();
@@ -153,7 +153,7 @@ const Draughts = () => {
       toast({ title: "Could not create", description: error?.message, variant: "destructive" });
       return;
     }
-    setMatch(data as any);
+    setMatch(data as unknown as MatchRow);
     setMode("pvp");
     toast({ title: "Waiting for opponent", description: "Share the lobby — others can join." });
   };
@@ -171,7 +171,7 @@ const Draughts = () => {
       toast({ title: "Could not join", variant: "destructive" });
       return;
     }
-    setMatch(data as any);
+    setMatch(data as unknown as MatchRow);
     setMode("pvp");
   };
 
@@ -213,7 +213,7 @@ const Draughts = () => {
     const w = winner(newBoard, next);
     setSelected(null);
     await supabase.from("draft_matches").update({
-      board: newBoard as any,
+      board: newBoard as unknown as Json,
       current_turn: next,
       last_move: move as unknown as Json,
       status: w ? "finished" : "active",
