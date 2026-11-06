@@ -28,7 +28,7 @@ export const TrendingRail = () => {
 
   useEffect(() => {
     const loadTrending = async () => {
-      const { data: trending } = await supabase
+      const { data: trending } = await db
 .from("trending_posts")
         .select("id, like_count, comment_count")
         .order("score", { ascending: false })
