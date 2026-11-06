@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -11,6 +12,8 @@ import { MusicPicker } from "./MusicPicker";
 interface StoryUploadDialogProps {
   onUploaded: () => void;
 }
+
+const db = supabase as unknown as SupabaseClient;
 
 const MAX_VIDEO_SECONDS = 120; // 2 minutes
 
@@ -71,7 +74,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
     }
     const { data: { publicUrl: mediaUrl } } = supabase.storage.from("stories").getPublicUrl(path);
 
-    await supabase.from("stories").insert({
+    await db.from("stories").insert({
       user_id: user.id,
       image_url: mediaUrl,
       caption: caption || null,
@@ -79,7 +82,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
       media_type: mediaType,
       duration: duration,
       text_overlay: textOverlay ? { text: textOverlay } : null,
-    } as any);
+    });
 
     toast({ title: "Story posted! 📸" });
     setOpen(false);
