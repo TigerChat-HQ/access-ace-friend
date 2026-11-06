@@ -13,8 +13,9 @@ import {
 
 type Mode = "menu" | "ai" | "pvp";
 
-type MatchRow = Omit<Tables<"draft_matches">, "board" | "last_move"> & {
+type MatchRow = Omit<Tables<"draft_matches">, "board" | "last_move" | "current_turn"> & {
   board: Board;
+  current_turn: Color;
   last_move: Move | null;
 };
 
