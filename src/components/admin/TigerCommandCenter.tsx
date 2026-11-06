@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Bot, Sparkles, GitPullRequest, ShieldCheck, Loader2, Rocket, RotateCcw, ExternalLink } from "lucide-react";
+import { Bot, Sparkles, GitPullRequest, ShieldCheck, Loader2, Rocket, RotateCcw, ExternalLink, GitBranch, RefreshCw } from "lucide-react";
 
 type TaskPlan = {
   steps?: string[];
@@ -37,10 +37,15 @@ type AuditEntry = {
   details: { title?: string; url?: string } | null;
 };
 
+type GitHubPullRequest = { number: number; title: string; url: string; draft: boolean; head_branch: string; updated_at: string; user?: string; };
 type PlannerResponse = {
   created?: number;
-  pr?: { url?: string };
+  pr?: { url?: string; number?: number; files?: string[] };
   checks?: { verdict?: string };
+  pull_requests?: GitHubPullRequest[];
+  write_enabled?: boolean;
+  default_branch?: string;
+  error?: string;
 };
 
 const NEXT: Record<string, string[]> = {
@@ -62,6 +67,9 @@ export const TigerCommandCenter = () => {
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
+  const [pullRequests, setPullRequests] = useState<GitHubPullRequest[]>([]);
+  const [githubWriteEnabled, setGithubWriteEnabled] = useState(false);
+  const [githubLoading, setGithubLoading] = useState(false);
 
   const load = useCallback(async () => {
     const [{ data: taskData, error: taskError }, { data: auditData, error: auditError }] = await Promise.all([
@@ -82,15 +90,28 @@ export const TigerCommandCenter = () => {
     setAudit((auditData as AuditEntry[] | null) ?? []);
   }, [toast]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   const call = async (body: Record<string, unknown>): Promise<PlannerResponse> => {
     const { data, error } = await supabase.functions.invoke("tiger-dev-planner", { body });
     if (error) throw new Error(error.message);
     return (data ?? {}) as PlannerResponse;
   };
+
+  const refreshGitHub = useCallback(async () => {
+    setGithubLoading(true);
+    try {
+      const result = await call({ action: "github_list_prs" });
+      setPullRequests(result.pull_requests ?? []);
+      setGithubWriteEnabled(Boolean(result.write_enabled));
+    } catch (error: unknown) {
+      toast({ title: "GitHub refresh failed", description: getErrorMessage(error), variant: "destructive" });
+    } finally {
+      setGithubLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => { void refreshGitHub(); }, [refreshGitHub]);
 
   const triage = async () => {
     setBusy(true);
@@ -177,6 +198,28 @@ export const TigerCommandCenter = () => {
         ))}
       </div>
 
+
+      <div className="bg-card border border-border/50 rounded-lg p-3 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-xs font-semibold text-foreground flex items-center gap-1.5"><GitBranch className="w-3.5 h-3.5" /> GitHub — access-ace-friend</h3>
+          <Button size="sm" variant="outline" onClick={refreshGitHub} disabled={githubLoading}>
+            {githubLoading ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1" />} Refresh
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+          <Badge variant="secondary">Live repository data</Badge>
+          <Badge variant={githubWriteEnabled ? "default" : "outline"}>{githubWriteEnabled ? "Draft PR writing enabled" : "Read-only — write token missing"}</Badge>
+        </div>
+        {!githubWriteEnabled && <p className="text-[11px] text-muted-foreground">TIGERCHAT can read open pull requests and CI status. To let Tiger AI prepare code-fix branches and draft PRs, configure the GITHUB_TOKEN Edge Function secret with Contents and Pull requests read/write permissions. The token stays server-side.</p>}
+        {pullRequests.length === 0 ? <p className="text-xs text-muted-foreground">No open pull requests found, or refresh to retry.</p> : (
+          <div className="space-y-1.5">{pullRequests.map((pr) => (
+            <div key={pr.number} className="flex items-start justify-between gap-2 rounded-md border border-border/40 p-2">
+              <div className="min-w-0"><p className="text-xs font-medium text-foreground">#{pr.number} · {pr.title}</p><p className="text-[10px] text-muted-foreground">{pr.head_branch} → main · {pr.draft ? "Draft" : "Ready for review"} · {new Date(pr.updated_at).toLocaleString()}</p></div>
+              <a href={pr.url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-xs text-primary underline">Open <ExternalLink className="inline w-3 h-3" /></a>
+            </div>
+          ))}</div>
+        )}
+      </div>
       <div className="bg-card border border-border/50 rounded-lg p-3 space-y-2">
         <h3 className="text-xs font-semibold text-foreground">Publishing & undo</h3>
         <p className="text-xs text-muted-foreground">
