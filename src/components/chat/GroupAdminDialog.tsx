@@ -89,7 +89,7 @@ export const GroupAdminDialog = ({ conversationId, open: controlledOpen, onOpenC
     setIsAdmin(aIds.has(user.id) || aIds.size === 0);
 
     const { data: reqs } = await supabase
-      .from("group_join_requests" as any)
+      .from("group_join_requests")
       .select("*")
       .eq("conversation_id", conversationId)
       .eq("status", "pending");
