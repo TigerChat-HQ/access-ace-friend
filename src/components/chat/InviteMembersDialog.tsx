@@ -11,12 +11,17 @@ interface InviteMembersDialogProps {
   conversationId: string;
   existingMemberIds: string[];
   onInvited: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
 }
 
-export const InviteMembersDialog = ({ conversationId, existingMemberIds, onInvited }: InviteMembersDialogProps) => {
+export const InviteMembersDialog = ({ conversationId, existingMemberIds, onInvited, open: controlledOpen, onOpenChange, hideTrigger = false }: InviteMembersDialogProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
   const [profiles, setProfiles] = useState<{ user_id: string; display_name: string | null }[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -51,11 +56,11 @@ export const InviteMembersDialog = ({ conversationId, existingMemberIds, onInvit
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+      {!hideTrigger && <DialogTrigger asChild>
         <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary">
           <UserPlus className="w-4 h-4" />
         </button>
-      </DialogTrigger>
+      </DialogTrigger>}
       <DialogContent className="bg-card border-border/50 max-w-sm">
         <DialogHeader>
           <DialogTitle className="text-foreground">Invite Members</DialogTitle>

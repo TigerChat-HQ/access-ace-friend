@@ -20,6 +20,9 @@ import { useToast } from "@/hooks/use-toast";
 
 interface Props {
   conversationId: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
 }
 
 interface Member {
@@ -35,10 +38,12 @@ interface JoinRequest {
   profile?: { display_name: string | null; avatar_url: string | null };
 }
 
-export const GroupAdminDialog = ({ conversationId }: Props) => {
+export const GroupAdminDialog = ({ conversationId, open: controlledOpen, onOpenChange, hideTrigger = false }: Props) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
   const [members, setMembers] = useState<Member[]>([]);
   const [adminIds, setAdminIds] = useState<Set<string>>(new Set());
   const [isAdmin, setIsAdmin] = useState(false);
@@ -188,14 +193,14 @@ export const GroupAdminDialog = ({ conversationId }: Props) => {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+      {!hideTrigger && <DialogTrigger asChild>
         <button
           className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary"
           title="Group settings"
         >
           <SettingsIcon className="w-4 h-4" />
         </button>
-      </DialogTrigger>
+      </DialogTrigger>}
       <DialogContent className="bg-card border-border/50 max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-foreground flex items-center gap-2">

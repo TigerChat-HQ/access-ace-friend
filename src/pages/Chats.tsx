@@ -22,7 +22,7 @@ import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
 import { StoryUploadDialog } from "@/components/chat/StoryUploadDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, EyeOff, Trash2, X, ChevronUp, ChevronDown, Archive, RotateCcw, Palette } from "lucide-react";
+import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, EyeOff, Trash2, X, ChevronUp, ChevronDown, Archive, RotateCcw, Palette, UserPlus, Settings } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
@@ -63,6 +63,8 @@ const Chats = () => {
   const [hiddenChats, setHiddenChats] = useState<Record<string, number>>(() => readHiddenChatMap());
   const [showArchivedChats, setShowArchivedChats] = useState(false);
   const [customizationOpen, setCustomizationOpen] = useState(false);
+  const [inviteMembersOpen, setInviteMembersOpen] = useState(false);
+  const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
 
   const [chatSearchOpen, setChatSearchOpen] = useState(false);
   const [chatSearch, setChatSearch] = useState("");
@@ -410,10 +412,6 @@ const Chats = () => {
               <div className="flex items-center gap-1">
                 <button onClick={() => handleStartCall(false)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary" title="Voice call" aria-label="Voice call"><Phone className="w-4 h-4" /></button>
                 <button onClick={() => handleStartCall(true)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary" title="Video call" aria-label="Video call"><Video className="w-4 h-4" /></button>
-                {isGroup && <>
-                  <InviteMembersDialog conversationId={activeConvo.id} existingMemberIds={[user?.id || ""]} onInvited={() => refetchConversations()} />
-                  <GroupAdminDialog conversationId={activeConvo.id} />
-                </>}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary" title="Chat options" aria-label="Chat options"><MoreVertical className="w-4 h-4" /></button>
@@ -422,6 +420,14 @@ const Chats = () => {
                     <DropdownMenuItem onSelect={() => setChatSearchOpen((o) => !o)}>
                       <Search className="w-4 h-4 mr-2" /> Search messages
                     </DropdownMenuItem>
+                    {isGroup && <>
+                      <DropdownMenuItem onSelect={() => setInviteMembersOpen(true)}>
+                        <UserPlus className="w-4 h-4 mr-2" /> Add members
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setGroupSettingsOpen(true)}>
+                        <Settings className="w-4 h-4 mr-2" /> Group settings
+                      </DropdownMenuItem>
+                    </>}
                     <DropdownMenuItem onSelect={() => setCustomizationOpen(true)}>
                       <Palette className="w-4 h-4 mr-2" /> Chat theme
                     </DropdownMenuItem>
@@ -443,6 +449,10 @@ const Chats = () => {
                     </DropdownMenuSub>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                {isGroup && <>
+                  <InviteMembersDialog conversationId={activeConvo.id} existingMemberIds={[user?.id || ""]} onInvited={() => refetchConversations()} open={inviteMembersOpen} onOpenChange={setInviteMembersOpen} hideTrigger />
+                  <GroupAdminDialog conversationId={activeConvo.id} open={groupSettingsOpen} onOpenChange={setGroupSettingsOpen} hideTrigger />
+                </>}
                 <ChatCustomizationDialog conversationId={activeConvo.id} open={customizationOpen} onOpenChange={setCustomizationOpen} hideTrigger />
               </div>
             </div>
