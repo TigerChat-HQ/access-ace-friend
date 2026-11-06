@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
+import { Tables } from "@/integrations/supabase/types";
 import { Navigate, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import {
   ArrowLeft, Trash2, Users, FileText, MessageSquare, Search, Shield, ShieldOff, Flag,
   TrendingUp, Heart, Eye, Crown,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -17,22 +19,27 @@ import { GameAdmin } from "@/components/admin/GameAdmin";
 import { TigerCommandCenter } from "@/components/admin/TigerCommandCenter";
 import { ReportReplyDialog } from "@/components/admin/ReportReplyDialog";
 
+type AdminPost = Tables<"posts">;
+type AdminUser = Tables<"profiles">;
+type AdminReport = Tables<"reports">;
+type AdminRole = "admin" | "moderator" | "adviser" | "none";
+
 const Admin = () => {
   const { isAdmin, isSuperiorAdmin, loading } = useUserRole();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [stats, setStats] = useState({ users: 0, posts: 0, comments: 0, likes: 0, stories: 0, messages: 0 });
-  const [recentPosts, setRecentPosts] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
+  const [recentPosts, setRecentPosts] = useState<AdminPost[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [admins, setAdmins] = useState<Set<string>>(new Set());
   const [moderators, setModerators] = useState<Set<string>>(new Set());
   const [advisers, setAdvisers] = useState<Set<string>>(new Set());
-  const [reports, setReports] = useState<any[]>([]);
+  const [reports, setReports] = useState<AdminReport[]>([]);
   const [search, setSearch] = useState("");
   const [growth, setGrowth] = useState<{ day: string; users: number; posts: number }[]>([]);
   const [engagement, setEngagement] = useState<{ name: string; value: number }[]>([]);
   const [creating, setCreating] = useState(false);
-  const [replyTarget, setReplyTarget] = useState<any | null>(null);
+  const [replyTarget, setReplyTarget] = useState<AdminReport | null>(null);
 
   const load = async () => {
     const [
@@ -72,7 +79,7 @@ const Admin = () => {
       const d = new Date(Date.now() - i * 86400000);
       const key = d.toISOString().slice(0, 10);
       const label = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-      const u = (profGrowth || []).filter((r: any) => r.created_at.slice(0, 10) === key).length;
+      const u = (profGrowth || []).filter((row) => row.created_at.slice(0, 10) === key).length;
       const p = (postGrowth || []).filter((r: any) => r.created_at.slice(0, 10) === key).length;
       days.push({ day: label, users: u, posts: p });
     }
@@ -123,13 +130,13 @@ const Admin = () => {
       .from("user_roles")
       .delete()
       .eq("user_id", userId)
-      .in("role", ["admin", "moderator", "adviser"] as any);
+      .in("role", ["admin", "moderator", "adviser"]);
     if (delErr) {
       toast({ title: "Failed", description: delErr.message, variant: "destructive" });
       return;
     }
     if (role !== "none") {
-      const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: role as any });
+      const { error } = await supabase.from("user_roles").insert({ user_id: userId, role });
       if (error) {
         toast({ title: "Failed", description: error.message, variant: "destructive" });
         return;
@@ -323,7 +330,7 @@ const Admin = () => {
                   </Link>
                   <select
                     value={currentRole}
-                    onChange={(e) => setRole(u.user_id, e.target.value as any)}
+                    onChange={(e) => setRole(u.user_id, e.target.value as AdminRole)}
                     className="text-xs bg-surface border border-border/50 rounded px-2 py-1 text-foreground"
                   >
                     <option value="none">User</option>
@@ -374,7 +381,7 @@ const Admin = () => {
   );
 };
 
-const Stat = ({ icon: Icon, label, value }: { icon: any; label: string; value: number }) => (
+const Stat = ({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number }) => (
   <div className="bg-card border border-border/50 rounded-xl p-3 text-center">
     <Icon className="w-5 h-5 text-primary mx-auto mb-1" />
     <p className="text-lg font-bold text-foreground">{value}</p>
