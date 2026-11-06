@@ -63,6 +63,127 @@ async function readGitHubChecks(prUrl: string) {
 }
 
 
+const GITHUB_API = "https://api.github.com";
+const githubHeaders = (token?: string) => ({
+  Accept: "application/vnd.github+json",
+  "X-GitHub-Api-Version": "2022-11-28",
+  "User-Agent": "TIGERCHAT-Command-Center",
+  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+});
+
+async function githubJson(url: string, token?: string, init?: RequestInit) {
+  const response = await fetch(url, {
+    ...init,
+    headers: { ...githubHeaders(token), ...(init?.headers || {}) },
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(`GitHub API [${response.status}]: ${payload.message || response.statusText}`);
+  return payload;
+}
+
+async function listGitHubPullRequests() {
+  const [pulls, repo] = await Promise.all([
+    githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/pulls?state=open&per_page=25&sort=updated&direction=desc`),
+    githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}`),
+  ]);
+  return {
+    repository: GITHUB_REPO,
+    default_branch: repo.default_branch,
+    write_enabled: Boolean(Deno.env.get("GITHUB_TOKEN")),
+    pull_requests: (Array.isArray(pulls) ? pulls : []).map((pr: Record<string, any>) => ({
+      number: pr.number,
+      title: pr.title,
+      url: pr.html_url,
+      state: pr.state,
+      draft: pr.draft,
+      head_sha: pr.head?.sha,
+      head_branch: pr.head?.ref,
+      base_branch: pr.base?.ref,
+      updated_at: pr.updated_at,
+      user: pr.user?.login,
+    })),
+  };
+}
+
+async function createCodeChange(task: Record<string, any>) {
+  const token = Deno.env.get("GITHUB_TOKEN");
+  if (!token) throw new Error("GitHub write connection is not configured. Add GITHUB_TOKEN as a Supabase Edge Function secret with Contents (read/write) and Pull requests (read/write) permissions.");
+  const areas = Array.isArray(task.plan?.areas) ? task.plan.areas : [];
+  const paths = [...new Set(areas.filter((p: unknown) =>
+    typeof p === "string" && /^[\w./-]+$/.test(p) && p.startsWith("src/") &&
+    !p.includes("..") && !/(auth|payment|billing|permission|role|secret|\.env)/i.test(p)
+  ))].slice(0, 3) as string[];
+  if (!paths.length) throw new Error("This task has no safe, exact source file paths in plan.areas. Add paths such as src/components/Example.tsx before drafting a fix.");
+  const base = await githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/git/ref/heads/main`, token);
+  const baseSha = base.object?.sha;
+  if (typeof baseSha !== "string") throw new Error("Could not resolve main branch head.");
+  const sources: Array<{path: string; sha: string; content: string}> = [];
+  for (const path of paths) {
+    const file = await githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/contents/${encodeURIComponent(path).replace(/%2F/g, "/")}?ref=main`, token);
+    if (file.type !== "file" || typeof file.content !== "string" || file.encoding !== "base64") continue;
+    const decoded = atob(file.content.replace(/\n/g, ""));
+    if (decoded.length > 60000) continue;
+    sources.push({ path, sha: file.sha, content: decodeURIComponent(escape(decoded)) });
+  }
+  if (!sources.length) throw new Error("None of the task's source paths could be loaded from GitHub. Update plan.areas with existing src/ file paths.");
+  const apiKey = Deno.env.get("OPENAI_API_KEY");
+  if (!apiKey) throw new Error("OPENAI_API_KEY is not configured.");
+  const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "gpt-6.1-sol",
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: "You are a senior engineer making a minimal, safe TIGERCHAT fix. Return JSON only: {changes:[{path:string,content:string,summary:string}]}. Modify only the supplied paths, preserve existing behavior, do not add dependencies, do not change auth/permissions/payments/secrets, do not weaken security, and do not claim tests ran. If no safe fix is possible return {changes:[]}." },
+        { role: "user", content: JSON.stringify({ task: { title: task.title, summary: task.summary, plan: task.plan }, files: sources }) },
+      ],
+    }),
+  });
+  if (!aiResponse.ok) throw new Error(`OpenAI code drafting failed [${aiResponse.status}]`);
+  const ai = await aiResponse.json();
+  let changes: Array<{path: string; content: string; summary?: string}> = [];
+  try { changes = JSON.parse(ai.choices?.[0]?.message?.content || "{}").changes || []; } catch { changes = []; }
+  const allowed = new Set(sources.map((f) => f.path));
+  const safeChanges = changes.filter((c) =>
+    c && allowed.has(c.path) && typeof c.content === "string" &&
+    c.content.length > 0 && c.content.length <= 100000
+  ).slice(0, 3);
+  if (!safeChanges.length) throw new Error("Tiger AI could not produce a safe, non-empty code change for the selected files.");
+  const branch = `tiger-ai/task-${String(task.id).replace(/[^a-f0-9-]/gi, "").slice(0, 24)}-${Date.now().toString(36)}`;
+  await githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/git/refs`, token, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: baseSha }),
+  });
+  for (const change of safeChanges) {
+    const encoded = btoa(unescape(encodeURIComponent(change.content)));
+    await githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/contents/${encodeURIComponent(change.path).replace(/%2F/g, "/")}`, token, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: `fix: ${String(task.title).slice(0, 60)}`,
+        content: encoded,
+        branch,
+        sha: sources.find((f) => f.path === change.path)?.sha,
+      }),
+    });
+  }
+  const pr = await githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/pulls`, token, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title: `Tiger AI fix: ${String(task.title).slice(0, 180)}`,
+      head: branch,
+      base: "main",
+      draft: true,
+      body: `## Tiger AI proposed fix\n\nTask: ${task.title}\n\n${task.summary || ""}\n\nThis is an AI-generated draft. Review every changed line and wait for CI/security checks. It has not been merged or deployed.\n\nFiles: ${safeChanges.map((c) => c.path).join(", ")}`,
+    }),
+  });
+  return { url: pr.html_url, number: pr.number, files: safeChanges.map((c) => c.path), branch, draft: true };
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
@@ -111,8 +232,28 @@ Deno.serve(async (req) => {
       }
     }
 
+
+    if (body.action === "github_list_prs") {
+      try { return json(await listGitHubPullRequests()); }
+      catch (error) { return json({ error: error instanceof Error ? error.message : "GitHub lookup failed" }, 502); }
+    }
+
     if (body.action === "propose_code") {
-      return json({ error: "Automatic code drafting is disabled until a GitHub-native, non-Lovable write integration is configured. Use GitHub to create and review the PR." }, 501);
+      if (typeof body.id !== "string") return json({ error: "Invalid task ID" }, 400);
+      const { data: task, error: taskError } = await sb.from("dev_tasks").select("*").eq("id", body.id).single();
+      if (taskError || !task) return json({ error: "Task not found" }, 404);
+      if (!["approved", "in_progress"].includes(task.status)) return json({ error: "Approve the task before drafting a code change." }, 409);
+      if (task.risk === "high") return json({ error: "High-risk tasks require a separate human-reviewed engineering process and cannot be auto-drafted." }, 403);
+      try {
+        const pr = await createCodeChange(task);
+        const nextPlan = { ...(task.plan || {}), pr };
+        const { error: updateError } = await sb.from("dev_tasks").update({ plan: nextPlan, updated_at: new Date().toISOString() }).eq("id", task.id);
+        if (updateError) return json({ error: `GitHub draft PR was created but task link could not be saved: ${updateError.message}` }, 500);
+        await sb.from("dev_audit_log").insert({ task_id: task.id, actor: "tiger_ai", action: "github_draft_pr_created", details: { title: task.title, url: pr.url, number: pr.number, files: pr.files } });
+        return json({ pr });
+      } catch (error) {
+        return json({ error: error instanceof Error ? error.message : "Code drafting failed" }, 502);
+      }
     }
 
     if (body.action === "create_task") {
