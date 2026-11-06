@@ -211,6 +211,33 @@ Deno.serve(async (req) => {
       return json({ pr: r.pr });
     }
 
+    if (body.action === "check_status") {
+      if (typeof body.id !== "string") return json({ error: "Invalid input" }, 400);
+      const { data: task } = await sb.from("dev_tasks").select("*").eq("id", body.id).single();
+      if (!task) return json({ error: "Task not found" }, 404);
+      if (!task.plan?.pr?.url) return json({ error: "No suggested update exists for this task yet" }, 400);
+      try {
+        const branch = `tiger-ai/task-${task.id.slice(0, 8)}`;
+        const runs = await github(`commits/${encodeURIComponent(branch)}/check-runs?per_page=20`);
+        const list = runs?.check_runs || [];
+        const summary = {
+          total: list.length,
+          completed: list.filter((c: any) => c.status === "completed").length,
+          passed: list.filter((c: any) => c.status === "completed" && c.conclusion === "success").length,
+          failed: list.filter((c: any) => c.status === "completed" && ["failure", "timed_out", "action_required"].includes(c.conclusion)).length,
+          pending: list.filter((c: any) => c.status !== "completed").length,
+          runs: list.map((c: any) => ({ name: c.name, status: c.status, conclusion: c.conclusion, url: c.html_url })),
+          checked_at: new Date().toISOString(),
+        };
+        const verdict = summary.total === 0 ? "no_runs" : summary.pending > 0 ? "running" : summary.failed > 0 ? "failed" : "passed";
+        await sb.from("dev_tasks").update({ plan: { ...task.plan, checks: { ...summary, verdict } }, updated_at: new Date().toISOString() }).eq("id", task.id);
+        await sb.from("dev_audit_log").insert({ task_id: task.id, actor: "tiger_ai", action: `checks:${verdict}`, details: { title: task.title, passed: summary.passed, failed: summary.failed, total: summary.total } });
+        return json({ checks: { ...summary, verdict } });
+      } catch (e) {
+        return json({ error: e instanceof Error ? e.message : "Failed to read check status" }, 502);
+      }
+    }
+
     if (body.action !== "triage") return json({ error: "Unknown action" }, 400);
 
     const { data: existing } = await sb.from("dev_tasks").select("source_report_id").not("source_report_id", "is", null);
