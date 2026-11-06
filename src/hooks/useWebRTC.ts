@@ -1,7 +1,33 @@
 // @refresh reset
 import { useState, useEffect, useRef, useCallback } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+
+type CallSignalData = {
+  callId?: string;
+  from?: string;
+  sdp?: string;
+  type?: RTCSdpType;
+  renegotiate?: boolean;
+  candidate?: RTCIceCandidateInit;
+  reason?: string;
+  [key: string]: unknown;
+};
+
+type CallSignal = {
+  id: string;
+  caller_id: string;
+  callee_id: string;
+  conversation_id: string;
+  call_type: "voice" | "video";
+  signal_type: string;
+  signal_data?: CallSignalData | null;
+  status: string;
+  callId?: string;
+};
+
+const db = supabase as unknown as SupabaseClient;
 
 type SignalInsert = {
   caller_id: string;
@@ -9,12 +35,12 @@ type SignalInsert = {
   conversation_id?: string;
   call_type: string;
   signal_type: string;
-  signal_data?: any;
+  signal_data?: CallSignalData;
   status?: string;
 };
 
 const insertSignal = async (data: SignalInsert) => {
-  const { error } = await supabase.from("call_signals").insert(data as any);
+  const { error } = await db.from("call_signals").insert(data);
   if (error) throw error;
 };
 
@@ -74,7 +100,7 @@ export const useWebRTC = () => {
   const callRef = useRef<CallInfo | null>(null);
   const facingRef = useRef<"user" | "environment">("user");
 
-  const getSignalKey = useCallback((signal: any, fallbackCallId?: string) => {
+  const getSignalKey = useCallback((signal: CallSignal, fallbackCallId?: string) => {
     const callId = signal?.signal_data?.callId || signal?.callId || fallbackCallId || signal?.id;
     return callId ? `${signal?.signal_type ?? "signal"}:${callId}` : null;
   }, []);
@@ -101,9 +127,9 @@ export const useWebRTC = () => {
     pendingOfferRef.current = null;
     processedSignalIds.current.clear();
     setRemoteStream(new MediaStream());
-    [durationTimerRef, ringTimerRef, disconnectTimerRef].forEach((ref) => {
-      if (ref.current) { clearInterval(ref.current as any); clearTimeout(ref.current as any); ref.current = null; }
-    });
+    if (durationTimerRef.current) { clearInterval(durationTimerRef.current); durationTimerRef.current = null; }
+    if (ringTimerRef.current) { clearTimeout(ringTimerRef.current); ringTimerRef.current = null; }
+    if (disconnectTimerRef.current) { clearTimeout(disconnectTimerRef.current); disconnectTimerRef.current = null; }
     setDuration(0);
     setIsMuted(false);
   }, []);
@@ -116,7 +142,7 @@ export const useWebRTC = () => {
     setTimeout(() => { statusRef.current = "idle"; callRef.current = null; setCallStatus("idle"); setActiveCall(null); }, 1500);
   }, [cleanupMedia]);
 
-  const sendSignal = useCallback(async (info: CallInfo, type: string, data: any = {}, status = "active") => {
+  const sendSignal = useCallback(async (info: CallInfo, type: string, data: CallSignalData = {}, status = "active") => {
     if (!user) throw new Error("You must be signed in to call.");
     await insertSignal({
       caller_id: info.callerId,
@@ -330,8 +356,8 @@ export const useWebRTC = () => {
     if (!user) return;
     let disposed = false;
 
-    const handle = async (payload: any) => {
-      const signal = payload.new as any;
+    const handle = async (payload: { new: unknown }) => {
+      const signal = payload.new as CallSignal;
       const data = signal.signal_data || {};
       if (data.from === user.id) return;
       const callId = data.callId || signal.id;
@@ -408,9 +434,13 @@ export const useWebRTC = () => {
         const { data: recent } = await supabase.from("call_signals").select("*")
           .eq("callee_id", user.id).gte("created_at", since).order("created_at", { ascending: true }).limit(50);
         if (disposed || !recent?.length) return;
-        const completed = new Set(recent.filter((row: any) => ["answer", "hangup", "reject", "missed"].includes(row.signal_type))
-          .map((row: any) => row.signal_data?.callId).filter(Boolean));
-        const pendingOffer = recent.find((row: any) => row.signal_type === "offer" && row.status === "pending" && !completed.has(row.signal_data?.callId));
+        const recentSignals = recent as unknown as CallSignal[];
+        const completed = new Set(recentSignals
+          .filter((row) => ["answer", "hangup", "reject", "missed"].includes(row.signal_type))
+          .map((row) => row.signal_data?.callId)
+          .filter((callId): callId is string => typeof callId === "string"));
+        const pendingOffer = recentSignals.find((row) => row.signal_type === "offer" && row.status === "pending" &&
+          typeof row.signal_data?.callId === "string" && !completed.has(row.signal_data.callId));
         if (pendingOffer) await handle({ new: pendingOffer });
       });
 
