@@ -31,13 +31,17 @@ export function checkCode(path: string, content: string) {
 }
 
 async function github(path: string, method = "GET", body?: unknown) {
-  const token = Deno.env.get("GITHUB_TOKEN") || Deno.env.get("GITHUB_API_KEY");
-  if (!token) throw new Error("GitHub is not linked or GITHUB_TOKEN is not configured in Supabase Edge Function secrets");
+  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+  const connectionKey = Deno.env.get("GITHUB_API_KEY");
+  if (!lovableKey || !connectionKey) {
+    throw new Error("GitHub connection is not linked to this project (missing gateway credentials)");
+  }
   const repo = Deno.env.get("GITHUB_REPOSITORY") || "TigerChat-HQ/access-ace-friend";
-  const response = await fetch(`https://api.github.com/repos/${repo}/${path}`, {
+  const response = await fetch(`https://connector-gateway.lovable.dev/github/repos/${repo}/${path}`, {
     method,
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${lovableKey}`,
+      "X-Connection-Api-Key": connectionKey,
       Accept: "application/vnd.github+json",
       "X-GitHub-Api-Version": "2022-11-28",
       "Content-Type": "application/json",
@@ -52,9 +56,8 @@ async function github(path: string, method = "GET", body?: unknown) {
 }
 
 async function proposeCode(task: any) {
-  const token = Deno.env.get("GITHUB_TOKEN") || Deno.env.get("GITHUB_API_KEY");
-  if (!token) {
-    return { error: "GitHub is not linked or GITHUB_TOKEN is not configured in Supabase Edge Function secrets" };
+  if (!Deno.env.get("LOVABLE_API_KEY") || !Deno.env.get("GITHUB_API_KEY")) {
+    return { error: "GitHub connection is not linked to this project" };
   }
 
   if (task.risk === "high") {
@@ -206,6 +209,33 @@ Deno.serve(async (req) => {
       await sb.from("dev_tasks").update({ status: "in_progress", plan: { ...task.plan, pr: r.pr }, updated_at: new Date().toISOString() }).eq("id", task.id);
       await sb.from("dev_audit_log").insert({ task_id: task.id, actor: "tiger_ai", action: "pr_opened", details: { title: task.title, url: r.pr.url, files: r.pr.files } });
       return json({ pr: r.pr });
+    }
+
+    if (body.action === "check_status") {
+      if (typeof body.id !== "string") return json({ error: "Invalid input" }, 400);
+      const { data: task } = await sb.from("dev_tasks").select("*").eq("id", body.id).single();
+      if (!task) return json({ error: "Task not found" }, 404);
+      if (!task.plan?.pr?.url) return json({ error: "No suggested update exists for this task yet" }, 400);
+      try {
+        const branch = `tiger-ai/task-${task.id.slice(0, 8)}`;
+        const runs = await github(`commits/${encodeURIComponent(branch)}/check-runs?per_page=20`);
+        const list = runs?.check_runs || [];
+        const summary = {
+          total: list.length,
+          completed: list.filter((c: any) => c.status === "completed").length,
+          passed: list.filter((c: any) => c.status === "completed" && c.conclusion === "success").length,
+          failed: list.filter((c: any) => c.status === "completed" && ["failure", "timed_out", "action_required"].includes(c.conclusion)).length,
+          pending: list.filter((c: any) => c.status !== "completed").length,
+          runs: list.map((c: any) => ({ name: c.name, status: c.status, conclusion: c.conclusion, url: c.html_url })),
+          checked_at: new Date().toISOString(),
+        };
+        const verdict = summary.total === 0 ? "no_runs" : summary.pending > 0 ? "running" : summary.failed > 0 ? "failed" : "passed";
+        await sb.from("dev_tasks").update({ plan: { ...task.plan, checks: { ...summary, verdict } }, updated_at: new Date().toISOString() }).eq("id", task.id);
+        await sb.from("dev_audit_log").insert({ task_id: task.id, actor: "tiger_ai", action: `checks:${verdict}`, details: { title: task.title, passed: summary.passed, failed: summary.failed, total: summary.total } });
+        return json({ checks: { ...summary, verdict } });
+      } catch (e) {
+        return json({ error: e instanceof Error ? e.message : "Failed to read check status" }, 502);
+      }
     }
 
     if (body.action !== "triage") return json({ error: "Unknown action" }, 400);

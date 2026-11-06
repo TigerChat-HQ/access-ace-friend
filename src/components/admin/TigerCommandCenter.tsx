@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Bot, Sparkles, Lock, GitPullRequest } from "lucide-react";
+import { Bot, Sparkles, Lock, GitPullRequest, ShieldCheck, Loader2 } from "lucide-react";
 
 type Task = {
   id: string; title: string; summary: string | null; category: string; priority: string;
@@ -67,6 +67,22 @@ export const TigerCommandCenter = () => {
     finally { setDrafting(null); }
   };
 
+  const [checking, setChecking] = useState<string | null>(null);
+  const checkStatus = async (id: string) => {
+    setChecking(id);
+    try {
+      const r = await call({ action: "check_status", id });
+      const v = r?.checks?.verdict;
+      const msg = v === "passed" ? "All tests and security checks passed."
+        : v === "failed" ? "Some checks failed — open the update on GitHub for details."
+        : v === "running" ? "Checks are still running on GitHub."
+        : "No checks have run yet — they start when the update is opened on GitHub.";
+      toast({ title: "Check status", description: msg, variant: v === "failed" ? "destructive" : "default" });
+      load();
+    } catch (e: any) { toast({ title: "Couldn't read check status", description: e.message, variant: "destructive" }); }
+    finally { setChecking(null); }
+  };
+
   const riskVariant = (r: string) => (r === "high" ? "destructive" : r === "medium" ? "secondary" : "outline") as any;
 
   return (
@@ -83,7 +99,7 @@ export const TigerCommandCenter = () => {
       <div className="grid grid-cols-2 gap-2 text-xs">
         {[
           ["Task manager & planner", true], ["Audit history", true],
-          ["Code connection", true], ["Tests & security checks", false],
+          ["Code connection", true], ["Tests & security checks", true],
           ["Publishing & undo", false],
         ].map(([n, on]) => (
           <div key={n as string} className="bg-card border border-border/50 rounded-lg p-2 flex items-center gap-1.5">
@@ -121,10 +137,26 @@ export const TigerCommandCenter = () => {
                 <GitPullRequest className="w-3.5 h-3.5" /> Review suggested update #{t.plan.pr.number} ({t.plan.pr.files?.length || 0} files)
               </a>
             )}
+            {t.plan?.checks && (
+              <div className="text-xs flex items-center gap-1.5">
+                <ShieldCheck className={`w-3.5 h-3.5 ${t.plan.checks.verdict === "passed" ? "text-primary" : t.plan.checks.verdict === "failed" ? "text-destructive" : "text-muted-foreground"}`} />
+                <span className="text-muted-foreground">
+                  Checks: {t.plan.checks.verdict === "no_runs" ? "not run yet" : t.plan.checks.verdict}
+                  {t.plan.checks.total > 0 && ` · ${t.plan.checks.passed}/${t.plan.checks.total} passed`}
+                  {t.plan.checks.checked_at && ` · ${new Date(t.plan.checks.checked_at).toLocaleString()}`}
+                </span>
+              </div>
+            )}
             <div className="flex flex-wrap gap-1">
               {["approved", "in_progress"].includes(t.status) && !t.plan?.pr?.url && (
                 <Button size="sm" onClick={() => proposeCode(t.id)} disabled={drafting !== null}>
                   <GitPullRequest className="w-3.5 h-3.5 mr-1" /> {drafting === t.id ? "Writing code…" : "Draft code change"}
+                </Button>
+              )}
+              {t.plan?.pr?.url && (
+                <Button size="sm" variant="outline" onClick={() => checkStatus(t.id)} disabled={checking !== null}>
+                  {checking === t.id ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5 mr-1" />}
+                  {checking === t.id ? "Checking…" : "Check tests"}
                 </Button>
               )}
               {NEXT[t.status]?.map((s) => (
