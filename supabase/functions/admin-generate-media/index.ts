@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
       .select("role")
       .eq("user_id", userId);
     const allowed = (roles || []).some((roleRow) =>
-      ["admin", "superior_admin", "moderator"].includes(r.role),
+      ["admin", "superior_admin", "moderator"].includes(roleRow.role),
     );
     if (!allowed) {
       return new Response(JSON.stringify({ error: "Admin access required" }), {
