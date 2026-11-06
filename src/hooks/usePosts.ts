@@ -162,13 +162,14 @@ export const useUserPosts = (userId: string | undefined) => {
     const [{ data: likes }, { data: comments }, { data: myLikes }] = await Promise.all([
       supabase.from("post_likes").select("post_id").in("post_id", postIds),
       supabase.from("post_comments").select("post_id").in("post_id", postIds),
-      user ? supabase.from("post_likes").select("post_id").in("post_id", postIds).eq("user_id", user.id) : Promise.resolve({ data: [] as any[] }),
+      user ? supabase.from("post_likes").select("post_id").in("post_id", postIds).eq("user_id", user.id) : Promise.resolve({ data: [] as { post_id: string }[] }),
     ]);
     const likeCountMap = new Map<string, number>();
     likes?.forEach((l) => likeCountMap.set(l.post_id, (likeCountMap.get(l.post_id) || 0) + 1));
     const commentCountMap = new Map<string, number>();
     comments?.forEach((c) => commentCountMap.set(c.post_id, (commentCountMap.get(c.post_id) || 0) + 1));
-    const myLikeSet = new Set(myLikes?.map((l: any) => l.post_id) || []);
+    const myLikeRows = (myLikes ?? []) as { post_id: string }[];
+    const myLikeSet = new Set(myLikeRows.map((like) => like.post_id));
     setPosts(
       data.map((p) => ({
         ...p,
