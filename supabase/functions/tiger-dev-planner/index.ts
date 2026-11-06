@@ -231,9 +231,9 @@ Deno.serve(async (req) => {
         const summary = {
           total: list.length,
           completed: list.filter((check: { status: string; conclusion: string | null }) => check.status === "completed").length,
-          passed: list.filter((check: { status: string; conclusion: string | null }) => c.status === "completed" && check.conclusion === "success").length,
-          failed: list.filter((check: { status: string; conclusion: string | null }) => c.status === "completed" && ["failure", "timed_out", "action_required"].includes(check.conclusion ?? "")).length,
-          pending: list.filter((check: { status: string; conclusion: string | null }) => c.status !== "completed").length,
+          passed: list.filter((check: { status: string; conclusion: string | null }) => check.status === "completed" && check.conclusion === "success").length,
+          failed: list.filter((check: { status: string; conclusion: string | null }) => check.status === "completed" && ["failure", "timed_out", "action_required"].includes(check.conclusion ?? "")).length,
+          pending: list.filter((check: { status: string; conclusion: string | null }) => check.status !== "completed").length,
           runs: list.map((check: { name: string; status: string; conclusion: string | null; html_url: string }) => ({ name: check.name, status: check.status, conclusion: check.conclusion, url: check.html_url })),
           checked_at: new Date().toISOString(),
         };
