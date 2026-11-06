@@ -308,18 +308,20 @@ const Chats = () => {
     })),
   ];
 
-  const storyViewerData = stories.map((s) => ({
-    id: s.id,
-    userId: s.user_id,
-    userName: s.profile?.display_name || "User",
-    avatar: (s.profile?.display_name || "U").slice(0, 2).toUpperCase(),
-    imageUrl: s.image_url,
-    caption: s.caption || undefined,
-    musicUrl: metadata.music_url || undefined,
-    mediaType: (metadata.media_type || "image") as "image" | "video",
-    textOverlay: metadata.text_overlay || null,
-    duration: metadata.duration || null,
-  });
+  const storyViewerData = stories.map((story) => {
+    const metadata = story as StoryMetadata;
+    return {
+      id: story.id,
+      userId: story.user_id,
+      userName: story.profile?.display_name || "User",
+      avatar: (story.profile?.display_name || "U").slice(0, 2).toUpperCase(),
+      imageUrl: story.image_url,
+      caption: story.caption || undefined,
+      musicUrl: metadata.music_url || undefined,
+      mediaType: (metadata.media_type || "image") as "image" | "video",
+      textOverlay: metadata.text_overlay || null,
+      duration: metadata.duration || null,
+    };
   });
 
   const activeConvoName = activeConvo?.otherProfile?.display_name || activeConvo?.name || "Chat";
