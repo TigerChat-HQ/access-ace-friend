@@ -238,6 +238,29 @@ Deno.serve(async (req) => {
       catch (error) { return json({ error: error instanceof Error ? error.message : "GitHub lookup failed" }, 502); }
     }
 
+    if (body.action === "set_task_files") {
+      if (typeof body.id !== "string" || !Array.isArray(body.files)) return json({ error: "Invalid input" }, 400);
+      const paths = [...new Set(body.files.filter((p: unknown) =>
+        typeof p === "string" && /^[\w./-]+$/.test(p) && p.startsWith("src/") &&
+        !p.includes("..") && !/(auth|payment|billing|permission|role|secret|\.env)/i.test(p)
+      ))].slice(0, 3) as string[];
+      if (!paths.length) return json({ error: "Provide 1–3 safe source paths under src/." }, 400);
+      try {
+        for (const path of paths) {
+          await githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/contents/${encodeURIComponent(path).replace(/%2F/g, "/")}?ref=main`);
+        }
+        const { data: task, error: taskError } = await sb.from("dev_tasks").select("id, title, plan").eq("id", body.id).single();
+        if (taskError || !task) return json({ error: "Task not found" }, 404);
+        const nextPlan = { ...(task.plan || {}), areas: paths };
+        const { error } = await sb.from("dev_tasks").update({ plan: nextPlan, updated_at: new Date().toISOString() }).eq("id", body.id);
+        if (error) return json({ error: error.message }, 500);
+        await sb.from("dev_audit_log").insert({ task_id: body.id, actor: u.user.id, action: "github_target_files_set", details: { title: task.title, files: paths } });
+        return json({ ok: true, files: paths });
+      } catch (error) {
+        return json({ error: error instanceof Error ? error.message : "Could not validate source files" }, 400);
+      }
+    }
+
     if (body.action === "propose_code") {
       if (typeof body.id !== "string") return json({ error: "Invalid task ID" }, 400);
       const { data: task, error: taskError } = await sb.from("dev_tasks").select("*").eq("id", body.id).single();
