@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { X, Volume2, VolumeX, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useScreenshotProtection } from "@/hooks/useScreenshotProtection";
@@ -26,6 +27,7 @@ interface StoryViewerProps {
 }
 
 const REACTIONS = ["❤️", "🔥", "😂", "😮", "😢", "👏"];
+const db = supabase as unknown as SupabaseClient;
 
 export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: StoryViewerProps) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
@@ -58,18 +60,19 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
     if (!story) return;
     (async () => {
       const { data } = await supabase
-        .from("story_reactions" as any)
+        .from("story_reactions")
         .select("emoji")
         .eq("story_id", story.id);
       if (data) {
         const c: Record<string, number> = {};
-        (data as any[]).forEach((r) => {
-          c[r.emoji] = (c[r.emoji] || 0) + 1;
+        const reactionRows = data as unknown as { emoji: string }[];
+        reactionRows.forEach((reaction) => {
+          c[reaction.emoji] = (c[reaction.emoji] || 0) + 1;
         });
         setCounts(c);
       }
     })();
-  }, [story?.id]);
+  }, [story]);
 
   // Realtime new reactions → animate floaters & bump counts
   useEffect(() => {
@@ -79,8 +82,9 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "story_reactions", filter: `story_id=eq.${story.id}` },
-        (payload: any) => {
-          const emoji = payload.new?.emoji;
+        (payload) => {
+          const change = payload as unknown as { new: { emoji?: string } };
+          const emoji = change.new?.emoji;
           if (!emoji) return;
           setCounts((c) => ({ ...c, [emoji]: (c[emoji] || 0) + 1 }));
           if (emoji === "🐯") {
@@ -118,7 +122,9 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
     }, tickMs);
 
     if (currentUserId && story && story.userId !== currentUserId) {
-      supabase.from("story_views").insert({ story_id: story.id, viewer_id: currentUserId }).then(() => {});
+      void supabase.from("story_views").insert({ story_id: story.id, viewer_id: currentUserId }).then(({ error }) => {
+        if (error) console.warn("Could not record story view:", error.message);
+      });
     }
 
     return () => clearInterval(interval);
@@ -128,7 +134,9 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
     if (audioRef.current) {
       if (story?.musicUrl) {
         audioRef.current.src = story.musicUrl;
-        audioRef.current.play().catch(() => {});
+        void audioRef.current.play().catch((error: unknown) => {
+          console.warn("Story audio could not be played:", error);
+        });
       } else {
         audioRef.current.pause();
         audioRef.current.src = "";
@@ -158,7 +166,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
       setFloaters((f) => [...f, { id, emoji, left: 40 + Math.random() * 20 }]);
       setTimeout(() => setFloaters((f) => f.filter((x) => x.id !== id)), 2400);
     }
-    await supabase.from("story_reactions" as any).insert({
+    await supabase.from("story_reactions").insert({
       story_id: story.id,
       user_id: currentUserId,
       emoji,
