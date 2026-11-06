@@ -194,6 +194,16 @@ Deno.serve(async (req) => {
     if (!u?.user) return json({ error: "Unauthorized" }, 401);
 
     const body = await req.json().catch(() => ({}));
+    const requestedAction = typeof body.action === "string" ? body.action.trim() : "";
+    // Backward-compatible action names used by older Command Center previews.
+    const actionAliases: Record<string, string> = {
+      github_refresh: "github_list_prs",
+      refresh_github: "github_list_prs",
+      list_pull_requests: "github_list_prs",
+      get_pull_requests: "github_list_prs",
+      refresh_checks: "check_status",
+    };
+    if (requestedAction && actionAliases[requestedAction]) body.action = actionAliases[requestedAction];
 
     // Listing public repository metadata and open PRs is read-only. Keep it
     // available to authenticated Command Center viewers; all task mutations
@@ -309,7 +319,11 @@ Deno.serve(async (req) => {
       return json({ ok: true, task });
     }
 
-    if (body.action !== "triage") return json({ error: "Unknown action" }, 400);
+    if (body.action !== "triage") return json({
+      error: "Unknown action",
+      received_action: requestedAction || null,
+      supported_actions: ["github_list_prs", "check_status", "set_task_files", "propose_code", "set_status", "create_task", "triage"],
+    }, 400);
 
     const { data: existing } = await sb.from("dev_tasks").select("source_report_id").not("source_report_id", "is", null);
     const done = new Set((existing || []).map((t) => t.source_report_id));
