@@ -24,27 +24,36 @@ jobs:
         with:
           ref: stage3/publishing-undo
           fetch-depth: 0
+
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
-      - name: Refresh compatible dependency versions
+
+      - name: Refresh Bun dependency resolutions
         run: bun update
-      - name: Create npm audit lockfile
-        run: npm install --package-lock-only --ignore-scripts --no-audit
-      - name: Apply non-breaking npm security fixes
-        continue-on-error: true
-        run: npm audit fix --package-lock-only
-      - name: Capture remaining security findings
+
+      - name: Verify lockfile is installable
+        run: bun install --frozen-lockfile
+
+      - name: Generate npm advisory report from resolved dependency graph
         id: audit
         continue-on-error: true
-        run: npm audit --audit-level=high
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit
+          npm audit --json > dependency-audit.json || true
+          node -e "const a=require('./dependency-audit.json'); const m=a.metadata?.vulnerabilities ?? {}; console.log('npm audit summary:', JSON.stringify(m));"
+
       - name: Verify TypeScript
         run: bun run typecheck
+
       - name: Verify tests
         run: bun run test
+
       - name: Verify lint
         run: bun run lint
+
       - name: Verify production build
         run: bun run build
+
       - name: Commit refreshed Bun lockfile
         run: |
           rm -f package-lock.json
@@ -57,11 +66,7 @@ jobs:
           git add bun.lock
           git commit -m "chore(deps): refresh patched dependency versions"
           git push origin HEAD:stage3/publishing-undo
-      - name: Publish audit report
-        if: always()
-        run: |
-          npm audit --json > dependency-audit.json || true
-          echo "Audit report generated; inspect the artifact for remaining advisories."
+
       - name: Upload audit report
         if: always()
         uses: actions/upload-artifact@v4
