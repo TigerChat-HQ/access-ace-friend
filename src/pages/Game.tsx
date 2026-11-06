@@ -14,8 +14,22 @@ type Question = {
   explanation: string | null;
 };
 
+type QuestionRow = Omit<Question, "options"> & { options: unknown };
 type TrophyRow = { tier: string; name: string; min_score: number; icon: string; color: string };
-type Leader = { user_id: string; score: number; trophy_tier: string | null; profile?: { display_name: string | null; avatar_url: string | null } };
+type LeaderRow = { user_id: string; score: number; trophy_tier: string | null };
+type Leader = LeaderRow & { profile?: { display_name: string | null; avatar_url: string | null } };
+
+const parseOptions = (value: unknown): string[] => {
+  if (Array.isArray(value)) return value.filter((option): option is string => typeof option === "string");
+  if (typeof value !== "string") return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((option): option is string => typeof option === "string") : [];
+  } catch (error: unknown) {
+    console.warn("Could not parse game question options:", error);
+    return [];
+  }
+};
 
 const TIME_PER_Q = 15;
 const POINTS_PER_Q = 10;
@@ -48,14 +62,16 @@ const Game = () => {
       ]);
       setTrophies((tro || []) as TrophyRow[]);
       if (lb && lb.length) {
-        const ids = Array.from(new Set(lb.map((l: any) => l.user_id)));
+        const leaderboardRows = lb as unknown as LeaderRow[];
+        const ids = Array.from(new Set(leaderboardRows.map((leader) => leader.user_id)));
         const { data: profs } = await supabase.from("profiles").select("user_id,display_name,avatar_url").in("user_id", ids);
-        const byId = new Map((profs || []).map((p: any) => [p.user_id, p]));
-        setLeaders(lb.map((l: any) => ({ ...l, profile: byId.get(l.user_id) })));
+        const profileRows = (profs ?? []) as unknown as { user_id: string; display_name: string | null; avatar_url: string | null }[];
+        const byId = new Map(profileRows.map((profile) => [profile.user_id, profile]));
+        setLeaders(leaderboardRows.map((leader) => ({ ...leader, profile: byId.get(leader.user_id) })));
       }
       if (user) {
         const { data: mine } = await supabase.from("user_trophies").select("trophy_tier").eq("user_id", user.id);
-        setMyTrophies((mine || []).map((m: any) => m.trophy_tier));
+        setMyTrophies((mine || []).map((trophy) => trophy.trophy_tier));
       }
     })();
   }, [user]);
@@ -84,8 +100,9 @@ const Game = () => {
       toast({ title: "No questions available", description: error?.message, variant: "destructive" });
       return;
     }
-    const shuffled = (data as any[])
-      .map((q) => ({ ...q, options: Array.isArray(q.options) ? q.options : JSON.parse(q.options) }))
+    const questionRows = data as unknown as QuestionRow[];
+    const shuffled = questionRows
+      .map((question) => ({ ...question, options: parseOptions(question.options) }))
       .sort(() => Math.random() - 0.5)
       .slice(0, 10) as Question[];
     setQuestions(shuffled);
