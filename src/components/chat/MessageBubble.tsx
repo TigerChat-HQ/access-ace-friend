@@ -41,7 +41,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
   const isVoice = message.type === "voice";
 
   return (
-    <div className={cn("flex mb-2 animate-fade-in group", isMe ? "justify-end" : "justify-start")}>
+    <div className={cn("flex w-full min-w-0 mb-2 animate-fade-in group", isMe ? "justify-end" : "justify-start")}>
       {isMe && (
         <div className="flex items-center mr-1 opacity-60 md:opacity-0 group-hover:opacity-100 transition-opacity">
           <DropdownMenu>
@@ -67,7 +67,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
 
       <div
         className={cn(
-          "max-w-[78%] rounded-[1.35rem] text-[14.5px] leading-relaxed shadow-sm transition-transform active:scale-[0.98]",
+          "min-w-0 max-w-[78%] rounded-[1.35rem] text-[14.5px] leading-relaxed shadow-sm transition-transform active:scale-[0.98] [overflow-wrap:anywhere]",
           isImage && !message.text ? "p-1" : "px-4 py-2.5",
           isMe
             ? cn(myBubbleClass || "bg-primary text-primary-foreground", "rounded-br-md shadow-[0_4px_18px_-6px_hsl(var(--primary)/0.55)]")
@@ -143,7 +143,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
       </div>
 
       {!isMe && (
-        <div className="flex items-center ml-1 opacity-60 md:opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex shrink-0 items-center ml-1 opacity-60 md:opacity-0 group-hover:opacity-100 transition-opacity">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="p-1 rounded-full hover:bg-surface-hover text-muted-foreground">
