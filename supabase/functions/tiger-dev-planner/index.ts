@@ -107,25 +107,33 @@ async function proposeCode(task: any) {
         }),
       });
 
-      if (aiRes.ok) {
-        const aiJson = await aiRes.json().catch(() => ({}));
-        const rawContent = aiJson?.choices?.[0]?.message?.content;
-        if (rawContent) {
-          try {
-            const parsed = JSON.parse(rawContent);
-            if (typeof parsed.content === "string" && parsed.content.trim().length > 0) {
-              proposedContent = parsed.content;
-              if (parsed.summary) summary = parsed.summary;
-            }
-          } catch {
-            // keep fallback
-          }
-        }
+      if (!aiRes.ok) {
+        const detail = await aiRes.text().catch(() => "");
+        throw new Error(`AI code proposal failed [${aiRes.status}]: ${detail.slice(0, 500)}`);
       }
+
+      const aiJson = await aiRes.json().catch(() => ({}));
+      const rawContent = aiJson?.choices?.[0]?.message?.content;
+      if (typeof rawContent !== "string" || !rawContent.trim()) {
+        throw new Error("AI returned an empty code proposal");
+      }
+
+      let parsed: { content?: unknown; summary?: unknown };
+      try {
+        parsed = JSON.parse(rawContent);
+      } catch {
+        throw new Error("AI returned invalid JSON for the code proposal");
+      }
+
+      if (typeof parsed.content !== "string" || !parsed.content.trim()) {
+        throw new Error("AI response did not include complete updated file content");
+      }
+      proposedContent = parsed.content;
+      if (typeof parsed.summary === "string" && parsed.summary.trim()) summary = parsed.summary;
     }
 
     if (proposedContent === originalContent) {
-      proposedContent = originalContent + `\n// Tiger AI: reviewed for task ${task.id}\n`;
+      throw new Error("AI proposal made no source changes; no branch or pull request was created");
     }
 
     const check = checkCode(targetPath, proposedContent);
