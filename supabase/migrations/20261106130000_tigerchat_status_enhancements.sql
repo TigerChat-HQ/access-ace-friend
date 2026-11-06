@@ -14,9 +14,8 @@ CREATE POLICY "Stories visible to selected audience"
     AND (audience = 'everyone' OR user_id = auth.uid())
   );
 
-CREATE INDEX IF NOT EXISTS idx_stories_active_created
-  ON public.stories (created_at DESC)
-  WHERE expires_at > now();
+CREATE INDEX IF NOT EXISTS idx_stories_expiry_created
+  ON public.stories (expires_at, created_at DESC);
 
 -- Prevent duplicate reactions from being inserted by retrying clients.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_story_reactions_unique
