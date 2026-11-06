@@ -51,9 +51,6 @@ jobs:
       - name: Regenerate npm lockfile from manifest
         run: npm install --package-lock-only --ignore-scripts --no-audit --legacy-peer-deps
 
-      - name: Regenerate Bun lockfile from manifest
-        run: bun install --lockfile-only
-
       - name: Install npm dependency tree
         run: npm ci --ignore-scripts --legacy-peer-deps
 
@@ -62,6 +59,9 @@ jobs:
 
       - name: Verify npm audit has zero vulnerabilities
         run: npm audit --audit-level=low
+
+      - name: Regenerate Bun lockfile from audited manifest
+        run: bun install --lockfile-only
 
       - name: Verify Bun frozen lockfile
         run: bun install --frozen-lockfile
