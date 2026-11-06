@@ -1,0 +1,62 @@
+name: Prepare production rollback PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: "Full commit SHA currently deployed and confirmed as bad"
+        required: true
+        type: string
+      reason:
+        description: "Incident/change reason"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare-rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Validate target commit
+        env:
+          TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          if ! [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "target_sha must be a full 40-character commit SHA"
+            exit 1
+          fi
+          git cat-file -e "$TARGET_SHA^{commit}"
+          git merge-base --is-ancestor "$TARGET_SHA" origin/main
+      - name: Create rollback branch and revert
+        env:
+          TARGET_SHA: ${{ inputs.target_sha }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          BRANCH="rollback/${TARGET_SHA:0:8}-${GITHUB_RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git revert --no-edit "$TARGET_SHA"
+          git push origin "$BRANCH"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+        id: revert
+      - name: Open rollback PR (human review required)
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ steps.revert.outputs.branch }}
+          base: main
+          title: "Rollback ${{ inputs.target_sha }}"
+          body: |
+            Automated revert proposal for commit ${{ inputs.target_sha }}.
+
+            Reason: ${{ inputs.reason }}
+
+            This workflow does not merge or deploy. Review CI and approve the rollback PR manually.
