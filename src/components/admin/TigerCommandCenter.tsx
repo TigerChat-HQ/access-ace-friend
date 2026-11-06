@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Bot, Sparkles, Lock, GitPullRequest, ShieldCheck, Loader2 } from "lucide-react";
+import { Bot, Sparkles, GitPullRequest, ShieldCheck, Loader2, Rocket, RotateCcw, ExternalLink } from "lucide-react";
 
 type Task = {
   id: string; title: string; summary: string | null; category: string; priority: string;
@@ -13,6 +13,8 @@ type Task = {
 const NEXT: Record<string, string[]> = {
   planned: ["approved", "rejected"], approved: ["in_progress", "rejected"], in_progress: ["done"], done: [], rejected: ["planned"],
 };
+
+const REPO_ACTIONS = "https://github.com/TigerChat-HQ/access-ace-friend/actions";
 
 export const TigerCommandCenter = () => {
   const { toast } = useToast();
@@ -100,13 +102,33 @@ export const TigerCommandCenter = () => {
         {[
           ["Task manager & planner", true], ["Audit history", true],
           ["Code connection", true], ["Tests & security checks", true],
-          ["Publishing & undo", false],
+          ["Publishing & undo", true],
         ].map(([n, on]) => (
           <div key={n as string} className="bg-card border border-border/50 rounded-lg p-2 flex items-center gap-1.5">
-            {on ? <span className="w-2 h-2 rounded-full bg-primary" /> : <Lock className="w-3 h-3 text-muted-foreground" />}
-            <span className={on ? "text-foreground" : "text-muted-foreground"}>{n as string}{on ? "" : " — coming next"}</span>
+            <span className="w-2 h-2 rounded-full bg-primary" />
+            <span className="text-foreground">{n as string}</span>
           </div>
         ))}
+      </div>
+
+      <div className="bg-card border border-border/50 rounded-lg p-3 space-y-2">
+        <h3 className="text-xs font-semibold text-foreground">Publishing & undo</h3>
+        <p className="text-xs text-muted-foreground">
+          Prepare a verified draft release or a reviewed rollback pull request. Neither workflow merges code or deploys production.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <a href={`${REPO_ACTIONS}/workflows/prepare-publish.yml`} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground">
+            <Rocket className="w-3.5 h-3.5 mr-1" /> Prepare release <ExternalLink className="w-3 h-3 ml-1" />
+          </a>
+          <a href={`${REPO_ACTIONS}/workflows/prepare-rollback-pr.yml`} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center rounded-md border border-border px-3 py-2 text-xs font-medium text-foreground">
+            <RotateCcw className="w-3.5 h-3.5 mr-1" /> Prepare rollback <ExternalLink className="w-3 h-3 ml-1" />
+          </a>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Release workflow runs typecheck, tests, lint and production build before creating a draft GitHub release. An authorized maintainer must review and publish it. Rollback creates a separate revert PR for human review.
+        </p>
       </div>
 
       <div className="space-y-2">
