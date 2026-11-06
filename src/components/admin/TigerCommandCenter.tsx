@@ -1,19 +1,24 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Bot, Sparkles, GitPullRequest, ShieldCheck, Loader2, Rocket, RotateCcw, ExternalLink } from "lucide-react";
+import { Bot, Sparkles, GitPullRequest, ShieldCheck, Loader2, Rocket, RotateCcw, ExternalLink, GitBranch, RefreshCw } from "lucide-react";
 
 type TaskPlan = {
   steps?: string[];
   tests?: string[];
+  areas?: string[];
   pr?: { url?: string; number?: number; files?: string[] };
   checks?: {
     verdict?: "passed" | "failed" | "running" | "no_runs" | string;
     total?: number;
     passed?: number;
+    failed?: number;
+    pending?: number;
     checked_at?: string;
+    runs?: Array<{ name: string; status: string; conclusion?: string | null; url?: string | null }>;
   };
 };
 
@@ -37,10 +42,15 @@ type AuditEntry = {
   details: { title?: string; url?: string } | null;
 };
 
+type GitHubPullRequest = { number: number; title: string; url: string; draft: boolean; head_branch: string; updated_at: string; user?: string; };
 type PlannerResponse = {
   created?: number;
-  pr?: { url?: string };
+  pr?: { url?: string; number?: number; files?: string[] };
   checks?: { verdict?: string };
+  pull_requests?: GitHubPullRequest[];
+  write_enabled?: boolean;
+  default_branch?: string;
+  error?: string;
 };
 
 const NEXT: Record<string, string[]> = {
@@ -62,6 +72,10 @@ export const TigerCommandCenter = () => {
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
+  const [pullRequests, setPullRequests] = useState<GitHubPullRequest[]>([]);
+  const [githubWriteEnabled, setGithubWriteEnabled] = useState(false);
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [fileTargets, setFileTargets] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     const [{ data: taskData, error: taskError }, { data: auditData, error: auditError }] = await Promise.all([
@@ -82,15 +96,28 @@ export const TigerCommandCenter = () => {
     setAudit((auditData as AuditEntry[] | null) ?? []);
   }, [toast]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
-  const call = async (body: Record<string, unknown>): Promise<PlannerResponse> => {
+  const call = useCallback(async (body: Record<string, unknown>): Promise<PlannerResponse> => {
     const { data, error } = await supabase.functions.invoke("tiger-dev-planner", { body });
     if (error) throw new Error(error.message);
     return (data ?? {}) as PlannerResponse;
-  };
+  }, []);
+
+  const refreshGitHub = useCallback(async () => {
+    setGithubLoading(true);
+    try {
+      const result = await call({ action: "github_list_prs" });
+      setPullRequests(result.pull_requests ?? []);
+      setGithubWriteEnabled(Boolean(result.write_enabled));
+    } catch (error: unknown) {
+      toast({ title: "GitHub refresh failed", description: getErrorMessage(error), variant: "destructive" });
+    } finally {
+      setGithubLoading(false);
+    }
+  }, [call, toast]);
+
+  useEffect(() => { void refreshGitHub(); }, [refreshGitHub]);
 
   const triage = async () => {
     setBusy(true);
@@ -130,6 +157,18 @@ export const TigerCommandCenter = () => {
   };
 
   const [checking, setChecking] = useState<string | null>(null);
+  const saveTargetFiles = async (id: string) => {
+    const files = (fileTargets[id] ?? "").split(",").map((path) => path.trim()).filter(Boolean);
+    try {
+      await call({ action: "set_task_files", id, files });
+      setFileTargets((current) => ({ ...current, [id]: files.join(", ") }));
+      toast({ title: "GitHub source files saved", description: "Tiger AI will only edit these selected files." });
+      await load();
+    } catch (error: unknown) {
+      toast({ title: "Could not save source files", description: getErrorMessage(error), variant: "destructive" });
+    }
+  };
+
   const checkStatus = async (id: string) => {
     setChecking(id);
     try {
@@ -177,6 +216,28 @@ export const TigerCommandCenter = () => {
         ))}
       </div>
 
+
+      <div className="bg-card border border-border/50 rounded-lg p-3 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-xs font-semibold text-foreground flex items-center gap-1.5"><GitBranch className="w-3.5 h-3.5" /> GitHub — access-ace-friend</h3>
+          <Button size="sm" variant="outline" onClick={refreshGitHub} disabled={githubLoading}>
+            {githubLoading ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1" />} Refresh
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+          <Badge variant="secondary">Live repository data</Badge>
+          <Badge variant={githubWriteEnabled ? "default" : "outline"}>{githubWriteEnabled ? "GITHUB_TOKEN configured" : "Read-only — write token missing"}</Badge>
+        </div>
+        {!githubWriteEnabled && <p className="text-[11px] text-muted-foreground">TIGERCHAT can read open pull requests and CI status. To let Tiger AI prepare code-fix branches and draft PRs, configure the GITHUB_TOKEN Edge Function secret with Contents and Pull requests read/write permissions. The token stays server-side.</p>}
+        {pullRequests.length === 0 ? <p className="text-xs text-muted-foreground">No open pull requests found, or refresh to retry.</p> : (
+          <div className="space-y-1.5">{pullRequests.map((pr) => (
+            <div key={pr.number} className="flex items-start justify-between gap-2 rounded-md border border-border/40 p-2">
+              <div className="min-w-0"><p className="text-xs font-medium text-foreground">#{pr.number} · {pr.title}</p><p className="text-[10px] text-muted-foreground">{pr.head_branch} → main · {pr.draft ? "Draft" : "Ready for review"} · {new Date(pr.updated_at).toLocaleString()}</p></div>
+              <a href={pr.url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-xs text-primary underline">Open <ExternalLink className="inline w-3 h-3" /></a>
+            </div>
+          ))}</div>
+        )}
+      </div>
       <div className="bg-card border border-border/50 rounded-lg p-3 space-y-2">
         <h3 className="text-xs font-semibold text-foreground">Publishing & undo</h3>
         <p className="text-xs text-muted-foreground">
@@ -217,7 +278,12 @@ export const TigerCommandCenter = () => {
                   <ol className="list-decimal pl-4 space-y-0.5">{task.plan.steps.map((step, index) => <li key={index}>{step}</li>)}</ol>
                 )}
                 {task.plan?.tests && task.plan.tests.length > 0 && <p><span className="text-foreground">Tests:</span> {task.plan.tests.join("; ")}</p>}
-                {task.risk === "high" && <p className="text-destructive">Protected change — needs your explicit approval.</p>}
+                <div className="space-y-1">
+                  <label className="text-foreground" htmlFor={`target-files-${task.id}`}>GitHub source files (comma-separated, 1–3 existing src/ paths)</label>
+                  <Input id={`target-files-${task.id}`} value={fileTargets[task.id] ?? (task.plan?.areas ?? []).join(", ")} onChange={(event) => setFileTargets((current) => ({ ...current, [task.id]: event.target.value }))} placeholder="src/components/Example.tsx" />
+                  <Button size="sm" variant="outline" onClick={() => saveTargetFiles(task.id)}>Save target files</Button>
+                </div>
+                {task.risk === "high" && <p className="text-destructive">Protected change — needs your explicit approval; AI code drafting is blocked.</p>}
               </div>
             )}
             {task.plan?.pr?.url && (
@@ -235,8 +301,18 @@ export const TigerCommandCenter = () => {
                 </span>
               </div>
             )}
+            {task.plan?.checks?.runs && task.plan.checks.runs.length > 0 && (
+              <ul className="space-y-0.5 text-[11px] text-muted-foreground">
+                {task.plan.checks.runs.map((run, index) => (
+                  <li key={`${run.name}-${index}`} className="flex items-center justify-between gap-2">
+                    <span className="truncate">{run.name} · {run.status}{run.conclusion ? ` / ${run.conclusion}` : ""}</span>
+                    {run.url && <a href={run.url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-primary underline">Logs</a>}
+                  </li>
+                ))}
+              </ul>
+            )}
             <div className="flex flex-wrap gap-1">
-              {["approved", "in_progress"].includes(task.status) && !task.plan?.pr?.url && (
+              {["approved", "in_progress"].includes(task.status) && task.risk !== "high" && githubWriteEnabled && !task.plan?.pr?.url && (
                 <Button size="sm" onClick={() => proposeCode(task.id)} disabled={drafting !== null}>
                   <GitPullRequest className="w-3.5 h-3.5 mr-1" /> {drafting === task.id ? "Writing code…" : "Draft code change"}
                 </Button>
