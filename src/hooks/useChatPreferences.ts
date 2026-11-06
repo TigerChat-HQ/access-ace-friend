@@ -43,7 +43,7 @@ export const useChatPreferences = (conversationId: string | null) => {
     if (!user || !conversationId) return;
     const merged = { ...prefs, ...next };
     setPrefs(merged);
-    await supabase.from("chat_preferences" as any).upsert(
+    await db.from("chat_preferences").upsert(
       {
         user_id: user.id,
         conversation_id: conversationId,
