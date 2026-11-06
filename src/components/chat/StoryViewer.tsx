@@ -14,7 +14,8 @@ interface StoryData {
   imageUrl?: string;
   caption?: string;
   musicUrl?: string;
-  mediaType?: "image" | "video";
+  mediaType?: "image" | "video" | "text";
+  backgroundColor?: string;
   textOverlay?: { text: string } | null;
   duration?: number | null;
 }
@@ -46,6 +47,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
   useScreenshotProtection(true);
 
   const isVideo = story?.mediaType === "video";
+  const isText = story?.mediaType === "text" || !story?.imageUrl;
   const storyDuration = isVideo && story?.duration ? story.duration * 1000 : 5000;
 
   useEffect(() => {
@@ -215,7 +217,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
       </div>
 
       <div className="w-full h-full flex items-center justify-center">
-        {isVideo && story.imageUrl ? (
+        {isText ? (\n          <div className="w-full h-full flex items-center justify-center px-8 text-center text-white text-3xl font-bold whitespace-pre-wrap" style={{ backgroundColor: story.backgroundColor || "#6D28D9" }}>\n            {story.caption || story.textOverlay?.text || "Status"}\n          </div>\n        ) : isVideo && story.imageUrl ? (
           <video
             ref={videoRef}
             src={story.imageUrl}
@@ -280,7 +282,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
         </div>
       )}
 
-      {story.caption && (
+      {story.caption && !isText && (
         <div className="absolute bottom-20 left-0 right-0 text-center px-4">
           <p className="text-white text-sm bg-black/50 inline-block px-4 py-2 rounded-full">{story.caption}</p>
         </div>
