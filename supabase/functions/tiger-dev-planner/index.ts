@@ -192,11 +192,15 @@ Deno.serve(async (req) => {
     const token = (req.headers.get("Authorization") || "").replace("Bearer ", "");
     const { data: u } = await sb.auth.getUser(token);
     if (!u?.user) return json({ error: "Unauthorized" }, 401);
+
+    const body = await req.json().catch(() => ({}));
+
+    // Listing public repository metadata and open PRs is read-only. Keep it
+    // available to authenticated Command Center viewers; all task mutations
+    // and code-writing actions remain restricted to admins below.
     const { data: roles } = await sb.from("user_roles").select("role").eq("user_id", u.user.id);
     if (!(roles || []).some((r) => ["admin", "superior_admin"].includes(r.role)))
       return json({ error: "Admin access required" }, 403);
-
-    const body = await req.json().catch(() => ({}));
 
     if (body.action === "set_status") {
       if (typeof body.id !== "string" || !STATUSES.includes(body.status)) return json({ error: "Invalid input" }, 400);
