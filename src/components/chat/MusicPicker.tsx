@@ -132,9 +132,9 @@ export const MusicPicker = ({ trigger, value, onChange, maxClip = MAX_DEFAULT }:
                 step={0.5}
                 value={range}
                 onValueChange={(v) => {
-                  let [a, b] = v as [number, number];
-                  if (b - a > maxClip) b = a + maxClip;
-                  setRange([a, b]);
+                  const [start, end] = v as [number, number];
+                  const adjustedEnd = end - start > maxClip ? start + maxClip : end;
+                  setRange([start, adjustedEnd]);
                 }}
               />
               <p className="text-[10px] text-muted-foreground">Max clip: {maxClip}s</p>
