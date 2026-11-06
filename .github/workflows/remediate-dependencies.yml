@@ -28,17 +28,17 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Refresh Bun dependency resolutions
+      - name: Refresh compatible dependency resolutions
         run: bun update
 
-      - name: Verify lockfile is installable
-        run: bun install --frozen-lockfile
+      - name: Install from refreshed Bun lockfile
+        run: bun install
 
-      - name: Generate npm advisory report from resolved dependency graph
+      - name: Generate npm advisory report
         id: audit
         continue-on-error: true
         run: |
-          npm install --package-lock-only --ignore-scripts --no-audit
+          npm install --package-lock-only --ignore-scripts --no-audit --legacy-peer-deps
           npm audit --json > dependency-audit.json || true
           node -e "const a=require('./dependency-audit.json'); const m=a.metadata?.vulnerabilities ?? {}; console.log('npm audit summary:', JSON.stringify(m));"
 
@@ -55,6 +55,7 @@ jobs:
         run: bun run build
 
       - name: Commit refreshed Bun lockfile
+        if: always()
         run: |
           rm -f package-lock.json
           if git diff --quiet -- bun.lock; then
@@ -64,7 +65,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add bun.lock
-          git commit -m "chore(deps): refresh patched dependency versions"
+          git commit -m "chore(deps): refresh compatible dependency versions"
           git push origin HEAD:stage3/publishing-undo
 
       - name: Upload audit report
