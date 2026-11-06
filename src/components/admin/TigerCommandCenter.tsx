@@ -13,7 +13,10 @@ type TaskPlan = {
     verdict?: "passed" | "failed" | "running" | "no_runs" | string;
     total?: number;
     passed?: number;
+    failed?: number;
+    pending?: number;
     checked_at?: string;
+    runs?: Array<{ name: string; status: string; conclusion?: string | null; url?: string | null }>;
   };
 };
 
@@ -208,7 +211,7 @@ export const TigerCommandCenter = () => {
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[11px]">
           <Badge variant="secondary">Live repository data</Badge>
-          <Badge variant={githubWriteEnabled ? "default" : "outline"}>{githubWriteEnabled ? "Draft PR writing enabled" : "Read-only — write token missing"}</Badge>
+          <Badge variant={githubWriteEnabled ? "default" : "outline"}>{githubWriteEnabled ? "GITHUB_TOKEN configured" : "Read-only — write token missing"}</Badge>
         </div>
         {!githubWriteEnabled && <p className="text-[11px] text-muted-foreground">TIGERCHAT can read open pull requests and CI status. To let Tiger AI prepare code-fix branches and draft PRs, configure the GITHUB_TOKEN Edge Function secret with Contents and Pull requests read/write permissions. The token stays server-side.</p>}
         {pullRequests.length === 0 ? <p className="text-xs text-muted-foreground">No open pull requests found, or refresh to retry.</p> : (
@@ -277,6 +280,16 @@ export const TigerCommandCenter = () => {
                   {task.plan.checks.checked_at && ` · ${new Date(task.plan.checks.checked_at).toLocaleString()}`}
                 </span>
               </div>
+            )}
+            {task.plan?.checks?.runs && task.plan.checks.runs.length > 0 && (
+              <ul className="space-y-0.5 text-[11px] text-muted-foreground">
+                {task.plan.checks.runs.map((run, index) => (
+                  <li key={`${run.name}-${index}`} className="flex items-center justify-between gap-2">
+                    <span className="truncate">{run.name} · {run.status}{run.conclusion ? ` / ${run.conclusion}` : ""}</span>
+                    {run.url && <a href={run.url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-primary underline">Logs</a>}
+                  </li>
+                ))}
+              </ul>
             )}
             <div className="flex flex-wrap gap-1">
               {["approved", "in_progress"].includes(task.status) && !task.plan?.pr?.url && (
