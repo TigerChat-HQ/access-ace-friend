@@ -25,22 +25,29 @@ const FONT_SIZES: ChatPrefs["font_size"][] = ["small", "medium", "large"];
 
 interface Props {
   conversationId: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
 }
 
-export const ChatCustomizationDialog = ({ conversationId }: Props) => {
-  const [open, setOpen] = useState(false);
+export const ChatCustomizationDialog = ({ conversationId, open: controlledOpen, onOpenChange, hideTrigger = false }: Props) => {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
   const { prefs, save } = useChatPreferences(conversationId);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <button
-          className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-foreground"
-          title="Chat options"
-        >
-          <MoreVertical className="w-4 h-4" />
-        </button>
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          <button
+            className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-foreground"
+            title="Chat options"
+          >
+            <MoreVertical className="w-4 h-4" />
+          </button>
+        </DialogTrigger>
+      )}
       <DialogContent className="bg-card border-border/50 max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-foreground">Chat customization</DialogTitle>
