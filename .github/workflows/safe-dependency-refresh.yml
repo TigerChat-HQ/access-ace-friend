@@ -1,0 +1,38 @@
+name: Safe dependency lock refresh
+
+on:
+  push:
+    branches:
+      - fix/tigerchat-lint-batch
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/tigerchat-lint-batch
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+      - name: Apply non-breaking npm security updates only
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm audit fix --package-lock-only --ignore-scripts --no-fund
+      - name: Refresh Bun lockfile from existing semver ranges
+        run: bun install --lockfile-only
+      - name: Commit updated lockfiles
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json bun.lock
+          if git diff --cached --quiet; then
+            echo "No safe lockfile updates were available."
+            exit 0
+          fi
+          git commit -m "chore(deps): apply non-breaking security lockfile updates"
+          git push origin HEAD:fix/tigerchat-lint-batch
