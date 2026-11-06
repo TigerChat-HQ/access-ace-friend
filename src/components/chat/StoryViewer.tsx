@@ -217,7 +217,11 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
       </div>
 
       <div className="w-full h-full flex items-center justify-center">
-        {isText ? (\n          <div className="w-full h-full flex items-center justify-center px-8 text-center text-white text-3xl font-bold whitespace-pre-wrap" style={{ backgroundColor: story.backgroundColor || "#6D28D9" }}>\n            {story.caption || story.textOverlay?.text || "Status"}\n          </div>\n        ) : isVideo && story.imageUrl ? (
+        {isText ? (
+          <div className="w-full h-full flex items-center justify-center px-8 text-center text-white text-3xl font-bold whitespace-pre-wrap" style={{ backgroundColor: story.backgroundColor || "#6D28D9" }}>
+            {story.caption || story.textOverlay?.text || "Status"}
+          </div>
+        ) : isVideo && story.imageUrl ? (
           <video
             ref={videoRef}
             src={story.imageUrl}
