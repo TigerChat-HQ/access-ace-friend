@@ -31,13 +31,17 @@ export function checkCode(path: string, content: string) {
 }
 
 async function github(path: string, method = "GET", body?: unknown) {
-  const token = Deno.env.get("GITHUB_TOKEN") || Deno.env.get("GITHUB_API_KEY");
-  if (!token) throw new Error("GitHub is not linked or GITHUB_TOKEN is not configured in Supabase Edge Function secrets");
+  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+  const connectionKey = Deno.env.get("GITHUB_API_KEY");
+  if (!lovableKey || !connectionKey) {
+    throw new Error("GitHub connection is not linked to this project (missing gateway credentials)");
+  }
   const repo = Deno.env.get("GITHUB_REPOSITORY") || "TigerChat-HQ/access-ace-friend";
-  const response = await fetch(`https://api.github.com/repos/${repo}/${path}`, {
+  const response = await fetch(`https://connector-gateway.lovable.dev/github/repos/${repo}/${path}`, {
     method,
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${lovableKey}`,
+      "X-Connection-Api-Key": connectionKey,
       Accept: "application/vnd.github+json",
       "X-GitHub-Api-Version": "2022-11-28",
       "Content-Type": "application/json",
