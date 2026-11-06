@@ -42,7 +42,8 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [comments, setComments] = useState<{ id: string; content: string; user_id: string }[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
-  const [commentLoading, setCommentLoading] = useState(false);\n  const [viewCount, setViewCount] = useState(0);
+  const [commentLoading, setCommentLoading] = useState(false);
+  const [viewCount, setViewCount] = useState(0);
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const story = stories[currentIndex];
@@ -251,7 +252,8 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
               {muted ? <VolumeX className="w-5 h-5 text-white" /> : <Volume2 className="w-5 h-5 text-white" />}
             </button>
           )}
-          {isOwner && <span className="flex items-center gap-1 text-white text-xs"><Eye className="w-4 h-4" /> {viewCount}</span>}\n          <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10">
+          {isOwner && <span className="flex items-center gap-1 text-white text-xs"><Eye className="w-4 h-4" /> {viewCount}</span>}
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10">
             <X className="w-5 h-5 text-white" />
           </button>
         </div>
