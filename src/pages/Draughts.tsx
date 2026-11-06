@@ -190,7 +190,7 @@ const Draughts = () => {
 
   const moves: Move[] = useMemo(() => {
     if (!match || !isMyTurn) return [];
-    return legalMoves(match.board, match.current_turn);
+    return legalMoves(match.board, match.current_turn as Color);
   }, [match, isMyTurn]);
 
   const movesForSelected = useMemo(
