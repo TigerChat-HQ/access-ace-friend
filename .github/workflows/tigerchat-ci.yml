@@ -32,11 +32,10 @@ jobs:
       - name: Lint changed Stage 2 files
         run: |
           bunx eslint src/lib/tiger-planner.test.ts
-          bunx eslint supabase/functions/tiger-dev-planner/index.ts --rule '@typescript-eslint/no-explicit-any: off'
+          bunx eslint supabase/functions/tiger-dev-planner/index.ts
 
-      - name: Legacy repository lint baseline
+      - name: Full repository lint
         run: bun run lint
-        continue-on-error: true
 
       - name: Unit tests
         run: bun run test
