@@ -98,11 +98,11 @@ export const TigerCommandCenter = () => {
 
   useEffect(() => { void load(); }, [load]);
 
-  const call = async (body: Record<string, unknown>): Promise<PlannerResponse> => {
+  const call = useCallback(async (body: Record<string, unknown>): Promise<PlannerResponse> => {
     const { data, error } = await supabase.functions.invoke("tiger-dev-planner", { body });
     if (error) throw new Error(error.message);
     return (data ?? {}) as PlannerResponse;
-  };
+  }, []);
 
   const refreshGitHub = useCallback(async () => {
     setGithubLoading(true);
@@ -115,7 +115,7 @@ export const TigerCommandCenter = () => {
     } finally {
       setGithubLoading(false);
     }
-  }, [toast]);
+  }, [call, toast]);
 
   useEffect(() => { void refreshGitHub(); }, [refreshGitHub]);
 
@@ -161,6 +161,7 @@ export const TigerCommandCenter = () => {
     const files = (fileTargets[id] ?? "").split(",").map((path) => path.trim()).filter(Boolean);
     try {
       await call({ action: "set_task_files", id, files });
+      setFileTargets((current) => ({ ...current, [id]: files.join(", ") }));
       toast({ title: "GitHub source files saved", description: "Tiger AI will only edit these selected files." });
       await load();
     } catch (error: unknown) {
