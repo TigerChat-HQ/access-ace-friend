@@ -6,10 +6,18 @@ import { useToast } from "@/hooks/use-toast";
 import { Sparkles, Send, X, ImageIcon, Loader2 } from "lucide-react";
 import { reportReplySchema } from "@/lib/contact";
 
+interface Report {
+  id: string;
+  target_type: string | null;
+  reason: string | null;
+  admin_reply?: string | null;
+  admin_reply_media_url?: string | null;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
-  report: any;
+  report: Report;
   onReplied: () => void;
 }
 
