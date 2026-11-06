@@ -8,6 +8,9 @@ on:
       - feature/tigerchat-status-upgrades
     paths:
       - '.github/workflows/dependency-refresh.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'bun.lock'
   workflow_dispatch:
 
 permissions:
