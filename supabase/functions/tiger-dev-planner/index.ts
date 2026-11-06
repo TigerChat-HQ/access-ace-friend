@@ -78,17 +78,18 @@ async function proposeCode(task: any) {
     const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
     const originalContent = new TextDecoder().decode(bytes);
 
-    // 2. Generate updated code via Lovable AI gateway or prompt
-    const aiKey = Deno.env.get("LOVABLE_API_KEY");
+    // 2. Generate updated code with OpenAI. Never create placeholder edits.
+    const aiKey = Deno.env.get("OPENAI_API_KEY");
+    if (!aiKey) throw new Error("OpenAI is not configured: OPENAI_API_KEY is missing");
     let proposedContent = originalContent;
     let summary = `Tiger AI proposed change for task: ${task.title}`;
 
-    if (aiKey) {
-      const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    {
+      const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${aiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
+          model: "gpt-4.1-mini",
           response_format: { type: "json_object" },
           messages: [
             {
@@ -107,26 +108,21 @@ async function proposeCode(task: any) {
         }),
       });
 
-      if (aiRes.ok) {
-        const aiJson = await aiRes.json().catch(() => ({}));
-        const rawContent = aiJson?.choices?.[0]?.message?.content;
-        if (rawContent) {
-          try {
-            const parsed = JSON.parse(rawContent);
-            if (typeof parsed.content === "string" && parsed.content.trim().length > 0) {
-              proposedContent = parsed.content;
-              if (parsed.summary) summary = parsed.summary;
-            }
-          } catch {
-            // keep fallback
-          }
-        }
+      if (!aiRes.ok) {
+        const detail = await aiRes.text().catch(() => "");
+        throw new Error("OpenAI proposal failed [" + aiRes.status + "]: " + detail.slice(0, 400));
       }
+      const aiJson = await aiRes.json();
+      const rawContent = aiJson?.choices?.[0]?.message?.content;
+      if (typeof rawContent !== "string" || !rawContent.trim()) throw new Error("OpenAI returned an empty proposal");
+      let parsed: { content?: unknown; summary?: unknown };
+      try { parsed = JSON.parse(rawContent); } catch { throw new Error("OpenAI returned invalid JSON"); }
+      if (typeof parsed.content !== "string" || !parsed.content.trim()) throw new Error("OpenAI response did not include complete updated file content");
+      proposedContent = parsed.content;
+      if (typeof parsed.summary === "string" && parsed.summary.trim()) summary = parsed.summary;
     }
 
-    if (proposedContent === originalContent) {
-      proposedContent = originalContent + `\n// Tiger AI: reviewed for task ${task.id}\n`;
-    }
+    if (proposedContent === originalContent) throw new Error("OpenAI proposal made no source changes; refusing to create a placeholder PR");
 
     const check = checkCode(targetPath, proposedContent);
     if (!check.allowed) {
@@ -247,11 +243,13 @@ Deno.serve(async (req) => {
     const fresh = (reports || []).filter((r: any) => !done.has(r.id)).slice(0, 10);
     if (!fresh.length) return json({ created: 0 });
 
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const openAiKey = Deno.env.get("OPENAI_API_KEY");
+    if (!openAiKey) return json({ error: "OpenAI is not configured: OPENAI_API_KEY is missing" }, 503);
+    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
-      headers: { Authorization: `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${openAiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "gpt-4.1-mini",
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: "You are Tiger AI's development planner for TIGERCHATS, a React + Lovable Cloud messaging app (chats, stories, calls, draughts, Tiger AI, Developer Panel). For each user feedback item return a dev task. Respond as JSON: {\"tasks\":[{\"report_id\":string,\"title\":string,\"summary\":string,\"category\":\"bug\"|\"feature\"|\"ux\"|\"performance\"|\"security\",\"priority\":\"low\"|\"medium\"|\"high\"|\"critical\",\"risk\":\"low\"|\"medium\"|\"high\",\"steps\":string[],\"areas\":string[],\"tests\":string[]}]}. Mark risk high for anything touching data deletion, payments, sign-in, permissions or private data. Skip spam by omitting it." },
