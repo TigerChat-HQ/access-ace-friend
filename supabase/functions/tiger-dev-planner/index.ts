@@ -55,7 +55,7 @@ async function github(path: string, method = "GET", body?: unknown) {
   return response.status === 204 ? {} : response.json();
 }
 
-async function proposeCode(task: any) {
+async function proposeCode(task: { id: string; title: string; summary: string | null; risk: string; plan: { areas?: string[]; steps?: string[]; pr?: { url?: string; number?: number; files?: string[] } } | null }) {
   if (!Deno.env.get("LOVABLE_API_KEY") || !Deno.env.get("GITHUB_API_KEY")) {
     return { error: "GitHub connection is not linked to this project" };
   }
@@ -65,7 +65,7 @@ async function proposeCode(task: any) {
   }
 
   // Determine target file from plan.areas or default to safe location
-  const candidateFile = (task.plan?.areas || []).find((f: string) => ALLOWED_PATH.test(f) && !PROTECTED_PATH.test(f));
+  const candidateFile = (task.plan?.areas || []).find((filePath) => ALLOWED_PATH.test(filePath) && !PROTECTED_PATH.test(filePath));
   const targetPath = candidateFile || "src/components/chat/TigerChatBackground.tsx";
 
   try {
@@ -148,10 +148,10 @@ async function proposeCode(task: any) {
 
     try {
       await github("git/refs", "POST", { ref: `refs/heads/${branch}`, sha: mainSha });
-    } catch (e: any) {
+    } catch (error: unknown) {
       // If branch already exists, proceed to update
-      if (!String(e?.message).includes("already exists")) {
-        throw e;
+      if (!(error instanceof Error) || !error.message.includes("already exists")) {
+        throw error;
       }
     }
 
@@ -193,7 +193,7 @@ Deno.serve(async (req) => {
     const { data: u } = await sb.auth.getUser(token);
     if (!u?.user) return json({ error: "Unauthorized" }, 401);
     const { data: roles } = await sb.from("user_roles").select("role").eq("user_id", u.user.id);
-    if (!(roles || []).some((r: any) => ["admin", "superior_admin"].includes(r.role)))
+    if (!(roles || []).some((roleRow) => ["admin", "superior_admin"].includes(roleRow.role)))
       return json({ error: "Admin access required" }, 403);
 
     const body = await req.json().catch(() => ({}));
@@ -230,11 +230,11 @@ Deno.serve(async (req) => {
         const list = runs?.check_runs || [];
         const summary = {
           total: list.length,
-          completed: list.filter((c: any) => c.status === "completed").length,
-          passed: list.filter((c: any) => c.status === "completed" && c.conclusion === "success").length,
-          failed: list.filter((c: any) => c.status === "completed" && ["failure", "timed_out", "action_required"].includes(c.conclusion)).length,
-          pending: list.filter((c: any) => c.status !== "completed").length,
-          runs: list.map((c: any) => ({ name: c.name, status: c.status, conclusion: c.conclusion, url: c.html_url })),
+          completed: list.filter((check: { status: string; conclusion: string | null }) => c.status === "completed").length,
+          passed: list.filter((check: { status: string; conclusion: string | null }) => c.status === "completed" && c.conclusion === "success").length,
+          failed: list.filter((check: { status: string; conclusion: string | null }) => c.status === "completed" && ["failure", "timed_out", "action_required"].includes(c.conclusion)).length,
+          pending: list.filter((check: { status: string; conclusion: string | null }) => c.status !== "completed").length,
+          runs: list.map((check: { name: string; status: string; conclusion: string | null; html_url: string }) => ({ name: check.name, status: check.status, conclusion: check.conclusion, url: check.html_url })),
           checked_at: new Date().toISOString(),
         };
         const verdict = summary.total === 0 ? "no_runs" : summary.pending > 0 ? "running" : summary.failed > 0 ? "failed" : "passed";
@@ -249,10 +249,10 @@ Deno.serve(async (req) => {
     if (body.action !== "triage") return json({ error: "Unknown action" }, 400);
 
     const { data: existing } = await sb.from("dev_tasks").select("source_report_id").not("source_report_id", "is", null);
-    const done = new Set((existing || []).map((t: any) => t.source_report_id));
+    const done = new Set((existing || []).map((taskRow) => taskRow.source_report_id));
     const { data: reports } = await sb.from("reports").select("id, reason, target_type, contact_subject, created_at")
       .in("target_type", ["feedback", "recommendation"]).order("created_at", { ascending: false }).limit(40);
-    const fresh = (reports || []).filter((r: any) => !done.has(r.id)).slice(0, 10);
+    const fresh = (reports || []).filter((report) => !done.has(report.id)).slice(0, 10);
     if (!fresh.length) return json({ created: 0 });
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -263,16 +263,16 @@ Deno.serve(async (req) => {
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: "You are Tiger AI's development planner for TIGERCHATS, a React + Lovable Cloud messaging app (chats, stories, calls, draughts, Tiger AI, Developer Panel). For each user feedback item return a dev task. Respond as JSON: {\"tasks\":[{\"report_id\":string,\"title\":string,\"summary\":string,\"category\":\"bug\"|\"feature\"|\"ux\"|\"performance\"|\"security\",\"priority\":\"low\"|\"medium\"|\"high\"|\"critical\",\"risk\":\"low\"|\"medium\"|\"high\",\"steps\":string[],\"areas\":string[],\"tests\":string[]}]}. Mark risk high for anything touching data deletion, payments, sign-in, permissions or private data. Skip spam by omitting it." },
-          { role: "user", content: JSON.stringify(fresh.map((r: any) => ({ report_id: r.id, type: r.target_type, subject: r.contact_subject, text: r.reason }))) },
+          { role: "user", content: JSON.stringify(fresh.map((report) => ({ report_id: report.id, type: report.target_type, subject: report.contact_subject, text: report.reason }))) },
         ],
       }),
     });
     if (!aiRes.ok) return json({ error: `AI error ${aiRes.status}`, details: await aiRes.text() }, aiRes.status === 429 || aiRes.status === 402 ? aiRes.status : 502);
     const ai = await aiRes.json();
-    let tasks: any[] = [];
+    let tasks: Array<{ report_id: string; title: string; summary?: string; category?: string; priority?: string; risk?: string; steps?: string[]; areas?: string[]; tests?: string[] }> = [];
     try { tasks = JSON.parse(ai.choices?.[0]?.message?.content || "{}").tasks || []; } catch { tasks = []; }
 
-    const ids = new Set(fresh.map((r: any) => r.id));
+    const ids = new Set(fresh.map((report) => report.id));
     const rows = tasks.filter((t) => ids.has(t.report_id) && t.title).map((t) => {
       const text = `${t.title} ${t.summary} ${(t.steps || []).join(" ")}`;
       return {
@@ -289,8 +289,8 @@ Deno.serve(async (req) => {
     if (!rows.length) return json({ created: 0 });
     const { data: inserted, error } = await sb.from("dev_tasks").insert(rows).select("id, title");
     if (error) return json({ error: error.message }, 500);
-    await sb.from("dev_audit_log").insert((inserted || []).map((t: any) => ({
-      task_id: t.id, actor: "tiger_ai", action: "task_planned", details: { title: t.title },
+    await sb.from("dev_audit_log").insert((inserted || []).map((taskRow) => ({
+      task_id: taskRow.id, actor: "tiger_ai", action: "task_planned", details: { title: taskRow.title },
     })));
     return json({ created: inserted?.length || 0 });
   } catch (e) {
