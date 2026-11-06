@@ -1,0 +1,89 @@
+name: Prepare reviewed TigerChat release
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: "Full 40-character commit SHA on main to prepare for release"
+        required: true
+        type: string
+      release_notes:
+        description: "Release summary and operator notes"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tigerchat-release
+  cancel-in-progress: false
+
+jobs:
+  verify-and-prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main history
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Validate target commit
+        id: target
+        env:
+          TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          if ! [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "target_sha must be a full 40-character commit SHA"
+            exit 1
+          fi
+          git cat-file -e "$TARGET_SHA^{commit}"
+          git merge-base --is-ancestor "$TARGET_SHA" origin/main
+          echo "short_sha=${TARGET_SHA:0:12}" >> "$GITHUB_OUTPUT"
+          echo "tag=v-${TARGET_SHA:0:12}" >> "$GITHUB_OUTPUT"
+
+      - name: Check out exact release candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha }}
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Type check
+        run: bun run typecheck
+
+      - name: Run tests
+        run: bun run test
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Production build
+        run: bun run build
+
+      - name: Create draft GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.target.outputs.tag }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "A release/tag for $TAG already exists; refusing to overwrite it."
+            exit 1
+          fi
+          printf '%s\n\nVerified commit: %s\n' "$RELEASE_NOTES" "$TARGET_SHA" > release-notes.md
+          gh release create "$TAG" --draft --title "TigerChat $TAG" --notes-file release-notes.md --target "$TARGET_SHA"
+
+      - name: Report publishing boundary
+        run: |
+          echo "Draft release created after checks."
+          echo "No production deployment or public release was performed."
+          echo "A human must review and publish the draft release separately."
