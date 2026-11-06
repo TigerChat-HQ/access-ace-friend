@@ -80,7 +80,7 @@ const Admin = () => {
       const key = d.toISOString().slice(0, 10);
       const label = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
       const u = (profGrowth || []).filter((row) => row.created_at.slice(0, 10) === key).length;
-      const p = (postGrowth || []).filter((r: any) => r.created_at.slice(0, 10) === key).length;
+      const p = (postGrowth || []).filter((row) => row.created_at.slice(0, 10) === key).length;
       days.push({ day: label, users: u, posts: p });
     }
     setGrowth(days);
