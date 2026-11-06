@@ -22,7 +22,7 @@ import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
 import { StoryUploadDialog } from "@/components/chat/StoryUploadDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, EyeOff, Trash2, X, ChevronUp, ChevronDown } from "lucide-react";
+import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, EyeOff, Trash2, X, ChevronUp, ChevronDown, Archive, RotateCcw } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
@@ -61,6 +61,8 @@ const Chats = () => {
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [forwardMsg, setForwardMsg] = useState<{ content: string; type: string; mediaUrl?: string } | null>(null);
   const [hiddenChats, setHiddenChats] = useState<Record<string, number>>(() => readHiddenChatMap());
+  const [showArchivedChats, setShowArchivedChats] = useState(false);
+  const [customizationOpen, setCustomizationOpen] = useState(false);
 
   const [chatSearchOpen, setChatSearchOpen] = useState(false);
   const [chatSearch, setChatSearch] = useState("");
@@ -87,20 +89,6 @@ const Chats = () => {
     if (!activeChat || !hiddenChats[activeChat]) return;
     setActiveChat(null);
   }, [activeChat, hiddenChats]);
-
-  useEffect(() => {
-    if (!conversations.length) return;
-    setHiddenChats((prev) => {
-      const next = { ...prev };
-      for (const chatId of Object.keys(prev)) {
-        const convo = conversations.find((item) => item.id === chatId);
-        const hiddenAt = prev[chatId] ?? 0;
-        const lastMessageAt = convo?.lastMessage?.created_at ? new Date(convo.lastMessage.created_at).getTime() : 0;
-        if (lastMessageAt > hiddenAt) delete next[chatId];
-      }
-      return next;
-    });
-  }, [conversations]);
 
   useEffect(() => {
     const fetchStories = async () => {
@@ -260,6 +248,7 @@ const Chats = () => {
     return name.toLowerCase().includes(search.toLowerCase());
   });
   const visibleConversations = filteredConversations.filter((c) => !hiddenChats[c.id]);
+  const hiddenConversations = filteredConversations.filter((c) => !!hiddenChats[c.id]);
 
   const storyBarData = [
     { id: "add", userId: "me", userName: "Your Story", avatar: "➕", viewed: false },
@@ -322,6 +311,16 @@ const Chats = () => {
             <h1 className="text-lg font-bold tracking-tight text-foreground">TIGER<span className="text-primary">CHATS</span></h1>
           </div>
           <div className="flex items-center gap-1">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="p-2 rounded-full hover:bg-surface-hover text-muted-foreground" title="Chat list settings" aria-label="Chat list settings"><MoreVertical className="w-4 h-4" /></button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setShowArchivedChats((value) => !value)}>
+                  <Archive className="w-4 h-4 mr-2" /> {showArchivedChats ? "Back to chats" : `Archived chats (${hiddenConversations.length})`}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <NewDmDialog onStarted={(id) => { setActiveChat(id); refetchConversations(); }} />
             <NewGroupDialog onCreated={() => refetchConversations()} />
             <StoryUploadDialog onUploaded={() => {
@@ -350,6 +349,22 @@ const Chats = () => {
         <div className="flex-1 overflow-y-auto scrollbar-thin">
           {convosLoading ? (
             <div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
+          ) : showArchivedChats ? (
+            hiddenConversations.length === 0 ? (
+              <div className="text-center py-16 px-4 text-sm text-muted-foreground">No archived chats</div>
+            ) : (
+              <div className="divide-y divide-border/40">
+                {hiddenConversations.map((convo) => (
+                  <div key={convo.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-foreground truncate">{convo.otherProfile?.display_name || convo.name || "Chat"}</p>
+                      <p className="text-xs text-muted-foreground truncate">{convo.lastMessage?.content || "No messages yet"}</p>
+                    </div>
+                    <button onClick={() => setHiddenChats((prev) => { const next = { ...prev }; delete next[convo.id]; return next; })} className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-medium text-primary hover:bg-primary/10" aria-label={`Restore ${convo.otherProfile?.display_name || convo.name || "chat"}`}><RotateCcw className="w-3.5 h-3.5" /> Restore</button>
+                  </div>
+                ))}
+              </div>
+            )
           ) : visibleConversations.length === 0 ? (
             <div className="text-center py-20 px-4">
               <MessageCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
@@ -400,17 +415,18 @@ const Chats = () => {
                   <InviteMembersDialog conversationId={activeConvo.id} existingMemberIds={[user?.id || ""]} onInvited={() => refetchConversations()} />
                   <GroupAdminDialog conversationId={activeConvo.id} />
                 </>}
-                <ChatCustomizationDialog conversationId={activeConvo.id} />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary" title="Chat options" aria-label="Chat options"><MoreVertical className="w-4 h-4" /></button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => setCustomizationOpen(true)}><MoreVertical className="w-4 h-4 mr-2" /> Customize chat</DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => handleHideChat(activeConvo.id)}><EyeOff className="w-4 h-4 mr-2" /> Hide chat</DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => void handleDeleteChat("me")}><Trash2 className="w-4 h-4 mr-2" /> Delete for me</DropdownMenuItem>
                     <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => void handleDeleteChat("everyone")}><Trash2 className="w-4 h-4 mr-2" /> Delete for everyone</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                <ChatCustomizationDialog conversationId={activeConvo.id} open={customizationOpen} onOpenChange={setCustomizationOpen} hideTrigger />
               </div>
             </div>
 
