@@ -38,7 +38,11 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
   const [paused, setPaused] = useState(false);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [floaters, setFloaters] = useState<{ id: string; emoji: string; left: number }[]>([]);
-  const [tigerTrigger, setTigerTrigger] = useState(0);\n  const [commentsOpen, setCommentsOpen] = useState(false);\n  const [comments, setComments] = useState<{ id: string; content: string; user_id: string }[]>([]);\n  const [commentDraft, setCommentDraft] = useState("");\n  const [commentLoading, setCommentLoading] = useState(false);
+  const [tigerTrigger, setTigerTrigger] = useState(0);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [comments, setComments] = useState<{ id: string; content: string; user_id: string }[]>([]);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [commentLoading, setCommentLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const story = stories[currentIndex];
@@ -54,7 +58,9 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
     setImgLoaded(false);
     setProgress(0);
     setCounts({});
-    setFloaters([]);\n    setCommentsOpen(false);\n    setCommentDraft("");
+    setFloaters([]);
+    setCommentsOpen(false);
+    setCommentDraft("");
   }, [currentIndex]);
 
   // Load existing reaction counts (visible to owner & self)
