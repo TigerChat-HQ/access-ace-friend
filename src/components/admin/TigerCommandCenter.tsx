@@ -312,7 +312,7 @@ export const TigerCommandCenter = () => {
               </ul>
             )}
             <div className="flex flex-wrap gap-1">
-              {["approved", "in_progress"].includes(task.status) && !task.plan?.pr?.url && (
+              {["approved", "in_progress"].includes(task.status) && task.risk !== "high" && githubWriteEnabled && !task.plan?.pr?.url && (
                 <Button size="sm" onClick={() => proposeCode(task.id)} disabled={drafting !== null}>
                   <GitPullRequest className="w-3.5 h-3.5 mr-1" /> {drafting === task.id ? "Writing code…" : "Draft code change"}
                 </Button>
