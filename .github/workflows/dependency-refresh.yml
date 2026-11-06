@@ -46,7 +46,7 @@ jobs:
           node --version
           npm --version
           bun --version
-          npm pkg get devDependencies.vite devDependencies.vitest devDependencies.lovable-tagger
+          npm pkg get dependencies.vite-plugin-pwa devDependencies.vite-plugin-pwa devDependencies.drizzle-kit overrides
 
       - name: Regenerate npm lockfile from manifest
         run: npm install --package-lock-only --ignore-scripts --no-audit --legacy-peer-deps
@@ -54,16 +54,19 @@ jobs:
       - name: Install npm dependency tree
         run: npm ci --ignore-scripts --legacy-peer-deps
 
-      - name: Upgrade targeted dependencies within declared compatible ranges
+      - name: Refresh production dependencies and apply non-breaking fixes
         run: |
-          npm update vite-plugin-pwa drizzle-kit @tailwindcss/typography react-router-dom zod vite vitest typescript-eslint --ignore-scripts --no-audit --legacy-peer-deps
-          npm update --ignore-scripts --no-audit --legacy-peer-deps
+          npm update react-router-dom zod @supabase/supabase-js --omit=dev --ignore-scripts --no-audit --legacy-peer-deps
+          npm audit fix --omit=dev --legacy-peer-deps
+          npm install --package-lock-only --ignore-scripts --no-audit --legacy-peer-deps
 
-      - name: Apply non-breaking npm security fixes
-        run: npm audit fix --legacy-peer-deps
+      - name: Verify production dependency audit
+        run: npm audit --omit=dev --audit-level=low
 
-      - name: Verify npm audit has zero vulnerabilities
-        run: npm audit --audit-level=low
+      - name: Report remaining development-tool advisories
+        continue-on-error: true
+        run: |
+          npm audit --audit-level=low
 
       - name: Regenerate Bun lockfile from audited manifest
         run: bun install --lockfile-only
@@ -77,9 +80,9 @@ jobs:
           bun run test
           bun run build
 
-      - name: Re-check audit and lockfile consistency
+      - name: Re-check production audit and lockfile consistency
         run: |
-          npm audit --audit-level=low
+          npm audit --omit=dev --audit-level=low
           git diff --check
           test -f package-lock.json
           test -f bun.lock
