@@ -14,7 +14,9 @@ interface TigerReactionLayerProps {
 
 const playRoar = () => {
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const AudioContextConstructor = window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextConstructor) return;
+    const ctx = new AudioContextConstructor();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sawtooth";
@@ -25,8 +27,15 @@ const playRoar = () => {
     osc.connect(gain).connect(ctx.destination);
     osc.start();
     osc.stop(ctx.currentTime + 0.7);
-    setTimeout(() => ctx.close().catch(() => {}), 800);
-  } catch {}
+    setTimeout(() => {
+      void ctx.close().catch((error: unknown) => {
+        console.warn("Could not close optional audio context:", error);
+      });
+    }, 800);
+  } catch (error: unknown) {
+    // Audio feedback is optional; the visual reaction still works when audio is unavailable.
+    console.warn("Tiger reaction audio is unavailable:", error);
+  }
 };
 
 export const TigerReactionLayer = ({ trigger }: TigerReactionLayerProps) => {
