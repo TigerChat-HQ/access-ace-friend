@@ -358,6 +358,10 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
 
       {/* Reactions bar / counts */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-black/60 backdrop-blur px-3 py-2 rounded-full z-20">
+        <button type="button" onClick={() => setCommentsOpen((open) => !open)} className="flex items-center gap-1 px-2 py-1 rounded-full text-white" aria-label="View replies">
+          <MessageCircle className="w-5 h-5" />
+          <span className="text-xs">{comments.length}</span>
+        </button>
         {!isOwner && (
           <button
             onClick={() => sendReaction("🐯")}
