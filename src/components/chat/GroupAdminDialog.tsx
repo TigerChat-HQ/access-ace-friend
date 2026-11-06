@@ -91,7 +91,7 @@ export const GroupAdminDialog = ({ conversationId, open: controlledOpen, onOpenC
     setAdminIds(aIds);
     setIsAdmin(aIds.has(user.id) || aIds.size === 0);
 
-    const { data: reqs } = await supabase
+    const { data: reqs } = await db
       .from("group_join_requests")
       .select("*")
       .eq("conversation_id", conversationId)
@@ -128,7 +128,7 @@ export const GroupAdminDialog = ({ conversationId, open: controlledOpen, onOpenC
 
   const saveDetails = async () => {
     setBusy(true);
-    const { error } = await supabase
+    const { error } = await db
       .from("conversations")
       .update({ name, requires_approval: requiresApproval })
       .eq("id", conversationId);
