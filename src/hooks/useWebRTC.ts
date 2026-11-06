@@ -222,7 +222,11 @@ export const useWebRTC = () => {
         setCallStatus("connected");
         if (!durationTimerRef.current) durationTimerRef.current = setInterval(() => setDuration((value) => value + 1), 1000);
       } else if (state === "disconnected") {
-        try { pc.restartIce(); } catch {}
+        try {
+          pc.restartIce();
+        } catch (error: unknown) {
+          console.warn("ICE restart could not be requested:", error);
+        }
         if (!disconnectTimerRef.current) disconnectTimerRef.current = setTimeout(() => { void endCall(); }, 15000);
       } else if (state === "failed") {
         void endCall();
