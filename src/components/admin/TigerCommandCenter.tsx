@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Bot, Sparkles, GitPullRequest, ShieldCheck, Loader2, Rocket, RotateCcw, ExternalLink, GitBranch, RefreshCw } from "lucide-react";
@@ -8,6 +9,7 @@ import { Bot, Sparkles, GitPullRequest, ShieldCheck, Loader2, Rocket, RotateCcw,
 type TaskPlan = {
   steps?: string[];
   tests?: string[];
+  areas?: string[];
   pr?: { url?: string; number?: number; files?: string[] };
   checks?: {
     verdict?: "passed" | "failed" | "running" | "no_runs" | string;
@@ -73,6 +75,7 @@ export const TigerCommandCenter = () => {
   const [pullRequests, setPullRequests] = useState<GitHubPullRequest[]>([]);
   const [githubWriteEnabled, setGithubWriteEnabled] = useState(false);
   const [githubLoading, setGithubLoading] = useState(false);
+  const [fileTargets, setFileTargets] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     const [{ data: taskData, error: taskError }, { data: auditData, error: auditError }] = await Promise.all([
@@ -154,6 +157,17 @@ export const TigerCommandCenter = () => {
   };
 
   const [checking, setChecking] = useState<string | null>(null);
+  const saveTargetFiles = async (id: string) => {
+    const files = (fileTargets[id] ?? "").split(",").map((path) => path.trim()).filter(Boolean);
+    try {
+      await call({ action: "set_task_files", id, files });
+      toast({ title: "GitHub source files saved", description: "Tiger AI will only edit these selected files." });
+      await load();
+    } catch (error: unknown) {
+      toast({ title: "Could not save source files", description: getErrorMessage(error), variant: "destructive" });
+    }
+  };
+
   const checkStatus = async (id: string) => {
     setChecking(id);
     try {
@@ -263,7 +277,12 @@ export const TigerCommandCenter = () => {
                   <ol className="list-decimal pl-4 space-y-0.5">{task.plan.steps.map((step, index) => <li key={index}>{step}</li>)}</ol>
                 )}
                 {task.plan?.tests && task.plan.tests.length > 0 && <p><span className="text-foreground">Tests:</span> {task.plan.tests.join("; ")}</p>}
-                {task.risk === "high" && <p className="text-destructive">Protected change — needs your explicit approval.</p>}
+                <div className="space-y-1">
+                  <label className="text-foreground" htmlFor={`target-files-${task.id}`}>GitHub source files (comma-separated, 1–3 existing src/ paths)</label>
+                  <Input id={`target-files-${task.id}`} value={fileTargets[task.id] ?? (task.plan?.areas ?? []).join(", ")} onChange={(event) => setFileTargets((current) => ({ ...current, [task.id]: event.target.value }))} placeholder="src/components/Example.tsx" />
+                  <Button size="sm" variant="outline" onClick={() => saveTargetFiles(task.id)}>Save target files</Button>
+                </div>
+                {task.risk === "high" && <p className="text-destructive">Protected change — needs your explicit approval; AI code drafting is blocked.</p>}
               </div>
             )}
             {task.plan?.pr?.url && (
