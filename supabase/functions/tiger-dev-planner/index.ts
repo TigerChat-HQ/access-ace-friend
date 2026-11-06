@@ -198,6 +198,11 @@ Deno.serve(async (req) => {
     // Listing public repository metadata and open PRs is read-only. Keep it
     // available to authenticated Command Center viewers; all task mutations
     // and code-writing actions remain restricted to admins below.
+    if (body.action === "github_list_prs") {
+      try { return json(await listGitHubPullRequests()); }
+      catch (error) { return json({ error: error instanceof Error ? error.message : "GitHub lookup failed" }, 502); }
+    }
+
     const { data: roles } = await sb.from("user_roles").select("role").eq("user_id", u.user.id);
     if (!(roles || []).some((r) => ["admin", "superior_admin"].includes(r.role)))
       return json({ error: "Admin access required" }, 403);
