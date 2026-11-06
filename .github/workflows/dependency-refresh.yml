@@ -1,0 +1,92 @@
+name: Refresh and verify dependencies
+# Targeted toolchain upgrades are validated before lockfiles are committed.
+# Runs on this PR branch to regenerate both lockfiles and validate fixes before committing.
+
+on:
+  push:
+    branches:
+      - feature/tigerchat-status-upgrades
+    paths:
+      - '.github/workflows/dependency-refresh.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'bun.lock'
+  pull_request:
+    branches:
+      - stage3/publishing-undo
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dependency-refresh-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  refresh-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Upgrade vulnerable direct dependencies
+        run: |
+          npm install --save-exact react-router-dom@latest zod@latest vite-plugin-pwa@latest
+          npm install --save-dev --save-exact vite@^7.3.7 vitest@latest drizzle-kit@^0.31.4 typescript-eslint@latest @tailwindcss/typography@latest @vitejs/plugin-react-swc@latest
+
+      - name: Apply remaining compatible security fixes
+        run: npm audit fix
+
+      - name: Synchronize npm lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit
+
+      - name: Synchronize Bun lockfile
+        run: bun install --lockfile-only
+
+      - name: Install and verify npm dependency tree
+        run: npm ci --ignore-scripts
+
+      - name: Verify complete dependency audit
+        run: npm audit --audit-level=low
+
+      - name: Verify Bun lockfile and install
+        run: bun install --frozen-lockfile
+
+      - name: Verify types, tests, and production build
+        run: |
+          bun run typecheck
+          bun run test
+          bun run build
+          npm audit --audit-level=low
+
+      - name: Confirm lockfiles are synchronized
+        run: |
+          git diff --check
+          test -f package-lock.json
+          test -f bun.lock
+
+      - name: Commit synchronized manifests and lockfiles
+        run: |
+          if git diff --quiet -- package.json package-lock.json bun.lock; then
+            echo "Dependency manifests and lockfiles are already synchronized."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json bun.lock
+          git commit -m "fix(security): update vulnerable production dependencies"
+          git push origin "HEAD:${{ github.head_ref || github.ref_name }}"
