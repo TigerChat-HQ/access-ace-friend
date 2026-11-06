@@ -30,6 +30,8 @@ import { Message } from "@/types/chat";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 
 type Story = Tables<"stories"> & { profile?: Tables<"profiles"> };
+type MessageMetadata = { read_at?: string | null; is_read?: boolean | null; delivered_at?: string | null; reply_to_id?: string | null };
+type StoryMetadata = Story & { music_url?: string | null; media_type?: string | null; text_overlay?: { text: string } | null; duration?: number | null };
 
 const HIDDEN_CHATS_STORAGE_KEY = "tigerchats:hidden-chats";
 
@@ -251,10 +253,10 @@ const Chats = () => {
 
   const messageMap = new Map<string, Message>();
   const uiMessages = messages.map((msg) => {
-    const anyMsg = msg as any;
-    const status: Message["status"] = anyMsg.read_at || anyMsg.is_read
+    const metadata = msg as typeof msg & MessageMetadata;
+    const status: Message["status"] = metadata.read_at || metadata.is_read
       ? "read"
-      : anyMsg.delivered_at
+      : metadata.delivered_at
       ? "delivered"
       : "sent";
 
@@ -269,7 +271,7 @@ const Chats = () => {
     };
 
     messageMap.set(msg.id, m);
-    return { ui: m, replyToId: (msg as any).reply_to_id as string | null };
+    return { ui: m, replyToId: metadata.reply_to_id ?? null };
   });
 
   const matchIds = useMemo(() => {
@@ -306,18 +308,21 @@ const Chats = () => {
     })),
   ];
 
-  const storyViewerData = stories.map((s) => ({
-    id: s.id,
-    userId: s.user_id,
-    userName: s.profile?.display_name || "User",
-    avatar: (s.profile?.display_name || "U").slice(0, 2).toUpperCase(),
-    imageUrl: s.image_url,
-    caption: s.caption || undefined,
-    musicUrl: (s as any).music_url || undefined,
-    mediaType: ((s as any).media_type || "image") as "image" | "video",
-    textOverlay: (s as any).text_overlay || null,
-    duration: (s as any).duration || null,
-  }));
+  const storyViewerData = stories.map((story) => {
+    const metadata = story as StoryMetadata;
+    return {
+      id: story.id,
+      userId: story.user_id,
+      userName: story.profile?.display_name || "User",
+      avatar: (story.profile?.display_name || "U").slice(0, 2).toUpperCase(),
+      imageUrl: story.image_url,
+      caption: story.caption || undefined,
+      musicUrl: metadata.music_url || undefined,
+      mediaType: (metadata.media_type || "image") as "image" | "video",
+      textOverlay: metadata.text_overlay || null,
+      duration: metadata.duration || null,
+    };
+  });
 
   const activeConvoName = activeConvo?.otherProfile?.display_name || activeConvo?.name || "Chat";
   const activeConvoAvatar = (activeConvo?.otherProfile?.display_name || "C").slice(0, 2).toUpperCase();

@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -30,6 +31,8 @@ interface Member {
   display_name: string | null;
   avatar_url: string | null;
 }
+const db = supabase as unknown as SupabaseClient;
+
 interface JoinRequest {
   id: string;
   user_id: string;
@@ -54,7 +57,7 @@ export const GroupAdminDialog = ({ conversationId, open: controlledOpen, onOpenC
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!user) return;
     const { data: convo } = await supabase
       .from("conversations")
@@ -64,7 +67,7 @@ export const GroupAdminDialog = ({ conversationId, open: controlledOpen, onOpenC
     if (convo) {
       setName(convo.name || "");
       setAvatarUrl(convo.avatar_url);
-      setRequiresApproval((convo as any).requires_approval || false);
+      setRequiresApproval((convo as unknown as { requires_approval?: boolean }).requires_approval ?? false);
     }
 
     const { data: memberData } = await supabase
@@ -88,27 +91,28 @@ export const GroupAdminDialog = ({ conversationId, open: controlledOpen, onOpenC
     setAdminIds(aIds);
     setIsAdmin(aIds.has(user.id) || aIds.size === 0);
 
-    const { data: reqs } = await supabase
-      .from("group_join_requests" as any)
+    const { data: reqs } = await db
+      .from("group_join_requests")
       .select("*")
       .eq("conversation_id", conversationId)
       .eq("status", "pending");
-    if (reqs && (reqs as any[]).length) {
-      const uids = (reqs as any[]).map((r: any) => r.user_id);
+    const pendingRequests = (reqs ?? []) as unknown as JoinRequest[];
+    if (pendingRequests.length > 0) {
+      const uids = pendingRequests.map((request) => request.user_id);
       const { data: profs } = await supabase
         .from("profiles")
         .select("user_id, display_name, avatar_url")
         .in("user_id", uids);
       const pm = new Map(profs?.map((p) => [p.user_id, p]) || []);
-      setRequests((reqs as any[]).map((r: any) => ({ ...r, profile: pm.get(r.user_id) as any })));
+      setRequests(pendingRequests.map((request) => ({ ...request, profile: pm.get(request.user_id) })));
     } else {
       setRequests([]);
     }
-  };
+  }, [conversationId, user?.id]);
 
   useEffect(() => {
-    if (open) load();
-  }, [open, conversationId, user?.id]);
+    if (open) void load();
+  }, [open, load]);
 
   // Auto-promote first member if no admins exist
   useEffect(() => {
@@ -124,9 +128,9 @@ export const GroupAdminDialog = ({ conversationId, open: controlledOpen, onOpenC
 
   const saveDetails = async () => {
     setBusy(true);
-    const { error } = await supabase
+    const { error } = await db
       .from("conversations")
-      .update({ name, requires_approval: requiresApproval } as any)
+      .update({ name, requires_approval: requiresApproval })
       .eq("id", conversationId);
     setBusy(false);
     if (error) toast({ title: "Save failed", description: error.message, variant: "destructive" });
@@ -183,12 +187,12 @@ export const GroupAdminDialog = ({ conversationId, open: controlledOpen, onOpenC
     if (approve) {
       await supabase.from("conversation_members").insert({ conversation_id: conversationId, user_id: userId });
     }
-    await supabase
-      .from("group_join_requests" as any)
+    await db
+      .from("group_join_requests")
       .update({ status: approve ? "approved" : "rejected" })
       .eq("id", reqId);
     setRequests((r) => r.filter((x) => x.id !== reqId));
-    if (approve) load();
+    if (approve) await load();
   };
 
   return (

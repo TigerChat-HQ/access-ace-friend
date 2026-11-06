@@ -1,4 +1,5 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,6 +18,12 @@ interface Comment {
   likedByMe: boolean;
 }
 
+type CommentRow = Omit<Comment, "profile" | "likeCount" | "likedByMe">;
+
+interface CommentLike { comment_id: string; user_id: string }
+
+const db = supabase as unknown as SupabaseClient;
+
 interface Props {
   postId: string;
   open: boolean;
@@ -32,7 +39,7 @@ export const CommentsSheet = ({ postId, open, onOpenChange, onChange }: Props) =
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const { data } = await supabase
       .from("post_comments")
       .select("*")
@@ -43,32 +50,35 @@ export const CommentsSheet = ({ postId, open, onOpenChange, onChange }: Props) =
     const userIds = [...new Set(data.map((c) => c.user_id))];
     const [{ data: profiles }, { data: likes }] = await Promise.all([
       supabase.from("profiles").select("user_id, username, display_name, avatar_url").in("user_id", userIds),
-      supabase.from("comment_likes" as any).select("comment_id, user_id").in("comment_id", ids),
+      db.from("comment_likes").select("comment_id, user_id").in("comment_id", ids),
     ]);
-    const pm = new Map(profiles?.map((p) => [p.user_id, p]) || []);
+    const profileRows = (profiles ?? []) as unknown as { user_id: string; username: string | null; display_name: string | null; avatar_url: string | null }[];
+    const likeRows = (likes ?? []) as unknown as CommentLike[];
+    const commentRows = data as unknown as CommentRow[];
+    const pm = new Map(profileRows.map((profile) => [profile.user_id, profile]));
     const likeMap = new Map<string, { count: number; mine: boolean }>();
-    (likes || []).forEach((l: any) => {
-      const cur = likeMap.get(l.comment_id) || { count: 0, mine: false };
+    likeRows.forEach((like) => {
+      const cur = likeMap.get(like.comment_id) || { count: 0, mine: false };
       cur.count += 1;
-      if (l.user_id === user?.id) cur.mine = true;
-      likeMap.set(l.comment_id, cur);
+      if (like.user_id === user?.id) cur.mine = true;
+      likeMap.set(like.comment_id, cur);
     });
     setComments(
-      data.map((c: any) => {
-        const lk = likeMap.get(c.id) || { count: 0, mine: false };
+      commentRows.map((comment) => {
+        const lk = likeMap.get(comment.id) || { count: 0, mine: false };
         return {
-          ...c,
-          profile: pm.get(c.user_id) as any,
+          ...comment,
+          profile: pm.get(comment.user_id),
           likeCount: lk.count,
           likedByMe: lk.mine,
         };
       })
     );
-  };
+  }, [postId, user?.id]);
 
   useEffect(() => {
-    if (open) load();
-  }, [open, postId]);
+    if (open) void load();
+  }, [open, load]);
 
   const submit = async () => {
     if (!text.trim() || !user) return;
@@ -76,7 +86,7 @@ export const CommentsSheet = ({ postId, open, onOpenChange, onChange }: Props) =
     const parent_id = replyTo?.id || null;
     setText("");
     setReplyTo(null);
-    await supabase.from("post_comments").insert({ post_id: postId, user_id: user.id, content, parent_id } as any);
+    await supabase.from("post_comments").insert({ post_id: postId, user_id: user.id, content, parent_id });
     if (parent_id) setExpanded((s) => new Set(s).add(parent_id));
     await load();
     onChange?.();
@@ -91,9 +101,9 @@ export const CommentsSheet = ({ postId, open, onOpenChange, onChange }: Props) =
   const toggleLike = async (c: Comment) => {
     if (!user) return;
     if (c.likedByMe) {
-      await supabase.from("comment_likes" as any).delete().eq("comment_id", c.id).eq("user_id", user.id);
+      await db.from("comment_likes").delete().eq("comment_id", c.id).eq("user_id", user.id);
     } else {
-      await supabase.from("comment_likes" as any).insert({ comment_id: c.id, user_id: user.id });
+      await db.from("comment_likes").insert({ comment_id: c.id, user_id: user.id });
     }
     setComments((prev) =>
       prev.map((x) =>
@@ -156,7 +166,8 @@ export const CommentsSheet = ({ postId, open, onOpenChange, onChange }: Props) =
                 onClick={() =>
                   setExpanded((s) => {
                     const n = new Set(s);
-                    n.has(c.id) ? n.delete(c.id) : n.add(c.id);
+                    if (n.has(c.id)) n.delete(c.id);
+                    else n.add(c.id);
                     return n;
                   })
                 }

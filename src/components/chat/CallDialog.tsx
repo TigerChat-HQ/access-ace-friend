@@ -43,11 +43,15 @@ const useRingtone = (shouldPlay: boolean) => {
         on = !on;
         gain.gain.setTargetAtTime(on ? 0.15 : 0, audio.currentTime, 0.05);
       }, 1000);
-    } catch {}
+    } catch (error: unknown) {
+      console.warn("Call ringtone could not be started:", error);
+    }
     return () => {
       if (interval) clearInterval(interval);
       osc?.stop();
-      void ctx?.close().catch(() => {});
+      void ctx?.close().catch((error: unknown) => {
+        console.warn("Call ringtone audio context could not be closed:", error);
+      });
     };
   }, [shouldPlay]);
 };

@@ -39,18 +39,21 @@ const Stories = () => {
     load();
   }, []);
 
-  const viewerData = stories.map((s) => ({
+  const viewerData = stories.map((s) => {
+    const metadata = s as Story & { music_url?: string | null; media_type?: string | null; text_overlay?: { text: string } | null; duration?: number | null };
+    return ({
     id: s.id,
     userId: s.user_id,
     userName: s.profile?.display_name || "User",
     avatar: (s.profile?.display_name || "U").slice(0, 2).toUpperCase(),
     imageUrl: s.image_url,
     caption: s.caption || undefined,
-    musicUrl: (s as any).music_url || undefined,
-    mediaType: ((s as any).media_type || "image") as "image" | "video",
-    textOverlay: (s as any).text_overlay || null,
-    duration: (s as any).duration || null,
-  }));
+    musicUrl: metadata.music_url || undefined,
+    mediaType: (metadata.media_type || "image") as "image" | "video",
+    textOverlay: metadata.text_overlay || null,
+    duration: metadata.duration || null,
+  });
+  });
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -90,7 +93,8 @@ const Stories = () => {
         ) : (
           <div className="grid grid-cols-3 gap-2">
             {stories.map((s, i) => {
-              const isVideo = (s as any).media_type === "video";
+              const metadata = s as Story & { media_type?: string | null };
+              const isVideo = metadata.media_type === "video";
               return (
                 <button
                   key={s.id}

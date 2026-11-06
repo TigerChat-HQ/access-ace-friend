@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage, Language } from "@/contexts/LanguageContext";
@@ -15,6 +16,8 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useAppLock, isWebAuthnSupported } from "@/hooks/useAppLock";
 import tigerLogo from "@/assets/tigerchats-logo.png";
+
+const db = supabase as unknown as SupabaseClient;
 
 const SettingToggle = ({
   label, description, value, onChange, icon,
@@ -61,8 +64,8 @@ const Settings = () => {
         appLock.disable();
         toast({ title: "App lock disabled" });
       }
-    } catch (e: any) {
-      toast({ title: "Failed", description: e?.message || "Could not enable", variant: "destructive" });
+    } catch (error: unknown) {
+      toast({ title: "Failed", description: error instanceof Error ? error.message : "Could not enable", variant: "destructive" });
     }
   };
 
@@ -77,14 +80,14 @@ const Settings = () => {
       setDisplayName(data.display_name || "");
       setBio(data.bio || "");
       setAvatarUrl(data.avatar_url || "");
-      setIsPrivate((data as any).is_private || false);
+      setIsPrivate((data as typeof data & { is_private?: boolean }).is_private ?? false);
     }
   };
 
   const updatePrivacy = async (v: boolean) => {
     setIsPrivate(v);
-    const { error } = await supabase
-      .from("profiles").update({ is_private: v } as any).eq("user_id", user!.id);
+    const { error } = await db
+      .from("profiles").update({ is_private: v }).eq("user_id", user!.id);
     if (error) toast({ title: "Failed", description: error.message, variant: "destructive" as const });
     else toast({ title: v ? "Account is now private" : "Account is now public" });
   };

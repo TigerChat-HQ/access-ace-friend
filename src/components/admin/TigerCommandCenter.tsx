@@ -1,91 +1,155 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Bot, Sparkles, GitPullRequest, ShieldCheck, Loader2, Rocket, RotateCcw, ExternalLink } from "lucide-react";
 
+type TaskPlan = {
+  steps?: string[];
+  tests?: string[];
+  pr?: { url?: string; number?: number; files?: string[] };
+  checks?: {
+    verdict?: "passed" | "failed" | "running" | "no_runs" | string;
+    total?: number;
+    passed?: number;
+    checked_at?: string;
+  };
+};
+
 type Task = {
-  id: string; title: string; summary: string | null; category: string; priority: string;
-  risk: string; status: string; plan: any; created_at: string;
+  id: string;
+  title: string;
+  summary: string | null;
+  category: string;
+  priority: string;
+  risk: string;
+  status: string;
+  plan: TaskPlan | null;
+  created_at: string;
+};
+
+type AuditEntry = {
+  id: string;
+  created_at: string;
+  actor: string;
+  action: string;
+  details: { title?: string; url?: string } | null;
+};
+
+type PlannerResponse = {
+  created?: number;
+  pr?: { url?: string };
+  checks?: { verdict?: string };
 };
 
 const NEXT: Record<string, string[]> = {
-  planned: ["approved", "rejected"], approved: ["in_progress", "rejected"], in_progress: ["done"], done: [], rejected: ["planned"],
+  planned: ["approved", "rejected"],
+  approved: ["in_progress", "rejected"],
+  in_progress: ["done"],
+  done: [],
+  rejected: ["planned"],
 };
 
 const REPO_ACTIONS = "https://github.com/TigerChat-HQ/access-ace-friend/actions";
 
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : "An unexpected error occurred.";
+
 export const TigerCommandCenter = () => {
   const { toast } = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [audit, setAudit] = useState<any[]>([]);
+  const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
 
-  const load = async () => {
-    const [{ data: t }, { data: a }] = await Promise.all([
+  const load = useCallback(async () => {
+    const [{ data: taskData, error: taskError }, { data: auditData, error: auditError }] = await Promise.all([
       supabase.from("dev_tasks").select("*").order("created_at", { ascending: false }).limit(50),
       supabase.from("dev_audit_log").select("*").order("created_at", { ascending: false }).limit(15),
     ]);
-    setTasks((t as Task[]) || []);
-    setAudit(a || []);
-  };
-  useEffect(() => { load(); }, []);
 
-  const call = async (body: any) => {
-    const { data, error } = await supabase.functions.invoke("tiger-dev-planner", { body });
-    if (error) {
-      const d = (error as any).context?.text ? await (error as any).context.text() : error.message;
-      throw new Error(d);
+    if (taskError || auditError) {
+      toast({
+        title: "Could not refresh command center",
+        description: taskError?.message ?? auditError?.message,
+        variant: "destructive",
+      });
+      return;
     }
-    return data;
+
+    setTasks((taskData as Task[] | null) ?? []);
+    setAudit((auditData as AuditEntry[] | null) ?? []);
+  }, [toast]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const call = async (body: Record<string, unknown>): Promise<PlannerResponse> => {
+    const { data, error } = await supabase.functions.invoke("tiger-dev-planner", { body });
+    if (error) throw new Error(error.message);
+    return (data ?? {}) as PlannerResponse;
   };
 
   const triage = async () => {
     setBusy(true);
     try {
-      const r = await call({ action: "triage" });
-      toast({ title: r.created ? `Tiger AI planned ${r.created} new task(s)` : "No new feedback to plan" });
-      load();
-    } catch (e: any) { toast({ title: "Planning failed", description: e.message, variant: "destructive" }); }
-    finally { setBusy(false); }
+      const result = await call({ action: "triage" });
+      toast({ title: result.created ? `Tiger AI planned ${result.created} new task(s)` : "No new feedback to plan" });
+      await load();
+    } catch (error: unknown) {
+      toast({ title: "Planning failed", description: getErrorMessage(error), variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
   };
 
   const setStatus = async (id: string, status: string) => {
-    try { await call({ action: "set_status", id, status }); load(); }
-    catch (e: any) { toast({ title: "Update failed", description: e.message, variant: "destructive" }); }
+    try {
+      await call({ action: "set_status", id, status });
+      await load();
+    } catch (error: unknown) {
+      toast({ title: "Update failed", description: getErrorMessage(error), variant: "destructive" });
+    }
   };
 
   const [drafting, setDrafting] = useState<string | null>(null);
   const proposeCode = async (id: string) => {
     setDrafting(id);
     try {
-      const r = await call({ action: "propose_code", id });
+      const result = await call({ action: "propose_code", id });
       toast({ title: "Suggested update ready", description: "Review it on GitHub before merging." });
-      if (r?.pr?.url) window.open(r.pr.url, "_blank", "noopener");
-      load();
-    } catch (e: any) { toast({ title: "Tiger AI couldn't draft the change", description: e.message, variant: "destructive" }); }
-    finally { setDrafting(null); }
+      if (result.pr?.url) window.open(result.pr.url, "_blank", "noopener,noreferrer");
+      await load();
+    } catch (error: unknown) {
+      toast({ title: "Tiger AI couldn't draft the change", description: getErrorMessage(error), variant: "destructive" });
+    } finally {
+      setDrafting(null);
+    }
   };
 
   const [checking, setChecking] = useState<string | null>(null);
   const checkStatus = async (id: string) => {
     setChecking(id);
     try {
-      const r = await call({ action: "check_status", id });
-      const v = r?.checks?.verdict;
-      const msg = v === "passed" ? "All tests and security checks passed."
-        : v === "failed" ? "Some checks failed — open the update on GitHub for details."
-        : v === "running" ? "Checks are still running on GitHub."
+      const result = await call({ action: "check_status", id });
+      const verdict = result.checks?.verdict;
+      const message = verdict === "passed" ? "All tests and security checks passed."
+        : verdict === "failed" ? "Some checks failed — open the update on GitHub for details."
+        : verdict === "running" ? "Checks are still running on GitHub."
         : "No checks have run yet — they start when the update is opened on GitHub.";
-      toast({ title: "Check status", description: msg, variant: v === "failed" ? "destructive" : "default" });
-      load();
-    } catch (e: any) { toast({ title: "Couldn't read check status", description: e.message, variant: "destructive" }); }
-    finally { setChecking(null); }
+      toast({ title: "Check status", description: message, variant: verdict === "failed" ? "destructive" : "default" });
+      await load();
+    } catch (error: unknown) {
+      toast({ title: "Couldn't read check status", description: getErrorMessage(error), variant: "destructive" });
+    } finally {
+      setChecking(null);
+    }
   };
 
-  const riskVariant = (r: string) => (r === "high" ? "destructive" : r === "medium" ? "secondary" : "outline") as any;
+  const riskVariant = (risk: string): "destructive" | "secondary" | "outline" =>
+    risk === "high" ? "destructive" : risk === "medium" ? "secondary" : "outline";
 
   return (
     <section className="space-y-3">
@@ -100,13 +164,15 @@ export const TigerCommandCenter = () => {
 
       <div className="grid grid-cols-2 gap-2 text-xs">
         {[
-          ["Task manager & planner", true], ["Audit history", true],
-          ["Code connection", true], ["Tests & security checks", true],
-          ["Publishing & undo", true],
-        ].map(([n, on]) => (
-          <div key={n as string} className="bg-card border border-border/50 rounded-lg p-2 flex items-center gap-1.5">
+          "Task manager & planner",
+          "Audit history",
+          "Code connection",
+          "Tests & security checks",
+          "Publishing & undo",
+        ].map((name) => (
+          <div key={name} className="bg-card border border-border/50 rounded-lg p-2 flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-primary" />
-            <span className="text-foreground">{n as string}</span>
+            <span className="text-foreground">{name}</span>
           </div>
         ))}
       </div>
@@ -133,57 +199,57 @@ export const TigerCommandCenter = () => {
 
       <div className="space-y-2">
         {tasks.length === 0 && <p className="text-sm text-muted-foreground">No tasks yet. Tap “Plan from feedback”.</p>}
-        {tasks.map((t) => (
-          <div key={t.id} className="bg-card border border-border/50 rounded-lg p-3 space-y-2">
-            <button className="w-full text-left" onClick={() => setOpen(open === t.id ? null : t.id)}>
-              <p className="text-sm font-medium text-foreground">{t.title}</p>
+        {tasks.map((task) => (
+          <div key={task.id} className="bg-card border border-border/50 rounded-lg p-3 space-y-2">
+            <button className="w-full text-left" onClick={() => setOpen(open === task.id ? null : task.id)}>
+              <p className="text-sm font-medium text-foreground">{task.title}</p>
               <div className="flex flex-wrap gap-1 mt-1">
-                <Badge variant="outline">{t.category}</Badge>
-                <Badge variant="secondary">{t.priority}</Badge>
-                <Badge variant={riskVariant(t.risk)}>risk: {t.risk}</Badge>
-                <Badge>{t.status.replace("_", " ")}</Badge>
+                <Badge variant="outline">{task.category}</Badge>
+                <Badge variant="secondary">{task.priority}</Badge>
+                <Badge variant={riskVariant(task.risk)}>risk: {task.risk}</Badge>
+                <Badge>{task.status.replace("_", " ")}</Badge>
               </div>
             </button>
-            {open === t.id && (
+            {open === task.id && (
               <div className="text-xs text-muted-foreground space-y-2">
-                {t.summary && <p>{t.summary}</p>}
-                {t.plan?.steps?.length > 0 && (
-                  <ol className="list-decimal pl-4 space-y-0.5">{t.plan.steps.map((s: string, i: number) => <li key={i}>{s}</li>)}</ol>
+                {task.summary && <p>{task.summary}</p>}
+                {task.plan?.steps && task.plan.steps.length > 0 && (
+                  <ol className="list-decimal pl-4 space-y-0.5">{task.plan.steps.map((step, index) => <li key={index}>{step}</li>)}</ol>
                 )}
-                {t.plan?.tests?.length > 0 && <p><span className="text-foreground">Tests:</span> {t.plan.tests.join("; ")}</p>}
-                {t.risk === "high" && <p className="text-destructive">Protected change — needs your explicit approval.</p>}
+                {task.plan?.tests && task.plan.tests.length > 0 && <p><span className="text-foreground">Tests:</span> {task.plan.tests.join("; ")}</p>}
+                {task.risk === "high" && <p className="text-destructive">Protected change — needs your explicit approval.</p>}
               </div>
             )}
-            {t.plan?.pr?.url && (
-              <a href={t.plan.pr.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline flex items-center gap-1">
-                <GitPullRequest className="w-3.5 h-3.5" /> Review suggested update #{t.plan.pr.number} ({t.plan.pr.files?.length || 0} files)
+            {task.plan?.pr?.url && (
+              <a href={task.plan.pr.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline flex items-center gap-1">
+                <GitPullRequest className="w-3.5 h-3.5" /> Review suggested update #{task.plan.pr.number} ({task.plan.pr.files?.length ?? 0} files)
               </a>
             )}
-            {t.plan?.checks && (
+            {task.plan?.checks && (
               <div className="text-xs flex items-center gap-1.5">
-                <ShieldCheck className={`w-3.5 h-3.5 ${t.plan.checks.verdict === "passed" ? "text-primary" : t.plan.checks.verdict === "failed" ? "text-destructive" : "text-muted-foreground"}`} />
+                <ShieldCheck className={`w-3.5 h-3.5 ${task.plan.checks.verdict === "passed" ? "text-primary" : task.plan.checks.verdict === "failed" ? "text-destructive" : "text-muted-foreground"}`} />
                 <span className="text-muted-foreground">
-                  Checks: {t.plan.checks.verdict === "no_runs" ? "not run yet" : t.plan.checks.verdict}
-                  {t.plan.checks.total > 0 && ` · ${t.plan.checks.passed}/${t.plan.checks.total} passed`}
-                  {t.plan.checks.checked_at && ` · ${new Date(t.plan.checks.checked_at).toLocaleString()}`}
+                  Checks: {task.plan.checks.verdict === "no_runs" ? "not run yet" : task.plan.checks.verdict}
+                  {(task.plan.checks.total ?? 0) > 0 && ` · ${task.plan.checks.passed ?? 0}/${task.plan.checks.total} passed`}
+                  {task.plan.checks.checked_at && ` · ${new Date(task.plan.checks.checked_at).toLocaleString()}`}
                 </span>
               </div>
             )}
             <div className="flex flex-wrap gap-1">
-              {["approved", "in_progress"].includes(t.status) && !t.plan?.pr?.url && (
-                <Button size="sm" onClick={() => proposeCode(t.id)} disabled={drafting !== null}>
-                  <GitPullRequest className="w-3.5 h-3.5 mr-1" /> {drafting === t.id ? "Writing code…" : "Draft code change"}
+              {["approved", "in_progress"].includes(task.status) && !task.plan?.pr?.url && (
+                <Button size="sm" onClick={() => proposeCode(task.id)} disabled={drafting !== null}>
+                  <GitPullRequest className="w-3.5 h-3.5 mr-1" /> {drafting === task.id ? "Writing code…" : "Draft code change"}
                 </Button>
               )}
-              {t.plan?.pr?.url && (
-                <Button size="sm" variant="outline" onClick={() => checkStatus(t.id)} disabled={checking !== null}>
-                  {checking === t.id ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5 mr-1" />}
-                  {checking === t.id ? "Checking…" : "Check tests"}
+              {task.plan?.pr?.url && (
+                <Button size="sm" variant="outline" onClick={() => checkStatus(task.id)} disabled={checking !== null}>
+                  {checking === task.id ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5 mr-1" />}
+                  {checking === task.id ? "Checking…" : "Check tests"}
                 </Button>
               )}
-              {NEXT[t.status]?.map((s) => (
-                <Button key={s} size="sm" variant={s === "rejected" ? "outline" : "secondary"} onClick={() => setStatus(t.id, s)}>
-                  {s.replace("_", " ")}
+              {NEXT[task.status]?.map((status) => (
+                <Button key={status} size="sm" variant={status === "rejected" ? "outline" : "secondary"} onClick={() => setStatus(task.id, status)}>
+                  {status.replace("_", " ")}
                 </Button>
               ))}
             </div>
@@ -195,8 +261,12 @@ export const TigerCommandCenter = () => {
         <div>
           <h3 className="text-xs text-muted-foreground font-semibold mb-1">Audit history</h3>
           <ul className="text-xs text-muted-foreground space-y-0.5">
-            {audit.map((a) => (
-              <li key={a.id}>{new Date(a.created_at).toLocaleString()} · {a.actor === "tiger_ai" ? "Tiger AI" : "Admin"} · {a.action}{a.details?.title ? ` — ${a.details.title}` : ""}{a.details?.url && <> · <a className="text-primary underline" href={a.details.url} target="_blank" rel="noopener noreferrer">view</a></>}</li>
+            {audit.map((entry) => (
+              <li key={entry.id}>
+                {new Date(entry.created_at).toLocaleString()} · {entry.actor === "tiger_ai" ? "Tiger AI" : "Admin"} · {entry.action}
+                {entry.details?.title ? ` — ${entry.details.title}` : ""}
+                {entry.details?.url && <> · <a className="text-primary underline" href={entry.details.url} target="_blank" rel="noopener noreferrer">view</a></>}
+              </li>
             ))}
           </ul>
         </div>

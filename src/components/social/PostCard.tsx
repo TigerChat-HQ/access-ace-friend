@@ -63,7 +63,10 @@ export const PostCard = ({ post, onChanged }: Props) => {
         await navigator.clipboard.writeText(url);
         toast({ title: "Link copied" });
       }
-    } catch {}
+    } catch (error: unknown) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      toast({ title: "Could not share post", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    }
   };
 
   const initials = (post.profile?.display_name || post.profile?.username || "U").slice(0, 2).toUpperCase();

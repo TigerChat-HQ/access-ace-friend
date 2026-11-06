@@ -27,9 +27,13 @@ vi.mock("@/integrations/supabase/client", () => ({
       }
       if (table === "messages") {
         return {
-          update: (payload: any) => {
+          update: (payload: Record<string, unknown>) => {
             mocks.update(payload);
-            const chain: any = {
+            const chain: {
+              eq: () => typeof chain;
+              neq: () => typeof chain;
+              is: () => Promise<{ error: null }>;
+            } = {
               eq: () => chain,
               neq: () => chain,
               is: () => Promise.resolve({ error: null }),
@@ -42,7 +46,7 @@ vi.mock("@/integrations/supabase/client", () => ({
     },
     channel: () => {
       const ch = {
-        on: (event: string, filterObj: any, cb: (p: any) => void) => {
+        on: (event: string, filterObj: { table?: string }, cb: (payload: unknown) => void) => {
           mocks.handlers.push({ event, table: filterObj?.table, cb });
           return ch;
         },

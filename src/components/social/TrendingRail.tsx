@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Flame } from "lucide-react";
+
+interface TrendingRow {
+  id: string;
+  like_count: number;
+  comment_count: number;
+}
+
+const db = supabase as unknown as SupabaseClient;
 
 interface TrendingPost {
   id: string;
@@ -18,30 +27,36 @@ export const TrendingRail = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    (async () => {
-      const { data: trending } = await supabase
-        .from("trending_posts" as any)
+    const loadTrending = async () => {
+      const { data: trending } = await db
+.from("trending_posts")
         .select("id, like_count, comment_count")
         .order("score", { ascending: false })
         .limit(10);
-      if (!trending || (trending as any[]).length === 0) {
+      const trendingRows = (trending ?? []) as unknown as TrendingRow[];
+      if (trendingRows.length === 0) {
         setLoading(false);
         return;
       }
-      const ids = (trending as any[]).map((t: any) => t.id);
+      const ids = trendingRows.map((item) => item.id);
       const { data: postsData } = await supabase
         .from("posts")
         .select("id, user_id, media_url, media_type, caption")
         .in("id", ids);
       if (postsData) {
-        const map = new Map((trending as any[]).map((t: any) => [t.id, t]));
-        const merged = postsData
-          .map((p) => ({ ...p, ...(map.get(p.id) as any) }))
-          .sort((a, b) => (b.like_count + b.comment_count) - (a.like_count + a.comment_count));
-        setPosts(merged as TrendingPost[]);
+        const metrics = new Map(trendingRows.map((item) => [item.id, item]));
+        const merged: TrendingPost[] = postsData.flatMap((post) => {
+          const metric = metrics.get(post.id);
+          return metric ? [{ ...post, ...metric }] : [];
+        }).sort((a, b) => (b.like_count + b.comment_count) - (a.like_count + a.comment_count));
+        setPosts(merged);
       }
       setLoading(false);
-    })();
+    };
+    void loadTrending().catch((error: unknown) => {
+      console.error("Could not load trending posts:", error);
+      setLoading(false);
+    });
   }, []);
 
   if (loading || posts.length === 0) return null;

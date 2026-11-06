@@ -41,10 +41,10 @@ const Auth = () => {
           description: "Check your email to verify your account.",
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error instanceof Error ? error.message : "An unexpected sign-in error occurred.",
         variant: "destructive",
       });
     } finally {

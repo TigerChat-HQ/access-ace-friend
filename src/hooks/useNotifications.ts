@@ -1,4 +1,5 @@
 import { useEffect, useCallback } from "react";
+import { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -9,7 +10,9 @@ const tryShowSwNotification = async (payload: { title: string; body: string; url
       reg.active.postMessage({ type: "show-notification", payload });
       return true;
     }
-  } catch {}
+  } catch (error: unknown) {
+    console.warn("Service worker notification could not be displayed:", error);
+  }
   return false;
 };
 
@@ -64,7 +67,7 @@ export const useNotifications = () => {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
         async (payload) => {
-          const msg = payload.new as any;
+          const msg = payload.new as Tables<"messages">;
           if (msg.sender_id === user.id) return;
 
           const { data: profile } = await supabase
@@ -105,7 +108,7 @@ export const useNotifications = () => {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications", filter: `recipient_id=eq.${user.id}` },
         async (payload) => {
-          const n = payload.new as any;
+          const n = payload.new as Tables<"notifications">;
           const { data: actor } = await supabase
             .from("profiles")
             .select("display_name, username")
