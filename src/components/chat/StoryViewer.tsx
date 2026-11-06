@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { X, Volume2, VolumeX, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useScreenshotProtection } from "@/hooks/useScreenshotProtection";
@@ -27,7 +26,6 @@ interface StoryViewerProps {
 }
 
 const REACTIONS = ["❤️", "🔥", "😂", "😮", "😢", "👏"];
-const db = supabase as unknown as SupabaseClient;
 
 export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: StoryViewerProps) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
