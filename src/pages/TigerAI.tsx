@@ -119,8 +119,8 @@ const TigerAI = () => {
         ...m,
         { role: "assistant", content: data.text || "Here you go 🐯", image_url: data.image_url },
       ]);
-    } catch (e: any) {
-      toast({ title: "Image gen failed", description: e.message, variant: "destructive" });
+    } catch (error: unknown) {
+      toast({ title: "Image gen failed", description: error instanceof Error ? error.message : "An unexpected generation error occurred", variant: "destructive" });
     } finally {
       setLoading(false);
     }
