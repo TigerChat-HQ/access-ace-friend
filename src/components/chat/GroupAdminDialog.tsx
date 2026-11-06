@@ -187,7 +187,7 @@ export const GroupAdminDialog = ({ conversationId, open: controlledOpen, onOpenC
     if (approve) {
       await supabase.from("conversation_members").insert({ conversation_id: conversationId, user_id: userId });
     }
-    await supabase
+    await db
       .from("group_join_requests")
       .update({ status: approve ? "approved" : "rejected" })
       .eq("id", reqId);
