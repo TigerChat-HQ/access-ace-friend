@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { X, Volume2, VolumeX, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useScreenshotProtection } from "@/hooks/useScreenshotProtection";
@@ -26,6 +27,7 @@ interface StoryViewerProps {
 }
 
 const REACTIONS = ["❤️", "🔥", "😂", "😮", "😢", "👏"];
+const db = supabase as unknown as SupabaseClient;
 
 export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: StoryViewerProps) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
@@ -164,7 +166,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
       setFloaters((f) => [...f, { id, emoji, left: 40 + Math.random() * 20 }]);
       setTimeout(() => setFloaters((f) => f.filter((x) => x.id !== id)), 2400);
     }
-    await supabase.from("story_reactions").insert({
+    await db.from("story_reactions").insert({
       story_id: story.id,
       user_id: currentUserId,
       emoji,
