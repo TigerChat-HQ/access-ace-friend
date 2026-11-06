@@ -1,4 +1,5 @@
 name: Refresh and verify dependencies
+# Targeted toolchain upgrades are validated before lockfiles are committed.
 # Runs on this PR branch to regenerate both lockfiles and validate fixes before committing.
 
 on:
