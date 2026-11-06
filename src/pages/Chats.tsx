@@ -21,8 +21,8 @@ import { useChatPreferences } from "@/hooks/useChatPreferences";
 import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
 import { StoryUploadDialog } from "@/components/chat/StoryUploadDialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, EyeOff, Trash2, X, ChevronUp, ChevronDown, Archive, RotateCcw } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, EyeOff, Trash2, X, ChevronUp, ChevronDown, Archive, RotateCcw, Palette } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
@@ -408,9 +408,8 @@ const Chats = () => {
                 </p>
               </div>
               <div className="flex items-center gap-1">
-                <button onClick={() => setChatSearchOpen((o) => !o)} className={`p-2 rounded-full hover:bg-surface-hover transition-colors ${chatSearchOpen ? "text-primary" : "text-muted-foreground hover:text-primary"}`} title="Search messages"><Search className="w-4 h-4" /></button>
-                <button onClick={() => handleStartCall(false)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary"><Phone className="w-4 h-4" /></button>
-                <button onClick={() => handleStartCall(true)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary"><Video className="w-4 h-4" /></button>
+                <button onClick={() => handleStartCall(false)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary" title="Voice call" aria-label="Voice call"><Phone className="w-4 h-4" /></button>
+                <button onClick={() => handleStartCall(true)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary" title="Video call" aria-label="Video call"><Video className="w-4 h-4" /></button>
                 {isGroup && <>
                   <InviteMembersDialog conversationId={activeConvo.id} existingMemberIds={[user?.id || ""]} onInvited={() => refetchConversations()} />
                   <GroupAdminDialog conversationId={activeConvo.id} />
@@ -419,11 +418,29 @@ const Chats = () => {
                   <DropdownMenuTrigger asChild>
                     <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary" title="Chat options" aria-label="Chat options"><MoreVertical className="w-4 h-4" /></button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => setCustomizationOpen(true)}><MoreVertical className="w-4 h-4 mr-2" /> Customize chat</DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => handleHideChat(activeConvo.id)}><EyeOff className="w-4 h-4 mr-2" /> Hide chat</DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => void handleDeleteChat("me")}><Trash2 className="w-4 h-4 mr-2" /> Delete for me</DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => void handleDeleteChat("everyone")}><Trash2 className="w-4 h-4 mr-2" /> Delete for everyone</DropdownMenuItem>
+                  <DropdownMenuContent align="end" className="min-w-56">
+                    <DropdownMenuItem onSelect={() => setChatSearchOpen((o) => !o)}>
+                      <Search className="w-4 h-4 mr-2" /> Search messages
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setCustomizationOpen(true)}>
+                      <Palette className="w-4 h-4 mr-2" /> Chat theme
+                    </DropdownMenuItem>
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <MoreVertical className="w-4 h-4 mr-2" /> More
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        <DropdownMenuItem onSelect={() => handleHideChat(activeConvo.id)}>
+                          <EyeOff className="w-4 h-4 mr-2" /> Hide chat
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => void handleDeleteChat("me")}>
+                          <Trash2 className="w-4 h-4 mr-2" /> Delete for me
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => void handleDeleteChat("everyone")}>
+                          <Trash2 className="w-4 h-4 mr-2" /> Delete for everyone
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <ChatCustomizationDialog conversationId={activeConvo.id} open={customizationOpen} onOpenChange={setCustomizationOpen} hideTrigger />
