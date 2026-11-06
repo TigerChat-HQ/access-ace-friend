@@ -51,7 +51,8 @@ const Stories = () => {
     musicUrl: metadata.music_url || undefined,
     mediaType: (metadata.media_type || "image") as "image" | "video" | "text",
     textOverlay: metadata.text_overlay || null,
-    duration: metadata.duration || null,\n    backgroundColor: (s as Story & { background_color?: string }).background_color || "#6D28D9",
+    duration: metadata.duration || null,
+    backgroundColor: (s as Story & { background_color?: string }).background_color || "#6D28D9",
   });
   });
 
@@ -94,14 +95,19 @@ const Stories = () => {
           <div className="grid grid-cols-3 gap-2">
             {stories.map((s, i) => {
               const metadata = s as Story & { media_type?: string | null };
-              const isVideo = metadata.media_type === "video";\n              const isText = metadata.media_type === "text" || !s.image_url;
+              const isVideo = metadata.media_type === "video";
+              const isText = metadata.media_type === "text" || !s.image_url;
               return (
                 <button
                   key={s.id}
                   onClick={() => setViewer(i)}
                   className="relative aspect-[3/5] rounded-xl overflow-hidden bg-surface group"
                 >
-                  {isText ? (\n                    <div className="w-full h-full flex items-center justify-center p-3 text-white text-center font-semibold text-sm" style={{ backgroundColor: (s as Story & { background_color?: string }).background_color || "#6D28D9" }}>\n                      {s.caption || "Status"}\n                    </div>\n                  ) : isVideo ? (
+                  {isText ? (
+                    <div className="w-full h-full flex items-center justify-center p-3 text-white text-center font-semibold text-sm" style={{ backgroundColor: (s as Story & { background_color?: string }).background_color || "#6D28D9" }}>
+                      {s.caption || "Status"}
+                    </div>
+                  ) : isVideo ? (
                     <>
                       <video
                         src={`${s.image_url}#t=0.1`}
