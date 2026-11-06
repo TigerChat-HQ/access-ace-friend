@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { usePresence } from "@/hooks/usePresence";
 import { Tables } from "@/integrations/supabase/types";
 
 type Message = Tables<"messages">;
@@ -62,7 +61,6 @@ export const useSendMessage = () => {
 
 export const useConversations = () => {
   const { user } = useAuth();
-  const { onlineUserIds } = usePresence(false);
   const [conversations, setConversations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -112,13 +110,6 @@ export const useConversations = () => {
     setConversations(enriched);
     setLoading(false);
   }, [user]);
-
-  useEffect(() => {
-    setConversations((prev) => prev.map((convo) => {
-      if (!convo.otherProfile) return convo;
-      return { ...convo, otherProfile: { ...convo.otherProfile, is_online: onlineUserIds.has(convo.otherProfile.user_id) } };
-    }));
-  }, [onlineUserIds]);
 
   useEffect(() => { void fetchConversations(); }, [fetchConversations]);
 
