@@ -43,7 +43,7 @@ export const CommentsSheet = ({ postId, open, onOpenChange, onChange }: Props) =
     const userIds = [...new Set(data.map((c) => c.user_id))];
     const [{ data: profiles }, { data: likes }] = await Promise.all([
       supabase.from("profiles").select("user_id, username, display_name, avatar_url").in("user_id", userIds),
-      supabase.from("comment_likes" as any).select("comment_id, user_id").in("comment_id", ids),
+      db.from("comment_likes").select("comment_id, user_id").in("comment_id", ids),
     ]);
     const pm = new Map(profiles?.map((p) => [p.user_id, p]) || []);
     const likeMap = new Map<string, { count: number; mine: boolean }>();
@@ -76,7 +76,7 @@ export const CommentsSheet = ({ postId, open, onOpenChange, onChange }: Props) =
     const parent_id = replyTo?.id || null;
     setText("");
     setReplyTo(null);
-    await supabase.from("post_comments").insert({ post_id: postId, user_id: user.id, content, parent_id } as any);
+    await supabase.from("post_comments").insert({ post_id: postId, user_id: user.id, content, parent_id });
     if (parent_id) setExpanded((s) => new Set(s).add(parent_id));
     await load();
     onChange?.();
