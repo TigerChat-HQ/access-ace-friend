@@ -1,4 +1,5 @@
 name: Refresh and verify dependencies
+# Runs on this PR branch to regenerate both lockfiles and validate fixes before committing.
 
 on:
   push:
