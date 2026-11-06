@@ -31,6 +31,7 @@ jobs:
       - name: Create npm audit lockfile
         run: npm install --package-lock-only --ignore-scripts --no-audit
       - name: Apply non-breaking npm security fixes
+        continue-on-error: true
         run: npm audit fix --package-lock-only
       - name: Capture remaining security findings
         id: audit
