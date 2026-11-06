@@ -6,7 +6,7 @@ export const TigerChatBackground = () => (
     <div className="absolute inset-0 flex items-center justify-center">
       <img
         src={angryTiger}
-        alt=""
+        alt="Tanzanian Draft Game Logo Watermark"
         className="w-72 h-72 opacity-[0.04] animate-tiger-breathe select-none"
         width={512}
         height={512}
