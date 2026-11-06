@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Bot, Sparkles, Lock, GitPullRequest } from "lucide-react";
+import { Bot, Sparkles, Lock, GitPullRequest, ShieldCheck, Loader2 } from "lucide-react";
 
 type Task = {
   id: string; title: string; summary: string | null; category: string; priority: string;
@@ -67,6 +67,22 @@ export const TigerCommandCenter = () => {
     finally { setDrafting(null); }
   };
 
+  const [checking, setChecking] = useState<string | null>(null);
+  const checkStatus = async (id: string) => {
+    setChecking(id);
+    try {
+      const r = await call({ action: "check_status", id });
+      const v = r?.checks?.verdict;
+      const msg = v === "passed" ? "All tests and security checks passed."
+        : v === "failed" ? "Some checks failed — open the update on GitHub for details."
+        : v === "running" ? "Checks are still running on GitHub."
+        : "No checks have run yet — they start when the update is opened on GitHub.";
+      toast({ title: "Check status", description: msg, variant: v === "failed" ? "destructive" : "default" });
+      load();
+    } catch (e: any) { toast({ title: "Couldn't read check status", description: e.message, variant: "destructive" }); }
+    finally { setChecking(null); }
+  };
+
   const riskVariant = (r: string) => (r === "high" ? "destructive" : r === "medium" ? "secondary" : "outline") as any;
 
   return (
@@ -83,7 +99,7 @@ export const TigerCommandCenter = () => {
       <div className="grid grid-cols-2 gap-2 text-xs">
         {[
           ["Task manager & planner", true], ["Audit history", true],
-          ["Code connection", true], ["Tests & security checks", false],
+          ["Code connection", true], ["Tests & security checks", true],
           ["Publishing & undo", false],
         ].map(([n, on]) => (
           <div key={n as string} className="bg-card border border-border/50 rounded-lg p-2 flex items-center gap-1.5">
