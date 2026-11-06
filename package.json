@@ -16,8 +16,7 @@
     "typecheck": "tsc -b --pretty false"
   },
   "overrides": {
-    "@supabase/supabase-js": "^2.118.0",
-    "vite-plugin-pwa": "^2.0.0"
+    "@supabase/supabase-js": "^2.118.0"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
