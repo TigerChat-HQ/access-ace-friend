@@ -17,6 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { useAppLock, isWebAuthnSupported } from "@/hooks/useAppLock";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 import { TwoFactorSecurity } from "@/components/TwoFactorSecurity";
+import { enablePush } from "@/lib/firebase-push";
 import { ringtoneOptions, getStoredRingtone, setStoredRingtone, playRingtone, type RingtoneId } from "@/lib/ringtones";
 
 const db = supabase as unknown as SupabaseClient;
@@ -201,7 +202,7 @@ const Settings = () => {
       case "notifications":
         return (
           <div className="space-y-4 animate-fade-in">
-            <SettingToggle label={t("pushNotifications")} description={t("pushDesc")} value={notifications} onChange={setNotifications} />
+            <Button variant="outline" onClick={async () => { if (!user) return; try { toast({ title: "Push notifications", description: await enablePush(user.id) }); } catch (error) { toast({ title: "Notifications unavailable", description: error instanceof Error ? error.message : "Please try again", variant: "destructive" }); } }}><Bell className="mr-2 h-4 w-4" />Enable background notifications</Button>
             <SettingToggle label={t("sound")} description={t("soundDesc")} value={soundEnabled} onChange={setSoundEnabled} />
             <div className="space-y-2">
               <label htmlFor="incoming-call-tone" className="text-sm font-medium text-foreground">Incoming call ringtone</label>
