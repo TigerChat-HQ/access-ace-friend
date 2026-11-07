@@ -9,7 +9,9 @@ const tryShowSwNotification = async (payload: { title: string; body: string; url
       reg.active.postMessage({ type: "show-notification", payload });
       return true;
     }
-  } catch {}
+  } catch (error) {
+    console.warn("Could not show service-worker notification:", error);
+  }
   return false;
 };
 
@@ -17,6 +19,35 @@ const decodeApplicationServerKey = (key: string) => {
   const padding = "=".repeat((4 - (key.length % 4)) % 4);
   const base64 = (key + padding).replace(/-/g, "+").replace(/_/g, "/");
   return Uint8Array.from(window.atob(base64), (char) => char.charCodeAt(0));
+};
+
+type PushSubscriptionRow = {
+  user_id: string;
+  endpoint: string;
+  subscription: PushSubscriptionJSON;
+};
+
+type PushSubscriptionsWriter = {
+  from: (table: "push_subscriptions") => {
+    upsert: (
+      values: PushSubscriptionRow,
+      options: { onConflict: "endpoint" },
+    ) => Promise<{ error: { message: string } | null }>;
+  };
+};
+
+type IncomingMessageRow = {
+  sender_id: string;
+  message_type: string;
+  content: string | null;
+  conversation_id: string;
+};
+
+type SocialNotificationRow = {
+  actor_id: string;
+  type: string;
+  post_id: string | null;
+  id: string;
 };
 
 export const useNotifications = () => {
@@ -43,7 +74,8 @@ export const useNotifications = () => {
           applicationServerKey: decodeApplicationServerKey(applicationServerKey),
         });
       }
-      const { error } = await (supabase as any).from("push_subscriptions").upsert(
+      const pushSubscriptions = supabase as unknown as PushSubscriptionsWriter;
+      const { error } = await pushSubscriptions.from("push_subscriptions").upsert(
         { user_id: user.id, endpoint: subscription.endpoint, subscription: subscription.toJSON() },
         { onConflict: "endpoint" },
       );
@@ -94,7 +126,7 @@ export const useNotifications = () => {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
         async (payload) => {
-          const msg = payload.new as any;
+          const msg = payload.new as unknown as IncomingMessageRow;
           if (msg.sender_id === user.id) return;
 
           const { data: profile } = await supabase
@@ -135,7 +167,7 @@ export const useNotifications = () => {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications", filter: `recipient_id=eq.${user.id}` },
         async (payload) => {
-          const n = payload.new as any;
+          const n = payload.new as unknown as SocialNotificationRow;
           const { data: actor } = await supabase
             .from("profiles")
             .select("display_name, username")
