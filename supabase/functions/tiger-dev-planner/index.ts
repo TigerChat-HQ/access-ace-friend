@@ -74,6 +74,7 @@ const githubHeaders = (token?: string) => ({
 async function githubJson(url: string, token?: string, init?: RequestInit) {
   const response = await fetch(url, {
     ...init,
+    cache: "no-store",
     headers: { ...githubHeaders(token), ...(init?.headers || {}) },
   });
   const payload = await response.json().catch(() => ({}));
@@ -82,14 +83,17 @@ async function githubJson(url: string, token?: string, init?: RequestInit) {
 }
 
 async function listGitHubPullRequests() {
+  const token = Deno.env.get("GITHUB_TOKEN");
+  // Use the server-side token for higher API limits and private-repo access.
+  // Public read-only access remains available when no token is configured.
   const [pulls, repo] = await Promise.all([
-    githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/pulls?state=open&per_page=25&sort=updated&direction=desc`),
-    githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}`),
+    githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/pulls?state=open&per_page=25&sort=updated&direction=desc`, token),
+    githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}`, token),
   ]);
   return {
     repository: GITHUB_REPO,
     default_branch: repo.default_branch,
-    write_enabled: Boolean(Deno.env.get("GITHUB_TOKEN")),
+    write_enabled: Boolean(token),
     pull_requests: (Array.isArray(pulls) ? pulls : []).map((raw: unknown) => {
       const pr = raw as {
         number?: number; title?: string; html_url?: string; state?: string; draft?: boolean;
