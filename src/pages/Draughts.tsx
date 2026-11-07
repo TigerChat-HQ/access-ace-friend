@@ -44,9 +44,18 @@ const Draughts = () => {
     setOpenMatches((data as unknown as MatchRow[] | null) ?? []);
   };
 
+  // Keep the public waiting-room list live across different players' devices.
   useEffect(() => {
-    if (mode === "pvp" && !match) loadOpen();
-  }, [mode, match]);
+    if (mode !== "pvp" || match) return;
+    void loadOpen();
+    const lobby = supabase
+      .channel("draft-lobby")
+      .on("postgres_changes", { event: "*", schema: "public", table: "draft_matches" }, () => {
+        void loadOpen();
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(lobby); };
+  }, [mode, match?.id]);
 
   // Deep-link: open shared match
   useEffect(() => {
@@ -78,11 +87,26 @@ const Draughts = () => {
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "draft_matches", filter: `id=eq.${match.id}` },
-        (payload) => setMatch(payload.new as MatchRow),
+        (payload) => {
+          const incoming = payload.new as MatchRow;
+          setMatch((current) => !current || incoming.revision >= current.revision ? incoming : current);
+        },
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          // Fetch a snapshot after joining the channel so a move made during
+          // the subscription handshake cannot leave this client behind.
+          void supabase.from("draft_matches").select("*").eq("id", match.id).maybeSingle()
+            .then(({ data }) => {
+              if (data) {
+                const incoming = data as unknown as MatchRow;
+                setMatch((current) => !current || incoming.revision >= current.revision ? incoming : current);
+              }
+            });
+        }
+      });
     channelRef.current = ch;
-    return () => { supabase.removeChannel(ch); };
+    return () => { void supabase.removeChannel(ch); };
   }, [match?.id]);
 
   const myColor: Color | null = useMemo(() => {
