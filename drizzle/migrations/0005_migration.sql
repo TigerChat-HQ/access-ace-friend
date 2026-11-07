@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.commit_draft_move(uuid, integer, jsonb, text, jsonb, text, text) TO authenticated;
