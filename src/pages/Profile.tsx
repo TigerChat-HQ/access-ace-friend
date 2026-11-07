@@ -120,14 +120,8 @@ const Profile = () => {
         }
       }
     }
-    const { data: convo } = await supabase.from("conversations").insert({ type: "direct" }).select().single();
-    if (convo) {
-      await supabase.from("conversation_members").insert([
-        { conversation_id: convo.id, user_id: user.id },
-        { conversation_id: convo.id, user_id: userId },
-      ]);
-      navigate(`/chats?c=${convo.id}`);
-    }
+    const { data: convoId } = await supabase.rpc("create_direct_conversation", { _other_user_id: userId });
+    if (convoId) navigate(`/chats?c=${convoId}`);
   };
 
   const handleBlock = async () => {
