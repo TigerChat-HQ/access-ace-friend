@@ -76,28 +76,25 @@ export const TigerCommandCenter = () => {
   const [pullRequests, setPullRequests] = useState<GitHubPullRequest[]>([]);
   const [githubWriteEnabled, setGithubWriteEnabled] = useState(false);
   const [githubLoading, setGithubLoading] = useState(false);
+  const [githubError, setGithubError] = useState<string | null>(null);
+  const [githubUpdatedAt, setGithubUpdatedAt] = useState<string | null>(null);
   const [fileTargets, setFileTargets] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setRefreshing(true);
-    const [{ data: taskData, error: taskError }, { data: auditData, error: auditError }] = await Promise.all([
-      supabase.from("dev_tasks").select("*").order("created_at", { ascending: false }).limit(50),
-      supabase.from("dev_audit_log").select("*").order("created_at", { ascending: false }).limit(15),
-    ]);
-
-    if (taskError || auditError) {
-      toast({
-        title: "Could not refresh command center",
-        description: taskError?.message ?? auditError?.message,
-        variant: "destructive",
-      });
+    try {
+      const [{ data: taskData, error: taskError }, { data: auditData, error: auditError }] = await Promise.all([
+        supabase.from("dev_tasks").select("*").order("created_at", { ascending: false }).limit(50),
+        supabase.from("dev_audit_log").select("*").order("created_at", { ascending: false }).limit(15),
+      ]);
+      if (taskError || auditError) throw new Error(taskError?.message ?? auditError?.message ?? "Database refresh failed");
+      setTasks((taskData as Task[] | null) ?? []);
+      setAudit((auditData as AuditEntry[] | null) ?? []);
+    } catch (error: unknown) {
+      toast({ title: "Could not refresh command center", description: getErrorMessage(error), variant: "destructive" });
+    } finally {
       setRefreshing(false);
-      return;
     }
-
-    setTasks((taskData as Task[] | null) ?? []);
-    setAudit((auditData as AuditEntry[] | null) ?? []);
-    setRefreshing(false);
   }, [toast]);
 
   useEffect(() => { void load(); }, [load]);
@@ -120,10 +117,16 @@ export const TigerCommandCenter = () => {
     setGithubLoading(true);
     try {
       const result = await call({ action: "github_list_prs" });
-      setPullRequests(result.pull_requests ?? []);
+      if (result.error) throw new Error(result.error);
+      if (!Array.isArray(result.pull_requests)) throw new Error("GitHub returned an invalid pull-request response.");
+      setPullRequests(result.pull_requests);
       setGithubWriteEnabled(Boolean(result.write_enabled));
+      setGithubError(null);
+      setGithubUpdatedAt(new Date().toISOString());
     } catch (error: unknown) {
-      toast({ title: "GitHub refresh failed", description: getErrorMessage(error), variant: "destructive" });
+      const message = getErrorMessage(error);
+      setGithubError(message);
+      toast({ title: "GitHub refresh failed", description: message, variant: "destructive" });
     } finally {
       setGithubLoading(false);
     }
@@ -248,11 +251,14 @@ export const TigerCommandCenter = () => {
           </Button>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[11px]">
-          <Badge variant="secondary">Live repository data</Badge>
+          <Badge variant="secondary">Repository: TigerChat-HQ/access-ace-friend</Badge>
+          {githubUpdatedAt && <Badge variant="outline">Updated {new Date(githubUpdatedAt).toLocaleTimeString()}</Badge>}
           <Badge variant={githubWriteEnabled ? "default" : "outline"}>{githubWriteEnabled ? "GITHUB_TOKEN configured" : "Read-only — write token missing"}</Badge>
         </div>
         {!githubWriteEnabled && <p className="text-[11px] text-muted-foreground">TIGERCHAT can read open pull requests and CI status. To let Tiger AI prepare code-fix branches and draft PRs, configure the GITHUB_TOKEN Edge Function secret with Contents and Pull requests read/write permissions. The token stays server-side.</p>}
-        {pullRequests.length === 0 ? <p className="text-xs text-muted-foreground">No open pull requests found, or refresh to retry.</p> : (
+        {githubError && <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">GitHub data could not be refreshed: {githubError}. Showing the last successfully loaded results, if any.</div>}
+        {!githubError && pullRequests.length === 0 ? <p className="text-xs text-muted-foreground">GitHub connected successfully. There are currently no open pull requests.</p> : null}
+        {pullRequests.length > 0 ? (
           <div className="space-y-1.5">{pullRequests.map((pr) => (
             <div key={pr.number} className="flex items-start justify-between gap-2 rounded-md border border-border/40 p-2">
               <div className="min-w-0"><p className="text-xs font-medium text-foreground">#{pr.number} · {pr.title}</p><p className="text-[10px] text-muted-foreground">{pr.head_branch} → main · {pr.draft ? "Draft" : "Ready for review"} · {new Date(pr.updated_at).toLocaleString()}</p></div>
