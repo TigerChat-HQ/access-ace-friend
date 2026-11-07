@@ -29,6 +29,7 @@ import Draughts from "./pages/Draughts";
 import Contact from "./pages/Contact";
 import PublicDraughts from "./pages/PublicDraughts";
 import { HelmetProvider } from "react-helmet-async";
+import { TwoFactorGate } from "@/components/TwoFactorSecurity";
 
 const queryClient = new QueryClient();
 
@@ -61,7 +62,7 @@ const App = () => (
           <TooltipProvider>
             <Toaster />
             <Sonner />
-            <BrowserRouter>
+            <TwoFactorGate><BrowserRouter>
               <Routes>
                 <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -91,7 +92,7 @@ const App = () => (
 
                 <Route path="*" element={<NotFound />} />
               </Routes>
-            </BrowserRouter>
+            </BrowserRouter></TwoFactorGate>
           </TooltipProvider>
         </AuthProvider>
       </LanguageProvider>

@@ -5,6 +5,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useScreenshotProtection } from "@/hooks/useScreenshotProtection";
 import { TigerReactionLayer } from "@/components/TigerReaction";
 import tigerImg from "@/assets/tiger-reaction.png";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 
 interface StoryData {
   id: string;
@@ -31,6 +34,8 @@ const REACTIONS = ["❤️", "🔥", "😂", "😮", "😢", "👏"];
 const db = supabase as unknown as SupabaseClient;
 
 export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: StoryViewerProps) => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [progress, setProgress] = useState(0);
   const [imgLoaded, setImgLoaded] = useState(false);
@@ -86,7 +91,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
   useEffect(() => {
     if (!story) return;
     let active = true;
-    void db.from("story_comments")
+    void supabase.from("messages")
       .select("id, content, user_id")
       .eq("story_id", story.id)
       .order("created_at", { ascending: true })

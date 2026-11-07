@@ -16,6 +16,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useAppLock, isWebAuthnSupported } from "@/hooks/useAppLock";
 import tigerLogo from "@/assets/tigerchats-logo.png";
+import { TwoFactorSecurity } from "@/components/TwoFactorSecurity";
 import { ringtoneOptions, getStoredRingtone, setStoredRingtone, playRingtone, type RingtoneId } from "@/lib/ringtones";
 
 const db = supabase as unknown as SupabaseClient;
@@ -247,16 +248,7 @@ const Settings = () => {
                 icon={<Fingerprint className="w-5 h-5" />}
               />
             )}
-            <div className="pt-4 border-t border-border/50">
-              <button className="flex items-center gap-3 w-full py-3 text-left">
-                <Lock className="w-5 h-5 text-muted-foreground" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground">{t("twoFactor")}</p>
-                  <p className="text-xs text-muted-foreground">{t("twoFactorDesc")}</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </button>
-            </div>
+            <TwoFactorSecurity />
           </div>
         );
       case "appearance":
