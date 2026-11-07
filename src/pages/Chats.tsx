@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
 import { Message } from "@/types/chat";
 import tigerLogo from "@/assets/tigerchats-logo.png";
+import { dispatchPush } from "@/lib/dispatch-push";
 
 type Story = Tables<"stories"> & { profile?: Tables<"profiles"> };
 type MessageMetadata = { read_at?: string | null; is_read?: boolean | null; delivered_at?: string | null; reply_to_id?: string | null };
@@ -131,6 +132,7 @@ const Chats = () => {
       reply_to_id: replyId || null,
     });
     if (error) toast({ title: "Message not sent", description: error.message, variant: "destructive" });
+    else void dispatchPush(activeChat);
   };
 
   const handleSendVoice = async (blob: Blob, duration: number) => {
@@ -148,6 +150,7 @@ const Chats = () => {
       message_type: "voice",
       media_url: publicUrl,
     });
+    void dispatchPush(activeChat);
   };
 
   const handleSendFile = async (file: File) => {
@@ -165,6 +168,7 @@ const Chats = () => {
       message_type: msgType,
       media_url: publicUrl,
     });
+    void dispatchPush(activeChat);
   };
 
   const handleHideChat = (conversationId: string) => {

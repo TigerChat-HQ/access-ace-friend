@@ -153,6 +153,9 @@ export const useWebRTC = () => {
       signal_data: { ...data, callId: info.callId, from: user.id },
       status,
     });
+    if (type === "offer" && info.callerId === user.id) {
+      void import("@/lib/dispatch-push").then(({ dispatchPush }) => dispatchPush(info.conversationId, info.callId));
+    }
   }, [user]);
 
   const flushLocalIce = useCallback(async (info: CallInfo) => {

@@ -8,6 +8,7 @@ import tigerImg from "@/assets/tiger-reaction.png";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { dispatchPush } from "@/lib/dispatch-push";
 
 interface StoryData {
   id: string;
@@ -114,6 +115,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
     if (error) {
       toast({ title: "Reply not sent", description: error.message, variant: "destructive" });
     } else if (data) {
+      void dispatchPush(data);
       setCommentDraft("");
       onClose();
       navigate(`/chats?c=${data}`);
