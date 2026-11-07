@@ -199,15 +199,24 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const requestedAction = typeof body.action === "string" ? body.action.trim() : "";
-    // Backward-compatible action names used by older Command Center previews.
+    // Normalize action spelling from older/mobile Command Center builds.
+    const normalizedAction = requestedAction.toLowerCase().replace(/[\\s-]+/g, "_");
     const actionAliases: Record<string, string> = {
       github_refresh: "github_list_prs",
       refresh_github: "github_list_prs",
+      sync_github: "github_list_prs",
+      github_sync: "github_list_prs",
+      refresh: "github_list_prs",
+      refresh_prs: "github_list_prs",
       list_pull_requests: "github_list_prs",
+      list_github_prs: "github_list_prs",
+      github_list_pull_requests: "github_list_prs",
       get_pull_requests: "github_list_prs",
+      fetch_pull_requests: "github_list_prs",
+      github_pull_requests: "github_list_prs",
       refresh_checks: "check_status",
     };
-    if (requestedAction && actionAliases[requestedAction]) body.action = actionAliases[requestedAction];
+    body.action = actionAliases[normalizedAction] || normalizedAction;
 
     // Listing public repository metadata and open PRs is read-only. Keep it
     // available to authenticated Command Center viewers; all task mutations
@@ -326,6 +335,8 @@ Deno.serve(async (req) => {
     if (body.action !== "triage") return json({
       error: "Unknown action",
       received_action: requestedAction || null,
+      normalized_action: normalizedAction || null,
+      received_keys: Object.keys(body),
       supported_actions: ["github_list_prs", "check_status", "set_task_files", "propose_code", "set_status", "create_task", "triage"],
     }, 400);
 

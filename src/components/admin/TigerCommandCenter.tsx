@@ -105,8 +105,20 @@ export const TigerCommandCenter = () => {
       const context = (error as { context?: unknown }).context;
       let detail = error.message;
       if (context instanceof Response) {
-        const payload = await context.clone().json().catch(() => null) as { error?: string; message?: string } | null;
-        detail = payload?.error || payload?.message || `Edge Function returned HTTP ${context.status}`;
+        const payload = await context.clone().json().catch(() => null) as {
+          error?: string;
+          message?: string;
+          received_action?: string | null;
+          normalized_action?: string | null;
+          supported_actions?: string[];
+        } | null;
+        const actionDetail = payload?.received_action
+          ? ` (received action: "${payload.received_action}"${payload.normalized_action ? `, normalized: "${payload.normalized_action}"` : ""})`
+          : "";
+        const supportedDetail = payload?.supported_actions?.length
+          ? ` Supported actions: ${payload.supported_actions.join(", ")}.`
+          : "";
+        detail = `${payload?.error || payload?.message || `Edge Function returned HTTP ${context.status}`}${actionDetail}${supportedDetail}`;
       }
       throw new Error(detail);
     }
