@@ -66,11 +66,7 @@ const Draughts = () => {
       if (!data) return;
       const row = data as unknown as MatchRow;
       if (row.status === "waiting" && row.player_white !== user.id && !row.player_black && !row.vs_ai) {
-        const { data: joined } = await supabase
-          .from("draft_matches")
-          .update({ player_black: user.id, status: "active", revision: row.revision + 1 })
-          .eq("id", matchId).eq("status", "waiting").is("player_black", null)
-          .eq("revision", row.revision).select().maybeSingle();
+        const { data: joined } = await supabase.rpc("join_draft_match", { p_match_id: matchId });
         if (joined) { setMatch(joined as unknown as MatchRow); setMode("pvp"); return; }
         const { data: latest } = await supabase.from("draft_matches").select("*").eq("id", matchId).maybeSingle();
         if (latest) { setMatch(latest as unknown as MatchRow); setMode("pvp"); return; }
@@ -129,24 +125,23 @@ const Draughts = () => {
       aiMoveInFlight.current = match.id;
       const aiMove = pickAIMove(match.board, "b", 4);
       if (!aiMove) {
-        await supabase.from("draft_matches").update({
-          status: "finished",
-          winner: "white",
-        }).eq("id", match.id).eq("revision", match.revision);
+        await supabase.rpc("commit_draft_move", {
+          p_id: match.id, p_revision: match.revision, p_board: match.board as unknown as Json,
+          p_turn: "b", p_move: null as unknown as Json, p_status: "finished", p_winner: "white",
+        });
         aiMoveInFlight.current = null;
         setAiThinking(false);
         return;
       }
       const newBoard = applyMove(match.board, aiMove);
       const w = winner(newBoard, "w");
-      await supabase.from("draft_matches").update({
-        board: newBoard as unknown as Json,
-        current_turn: "w",
-        last_move: aiMove as unknown as Json,
-        status: w ? "finished" : "active",
-        winner: w === "w" ? "white" : w === "b" ? "black" : null,
-        revision: match.revision + 1,
-      }).eq("id", match.id).eq("revision", match.revision);
+      const { data: aiSaved } = await supabase.rpc("commit_draft_move", {
+        p_id: match.id, p_revision: match.revision, p_board: newBoard as unknown as Json,
+        p_turn: "w", p_move: aiMove as unknown as Json,
+        p_status: w ? "finished" : "active",
+        p_winner: (w === "w" ? "white" : w === "b" ? "black" : null) as string,
+      });
+      if (aiSaved) setMatch(aiSaved as unknown as MatchRow);
       aiMoveInFlight.current = null;
       setAiThinking(false);
     }, 350);
@@ -156,13 +151,7 @@ const Draughts = () => {
   const startAI = async () => {
     if (!user) return;
     setCreating(true);
-    const { data, error } = await supabase.from("draft_matches").insert({
-      player_white: user.id,
-      vs_ai: true,
-      board: initialBoard() as unknown as Json,
-      current_turn: "w",
-      status: "active",
-    }).select().single();
+    const { data, error } = await supabase.rpc("create_draft_match", { p_vs_ai: true });
     setCreating(false);
     if (error || !data) {
       toast({ title: "Could not start", description: error?.message, variant: "destructive" });
@@ -175,13 +164,7 @@ const Draughts = () => {
   const createPvP = async () => {
     if (!user) return;
     setCreating(true);
-    const { data, error } = await supabase.from("draft_matches").insert({
-      player_white: user.id,
-      vs_ai: false,
-      board: initialBoard() as unknown as Json,
-      current_turn: "w",
-      status: "waiting",
-    }).select().single();
+    const { data, error } = await supabase.rpc("create_draft_match", { p_vs_ai: false });
     setCreating(false);
     if (error || !data) {
       toast({ title: "Could not create", description: error?.message, variant: "destructive" });
@@ -194,17 +177,9 @@ const Draughts = () => {
 
   const joinMatch = async (m: MatchRow) => {
     if (!user) return;
-    const { data, error } = await supabase
-      .from("draft_matches")
-      .update({ player_black: user.id, status: "active", revision: m.revision + 1 })
-      .eq("id", m.id)
-      .eq("status", "waiting")
-      .is("player_black", null)
-      .eq("revision", m.revision)
-      .select()
-      .maybeSingle();
+    const { data, error } = await supabase.rpc("join_draft_match", { p_match_id: m.id });
     if (error || !data) {
-      toast({ title: "Could not join", variant: "destructive" });
+      toast({ title: "Could not join", description: error?.message, variant: "destructive" });
       return;
     }
     setMatch(data as unknown as MatchRow);
@@ -213,14 +188,12 @@ const Draughts = () => {
 
   const [codeInput, setCodeInput] = useState("");
   const joinByCode = async () => {
-    const code = codeInput.trim().toLowerCase();
-    if (code.length < 4) { toast({ title: "Enter the match code", variant: "destructive" }); return; }
-    const { data, error } = await supabase.from("draft_matches").select("*")
-      .eq("status", "waiting").eq("vs_ai", false).ilike("join_code", code).maybeSingle();
-    if (error || !data) { toast({ title: "No active match with that code", description: error?.message, variant: "destructive" }); return; }
-    const found = data as unknown as MatchRow;
-    if (found.player_white === user?.id) { setMatch(found); setMode("pvp"); return; }
-    await joinMatch(found);
+    const code = codeInput.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (code.length !== 8) { toast({ title: "Enter the 8-character match code", variant: "destructive" }); return; }
+    const { data, error } = await supabase.rpc("join_draft_match", { p_code: code });
+    if (error || !data) { toast({ title: "Could not join with that code", description: error?.message, variant: "destructive" }); return; }
+    setMatch(data as unknown as MatchRow);
+    setMode("pvp");
   };
 
   const moves: Move[] = useMemo(() => {
@@ -247,14 +220,12 @@ const Draughts = () => {
     const next: Color = myColor === "w" ? "b" : "w";
     const w = winner(newBoard, next);
     setSelected(null);
-    const { data, error } = await supabase.from("draft_matches").update({
-      board: newBoard as unknown as Json,
-      current_turn: next,
-      last_move: move as unknown as Json,
-      status: w ? "finished" : "active",
-      winner: w === "w" ? "white" : w === "b" ? "black" : null,
-      revision: match.revision + 1,
-    }).eq("id", match.id).eq("revision", match.revision).select().maybeSingle();
+    const { data, error } = await supabase.rpc("commit_draft_move", {
+      p_id: match.id, p_revision: match.revision, p_board: newBoard as unknown as Json,
+      p_turn: next, p_move: move as unknown as Json,
+      p_status: w ? "finished" : "active",
+      p_winner: (w === "w" ? "white" : w === "b" ? "black" : null) as string,
+    });
     if (error || !data) {
       toast({ title: "Move not saved", description: error?.message || "The board changed. Please wait for the latest move.", variant: "destructive" });
       const { data: latest } = await supabase.from("draft_matches").select("*").eq("id", match.id).maybeSingle();
@@ -373,10 +344,8 @@ const Draughts = () => {
   const resign = async () => {
     if (!match || !myColor || match.status !== "active") return;
     if (!confirm("Resign this match?")) return;
-    await supabase.from("draft_matches").update({
-      status: "finished",
-      winner: myColor === "w" ? "black" : "white",
-    }).eq("id", match.id);
+    const { data } = await supabase.rpc("resign_draft_match", { p_id: match.id });
+    if (data) setMatch(data as unknown as MatchRow);
   };
 
   const shareMatch = async () => {
