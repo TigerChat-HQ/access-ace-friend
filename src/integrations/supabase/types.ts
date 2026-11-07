@@ -937,36 +937,42 @@ export type Database = {
       }
       stories: {
         Row: {
+          audience: string
+          background_color: string | null
           caption: string | null
           created_at: string | null
           duration: number | null
           expires_at: string
           id: string
-          image_url: string
+          image_url: string | null
           media_type: string
           music_url: string | null
           text_overlay: Json | null
           user_id: string
         }
         Insert: {
+          audience?: string
+          background_color?: string | null
           caption?: string | null
           created_at?: string | null
           duration?: number | null
           expires_at?: string
           id?: string
-          image_url: string
+          image_url?: string | null
           media_type?: string
           music_url?: string | null
           text_overlay?: Json | null
           user_id: string
         }
         Update: {
+          audience?: string
+          background_color?: string | null
           caption?: string | null
           created_at?: string | null
           duration?: number | null
           expires_at?: string
           id?: string
-          image_url?: string
+          image_url?: string | null
           media_type?: string
           music_url?: string | null
           text_overlay?: Json | null
