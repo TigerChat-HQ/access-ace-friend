@@ -61,13 +61,17 @@ Deno.serve(async (request) => {
     await Promise.all(subscriptions.map(async (row: { id: string; subscription: webpush.PushSubscription }) => {
       try {
         await webpush.sendNotification(row.subscription, payload, { TTL: 60, urgency: "high" });
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Browsers report expired/uninstalled push endpoints with 404 or 410.
-        if (error?.statusCode === 404 || error?.statusCode === 410) {
+        const statusCode =
+          typeof error === "object" && error !== null && "statusCode" in error
+            ? error.statusCode
+            : undefined;
+        if (statusCode === 404 || statusCode === 410) {
           await admin.from("push_subscriptions").delete().eq("id", row.id);
           return;
         }
-        console.error("Could not send call push:", error?.statusCode || error);
+        console.error("Could not send call push:", statusCode || error);
       }
     }));
 
