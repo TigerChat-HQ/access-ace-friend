@@ -1,4 +1,6 @@
 # Requested updates
+- [ ] Confirm connected Firebase configuration and deploy affected push functions.
+- [ ] Add per-chat automatic incoming-message translation with language selection and original text; verify authenticated translation.
 - [ ] Current request: private status replies in chats; location/contact/video sharing.
 - [ ] Current request: synchronized biometric lock and authenticator two-factor enrollment/challenge.
 - [ ] Current request: Firebase browser registration and background message/call push; verify sound limitations.

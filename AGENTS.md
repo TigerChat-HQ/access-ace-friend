@@ -1,4 +1,5 @@
 # Project rules
+- Chat translation fetches message IDs through caller-scoped RLS and never overwrites originals; per-device, per-user chat language preferences opt in to AI processing.
 - Status replies use a security-invoker RPC and snapshot context in direct messages; status visibility and chat membership remain enforced by RLS.
 - Authenticator MFA gates signed-in navigation; biometric verification is a synchronized local device lock, never account authorization.
 - Firebase push uses a dedicated messaging worker and authenticated server dispatch; device tokens are private to their owner.
