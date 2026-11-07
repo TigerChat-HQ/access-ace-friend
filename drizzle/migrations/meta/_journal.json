@@ -43,6 +43,13 @@
       "when": 1794083719306,
       "tag": "0005_migration",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794087364117,
+      "tag": "0006_private_status_replies_push_and_quiz_history",
+      "breakpoints": true
     }
   ]
 }
