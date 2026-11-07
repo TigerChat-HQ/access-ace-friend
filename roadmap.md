@@ -1,4 +1,8 @@
 # Requested updates
+- [ ] Current request: private status replies in chats; location/contact/video sharing.
+- [ ] Current request: synchronized biometric lock and authenticator two-factor enrollment/challenge.
+- [ ] Current request: Firebase browser registration and background message/call push; verify sound limitations.
+- [ ] Current request: fresh per-user Tiger AI quiz questions and tests.
 - [ ] Address Tiger AI developer-mode request with a safe integration prompt and explicit limits on autonomous source changes.
 - [ ] Add Contact with admin replies and report-style notifications; verify submission and reply.
 - [ ] Prepare sitemap for manual submission and connect/verify Google Search Console.
