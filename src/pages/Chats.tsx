@@ -308,19 +308,26 @@ const Chats = () => {
     })),
   ];
 
-  const storyViewerData = stories.map((story) => {
-    const metadata = story as StoryMetadata;
+  const storyViewerData = stories.map((s) => {
+    const metadata = s as typeof s & {
+      music_url?: string | null;
+      media_type?: string | null;
+      text_overlay?: { text: string } | null;
+      duration?: number | null;
+      background_color?: string | null;
+    };
     return {
-      id: story.id,
-      userId: story.user_id,
-      userName: story.profile?.display_name || "User",
-      avatar: (story.profile?.display_name || "U").slice(0, 2).toUpperCase(),
-      imageUrl: story.image_url,
-      caption: story.caption || undefined,
+      id: s.id,
+      userId: s.user_id,
+      userName: s.profile?.display_name || "User",
+      avatar: (s.profile?.display_name || "U").slice(0, 2).toUpperCase(),
+      imageUrl: s.image_url || undefined,
+      caption: s.caption || undefined,
       musicUrl: metadata.music_url || undefined,
-      mediaType: (metadata.media_type || "image") as "image" | "video",
+      mediaType: (metadata.media_type || "image") as "image" | "video" | "text",
       textOverlay: metadata.text_overlay || null,
       duration: metadata.duration || null,
+      backgroundColor: metadata.background_color || "#6D28D9",
     };
   });
 

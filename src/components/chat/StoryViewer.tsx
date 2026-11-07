@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { X, Volume2, VolumeX, ShieldCheck } from "lucide-react";
+import { X, Volume2, VolumeX, ShieldCheck, MessageCircle, Send, Eye } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useScreenshotProtection } from "@/hooks/useScreenshotProtection";
 import { TigerReactionLayer } from "@/components/TigerReaction";
@@ -14,7 +14,8 @@ interface StoryData {
   imageUrl?: string;
   caption?: string;
   musicUrl?: string;
-  mediaType?: "image" | "video";
+  mediaType?: "image" | "video" | "text";
+  backgroundColor?: string;
   textOverlay?: { text: string } | null;
   duration?: number | null;
 }
@@ -38,6 +39,11 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [floaters, setFloaters] = useState<{ id: string; emoji: string; left: number }[]>([]);
   const [tigerTrigger, setTigerTrigger] = useState(0);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [comments, setComments] = useState<{ id: string; content: string; user_id: string }[]>([]);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [commentLoading, setCommentLoading] = useState(false);
+  const [viewCount, setViewCount] = useState(0);
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const story = stories[currentIndex];
@@ -46,6 +52,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
   useScreenshotProtection(true);
 
   const isVideo = story?.mediaType === "video";
+  const isText = story?.mediaType === "text" || !story?.imageUrl;
   const storyDuration = isVideo && story?.duration ? story.duration * 1000 : 5000;
 
   useEffect(() => {
@@ -53,6 +60,8 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
     setProgress(0);
     setCounts({});
     setFloaters([]);
+    setCommentsOpen(false);
+    setCommentDraft("");
   }, [currentIndex]);
 
   // Load existing reaction counts (visible to owner & self)
@@ -73,6 +82,41 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
       }
     })();
   }, [story]);
+
+  useEffect(() => {
+    if (!story) return;
+    let active = true;
+    void db.from("story_comments")
+      .select("id, content, user_id")
+      .eq("story_id", story.id)
+      .order("created_at", { ascending: true })
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          console.warn("Could not load story comments:", error.message);
+          return;
+        }
+        setComments((data || []) as { id: string; content: string; user_id: string }[]);
+      });
+    return () => { active = false; };
+  }, [story?.id]);
+
+  const sendComment = async () => {
+    const content = commentDraft.trim();
+    if (!content || !currentUserId || !story || commentLoading) return;
+    setCommentLoading(true);
+    const { data, error } = await db.from("story_comments")
+      .insert({ story_id: story.id, user_id: currentUserId, content })
+      .select("id, content, user_id")
+      .single();
+    if (error) {
+      console.warn("Could not send story comment:", error.message);
+    } else if (data) {
+      setComments((items) => [...items, data as { id: string; content: string; user_id: string }]);
+      setCommentDraft("");
+    }
+    setCommentLoading(false);
+  };
 
   // Realtime new reactions → animate floaters & bump counts
   useEffect(() => {
@@ -208,6 +252,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
               {muted ? <VolumeX className="w-5 h-5 text-white" /> : <Volume2 className="w-5 h-5 text-white" />}
             </button>
           )}
+          {isOwner && <span className="flex items-center gap-1 text-white text-xs"><Eye className="w-4 h-4" /> {viewCount}</span>}
           <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10">
             <X className="w-5 h-5 text-white" />
           </button>
@@ -215,7 +260,11 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
       </div>
 
       <div className="w-full h-full flex items-center justify-center">
-        {isVideo && story.imageUrl ? (
+        {isText ? (
+          <div className="w-full h-full flex items-center justify-center px-8 text-center text-white text-3xl font-bold whitespace-pre-wrap" style={{ backgroundColor: story.backgroundColor || "#6D28D9" }}>
+            {story.caption || story.textOverlay?.text || "Status"}
+          </div>
+        ) : isVideo && story.imageUrl ? (
           <video
             ref={videoRef}
             src={story.imageUrl}
@@ -280,7 +329,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
         </div>
       )}
 
-      {story.caption && (
+      {story.caption && !isText && (
         <div className="absolute bottom-20 left-0 right-0 text-center px-4">
           <p className="text-white text-sm bg-black/50 inline-block px-4 py-2 rounded-full">{story.caption}</p>
         </div>
@@ -289,8 +338,32 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
       {/* Tiger pop layer */}
       <TigerReactionLayer trigger={tigerTrigger} />
 
+      {commentsOpen && (
+        <div className="absolute bottom-20 left-3 right-3 z-30 max-h-56 rounded-xl bg-background/95 text-foreground backdrop-blur border border-border shadow-xl p-3 flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold">Replies ({comments.length})</p>
+            <button type="button" onClick={() => setCommentsOpen(false)} className="text-xs text-muted-foreground">Close</button>
+          </div>
+          <div className="overflow-y-auto min-h-0 space-y-2">
+            {comments.length === 0 ? <p className="text-xs text-muted-foreground">Be the first to reply.</p> : comments.map((comment) => (
+              <p key={comment.id} className="text-sm break-words"><span className="font-semibold">User</span> {comment.content}</p>
+            ))}
+          </div>
+          {!isOwner && currentUserId && (
+            <form onSubmit={(event) => { event.preventDefault(); void sendComment(); }} className="flex items-center gap-2">
+              <input value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} maxLength={1000} placeholder="Reply to status..." className="min-w-0 flex-1 rounded-full bg-muted px-3 py-2 text-sm outline-none" />
+              <button type="submit" disabled={!commentDraft.trim() || commentLoading} aria-label="Send reply" className="p-2 rounded-full bg-primary text-primary-foreground disabled:opacity-50"><Send className="w-4 h-4" /></button>
+            </form>
+          )}
+        </div>
+      )}
+
       {/* Reactions bar / counts */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-black/60 backdrop-blur px-3 py-2 rounded-full z-20">
+        <button type="button" onClick={() => setCommentsOpen((open) => !open)} className="flex items-center gap-1 px-2 py-1 rounded-full text-white" aria-label="View replies">
+          <MessageCircle className="w-5 h-5" />
+          <span className="text-xs">{comments.length}</span>
+        </button>
         {!isOwner && (
           <button
             onClick={() => sendReaction("🐯")}
