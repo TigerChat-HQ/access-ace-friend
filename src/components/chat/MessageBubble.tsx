@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo } from "react";
 import { Message } from "@/types/chat";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { Check, CheckCheck, Play, Pause, FileText, Download, Reply, Forward, Trash2, MoreVertical } from "lucide-react";
 import {
   DropdownMenu,
@@ -16,12 +17,16 @@ interface MessageBubbleProps {
   onForward?: (message: Message) => void;
   onDelete?: (messageId: string, mode?: "me" | "everyone") => void;
   myBubbleClass?: string;
+  translatedText?: string;
 }
 
-export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDelete, myBubbleClass }: MessageBubbleProps) => {
+export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDelete, myBubbleClass, translatedText }: MessageBubbleProps) => {
   const isMe = message.senderId === "me";
   const [playing, setPlaying] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [showOriginal, setShowOriginal] = useState(false);
+  const hasTranslation = !isMe && !!translatedText && translatedText !== message.text;
+  const displayText = hasTranslation && !showOriginal ? translatedText : message.text;
   const audioRef = useRef<HTMLAudioElement>(null);
 
   const waveformHeights = useMemo(
@@ -124,7 +129,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
                 onClick={() => window.open(message.mediaUrl, "_blank")}
               />
             </div>
-            {message.text && <p className="mt-1 px-2">{message.text}</p>}
+            {message.text && <p dir="auto" className="mt-1 px-2">{displayText}</p>}
           </div>
         ) : isFile && message.mediaUrl && /\.(mp4|webm|mov)(\?|$)/i.test(message.mediaUrl) ? (
           <video src={message.mediaUrl} controls playsInline className="max-w-full rounded-lg" />
@@ -140,8 +145,9 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
             <Download className="w-4 h-4 opacity-60" />
           </a>
         ) : (
-          <p className="whitespace-pre-wrap">{message.text.split(/(https:\/\/www\.google\.com\/maps\?q=-?[\d.]+,-?[\d.]+)/g).map((part, i) => part.startsWith("https://www.google.com/maps?q=") ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline">Open location in Maps</a> : part)}</p>
+          <p dir="auto" className="whitespace-pre-wrap">{(displayText || "").split(/(https:\/\/www\.google\.com\/maps\?q=-?[\d.]+,-?[\d.]+)/g).map((part, i) => part.startsWith("https://www.google.com/maps?q=") ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline">Open location in Maps</a> : part)}</p>
         )}
+        {hasTranslation && <Button variant="link" size="sm" className="h-auto p-0 mt-1 text-[11px] text-muted-foreground" onClick={() => setShowOriginal(value => !value)}>{showOriginal ? "Show translation" : "Translated · Show original"}</Button>}
         <div className={cn("flex items-center gap-1 mt-1", isMe ? "justify-end" : "justify-start", isImage && !message.text && "px-2 pb-1")}>
           <span className="text-[10px] opacity-60">{message.time}</span>
           {isMe && (

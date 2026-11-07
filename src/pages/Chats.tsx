@@ -29,6 +29,8 @@ import { Tables } from "@/integrations/supabase/types";
 import { Message } from "@/types/chat";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 import { dispatchPush } from "@/lib/dispatch-push";
+import { useChatTranslation } from "@/hooks/useChatTranslation";
+import { ChatTranslationControls } from "@/components/chat/ChatTranslationControls";
 
 type Story = Tables<"stories"> & { profile?: Tables<"profiles"> };
 type MessageMetadata = { read_at?: string | null; is_read?: boolean | null; delivered_at?: string | null; reply_to_id?: string | null };
@@ -279,6 +281,8 @@ const Chats = () => {
     return { ui: m, replyToId: metadata.reply_to_id ?? null };
   });
 
+  const translation = useChatTranslation(user?.id, activeChat, uiMessages.map(item => item.ui));
+
   const matchIds = useMemo(() => {
     const q = chatSearch.trim().toLowerCase();
     if (!q) return [] as string[];
@@ -522,6 +526,8 @@ const Chats = () => {
               </div>
             </div>
 
+            <ChatTranslationControls language={translation.language} onChange={translation.setLanguage} loading={translation.loading} error={translation.error} onRetry={translation.retry} />
+
             {chatSearchOpen && (
               <div className="flex items-center gap-2 px-4 py-2 border-b border-border/50 bg-card/80">
                 <Search className="w-4 h-4 text-muted-foreground" />
@@ -540,7 +546,7 @@ const Chats = () => {
                 const isActive = ui.id === activeMatchId;
                 return (
                   <div key={ui.id} data-msg-id={ui.id} className={isActive ? "rounded-lg ring-2 ring-primary ring-offset-2 ring-offset-background transition-all" : isMatch ? "rounded-lg ring-1 ring-primary/40 transition-all" : ""}>
-                    <MessageBubble message={ui} replyMessage={replyToId ? messageMap.get(replyToId) || null : null} onReply={(msg) => setReplyTo(msg)} onForward={(msg) => setForwardMsg({ content: msg.text, type: msg.type, mediaUrl: msg.mediaUrl })} onDelete={handleDeleteMessage} myBubbleClass={bubbleColorClass(chatPrefs.bubble_color)} />
+                    <MessageBubble message={ui} translatedText={translation.translations[ui.id]} replyMessage={replyToId ? messageMap.get(replyToId) || null : null} onReply={(msg) => setReplyTo(msg)} onForward={(msg) => setForwardMsg({ content: msg.text, type: msg.type, mediaUrl: msg.mediaUrl })} onDelete={handleDeleteMessage} myBubbleClass={bubbleColorClass(chatPrefs.bubble_color)} />
                   </div>
                 );
               })}
