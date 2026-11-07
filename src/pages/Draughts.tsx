@@ -30,6 +30,7 @@ const Draughts = () => {
   const [openMatches, setOpenMatches] = useState<MatchRow[]>([]);
   const [creating, setCreating] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const aiMoveInFlight = useRef<string | null>(null);
 
   // Load joinable matches
   const loadOpen = async () => {
@@ -43,9 +44,18 @@ const Draughts = () => {
     setOpenMatches((data as unknown as MatchRow[] | null) ?? []);
   };
 
+  // Keep the public waiting-room list live across different players' devices.
   useEffect(() => {
-    if (mode === "pvp" && !match) loadOpen();
-  }, [mode, match]);
+    if (mode !== "pvp" || match) return;
+    void loadOpen();
+    const lobby = supabase
+      .channel("draft-lobby")
+      .on("postgres_changes", { event: "*", schema: "public", table: "draft_matches" }, () => {
+        void loadOpen();
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(lobby); };
+  }, [mode, match?.id]);
 
   // Deep-link: open shared match
   useEffect(() => {
@@ -55,12 +65,15 @@ const Draughts = () => {
       const { data } = await supabase.from("draft_matches").select("*").eq("id", matchId).maybeSingle();
       if (!data) return;
       const row = data as unknown as MatchRow;
-      if (row.status === "waiting" && row.player_white !== user.id && !row.player_black) {
+      if (row.status === "waiting" && row.player_white !== user.id && !row.player_black && !row.vs_ai) {
         const { data: joined } = await supabase
           .from("draft_matches")
-          .update({ player_black: user.id, status: "active" })
-          .eq("id", matchId).eq("status", "waiting").select().single();
+          .update({ player_black: user.id, status: "active", revision: row.revision + 1 })
+          .eq("id", matchId).eq("status", "waiting").is("player_black", null)
+          .eq("revision", row.revision).select().maybeSingle();
         if (joined) { setMatch(joined as unknown as MatchRow); setMode("pvp"); return; }
+        const { data: latest } = await supabase.from("draft_matches").select("*").eq("id", matchId).maybeSingle();
+        if (latest) { setMatch(latest as unknown as MatchRow); setMode("pvp"); return; }
       }
       setMatch(row); setMode(row.vs_ai ? "ai" : "pvp");
     })();
@@ -74,11 +87,26 @@ const Draughts = () => {
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "draft_matches", filter: `id=eq.${match.id}` },
-        (payload) => setMatch(payload.new as MatchRow),
+        (payload) => {
+          const incoming = payload.new as MatchRow;
+          setMatch((current) => !current || incoming.revision >= current.revision ? incoming : current);
+        },
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          // Fetch a snapshot after joining the channel so a move made during
+          // the subscription handshake cannot leave this client behind.
+          void supabase.from("draft_matches").select("*").eq("id", match.id).maybeSingle()
+            .then(({ data }) => {
+              if (data) {
+                const incoming = data as unknown as MatchRow;
+                setMatch((current) => !current || incoming.revision >= current.revision ? incoming : current);
+              }
+            });
+        }
+      });
     channelRef.current = ch;
-    return () => { supabase.removeChannel(ch); };
+    return () => { void supabase.removeChannel(ch); };
   }, [match?.id]);
 
   const myColor: Color | null = useMemo(() => {
@@ -97,12 +125,15 @@ const Draughts = () => {
     if (match.current_turn !== "b") return; // AI plays black
     setAiThinking(true);
     const t = setTimeout(async () => {
+      if (aiMoveInFlight.current === match.id) return;
+      aiMoveInFlight.current = match.id;
       const aiMove = pickAIMove(match.board, "b", 4);
       if (!aiMove) {
         await supabase.from("draft_matches").update({
           status: "finished",
           winner: "white",
-        }).eq("id", match.id);
+        }).eq("id", match.id).eq("revision", match.revision);
+        aiMoveInFlight.current = null;
         setAiThinking(false);
         return;
       }
@@ -114,11 +145,13 @@ const Draughts = () => {
         last_move: aiMove as unknown as Json,
         status: w ? "finished" : "active",
         winner: w === "w" ? "white" : w === "b" ? "black" : null,
-      }).eq("id", match.id);
+        revision: match.revision + 1,
+      }).eq("id", match.id).eq("revision", match.revision);
+      aiMoveInFlight.current = null;
       setAiThinking(false);
     }, 350);
     return () => clearTimeout(t);
-  }, [match?.id, match?.current_turn, match?.vs_ai, match?.status]);
+  }, [match?.id, match?.current_turn, match?.vs_ai, match?.status, match?.revision, match?.board]);
 
   const startAI = async () => {
     if (!user) return;
@@ -163,11 +196,13 @@ const Draughts = () => {
     if (!user) return;
     const { data, error } = await supabase
       .from("draft_matches")
-      .update({ player_black: user.id, status: "active" })
+      .update({ player_black: user.id, status: "active", revision: m.revision + 1 })
       .eq("id", m.id)
       .eq("status", "waiting")
+      .is("player_black", null)
+      .eq("revision", m.revision)
       .select()
-      .single();
+      .maybeSingle();
     if (error || !data) {
       toast({ title: "Could not join", variant: "destructive" });
       return;
@@ -180,11 +215,10 @@ const Draughts = () => {
   const joinByCode = async () => {
     const code = codeInput.trim().toLowerCase();
     if (code.length < 4) { toast({ title: "Enter the match code", variant: "destructive" }); return; }
-    const { data } = await supabase.from("draft_matches").select("*")
-      .eq("status", "waiting").eq("vs_ai", false).limit(200);
-    const matchRows = (data ?? []) as unknown as MatchRow[];
-    const found = matchRows.find((candidate) => candidate.id.toLowerCase().startsWith(code));
-    if (!found) { toast({ title: "No active match with that code", variant: "destructive" }); return; }
+    const { data, error } = await supabase.from("draft_matches").select("*")
+      .eq("status", "waiting").eq("vs_ai", false).ilike("join_code", code).maybeSingle();
+    if (error || !data) { toast({ title: "No active match with that code", description: error?.message, variant: "destructive" }); return; }
+    const found = data as unknown as MatchRow;
     if (found.player_white === user?.id) { setMatch(found); setMode("pvp"); return; }
     await joinMatch(found);
   };
@@ -213,13 +247,21 @@ const Draughts = () => {
     const next: Color = myColor === "w" ? "b" : "w";
     const w = winner(newBoard, next);
     setSelected(null);
-    await supabase.from("draft_matches").update({
+    const { data, error } = await supabase.from("draft_matches").update({
       board: newBoard as unknown as Json,
       current_turn: next,
       last_move: move as unknown as Json,
       status: w ? "finished" : "active",
       winner: w === "w" ? "white" : w === "b" ? "black" : null,
-    }).eq("id", match.id);
+      revision: match.revision + 1,
+    }).eq("id", match.id).eq("revision", match.revision).select().maybeSingle();
+    if (error || !data) {
+      toast({ title: "Move not saved", description: error?.message || "The board changed. Please wait for the latest move.", variant: "destructive" });
+      const { data: latest } = await supabase.from("draft_matches").select("*").eq("id", match.id).maybeSingle();
+      if (latest) setMatch(latest as unknown as MatchRow);
+    } else {
+      setMatch(data as unknown as MatchRow);
+    }
   };
 
   const exitMatch = () => {
@@ -293,7 +335,7 @@ const Draughts = () => {
                   disabled={m.player_white === user?.id}
                   className="w-full p-3 rounded-lg bg-card border border-border/50 flex items-center justify-between text-sm disabled:opacity-50"
                 >
-                  <span className="text-foreground">Code <b className="tracking-widest">{m.id.slice(0, 6).toUpperCase()}</b></span>
+                  <span className="text-foreground">Code <b className="tracking-widest">{m.join_code}</b></span>
                   <span className="text-primary text-xs font-semibold">
                     {m.player_white === user?.id ? "Yours" : "Join"}
                   </span>
@@ -379,10 +421,10 @@ const Draughts = () => {
         <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-primary/30 bg-primary/10">
           <div>
             <p className="text-[10px] text-muted-foreground">Share this code with your opponent</p>
-            <p className="text-lg font-bold tracking-[0.3em] text-primary">{match.id.slice(0, 6).toUpperCase()}</p>
+            <p className="text-lg font-bold tracking-[0.3em] text-primary">{match.join_code}</p>
           </div>
           <Button size="sm" variant="outline" onClick={async () => {
-            await navigator.clipboard.writeText(match.id.slice(0, 6).toUpperCase());
+            await navigator.clipboard.writeText(match.join_code);
             toast({ title: "Code copied" });
           }}>
             <Copy className="w-3.5 h-3.5 mr-1" /> Copy
