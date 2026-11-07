@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, Volume2, VolumeX, SwitchCamera } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { playRingtone } from "@/lib/ringtones";
 import type { CallInfo, CallStatus } from "@/hooks/useWebRTC";
 
 interface CallDialogProps {
@@ -21,37 +22,17 @@ interface CallDialogProps {
   onSwitchCamera: () => void;
 }
 
-// Ringtone using Web Audio API
-const useRingtone = (shouldPlay: boolean) => {
+const useCallRingtone = (shouldPlay: boolean) => {
   useEffect(() => {
     if (!shouldPlay) return;
-    let ctx: AudioContext | undefined;
-    let osc: OscillatorNode | undefined;
-    let interval: ReturnType<typeof setInterval> | undefined;
-    try {
-      ctx = new AudioContext();
-      osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.frequency.value = 440;
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      let on = true;
-      gain.gain.setValueAtTime(0.15, ctx.currentTime);
-      const audio = ctx;
-      interval = setInterval(() => {
-        on = !on;
-        gain.gain.setTargetAtTime(on ? 0.15 : 0, audio.currentTime, 0.05);
-      }, 1000);
-    } catch (error: unknown) {
-      console.warn("Call ringtone could not be started:", error);
-    }
+    let stopCurrent = playRingtone("incoming_call");
+    const interval = window.setInterval(() => {
+      stopCurrent();
+      stopCurrent = playRingtone("incoming_call");
+    }, 1900);
     return () => {
-      if (interval) clearInterval(interval);
-      osc?.stop();
-      void ctx?.close().catch((error: unknown) => {
-        console.warn("Call ringtone audio context could not be closed:", error);
-      });
+      window.clearInterval(interval);
+      stopCurrent();
     };
   }, [shouldPlay]);
 };
@@ -78,7 +59,7 @@ export const CallDialog = ({
   const contactName = callInfo.callerName || "Unknown";
   const contactAvatar = callInfo.callerAvatar || "??";
 
-  useRingtone(callStatus === "incoming" || callStatus === "outgoing");
+  useCallRingtone(callStatus === "incoming");
 
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const [soundOn, setSoundOn] = useState(true);

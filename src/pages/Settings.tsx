@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -11,11 +11,12 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Camera, User, Bell, Shield, Palette, LogOut,
-  ChevronRight, Moon, Sun, Globe, Lock, Fingerprint, Mail,
+  ChevronRight, Moon, Sun, Globe, Lock, Fingerprint, Mail, Volume2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAppLock, isWebAuthnSupported } from "@/hooks/useAppLock";
 import tigerLogo from "@/assets/tigerchats-logo.png";
+import { ringtoneOptions, getStoredRingtone, setStoredRingtone, playRingtone, type RingtoneId } from "@/lib/ringtones";
 
 const db = supabase as unknown as SupabaseClient;
 
@@ -53,7 +54,33 @@ const Settings = () => {
   const [readReceipts, setReadReceipts] = useState(true);
   const [lastSeen, setLastSeen] = useState(true);
   const [isPrivate, setIsPrivate] = useState(false);
+    const [incomingCallTone, setIncomingCallTone] = useState<RingtoneId>(() => getStoredRingtone("incoming_call"));
+  const [incomingSmsTone, setIncomingSmsTone] = useState<RingtoneId>(() => getStoredRingtone("incoming_sms"));
+  const previewStopRef = useRef<(() => void) | null>(null);
+  const previewTimerRef = useRef<number | null>(null);
   const appLock = useAppLock();
+
+  const previewTone = (kind: "incoming_call" | "incoming_sms") => {
+    if (previewTimerRef.current !== null) window.clearTimeout(previewTimerRef.current);
+    previewStopRef.current?.();
+    previewStopRef.current = playRingtone(kind);
+    previewTimerRef.current = window.setTimeout(() => {
+      previewStopRef.current?.();
+      previewStopRef.current = null;
+      previewTimerRef.current = null;
+    }, 1800);
+  };
+
+  useEffect(() => () => {
+    if (previewTimerRef.current !== null) window.clearTimeout(previewTimerRef.current);
+    previewStopRef.current?.();
+  }, []);
+
+  const updateTone = (kind: "incoming_call" | "incoming_sms", value: RingtoneId) => {
+    setStoredRingtone(kind, value);
+    if (kind === "incoming_call") setIncomingCallTone(value);
+    else setIncomingSmsTone(value);
+  };
 
   const toggleAppLock = async (v: boolean) => {
     try {
@@ -175,6 +202,28 @@ const Settings = () => {
           <div className="space-y-4 animate-fade-in">
             <SettingToggle label={t("pushNotifications")} description={t("pushDesc")} value={notifications} onChange={setNotifications} />
             <SettingToggle label={t("sound")} description={t("soundDesc")} value={soundEnabled} onChange={setSoundEnabled} />
+            <div className="space-y-2">
+              <label htmlFor="incoming-call-tone" className="text-sm font-medium text-foreground">Incoming call ringtone</label>
+              <div className="flex items-center gap-2">
+                <select id="incoming-call-tone" value={incomingCallTone} onChange={(e) => updateTone("incoming_call", e.target.value as RingtoneId)} className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground">
+                  {ringtoneOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                </select>
+                <Button type="button" variant="outline" size="sm" onClick={() => previewTone("incoming_call")} aria-label="Preview incoming call ringtone" className="shrink-0">
+                  <Volume2 className="mr-1.5 h-4 w-4" />Preview
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="incoming-sms-tone" className="text-sm font-medium text-foreground">Incoming SMS ringtone</label>
+              <div className="flex items-center gap-2">
+                <select id="incoming-sms-tone" value={incomingSmsTone} onChange={(e) => updateTone("incoming_sms", e.target.value as RingtoneId)} className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground">
+                  {ringtoneOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                </select>
+                <Button type="button" variant="outline" size="sm" onClick={() => previewTone("incoming_sms")} aria-label="Preview incoming SMS ringtone" className="shrink-0">
+                  <Volume2 className="mr-1.5 h-4 w-4" />Preview
+                </Button>
+              </div>
+            </div>
           </div>
         );
       case "privacy":

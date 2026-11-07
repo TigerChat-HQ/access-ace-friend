@@ -14,7 +14,7 @@ interface MessageBubbleProps {
   replyMessage?: Message | null;
   onReply?: (message: Message) => void;
   onForward?: (message: Message) => void;
-  onDelete?: (messageId: string) => void;
+  onDelete?: (messageId: string, mode?: "me" | "everyone") => void;
   myBubbleClass?: string;
 }
 
@@ -57,9 +57,20 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
               <DropdownMenuItem onClick={() => onForward?.(message)} className="text-xs gap-2">
                 <Forward className="w-3.5 h-3.5" /> Forward
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onDelete?.(message.id)} className="text-xs gap-2 text-destructive focus:text-destructive">
-                <Trash2 className="w-3.5 h-3.5" /> Delete
-              </DropdownMenuItem>
+              {isMe ? (
+                <>
+                  <DropdownMenuItem onClick={() => onDelete?.(message.id, "me")} className="text-xs gap-2">
+                    <Trash2 className="w-3.5 h-3.5" /> Delete for me
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onDelete?.(message.id, "everyone")} className="text-xs gap-2 text-destructive focus:text-destructive">
+                    <Trash2 className="w-3.5 h-3.5" /> Delete for everyone
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <DropdownMenuItem onClick={() => onDelete?.(message.id, "me")} className="text-xs gap-2 text-destructive focus:text-destructive">
+                  <Trash2 className="w-3.5 h-3.5" /> Delete for me
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

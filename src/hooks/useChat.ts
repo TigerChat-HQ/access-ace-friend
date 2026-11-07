@@ -29,6 +29,19 @@ export const useMessages = (conversationId: string | null) => {
 
   useEffect(() => { void fetchMessages(); }, [fetchMessages]);
 
+  const deleteMessage = useCallback(async (messageId: string, mode: "me" | "everyone" = "everyone") => {
+    if (mode === "me") {
+      setMessages((prev) => prev.filter((message) => message.id !== messageId));
+      return { error: null };
+    }
+
+    const { error } = await supabase.from("messages").delete().eq("id", messageId);
+    if (!error) {
+      setMessages((prev) => prev.filter((message) => message.id !== messageId));
+    }
+    return { error };
+  }, []);
+
   useEffect(() => {
     if (!conversationId) return;
     const channel = supabase
@@ -45,11 +58,17 @@ export const useMessages = (conversationId: string | null) => {
         const updated = payload.new as Message;
         setMessages((prev) => prev.map((message) => message.id === updated.id ? { ...message, ...updated } : message));
       })
+      .on("postgres_changes", {
+        event: "DELETE", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}`,
+      }, (payload) => {
+        const deletedId = (payload.old as { id?: string })?.id;
+        if (deletedId) setMessages((prev) => prev.filter((message) => message.id !== deletedId));
+      })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [conversationId]);
 
-  return { messages, loading, refetch: fetchMessages };
+  return { messages, loading, refetch: fetchMessages, deleteMessage };
 };
 
 export const useSendMessage = () => {

@@ -76,7 +76,7 @@ const Chats = () => {
   const messagesScrollRef = useRef<HTMLDivElement>(null);
 
   const { conversations, loading: convosLoading, refetch: refetchConversations } = useConversations();
-  const { messages } = useMessages(activeChat);
+  const { messages, deleteMessage } = useMessages(activeChat);
   const { typingUsers, notifyTyping } = useTypingIndicator(activeChat);
   useNotifications();
   useReadReceipts(activeChat, !!activeChat);
@@ -246,8 +246,8 @@ const Chats = () => {
     toast({ title: mode === "everyone" ? "Chat deleted for everyone" : "Chat deleted for you" });
   };
 
-  const handleDeleteMessage = async (messageId: string) => {
-    const { error } = await supabase.from("messages").delete().eq("id", messageId);
+  const handleDeleteMessage = async (messageId: string, mode: "me" | "everyone" = "everyone") => {
+    const { error } = await deleteMessage(messageId, mode);
     if (error) toast({ title: "Delete failed", description: error.message, variant: "destructive" });
   };
 
