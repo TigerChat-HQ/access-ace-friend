@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
 import { Message } from "@/types/chat";
 import tigerLogo from "@/assets/tigerchats-logo.png";
+import { dispatchPush } from "@/lib/dispatch-push";
 
 type Story = Tables<"stories"> & { profile?: Tables<"profiles"> };
 type MessageMetadata = { read_at?: string | null; is_read?: boolean | null; delivered_at?: string | null; reply_to_id?: string | null };
@@ -78,7 +79,6 @@ const Chats = () => {
   const { conversations, loading: convosLoading, refetch: refetchConversations } = useConversations();
   const { messages, deleteMessage } = useMessages(activeChat);
   const { typingUsers, notifyTyping } = useTypingIndicator(activeChat);
-  useNotifications();
   useReadReceipts(activeChat, !!activeChat);
   useScreenshotProtection(!!activeChat);
   const { prefs: chatPrefs } = useChatPreferences(activeChat);
@@ -124,13 +124,15 @@ const Chats = () => {
     if (!activeChat || !user) return;
     const replyId = replyTo?.id;
     setReplyTo(null);
-    await supabase.from("messages").insert({
+    const { error } = await supabase.from("messages").insert({
       conversation_id: activeChat,
       sender_id: user.id,
       content: text,
       message_type: "text",
       reply_to_id: replyId || null,
     });
+    if (error) toast({ title: "Message not sent", description: error.message, variant: "destructive" });
+    else void dispatchPush(activeChat);
   };
 
   const handleSendVoice = async (blob: Blob, duration: number) => {
@@ -148,6 +150,7 @@ const Chats = () => {
       message_type: "voice",
       media_url: publicUrl,
     });
+    void dispatchPush(activeChat);
   };
 
   const handleSendFile = async (file: File) => {
@@ -165,6 +168,7 @@ const Chats = () => {
       message_type: msgType,
       media_url: publicUrl,
     });
+    void dispatchPush(activeChat);
   };
 
   const handleHideChat = (conversationId: string) => {
@@ -268,6 +272,7 @@ const Chats = () => {
       status,
       type: msg.message_type as Message["type"],
       mediaUrl: msg.media_url || undefined,
+      statusContext: msg.status_context && typeof msg.status_context === "object" && !Array.isArray(msg.status_context) && typeof msg.status_context.caption === "string" && typeof msg.status_context.story_id === "string" ? { caption: msg.status_context.caption, story_id: msg.status_context.story_id } : undefined,
     };
 
     messageMap.set(msg.id, m);

@@ -435,6 +435,27 @@ export type Database = {
         }
         Relationships: []
       }
+      device_push_tokens: {
+        Row: {
+          created_at: string
+          id: string
+          token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          token: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       draft_matches: {
         Row: {
           board: Json
@@ -632,6 +653,7 @@ export type Database = {
           read_at: string | null
           reply_to_id: string | null
           sender_id: string
+          status_context: Json | null
         }
         Insert: {
           content?: string | null
@@ -646,6 +668,7 @@ export type Database = {
           read_at?: string | null
           reply_to_id?: string | null
           sender_id: string
+          status_context?: Json | null
         }
         Update: {
           content?: string | null
@@ -660,6 +683,7 @@ export type Database = {
           read_at?: string | null
           reply_to_id?: string | null
           sender_id?: string
+          status_context?: Json | null
         }
         Relationships: [
           {
@@ -887,6 +911,27 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
           username?: string | null
+        }
+        Relationships: []
+      }
+      quiz_question_history: {
+        Row: {
+          created_at: string
+          id: string
+          question: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          question: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          question?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -1234,6 +1279,10 @@ export type Database = {
       reply_to_report: {
         Args: { _media_url?: string; _reply: string; _report_id: string }
         Returns: undefined
+      }
+      reply_to_status: {
+        Args: { p_content: string; p_story_id: string }
+        Returns: string
       }
       resign_draft_match: {
         Args: { p_id: string }

@@ -85,6 +85,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
             : "bg-card/90 backdrop-blur border border-border/40 text-foreground rounded-bl-md"
         )}
       >
+        {message.statusContext && <div className="mb-2 border-l-2 border-current pl-2 text-xs opacity-80"><p className="font-semibold">Status reply</p><p className="line-clamp-2">{message.statusContext.caption}</p></div>}
         {replyMessage && (
           <div className={cn(
             "mb-2 px-3 py-1.5 rounded-lg border-l-2 text-[11px]",
@@ -125,6 +126,8 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
             </div>
             {message.text && <p className="mt-1 px-2">{message.text}</p>}
           </div>
+        ) : isFile && message.mediaUrl && /\.(mp4|webm|mov)(\?|$)/i.test(message.mediaUrl) ? (
+          <video src={message.mediaUrl} controls playsInline className="max-w-full rounded-lg" />
         ) : isFile && message.mediaUrl ? (
           <a href={message.mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 min-w-[160px]">
             <div className={cn("p-2 rounded-lg", isMe ? "bg-primary-foreground/20" : "bg-surface")}>
@@ -137,7 +140,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
             <Download className="w-4 h-4 opacity-60" />
           </a>
         ) : (
-          <p>{message.text}</p>
+          <p className="whitespace-pre-wrap">{message.text.split(/(https:\/\/www\.google\.com\/maps\?q=-?[\d.]+,-?[\d.]+)/g).map((part, i) => part.startsWith("https://www.google.com/maps?q=") ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline">Open location in Maps</a> : part)}</p>
         )}
         <div className={cn("flex items-center gap-1 mt-1", isMe ? "justify-end" : "justify-start", isImage && !message.text && "px-2 pb-1")}>
           <span className="text-[10px] opacity-60">{message.time}</span>

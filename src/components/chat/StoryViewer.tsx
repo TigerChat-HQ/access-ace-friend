@@ -5,6 +5,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useScreenshotProtection } from "@/hooks/useScreenshotProtection";
 import { TigerReactionLayer } from "@/components/TigerReaction";
 import tigerImg from "@/assets/tiger-reaction.png";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { dispatchPush } from "@/lib/dispatch-push";
 
 interface StoryData {
   id: string;
@@ -31,6 +35,8 @@ const REACTIONS = ["❤️", "🔥", "😂", "😮", "😢", "👏"];
 const db = supabase as unknown as SupabaseClient;
 
 export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: StoryViewerProps) => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [progress, setProgress] = useState(0);
   const [imgLoaded, setImgLoaded] = useState(false);
@@ -86,9 +92,9 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
   useEffect(() => {
     if (!story) return;
     let active = true;
-    void db.from("story_comments")
-      .select("id, content, user_id")
-      .eq("story_id", story.id)
+    void supabase.from("messages")
+      .select("id, content, sender_id")
+      .eq("status_context->>story_id", story.id)
       .order("created_at", { ascending: true })
       .then(({ data, error }) => {
         if (!active) return;
@@ -96,7 +102,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
           console.warn("Could not load story comments:", error.message);
           return;
         }
-        setComments((data || []) as { id: string; content: string; user_id: string }[]);
+        setComments((data || []).map(m => ({ id: m.id, content: m.content || "", user_id: m.sender_id })));
       });
     return () => { active = false; };
   }, [story?.id]);
@@ -105,15 +111,14 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
     const content = commentDraft.trim();
     if (!content || !currentUserId || !story || commentLoading) return;
     setCommentLoading(true);
-    const { data, error } = await db.from("story_comments")
-      .insert({ story_id: story.id, user_id: currentUserId, content })
-      .select("id, content, user_id")
-      .single();
+    const { data, error } = await supabase.rpc("reply_to_status", { p_story_id: story.id, p_content: content });
     if (error) {
-      console.warn("Could not send story comment:", error.message);
+      toast({ title: "Reply not sent", description: error.message, variant: "destructive" });
     } else if (data) {
-      setComments((items) => [...items, data as { id: string; content: string; user_id: string }]);
+      void dispatchPush(data);
       setCommentDraft("");
+      onClose();
+      navigate(`/chats?c=${data}`);
     }
     setCommentLoading(false);
   };
@@ -122,7 +127,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
   useEffect(() => {
     if (!story) return;
     const channel = supabase
-      .channel(`story-reactions-${story.id}`)
+      .channel(`story-reactions-${story.id}-${crypto.randomUUID()}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "story_reactions", filter: `story_id=eq.${story.id}` },
@@ -147,7 +152,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
   }, [story?.id]);
 
   useEffect(() => {
-    if (paused) return;
+    if (paused || commentsOpen) return;
     const tickMs = 50;
     const inc = (tickMs / storyDuration) * 100;
     const interval = setInterval(() => {
@@ -172,7 +177,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
     }
 
     return () => clearInterval(interval);
-  }, [currentIndex, stories.length, onClose, currentUserId, story, paused, storyDuration]);
+  }, [currentIndex, stories.length, onClose, currentUserId, story, paused, commentsOpen, storyDuration]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -341,7 +346,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
       {commentsOpen && (
         <div className="absolute bottom-20 left-3 right-3 z-30 max-h-56 rounded-xl bg-background/95 text-foreground backdrop-blur border border-border shadow-xl p-3 flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold">Replies ({comments.length})</p>
+            <p className="text-sm font-semibold">Private replies ({comments.length})</p>
             <button type="button" onClick={() => setCommentsOpen(false)} className="text-xs text-muted-foreground">Close</button>
           </div>
           <div className="overflow-y-auto min-h-0 space-y-2">
@@ -352,7 +357,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
           {!isOwner && currentUserId && (
             <form onSubmit={(event) => { event.preventDefault(); void sendComment(); }} className="flex items-center gap-2">
               <input value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} maxLength={1000} placeholder="Reply to status..." className="min-w-0 flex-1 rounded-full bg-muted px-3 py-2 text-sm outline-none" />
-              <button type="submit" disabled={!commentDraft.trim() || commentLoading} aria-label="Send reply" className="p-2 rounded-full bg-primary text-primary-foreground disabled:opacity-50"><Send className="w-4 h-4" /></button>
+              <Button size="icon" type="submit" disabled={!commentDraft.trim() || commentLoading} aria-label="Send reply"><Send className="w-4 h-4" /></Button>
             </form>
           )}
         </div>

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useState } from "react";
 import { Fingerprint } from "lucide-react";
 import { useAppLock } from "@/hooks/useAppLock";
 import { Button } from "@/components/ui/button";
@@ -7,9 +7,7 @@ import tigerLogo from "@/assets/tigerchats-logo.png";
 export const AppLockGate = ({ children }: { children: React.ReactNode }) => {
   const { enabled, locked, unlock } = useAppLock();
 
-  useEffect(() => {
-    if (enabled && locked) unlock().catch(() => {});
-  }, [enabled, locked, unlock]);
+  const [error, setError] = useState("");
 
   if (!enabled || !locked) return <>{children}</>;
 
@@ -20,7 +18,8 @@ export const AppLockGate = ({ children }: { children: React.ReactNode }) => {
         <h1 className="text-xl font-bold text-foreground">App Locked</h1>
         <p className="text-sm text-muted-foreground mt-1">Verify with biometrics to continue</p>
       </div>
-      <Button onClick={() => unlock()} size="lg" className="gap-2">
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      <Button onClick={async () => { if (!await unlock()) setError("Verification failed. Open the app in its own tab and try again."); }} size="lg" className="gap-2">
         <Fingerprint className="w-5 h-5" /> Unlock
       </Button>
     </div>

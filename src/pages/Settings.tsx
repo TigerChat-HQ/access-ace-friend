@@ -16,6 +16,8 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useAppLock, isWebAuthnSupported } from "@/hooks/useAppLock";
 import tigerLogo from "@/assets/tigerchats-logo.png";
+import { TwoFactorSecurity } from "@/components/TwoFactorSecurity";
+import { enablePush } from "@/lib/firebase-push";
 import { ringtoneOptions, getStoredRingtone, setStoredRingtone, playRingtone, type RingtoneId } from "@/lib/ringtones";
 
 const db = supabase as unknown as SupabaseClient;
@@ -200,7 +202,7 @@ const Settings = () => {
       case "notifications":
         return (
           <div className="space-y-4 animate-fade-in">
-            <SettingToggle label={t("pushNotifications")} description={t("pushDesc")} value={notifications} onChange={setNotifications} />
+            <Button variant="outline" onClick={async () => { if (!user) return; try { toast({ title: "Push notifications", description: await enablePush(user.id) }); } catch (error) { toast({ title: "Notifications unavailable", description: error instanceof Error ? error.message : "Please try again", variant: "destructive" }); } }}><Bell className="mr-2 h-4 w-4" />Enable background notifications</Button>
             <SettingToggle label={t("sound")} description={t("soundDesc")} value={soundEnabled} onChange={setSoundEnabled} />
             <div className="space-y-2">
               <label htmlFor="incoming-call-tone" className="text-sm font-medium text-foreground">Incoming call ringtone</label>
@@ -247,16 +249,7 @@ const Settings = () => {
                 icon={<Fingerprint className="w-5 h-5" />}
               />
             )}
-            <div className="pt-4 border-t border-border/50">
-              <button className="flex items-center gap-3 w-full py-3 text-left">
-                <Lock className="w-5 h-5 text-muted-foreground" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground">{t("twoFactor")}</p>
-                  <p className="text-xs text-muted-foreground">{t("twoFactorDesc")}</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </button>
-            </div>
+            <TwoFactorSecurity />
           </div>
         );
       case "appearance":

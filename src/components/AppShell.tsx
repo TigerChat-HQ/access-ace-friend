@@ -7,11 +7,13 @@ import { AppLockGate } from "@/components/AppLockGate";
 import { CallProvider } from "@/contexts/CallContext";
 import { AnnouncementGate } from "@/components/AnnouncementGate";
 import { useUnreadBadges } from "@/hooks/useUnreadBadges";
+import { useNotifications } from "@/hooks/useNotifications";
 
 export const AppShell = () => {
   const { user } = useAuth();
   const location = useLocation();
   const { unreadMessages, unreadNotifications } = useUnreadBadges();
+  useNotifications();
 
   const hideBar = location.pathname.startsWith("/chats") && location.search.includes("c=");
 

@@ -1,5 +1,11 @@
 import { useState, useRef } from "react";
-import { Send, Smile, Paperclip, Mic, X, FileText, Reply } from "lucide-react";
+import { Send, Smile, Paperclip, Mic, X, FileText, Reply, MapPin, Contact } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { contactMessage, locationMessage } from "@/lib/chat-sharing";
+import { toast } from "sonner";
 import { VoiceRecorder } from "./VoiceRecorder";
 import { Message } from "@/types/chat";
 import { cn } from "@/lib/utils";
@@ -19,6 +25,17 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [contactOpen, setContactOpen] = useState(false);
+  const [contactName, setContactName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [locating, setLocating] = useState(false);
+  const shareLocation = () => {
+    if (!navigator.geolocation) { toast.error("Location is unavailable on this device."); return; }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(position => {
+      setText(locationMessage(position.coords.latitude, position.coords.longitude)); setLocating(false);
+    }, error => { toast.error(error.message); setLocating(false); }, { enableHighAccuracy: true, timeout: 15000 });
+  };
 
   const handleSend = () => {
     if (attachedFile && onSendFile) {
@@ -110,19 +127,16 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
         <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-foreground">
           <Smile className="w-5 h-5" />
         </button>
-        <button
-          onClick={() => fileRef.current?.click()}
-          className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-foreground"
-        >
-          <Paperclip className="w-5 h-5" />
-        </button>
-        <input ref={fileRef} type="file" accept="image/*,video/*,.pdf,.doc,.docx,.zip" onChange={handleFileChange} className="hidden" />
+        <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="Share attachment" disabled={locating}><Paperclip className="w-5 h-5" /></Button></DropdownMenuTrigger>
+          <DropdownMenuContent><DropdownMenuItem onSelect={() => fileRef.current?.click()}><FileText className="mr-2 w-4 h-4" />Photo, video or file</DropdownMenuItem><DropdownMenuItem onSelect={shareLocation}><MapPin className="mr-2 w-4 h-4" />Current location</DropdownMenuItem><DropdownMenuItem onSelect={() => setContactOpen(true)}><Contact className="mr-2 w-4 h-4" />Contact</DropdownMenuItem></DropdownMenuContent>
+        </DropdownMenu>
+        <input ref={fileRef} type="file" accept="image/*,video/*,audio/*,.vcf,.pdf,.doc,.docx,.zip" onChange={handleFileChange} className="hidden" />
         <input
           value={text}
           onChange={handleTextChange}
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
           placeholder="Type a message..."
-          className="flex-1 bg-surface rounded-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary/50 transition-all"
+          className="min-w-0 flex-1 bg-surface rounded-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary/50 transition-all"
         />
         {text.trim() || attachedFile ? (
           <button
@@ -140,6 +154,7 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
           </button>
         )}
       </div>
+      <Dialog open={contactOpen} onOpenChange={setContactOpen}><DialogContent><DialogHeader><DialogTitle>Share contact</DialogTitle></DialogHeader><form className="space-y-3" onSubmit={e => { e.preventDefault(); try { setText(contactMessage(contactName, contactPhone)); setContactOpen(false); } catch (error) { toast.error(error instanceof Error ? error.message : "Invalid contact"); } }}><Input aria-label="Contact name" placeholder="Name" value={contactName} onChange={e => setContactName(e.target.value)} maxLength={100} /><Input aria-label="Contact phone" placeholder="Phone number" type="tel" value={contactPhone} onChange={e => setContactPhone(e.target.value)} /><Button type="submit">Add contact</Button></form></DialogContent></Dialog>
     </div>
   );
 };

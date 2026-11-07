@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Trophy, Clock, Sparkles, ArrowRight, RotateCcw, Crown, Flame } from "lucide-react";
+import { FunctionsHttpError } from "@supabase/supabase-js";
+import { Button } from "@/components/ui/button";
 
 type Question = {
   id: string;
@@ -52,6 +54,7 @@ const Game = () => {
   const [confetti, setConfetti] = useState(false);
   const [leaders, setLeaders] = useState<Leader[]>([]);
   const [myTrophies, setMyTrophies] = useState<string[]>([]);
+  const [generating, setGenerating] = useState(false);
 
   // Load trophies + leaderboard once
   useEffect(() => {
@@ -91,21 +94,15 @@ const Game = () => {
   const progressPct = questions.length ? Math.round(((idx + (revealed ? 1 : 0)) / questions.length) * 100) : 0;
 
   const startGame = async () => {
-    const { data, error } = await supabase
-      .from("game_questions")
-      .select("*")
-      .eq("is_active", true)
-      .limit(50);
-    if (error || !data || data.length === 0) {
-      toast({ title: "No questions available", description: error?.message, variant: "destructive" });
-      return;
+    if (generating) return;
+    setGenerating(true);
+    const { data, error } = await supabase.functions.invoke("quiz-generate", { body: {} });
+    setGenerating(false);
+    if (error || !Array.isArray(data?.questions)) {
+      const details = error instanceof FunctionsHttpError ? await error.context.text() : error?.message;
+      toast({ title: "Could not create fresh questions", description: details || "Please try again.", variant: "destructive" }); return;
     }
-    const questionRows = data as unknown as QuestionRow[];
-    const shuffled = questionRows
-      .map((question) => ({ ...question, options: parseOptions(question.options) }))
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 10) as Question[];
-    setQuestions(shuffled);
+    setQuestions(data.questions);
     setIdx(0);
     setScore(0);
     setCorrect(0);
@@ -206,6 +203,7 @@ const Game = () => {
             myTrophies={myTrophies}
             leaders={leaders}
             onStart={startGame}
+            generating={generating}
           />
         )}
 
@@ -232,6 +230,7 @@ const Game = () => {
             trophy={earnedTrophy}
             confetti={confetti}
             onPlayAgain={startGame}
+            generating={generating}
             onHome={reset}
           />
         )}
@@ -247,11 +246,13 @@ const IntroPanel = ({
   myTrophies,
   leaders,
   onStart,
+  generating,
 }: {
   trophies: TrophyRow[];
   myTrophies: string[];
   leaders: Leader[];
   onStart: () => void;
+  generating: boolean;
 }) => (
   <div className="space-y-5">
     <div className="rounded-2xl p-5 bg-gradient-to-br from-primary/15 via-card to-card border border-primary/20 shadow-[0_8px_40px_hsl(var(--primary)/0.15)]">
@@ -263,12 +264,13 @@ const IntroPanel = ({
         <li>• {TIME_PER_Q}s per question. Faster answers earn time bonus.</li>
         <li>• Score 40%+ to unlock your first trophy. 100% earns Diamond Tiger.</li>
       </ul>
-      <button
+      <Button
         onClick={onStart}
+        disabled={generating}
         className="mt-5 w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm shadow-[0_0_24px_hsl(var(--primary)/0.4)] hover:opacity-90 active:scale-[0.98] transition flex items-center justify-center gap-2"
       >
-        <Flame className="w-4 h-4" /> Start Game
-      </button>
+        <Flame className="w-4 h-4" /> {generating ? "Tiger AI is creating questions…" : "Start Game"}
+      </Button>
     </div>
 
     <section>
@@ -418,6 +420,7 @@ const ResultPanel = ({
   confetti,
   onPlayAgain,
   onHome,
+  generating,
 }: {
   score: number;
   correct: number;
@@ -426,6 +429,7 @@ const ResultPanel = ({
   confetti: boolean;
   onPlayAgain: () => void;
   onHome: () => void;
+  generating: boolean;
 }) => {
   const pct = Math.round((correct / total) * 100);
   return (
@@ -446,12 +450,13 @@ const ResultPanel = ({
       </div>
 
       <div className="flex gap-2 max-w-sm mx-auto">
-        <button
+        <Button
           onClick={onPlayAgain}
+          disabled={generating}
           className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm flex items-center justify-center gap-2"
         >
-          <RotateCcw className="w-4 h-4" /> Play Again
-        </button>
+          <RotateCcw className="w-4 h-4" /> {generating ? "Creating questions…" : "Play Again"}
+        </Button>
         <button
           onClick={onHome}
           className="flex-1 py-3 rounded-xl bg-card border border-border text-foreground font-semibold text-sm"

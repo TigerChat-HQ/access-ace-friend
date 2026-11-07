@@ -1,6 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { playRingtone } from "@/lib/ringtones";
 
 const tryShowSwNotification = async (payload: { title: string; body: string; url: string; tag: string }) => {
   try {
@@ -121,13 +122,15 @@ export const useNotifications = () => {
     if (!user) return;
 
     const channel = supabase
-      .channel("notifications-msg")
+      .channel(`notifications-msg-${user.id}-${crypto.randomUUID()}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages" },
         async (payload) => {
           const msg = payload.new as unknown as IncomingMessageRow;
           if (msg.sender_id === user.id) return;
+          const stop = playRingtone("incoming_sms");
+          window.setTimeout(stop, 1500);
 
           const { data: profile } = await supabase
             .from("profiles")
@@ -162,7 +165,7 @@ export const useNotifications = () => {
   useEffect(() => {
     if (!user) return;
     const channel = supabase
-      .channel(`social-notif:${user.id}`)
+      .channel(`social-notif:${user.id}:${crypto.randomUUID()}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications", filter: `recipient_id=eq.${user.id}` },
@@ -195,11 +198,6 @@ export const useNotifications = () => {
       supabase.removeChannel(channel);
     };
   }, [user, showNotification]);
-
-  // Request permission and register this browser for background push while the user is signed in.
-  useEffect(() => {
-    if (user) void requestPermission();
-  }, [user, requestPermission]);
 
   return { requestPermission, showNotification };
 };

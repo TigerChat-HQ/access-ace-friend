@@ -17,6 +17,7 @@ export interface Message {
   status: "sent" | "delivered" | "read";
   type: "text" | "image" | "voice" | "file";
   mediaUrl?: string;
+  statusContext?: { caption: string; story_id: string };
 }
 
 export interface Story {
