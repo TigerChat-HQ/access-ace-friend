@@ -71,6 +71,7 @@ export const TigerCommandCenter = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [pullRequests, setPullRequests] = useState<GitHubPullRequest[]>([]);
   const [githubWriteEnabled, setGithubWriteEnabled] = useState(false);
@@ -78,6 +79,7 @@ export const TigerCommandCenter = () => {
   const [fileTargets, setFileTargets] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
+    setRefreshing(true);
     const [{ data: taskData, error: taskError }, { data: auditData, error: auditError }] = await Promise.all([
       supabase.from("dev_tasks").select("*").order("created_at", { ascending: false }).limit(50),
       supabase.from("dev_audit_log").select("*").order("created_at", { ascending: false }).limit(15),
@@ -89,11 +91,13 @@ export const TigerCommandCenter = () => {
         description: taskError?.message ?? auditError?.message,
         variant: "destructive",
       });
+      setRefreshing(false);
       return;
     }
 
     setTasks((taskData as Task[] | null) ?? []);
     setAudit((auditData as AuditEntry[] | null) ?? []);
+    setRefreshing(false);
   }, [toast]);
 
   useEffect(() => { void load(); }, [load]);
@@ -126,6 +130,11 @@ export const TigerCommandCenter = () => {
   }, [call, toast]);
 
   useEffect(() => { void refreshGitHub(); }, [refreshGitHub]);
+
+  // One refresh action must update every Command Center data source, not only GitHub.
+  const refreshAll = useCallback(async () => {
+    await Promise.all([load(), refreshGitHub()]);
+  }, [load, refreshGitHub]);
 
   const triage = async () => {
     setBusy(true);
@@ -204,9 +213,15 @@ export const TigerCommandCenter = () => {
         <h2 className="text-xs uppercase tracking-wide text-muted-foreground font-semibold flex items-center gap-1.5">
           <Bot className="w-4 h-4 text-primary" /> Tiger AI Command Center
         </h2>
-        <Button size="sm" onClick={triage} disabled={busy}>
-          <Sparkles className="w-3.5 h-3.5 mr-1" /> {busy ? "Planning…" : "Plan from feedback"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={refreshAll} disabled={refreshing || githubLoading}>
+            {(refreshing || githubLoading) ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1" />}
+            {(refreshing || githubLoading) ? "Refreshing…" : "Refresh all"}
+          </Button>
+          <Button size="sm" onClick={triage} disabled={busy}>
+            <Sparkles className="w-3.5 h-3.5 mr-1" /> {busy ? "Planning…" : "Plan from feedback"}
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-xs">
