@@ -200,7 +200,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const requestedAction = typeof body.action === "string" ? body.action.trim() : "";
     // Normalize action spelling from older/mobile Command Center builds.
-    const normalizedAction = requestedAction.toLowerCase().replace(/[\\s-]+/g, "_");
+    const normalizedAction = requestedAction.toLowerCase().replace(/[\s-]+/g, "_");
     const actionAliases: Record<string, string> = {
       github_refresh: "github_list_prs",
       refresh_github: "github_list_prs",
