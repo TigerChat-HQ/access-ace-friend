@@ -48,7 +48,8 @@ export const setStoredRingtone = (kind: RingtoneKind, value: RingtoneId) => {
 // Plays one short, synthesized tone pattern. No bundled audio assets are required.
 export const playRingtone = (kind: RingtoneKind): (() => void) => {
   if (typeof window === "undefined") return () => {};
-  const AudioContextConstructor = window.AudioContext || (window as any).webkitAudioContext;
+  const AudioContextConstructor =
+    window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!AudioContextConstructor) return () => {};
 
   const { notes, gap } = patterns[getStoredRingtone(kind)];
