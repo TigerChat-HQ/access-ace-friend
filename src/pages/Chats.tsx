@@ -464,7 +464,7 @@ const Chats = () => {
   return (
     <div className="h-full flex overflow-hidden bg-background">
       {storyViewerIndex !== null && storyViewerData.length > 0 && (
-        <StoryViewer stories={storyViewerData} initialIndex={storyViewerIndex} onClose={() => setStoryViewerIndex(null)} currentUserId={user?.id} />
+        <StoryViewer stories={storyViewerData} initialIndex={storyViewerIndex} onClose={() => setStoryViewerIndex(null)} onStoryDeleted={(storyId) => setStories(current => current.filter(item => item.id !== storyId))} currentUserId={user?.id} />
       )}
 
       {forwardMsg && (
