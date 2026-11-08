@@ -161,7 +161,7 @@ const Admin = () => {
   });
 
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-background">
       <header className="flex items-center gap-3 px-4 py-3 border-b border-border/50 sticky top-0 z-20 bg-background/95 backdrop-blur">
         <button onClick={() => selectedSection === "home" ? navigate(-1) : setSelectedSection("home")} className="text-foreground" aria-label="Back to Admin Panel">
           {selectedSection === "home" ? <ArrowLeft className="w-5 h-5" /> : <BackArrow className="w-5 h-5" />}
@@ -172,7 +172,7 @@ const Admin = () => {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4 pb-[calc(2rem+env(safe-area-inset-bottom))] space-y-6">
         {selectedSection === "home" ? (
           <>
             <section className="space-y-1"><h2 className="text-lg font-bold text-foreground">Admin Control Center</h2><p className="text-sm text-muted-foreground">Mipangilio imepangwa kwa makundi. Chagua sehemu unayotaka kufungua.</p></section>
