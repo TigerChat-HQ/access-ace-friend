@@ -44,6 +44,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
   const isFile = message.type === "file";
   const isImage = message.type === "image";
   const isVoice = message.type === "voice";
+  const isEmojiOnly = !!message.text && /^(?:\\p{Extended_Pictographic}|\\uFE0F|\\u200D|\\s)+$/u.test(message.text.trim()) && Array.from(message.text.trim()).length <= 8;
 
   return (
     <div className={cn("flex w-full min-w-0 mb-2 animate-fade-in group", isMe ? "justify-end" : "justify-start")}>
@@ -145,7 +146,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
             <Download className="w-4 h-4 opacity-60" />
           </a>
         ) : (
-          <p dir="auto" className="whitespace-pre-wrap">{(displayText || "").split(/(https:\/\/www\.google\.com\/maps\?q=-?[\d.]+,-?[\d.]+)/g).map((part, i) => part.startsWith("https://www.google.com/maps?q=") ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline">Open location in Maps</a> : part)}</p>
+          <p dir="auto" className={cn("whitespace-pre-wrap", isEmojiOnly && "chat-emoji-message")}>{(displayText || "").split(/(https:\/\/www\.google\.com\/maps\?q=-?[\d.]+,-?[\d.]+)/g).map((part, i) => part.startsWith("https://www.google.com/maps?q=") ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline">Open location in Maps</a> : part)}</p>
         )}
         {hasTranslation && <Button variant="link" size="sm" className="h-auto p-0 mt-1 text-[11px] text-muted-foreground" onClick={() => setShowOriginal(value => !value)}>{showOriginal ? "Show translation" : "Translated · Show original"}</Button>}
         <div className={cn("flex items-center gap-1 mt-1", isMe ? "justify-end" : "justify-start", isImage && !message.text && "px-2 pb-1")}>
