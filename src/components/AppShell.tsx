@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useLocation } from "react-router-dom";
-import { Home, MessageCircle, Users, Sparkles, User as UserIcon, Trophy, Mail, Settings, Bot, Bell } from "lucide-react";
+import { Home, MessageCircle, Users, Sparkles, User as UserIcon, Trophy, Mail, Settings, Bot, Bell, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/tigerchats-logo.png";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,11 +8,13 @@ import { CallProvider } from "@/contexts/CallContext";
 import { AnnouncementGate } from "@/components/AnnouncementGate";
 import { useUnreadBadges } from "@/hooks/useUnreadBadges";
 import { useNotifications } from "@/hooks/useNotifications";
+import { useUserRole } from "@/hooks/useUserRole";
 
 export const AppShell = () => {
   const { user } = useAuth();
   const location = useLocation();
   const { unreadMessages, unreadNotifications } = useUnreadBadges();
+  const { isAdmin, loading: roleLoading } = useUserRole();
   useNotifications();
 
   const hideBar = location.pathname.startsWith("/chats") && location.search.includes("c=");
@@ -24,6 +26,9 @@ export const AppShell = () => {
     { to: "/stories", icon: Sparkles, label: "Stories", badge: 0 },
     { to: "/game", icon: Trophy, label: "Game", badge: 0 },
     { to: `/u/${user?.id ?? ""}`, icon: UserIcon, label: "Profile", badge: unreadNotifications },
+    ...(!roleLoading && isAdmin
+      ? [{ to: "/admin", icon: Crown, label: "Admin Panel", badge: 0 }]
+      : []),
   ];
 
   return (
@@ -38,35 +43,35 @@ export const AppShell = () => {
               {[{to:"/tiger-ai", icon:Bot, label:"Tiger AI"}, {to:"/contact",icon:Mail,label:"Contact admin"},{to:"/notifications",icon:Bell,label:"Notifications"},{to:"/settings",icon:Settings,label:"Settings"}].map(({to,icon:Icon,label}) => <Button asChild variant="ghost" key={to} className="justify-start"><NavLink to={to}><Icon className="w-4 h-4 mr-3" />{label}</NavLink></Button>)}
             </aside>
             <div className="flex flex-1 flex-col min-h-0 min-w-0">
-            <main className="flex-1 min-h-0 min-w-0 overflow-hidden">
-              <Outlet />
-            </main>
-            {!hideBar && (
-              <nav aria-label="Main navigation" className="lg:hidden flex items-center justify-around border-t border-border/50 bg-card/80 backdrop-blur-md px-1 py-1.5 safe-area-bottom">
-                {items.map(({ to, icon: Icon, label, badge }) => (
-                  <NavLink
-                    key={label}
-                    to={to}
-                    end={to === "/"}
-                    className={({ isActive }) =>
-                      `relative flex flex-col flex-1 min-w-0 items-center justify-center px-1 py-1.5 rounded-lg transition-colors ${
-                        isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
-                      }`
-                    }
-                  >
-                    <div className="relative">
-                      <Icon className="w-5 h-5" />
-                      {badge > 0 && (
-                        <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center shadow-[0_0_8px_hsl(var(--primary)/0.6)]">
-                          {badge > 99 ? "99+" : badge}
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[10px] mt-0.5 font-medium">{label}</span>
-                  </NavLink>
-                ))}
-              </nav>
-            )}
+              <main className="flex-1 min-h-0 min-w-0 overflow-hidden">
+                <Outlet />
+              </main>
+              {!hideBar && (
+                <nav aria-label="Main navigation" className="lg:hidden flex items-center gap-1 overflow-x-auto border-t border-border/50 bg-card/80 backdrop-blur-md px-1 py-1.5 safe-area-bottom">
+                  {items.map(({ to, icon: Icon, label, badge }) => (
+                    <NavLink
+                      key={label}
+                      to={to}
+                      end={to === "/"}
+                      className={({ isActive }) =>
+                        `relative flex shrink-0 min-w-[3.25rem] flex-col items-center justify-center px-2 py-1.5 rounded-lg transition-colors ${
+                          isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                        }`
+                      }
+                    >
+                      <div className="relative">
+                        <Icon className="w-5 h-5" />
+                        {badge > 0 && (
+                          <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center shadow-[0_0_8px_hsl(var(--primary)/0.6)]">
+                            {badge > 99 ? "99+" : badge}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] mt-0.5 font-medium whitespace-nowrap">{label}</span>
+                    </NavLink>
+                  ))}
+                </nav>
+              )}
             </div>
           </div>
         </AnnouncementGate>
