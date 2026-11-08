@@ -1,3 +1,43 @@
+-- This migration is intentionally self-contained because it sorts before the status-reply migration.
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS status_context jsonb;
+CREATE INDEX IF NOT EXISTS idx_messages_status_context_story_id
+  ON public.messages ((status_context ->> 'story_id'))
+  WHERE status_context IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION public.create_direct_conversation(_other_user_id uuid)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_conversation_id uuid;
+  v_user_id uuid := auth.uid();
+BEGIN
+  IF v_user_id IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF;
+  IF _other_user_id IS NULL OR _other_user_id = v_user_id THEN RAISE EXCEPTION 'Choose another user'; END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended(
+    LEAST(v_user_id::text, _other_user_id::text) || ':' ||
+    GREATEST(v_user_id::text, _other_user_id::text), 0
+  ));
+  SELECT c.id INTO v_conversation_id
+  FROM public.conversations c
+  WHERE c.type = 'direct'
+    AND EXISTS (SELECT 1 FROM public.conversation_members mine WHERE mine.conversation_id = c.id AND mine.user_id = v_user_id)
+    AND EXISTS (SELECT 1 FROM public.conversation_members theirs WHERE theirs.conversation_id = c.id AND theirs.user_id = _other_user_id)
+    AND NOT EXISTS (SELECT 1 FROM public.conversation_members extra WHERE extra.conversation_id = c.id AND extra.user_id NOT IN (v_user_id, _other_user_id))
+  LIMIT 1;
+  IF v_conversation_id IS NULL THEN
+    INSERT INTO public.conversations(type) VALUES ('direct') RETURNING id INTO v_conversation_id;
+    INSERT INTO public.conversation_members(conversation_id,user_id)
+    VALUES (v_conversation_id,v_user_id),(v_conversation_id,_other_user_id);
+  END IF;
+  RETURN v_conversation_id;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.create_direct_conversation(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.create_direct_conversation(uuid) TO authenticated;
+
 -- Story comments use their dedicated table. Contacts means mutual follows.
 ALTER TABLE public.stories DROP CONSTRAINT IF EXISTS stories_audience_check;
 ALTER TABLE public.stories ADD CONSTRAINT stories_audience_check CHECK (audience IN ('everyone','contacts','only_me'));
