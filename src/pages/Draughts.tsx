@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Bot, Users, Crown, Loader2, RotateCw, Flag, Share2, Copy, ArrowUpDown } from "lucide-react";
+import { ArrowLeft, Bot, Users, Crown, Loader2, RotateCw, Flag, Share2, Copy, ArrowUpDown, Handshake } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json, Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,6 +19,7 @@ type MatchRow = Omit<Tables<"draft_matches">, "board" | "last_move" | "current_t
   board: Board;
   current_turn: Color;
   last_move: Move | null;
+  draw_offer_by: string | null;
 };
 
 const Draughts = () => {
@@ -347,7 +348,7 @@ const Draughts = () => {
   const oppCount = myColor === "w" ? bCount : wCount;
 
   const winnerLabel = match.status === "finished"
-    ? match.winner === (myColor === "w" ? "white" : "black") ? "🏆 You won!" : "💀 You lost"
+    ? match.winner === "draw" ? "🤝 Draw!" : match.winner === (myColor === "w" ? "white" : "black") ? "🏆 You won!" : "💀 You lost"
     : null;
 
   const turnLabel = match.status === "finished"
@@ -363,6 +364,18 @@ const Draughts = () => {
     if (!confirm("Resign this match?")) return;
     const { data } = await supabase.rpc("resign_draft_match", { p_id: match.id });
     if (data) setMatch(data as unknown as MatchRow);
+  };
+
+  const offerOrAcceptDraw = async () => {
+    if (!match || !myColor || match.status !== "active" || match.vs_ai) return;
+    const accepting = !!match.draw_offer_by && match.draw_offer_by !== user?.id;
+    const { data, error } = await supabase.rpc(accepting ? "accept_draft_draw" : "offer_draft_draw", { p_id: match.id });
+    if (error || !data) {
+      toast({ title: "Draw request failed", description: error?.message, variant: "destructive" });
+      return;
+    }
+    setMatch(data as unknown as MatchRow);
+    if (!accepting) toast({ title: "Draw offered", description: "Your opponent can accept the draw." });
   };
 
   const shareMatch = async () => {
@@ -397,6 +410,13 @@ const Draughts = () => {
         {!match.vs_ai && match.status !== "finished" && (
           <button onClick={shareMatch} className="p-2 rounded-full hover:bg-surface-hover" title="Share match">
             <Share2 className="w-4 h-4 text-foreground" />
+          </button>
+        )}
+        {match.status === "active" && myColor && !match.vs_ai && (
+          <button onClick={offerOrAcceptDraw} disabled={!!match.draw_offer_by && match.draw_offer_by === user?.id}
+            className="p-2 rounded-full hover:bg-primary/10 disabled:opacity-50"
+            title={match.draw_offer_by && match.draw_offer_by !== user?.id ? "Accept draw" : match.draw_offer_by ? "Draw offered" : "Offer draw"}>
+            <Handshake className="w-4 h-4 text-primary" />
           </button>
         )}
         {match.status === "active" && myColor && (
