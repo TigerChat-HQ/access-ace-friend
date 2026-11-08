@@ -20,7 +20,7 @@ interface StoryData {
   musicUrl?: string;
   mediaType?: "image" | "video" | "text";
   backgroundColor?: string;
-  textOverlay?: { text?: string; music_start?: number; music_end?: number; image_filter?: string } | null;
+  textOverlay?: { text?: string; text_color?: string; text_background?: string; sticker?: string; music_start?: number; music_end?: number; image_filter?: string } | null;
   duration?: number | null;
 }
 
@@ -387,10 +387,13 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId, onS
 
       {story.textOverlay?.text && (
         <div className="absolute inset-x-0 top-1/3 text-center px-6 pointer-events-none">
-          <span className="inline-block bg-black/60 text-white text-2xl font-bold px-4 py-2 rounded-lg">
+          <span className="inline-block text-2xl font-bold px-4 py-2 rounded-lg" style={{ color: story.textOverlay.text_color || "#FFFFFF", backgroundColor: story.textOverlay.text_background || "rgba(0,0,0,0.65)" }}>
             {story.textOverlay.text}
           </span>
         </div>
+      )}
+      {story.textOverlay?.sticker && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-7xl">{story.textOverlay.sticker}</div>
       )}
 
       {/* Floating reactions */}
