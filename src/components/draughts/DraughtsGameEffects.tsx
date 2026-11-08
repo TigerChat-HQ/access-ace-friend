@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Settings2, Volume2, VolumeX } from "lucide-react";
+
 import { supabase } from "@/integrations/supabase/client";
 
 type Reaction = { id: string; emoji: string; sender: string; createdAt: number };
@@ -29,37 +29,18 @@ export function playDraughtsSound(kind: "move" | "capture" | "win", volume = 0.6
 }
 
 
+const LAUGH_AUDIO_URL = "https://sfxmint.com/dl/laugh-02.mp3";
+const TIGER_ROAR_AUDIO_URL = "https://sfxmint.com/dl/short-tiger-roar-01.mp3";
+
 export function playReactionSound(emoji: string, volume = 0.65) {
-  try {
-    const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextClass || volume <= 0) return;
-    const ctx = new AudioContextClass();
-    void ctx.resume();
-    const now = ctx.currentTime;
-    const patterns: Record<string, number[]> = {
-      "😂": [440, 330, 440, 330, 523, 392],
-      "❤️": [523, 659, 784], "👏": [260, 260], "😮": [330, 494, 659],
-      "🔥": [180, 260, 390], "😎": [392, 494, 587], "💪": [130, 196, 260], "🐯": [110, 145, 110],
-    };
-    (patterns[emoji] ?? [440, 554]).forEach((frequency, index) => {
-      const start = now + index * (emoji === "😂" ? 0.105 : 0.075);
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = emoji === "🐯" || emoji === "💪" ? "sawtooth" : "triangle";
-      osc.frequency.setValueAtTime(frequency, start);
-      if (emoji === "😂") osc.frequency.exponentialRampToValueAtTime(frequency * 0.78, start + 0.075);
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(0.075 * Math.max(0, Math.min(1, volume)), start + 0.012);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.09);
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.start(start); osc.stop(start + 0.1);
-    });
-    window.setTimeout(() => { void ctx.close(); }, 1100);
-  } catch { /* Audio is optional. */ }
+  if (volume <= 0 || emoji !== "😂") return;
+  const audio = new Audio(LAUGH_AUDIO_URL);
+  audio.volume = Math.max(0, Math.min(1, volume));
+  void audio.play().catch(() => {});
 }
 
 export function DraughtsGameEffects({
-  matchId, isWinner, isFinished, soundEnabled, onSoundEnabledChange, soundVolume, onSoundVolumeChange, reactionVolume, onReactionVolumeChange,
+  matchId, isWinner, isLoser, isFinished, soundEnabled, soundVolume, reactionVolume,
 }: {
   matchId: string; isWinner: boolean; isFinished: boolean;
   soundEnabled: boolean; onSoundEnabledChange: (enabled: boolean) => void;
@@ -87,7 +68,7 @@ export function DraughtsGameEffects({
   useEffect(() => {
     if (!isFinished || !isWinner || !soundEnabled || winnerSoundPlayed.current) return;
     winnerSoundPlayed.current = true;
-    playDraughtsSound("win", soundVolume);
+    const roar = new Audio(TIGER_ROAR_AUDIO_URL);\n    roar.volume = Math.max(0, Math.min(1, soundVolume));\n    void roar.play().catch(() => {});
   }, [isFinished, isWinner, soundEnabled, soundVolume]);
 
   const sendReaction = async (emoji: string) => {
@@ -107,38 +88,18 @@ export function DraughtsGameEffects({
         <div className="flex items-center gap-1.5" aria-label="Live reactions">
           {EMOJIS.map((emoji) => <button key={emoji} type="button" onClick={() => void sendReaction(emoji)} disabled={isFinished} aria-label={`Send ${emoji} reaction`} className="rounded-lg p-2 text-lg transition hover:-translate-y-1 hover:scale-110 hover:bg-primary/15 active:scale-90 disabled:opacity-40">{emoji}</button>)}
         </div>
-        <div className="relative shrink-0">
-          <button type="button" onClick={() => setSettingsOpen((open) => !open)} aria-expanded={settingsOpen} aria-label="Audio settings" className="flex items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-xs text-foreground hover:bg-muted">
-            <Settings2 className="h-4 w-4" /> Settings
-          </button>
-          {settingsOpen && (
-            <div className="absolute bottom-full right-0 z-50 mb-2 w-64 rounded-2xl border border-border bg-card p-4 text-foreground shadow-2xl">
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-sm font-bold">Audio settings</p>
-                <button type="button" onClick={() => onSoundEnabledChange(!soundEnabled)} className="flex items-center gap-1.5 rounded-lg bg-muted px-2.5 py-1.5 text-xs">
-                  {soundEnabled ? <Volume2 className="h-4 w-4 text-primary" /> : <VolumeX className="h-4 w-4" />}
-                  {soundEnabled ? "On" : "Off"}
-                </button>
-              </div>
-              <label className="mb-1 flex justify-between text-xs"><span>Game volume</span><span>{Math.round(soundVolume * 100)}%</span></label>
-              <input aria-label="Game volume" type="range" min="0" max="1" step="0.05" value={soundVolume} onChange={(e) => onSoundVolumeChange(Number(e.target.value))} className="mb-3 w-full accent-primary" />
-              <label className="mb-1 flex justify-between text-xs"><span>Emoji volume</span><span>{Math.round(reactionVolume * 100)}%</span></label>
-              <input aria-label="Emoji volume" type="range" min="0" max="1" step="0.05" value={reactionVolume} onChange={(e) => onReactionVolumeChange(Number(e.target.value))} className="w-full accent-primary" />
-              <p className="mt-2 text-[10px] text-muted-foreground">Emoji reactions have their own sounds, including a laugh for 😂.</p>
-            </div>
-          )}
-        </div>
+
       </div>
-      {isFinished && isWinner && (
-        <div className="draught-win-overlay fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-slate-950/85 p-5 backdrop-blur-md" role="dialog" aria-modal="true" aria-label="Victory celebration">
-          <div className="draught-win-confetti" aria-hidden="true">🎉 ✨ 🏆 🎊 ⭐ 🎉</div>
-          <div className="draught-win-card relative w-full max-w-sm rounded-[2rem] border border-amber-300/50 bg-gradient-to-br from-amber-200 via-yellow-500 to-orange-600 p-1 text-center shadow-[0_0_90px_rgba(245,158,11,.45)]">
+      {isFinished && (isWinner || isLoser) && (
+        <div className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden p-5 backdrop-blur-md ${isWinner ? "draught-win-overlay bg-slate-950/85" : "bg-slate-950/90"}`} role="dialog" aria-modal="true" aria-label={isWinner ? "Victory celebration" : "Defeat"}>
+          {isWinner && <div className="draught-win-confetti" aria-hidden="true">🎉 ✨ 🏆 🎊 ⭐ 🎉</div>}
+          <div className={`relative w-full max-w-sm rounded-[2rem] border p-1 text-center shadow-2xl ${isWinner ? "draught-win-card border-amber-300/50 bg-gradient-to-br from-amber-200 via-yellow-500 to-orange-600 shadow-[0_0_90px_rgba(245,158,11,.45)]" : "border-slate-400/30 bg-gradient-to-br from-slate-400 via-slate-600 to-slate-800"}`}>
             <div className="rounded-[1.8rem] bg-slate-950/95 px-6 py-8 text-white">
-              <div className="draught-tiger-celebrate mx-auto mb-3 text-7xl" role="img" aria-label="Tiger celebrating with trophy">🐯🏆</div>
-              <p className="text-xs font-black uppercase tracking-[.35em] text-amber-300">Tiger Champion</p>
-              <h2 className="mt-2 text-3xl font-black">YOU WIN!</h2>
-              <p className="mt-2 text-sm text-slate-300">Amazing moves! The Tiger celebrates your victory!</p>
-              <div className="mt-4 text-2xl" aria-hidden="true">🎊 🥇 🎉</div>
+              <div className={`mx-auto mb-3 text-7xl ${isWinner ? "draught-tiger-celebrate" : "draught-tiger-sad"}`} role="img" aria-label={isWinner ? "Tiger celebrating with trophy" : "Sad tiger after losing"}>{isWinner ? "🐯🏆" : "🐯😿"}</div>
+              <p className={`text-xs font-black uppercase tracking-[.35em] ${isWinner ? "text-amber-300" : "text-slate-300"}`}>{isWinner ? "Tiger Champion" : "Tiger Comeback"}</p>
+              <h2 className="mt-2 text-3xl font-black">{isWinner ? "YOU WIN!" : "YOU LOST"}</h2>
+              <p className="mt-2 text-sm text-slate-300">{isWinner ? "Amazing moves! The Tiger celebrates your victory!" : "The Tiger is sad, but every champion gets back up. Try again!"}</p>
+              <div className="mt-4 text-2xl" aria-hidden="true">{isWinner ? "🎊 🥇 🎉" : "💔 🌧️ 🐾"}</div>
             </div>
           </div>
         </div>
