@@ -19,9 +19,10 @@ interface MessageBubbleProps {
   onDelete?: (messageId: string, mode?: "me" | "everyone") => void;
   myBubbleClass?: string;
   translatedText?: string;
+  onStatusClick?: (storyId: string) => void;
 }
 
-export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDelete, myBubbleClass, translatedText }: MessageBubbleProps) => {
+export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDelete, myBubbleClass, translatedText, onStatusClick }: MessageBubbleProps) => {
   const isMe = message.senderId === "me";
   const [playing, setPlaying] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
@@ -92,7 +93,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
             : "bg-card/90 backdrop-blur border border-border/40 text-foreground rounded-bl-md"
         )}
       >
-        {message.statusContext && <div className="mb-2 border-l-2 border-current pl-2 text-xs opacity-80"><p className="font-semibold">Status reply</p><p className="line-clamp-2">{message.statusContext.caption}</p></div>}
+        {message.statusContext && <button type="button" onClick={() => onStatusClick?.(message.statusContext!.story_id)} className="mb-2 w-full text-left border-l-2 border-current pl-2 text-xs opacity-80 hover:opacity-100 cursor-pointer"><p className="font-semibold">Status reply · Tap to view status</p><p className="line-clamp-2">{message.statusContext.caption}</p></button>}
         {replyMessage && (
           <div className={cn(
             "mb-2 px-3 py-1.5 rounded-lg border-l-2 text-[11px]",
