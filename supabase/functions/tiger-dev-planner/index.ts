@@ -65,9 +65,20 @@ async function readGitHubChecks(prUrl: string) {
 
 const GITHUB_API = "https://api.github.com";
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+
+type GroqChatResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string | null;
+    };
+  }>;
+  error?: {
+    message?: string;
+  };
+};
 const GROQ_MODEL = Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-20b";
 
-async function groqChatCompletion(messages: Array<{role: string; content: string}>, jsonMode = false) {
+async function groqChatCompletion(messages: Array<{role: string; content: string}>, jsonMode = false): Promise<GroqChatResponse> {
   const apiKey = Deno.env.get("GROQ_API_KEY");
   if (!apiKey) throw new Error("Tiger AI Free Plan haijaunganishwa. Hakikisha GROQ_API_KEY ipo kwenye Supabase Edge Function Secrets.");
   const response = await fetch(GROQ_API_URL, {
@@ -79,7 +90,7 @@ async function groqChatCompletion(messages: Array<{role: string; content: string
       messages,
     }),
   });
-  const payload = await response.json().catch(() => ({}));
+  const payload = await response.json().catch(() => ({})) as GroqChatResponse;
   if (!response.ok) {
     const message = payload?.error?.message || response.statusText || "Unknown provider error";
     if (response.status === 429) throw new Error("Groq Free Plan imefikia kikomo cha matumizi kwa sasa. Subiri kikomo kijirejeshe kisha jaribu tena.");
@@ -384,7 +395,7 @@ Your role:
           }))
         : [{ role: "user", content: userMessage.slice(0, 10000) }];
 
-      let aiData: any;
+      let aiData: GroqChatResponse;
       try {
         aiData = await groqChatCompletion([
           { role: "system", content: systemPrompt },
@@ -413,7 +424,7 @@ Your role:
     const fresh = (reports || []).filter((r) => !done.has(r.id)).slice(0, 10);
     if (!fresh.length) return json({ created: 0 });
 
-    let ai: any;
+    let ai: GroqChatResponse;
     try {
       ai = await groqChatCompletion([
         { role: "system", content: "You are Tiger AI's development planner for TIGERCHATS, a React + Supabase messaging app (chats, stories, calls, draughts, Tiger AI, Developer Panel). For each user feedback item return a dev task. Respond as JSON: {\"tasks\":[{\"report_id\":string,\"title\":string,\"summary\":string,\"category\":\"bug\"|\"feature\"|\"ux\"|\"performance\"|\"security\",\"priority\":\"low\"|\"medium\"|\"high\"|\"critical\",\"risk\":\"low\"|\"medium\"|\"high\",\"steps\":string[],\"areas\":string[],\"tests\":string[]}]}. Mark risk high for anything touching data deletion, payments, sign-in, permissions or private data. Skip spam by omitting it." },
