@@ -85,9 +85,7 @@ export function DraughtsGameEffects({
   useEffect(() => {
     if (!isFinished || !isWinner || !soundEnabled || winnerSoundPlayed.current) return;
     winnerSoundPlayed.current = true;
-    const roar = new Audio(TIGER_ROAR_AUDIO_URL);
-    roar.volume = Math.max(0, Math.min(1, soundVolume));
-    void roar.play().catch(() => {});
+    playReactionSound("🐯", soundVolume);
   }, [isFinished, isWinner, soundEnabled, soundVolume]);
 
   const sendReaction = async (emoji: string) => {
