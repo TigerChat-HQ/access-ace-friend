@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "predev": "bun scripts/generate-sitemap.ts",
-    "prebuild": "bun scripts/generate-sitemap.ts",
+    "predev": "node scripts/generate-sitemap.mjs",
+    "prebuild": "node scripts/generate-sitemap.mjs",
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
@@ -18,12 +18,12 @@
   },
   "overrides": {
     "@supabase/supabase-js": "^2.118.0",
-    "vite-plugin-pwa": "^2.0.0",
     "esbuild": "^0.25.12",
     "glob": "^14.0.3",
     "minimatch": "^11.0.4",
     "ajv": "^6.14.0",
-    "postcss-selector-parser": "^6.1.5"
+    "postcss-selector-parser": "^6.1.5",
+    "@grpc/grpc-js": "^1.13.6"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -105,7 +105,6 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
     "vite": "^7.3.7",
-    "vitest": "^5.1.0",
-    "vite-plugin-pwa": "^2.0.0"
+    "vitest": "^5.1.0"
   }
 }
