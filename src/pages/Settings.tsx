@@ -17,7 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { useAppLock, isWebAuthnSupported } from "@/hooks/useAppLock";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 import { TwoFactorSecurity } from "@/components/TwoFactorSecurity";
-import { enablePush } from "@/lib/firebase-push";
+import { disablePush, enablePush, isPushEnabled } from "@/lib/firebase-push";
 import { ringtoneOptions, getStoredRingtone, setStoredRingtone, playRingtone, type RingtoneId } from "@/lib/ringtones";
 
 const db = supabase as unknown as SupabaseClient;
@@ -51,7 +51,9 @@ const Settings = () => {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
-  const [notifications, setNotifications] = useState(true);
+  const [notifications, setNotifications] = useState(() => user ? isPushEnabled(user.id) : false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushMessage, setPushMessage] = useState("");
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [readReceipts, setReadReceipts] = useState(true);
   const [lastSeen, setLastSeen] = useState(true);
@@ -202,7 +204,19 @@ const Settings = () => {
       case "notifications":
         return (
           <div className="space-y-4 animate-fade-in">
-            <Button variant="outline" onClick={async () => { if (!user) return; try { toast({ title: "Push notifications", description: await enablePush(user.id) }); } catch (error) { toast({ title: "Notifications unavailable", description: error instanceof Error ? error.message : "Please try again", variant: "destructive" }); } }}><Bell className="mr-2 h-4 w-4" />Enable background notifications</Button>
+            <Button variant="outline" disabled={pushBusy} onClick={async () => {
+              if (!user) return;
+              setPushBusy(true);
+              try {
+                const message = notifications ? (await disablePush(user.id), "Background notifications disabled on this device.") : await enablePush(user.id);
+                setNotifications(isPushEnabled(user.id));
+                setPushMessage(message);
+              } catch (error) {
+                toast({ title: "Notifications unavailable", description: error instanceof Error ? error.message : "Please try again", variant: "destructive" });
+              } finally { setPushBusy(false); }
+            }}><Bell className="mr-2 h-4 w-4" />{pushBusy ? "Please wait…" : notifications ? "Disable background notifications" : "Enable background notifications"}</Button>
+            {pushMessage && <p role="status" className="text-sm text-muted-foreground">{pushMessage}</p>}
+            {pushMessage.includes("own tab") && <Button variant="link" asChild><a href={window.location.href} target="_blank" rel="noopener noreferrer">Open in new tab</a></Button>}
             <SettingToggle label={t("sound")} description={t("soundDesc")} value={soundEnabled} onChange={setSoundEnabled} />
             <div className="space-y-2">
               <label htmlFor="incoming-call-tone" className="text-sm font-medium text-foreground">Incoming call ringtone</label>

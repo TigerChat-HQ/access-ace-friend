@@ -5,6 +5,7 @@ import { useConversations } from "@/hooks/useChat";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { dispatchPush } from "@/lib/dispatch-push";
 
 interface ForwardDialogProps {
   open: boolean;
@@ -28,13 +29,14 @@ export const ForwardDialog = ({ open, onClose, messageContent, messageType, medi
   const handleForward = async (conversationId: string) => {
     if (!user) return;
     setSending(true);
-    await supabase.from("messages").insert({
+    const { error } = await supabase.from("messages").insert({
       conversation_id: conversationId,
       sender_id: user.id,
       content: messageContent ? `↪ ${messageContent}` : messageContent,
       message_type: messageType,
       media_url: mediaUrl || null,
     });
+    if (!error) void dispatchPush(conversationId);
     setSending(false);
     onClose();
   };

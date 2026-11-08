@@ -42,6 +42,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signOut = async () => {
+    if (user) {
+      const { disablePush } = await import("@/lib/firebase-push");
+      await disablePush(user.id);
+    }
     await supabase.auth.signOut();
   };
 
