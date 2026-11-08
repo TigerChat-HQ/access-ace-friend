@@ -1,4 +1,4 @@
--- Use the dedicated story_comments table and support mutual-follow audience.
+-- Story comments use their dedicated table. Contacts means mutual follows.
 ALTER TABLE public.stories DROP CONSTRAINT IF EXISTS stories_audience_check;
 ALTER TABLE public.stories ADD CONSTRAINT stories_audience_check CHECK (audience IN ('everyone','contacts','only_me'));
 
@@ -14,7 +14,11 @@ USING (
       audience = 'contacts'
       AND EXISTS (SELECT 1 FROM public.follows f WHERE f.follower_id = auth.uid() AND f.following_id = stories.user_id)
       AND EXISTS (SELECT 1 FROM public.follows f WHERE f.follower_id = stories.user_id AND f.following_id = auth.uid())
-      AND NOT EXISTS (SELECT 1 FROM public.blocks b WHERE (b.blocker_id = auth.uid() AND b.blocked_id = stories.user_id) OR (b.blocker_id = stories.user_id AND b.blocked_id = auth.uid()))
+      AND NOT EXISTS (
+        SELECT 1 FROM public.blocks b
+        WHERE (b.blocker_id = auth.uid() AND b.blocked_id = stories.user_id)
+           OR (b.blocker_id = stories.user_id AND b.blocked_id = auth.uid())
+      )
     )
   )
 );
@@ -34,7 +38,11 @@ WITH CHECK (
           s.audience = 'contacts'
           AND EXISTS (SELECT 1 FROM public.follows f WHERE f.follower_id = auth.uid() AND f.following_id = s.user_id)
           AND EXISTS (SELECT 1 FROM public.follows f WHERE f.follower_id = s.user_id AND f.following_id = auth.uid())
-          AND NOT EXISTS (SELECT 1 FROM public.blocks b WHERE (b.blocker_id = auth.uid() AND b.blocked_id = s.user_id) OR (b.blocker_id = s.user_id AND b.blocked_id = auth.uid()))
+          AND NOT EXISTS (
+            SELECT 1 FROM public.blocks b
+            WHERE (b.blocker_id = auth.uid() AND b.blocked_id = s.user_id)
+               OR (b.blocker_id = s.user_id AND b.blocked_id = auth.uid())
+          )
         )
       )
   )
@@ -54,7 +62,11 @@ USING (
           s.audience = 'contacts'
           AND EXISTS (SELECT 1 FROM public.follows f WHERE f.follower_id = auth.uid() AND f.following_id = s.user_id)
           AND EXISTS (SELECT 1 FROM public.follows f WHERE f.follower_id = s.user_id AND f.following_id = auth.uid())
-          AND NOT EXISTS (SELECT 1 FROM public.blocks b WHERE (b.blocker_id = auth.uid() AND b.blocked_id = s.user_id) OR (b.blocker_id = s.user_id AND b.blocked_id = auth.uid()))
+          AND NOT EXISTS (
+            SELECT 1 FROM public.blocks b
+            WHERE (b.blocker_id = auth.uid() AND b.blocked_id = s.user_id)
+               OR (b.blocker_id = s.user_id AND b.blocked_id = auth.uid())
+          )
         )
       )
   )
@@ -69,12 +81,17 @@ WITH CHECK (
     SELECT 1 FROM public.stories s
     WHERE s.id = story_reactions.story_id AND s.expires_at > now()
       AND (
-        s.user_id = auth.uid() OR s.audience = 'everyone'
+        s.user_id = auth.uid()
+        OR s.audience = 'everyone'
         OR (
           s.audience = 'contacts'
           AND EXISTS (SELECT 1 FROM public.follows f WHERE f.follower_id = auth.uid() AND f.following_id = s.user_id)
           AND EXISTS (SELECT 1 FROM public.follows f WHERE f.follower_id = s.user_id AND f.following_id = auth.uid())
-          AND NOT EXISTS (SELECT 1 FROM public.blocks b WHERE (b.blocker_id = auth.uid() AND b.blocked_id = s.user_id) OR (b.blocker_id = s.user_id AND b.blocked_id = auth.uid()))
+          AND NOT EXISTS (
+            SELECT 1 FROM public.blocks b
+            WHERE (b.blocker_id = auth.uid() AND b.blocked_id = s.user_id)
+               OR (b.blocker_id = s.user_id AND b.blocked_id = auth.uid())
+          )
         )
       )
   )
@@ -93,7 +110,11 @@ BEGIN
    OR (s.audience='contacts'
      AND EXISTS (SELECT 1 FROM public.follows f WHERE f.follower_id=v_user_id AND f.following_id=s.user_id)
      AND EXISTS (SELECT 1 FROM public.follows f WHERE f.follower_id=s.user_id AND f.following_id=v_user_id)
-     AND NOT EXISTS (SELECT 1 FROM public.blocks b WHERE (b.blocker_id=v_user_id AND b.blocked_id=s.user_id) OR (b.blocker_id=s.user_id AND b.blocked_id=v_user_id))
+     AND NOT EXISTS (
+       SELECT 1 FROM public.blocks b
+       WHERE (b.blocker_id=v_user_id AND b.blocked_id=s.user_id)
+          OR (b.blocker_id=s.user_id AND b.blocked_id=v_user_id)
+     )
    )
  );
  IF NOT FOUND THEN RAISE EXCEPTION 'Status unavailable'; END IF;
@@ -108,9 +129,4 @@ END; $$;
 REVOKE ALL ON FUNCTION public.reply_to_status(uuid,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.reply_to_status(uuid,text) TO authenticated;
 
-DO $$
-BEGIN
- IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname='supabase_realtime' AND schemaname='public' AND tablename='story_comments') THEN
-   ALTER PUBLICATION supabase_realtime ADD TABLE public.story_comments;
- END IF;
-END $$;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.story_comments;
