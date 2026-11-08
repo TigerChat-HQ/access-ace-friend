@@ -33,7 +33,7 @@ export function DraughtsAdminControl() {
 
   const updateSetting = async (key: keyof Settings, value: boolean) => {
     const next = { ...settings, [key]: value };
-    const { error } = await (supabase as any).from("draughts_admin_settings").update({ ...next, updated_at: new Date().toISOString() }).eq("id", true);
+    const { error } = await supabase.from("draughts_admin_settings").update({ ...next, updated_at: new Date().toISOString() }).eq("id", true);
     if (error) toast({ title: "Setting was not saved", description: error.message, variant: "destructive" });
     else { setSettings(next); toast({ title: "Draughts setting enabled/updated" }); }
   };
@@ -41,7 +41,7 @@ export function DraughtsAdminControl() {
   const saveBadge = async () => {
     if (!name.trim() || !description.trim()) return;
     setSaving(true);
-    const { error } = await (supabase as any).from("draughts_badge_types").insert({
+    const { error } = await supabase.from("draughts_badge_types").insert({
       badge_name: name.trim(), emoji, description: description.trim(), award_rule: rule, threshold, is_enabled: true,
     });
     setSaving(false);
@@ -50,7 +50,7 @@ export function DraughtsAdminControl() {
   };
 
   const toggleBadge = async (badge: BadgeType) => {
-    const { error } = await (supabase as any).from("draughts_badge_types").update({ is_enabled: !badge.is_enabled }).eq("id", badge.id);
+    const { error } = await supabase.from("draughts_badge_types").update({ is_enabled: !badge.is_enabled }).eq("id", badge.id);
     if (error) toast({ title: "Could not update badge", description: error.message, variant: "destructive" });
     else await load();
   };
