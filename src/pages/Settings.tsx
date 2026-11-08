@@ -20,6 +20,11 @@ import { TwoFactorSecurity } from "@/components/TwoFactorSecurity";
 import { disablePush, enablePush, isPushEnabled } from "@/lib/firebase-push";
 import { ringtoneOptions, getStoredRingtone, setStoredRingtone, playRingtone, type RingtoneId } from "@/lib/ringtones";
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
 const db = supabase as unknown as SupabaseClient;
 
 const SettingToggle = ({
@@ -54,6 +59,9 @@ const Settings = () => {
   const [notifications, setNotifications] = useState(() => user ? isPushEnabled(user.id) : false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [appInstalled, setAppInstalled] = useState(false);
+  const [installPlatform, setInstallPlatform] = useState<"ios" | "other">("other");
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [readReceipts, setReadReceipts] = useState(true);
   const [lastSeen, setLastSeen] = useState(true);
@@ -98,6 +106,45 @@ const Settings = () => {
     } catch (error: unknown) {
       toast({ title: "Failed", description: error instanceof Error ? error.message : "Could not enable", variant: "destructive" });
     }
+  };
+
+  useEffect(() => {
+    const standalone = window.matchMedia("(display-mode: standalone)").matches ||
+      (navigator as Navigator & { standalone?: boolean }).standalone === true;
+    setAppInstalled(standalone);
+    setInstallPlatform(/iPad|iPhone|iPod/.test(navigator.userAgent || "") ? "ios" : "other");
+    const onBeforeInstall = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+    const onInstalled = () => {
+      setAppInstalled(true);
+      setInstallPrompt(null);
+      toast({ title: "TIGERCHATS installed successfully" });
+    };
+    window.addEventListener("beforeinstallprompt", onBeforeInstall);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBeforeInstall);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+
+  const installApp = async () => {
+    if (appInstalled) return;
+    if (installPrompt) {
+      await installPrompt.prompt();
+      const choice = await installPrompt.userChoice;
+      if (choice.outcome === "accepted") setAppInstalled(true);
+      setInstallPrompt(null);
+      return;
+    }
+    toast({
+      title: "Install TIGERCHATS",
+      description: installPlatform === "ios"
+        ? "Safari: gusa Share, kisha Add to Home Screen."
+        : "Chrome: fungua menyu ya ⋮ kisha chagua Install app au Add to Home screen.",
+    });
   };
 
   useEffect(() => {
@@ -331,6 +378,19 @@ const Settings = () => {
                 <h2 className="font-semibold text-foreground">{displayName || "Set your name"}</h2>
                 <p className="text-xs text-muted-foreground">{user?.email}</p>
               </div>
+            </div>
+
+            <div className="rounded-xl border border-primary/30 bg-gradient-to-r from-primary/10 via-card to-accent/10 p-4 flex items-center gap-3 shadow-sm">
+              <div className="w-11 h-11 rounded-xl bg-primary/15 flex items-center justify-center">
+                {appInstalled ? <Smartphone className="w-5 h-5 text-primary" /> : <Download className="w-5 h-5 text-primary" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground">Install TIGERCHATS</p>
+                <p className="text-xs text-muted-foreground">{appInstalled ? "App tayari imewekwa kwenye kifaa hiki" : "Weka app kwenye Home Screen kwa ufikiaji wa haraka"}</p>
+              </div>
+              <Button size="sm" onClick={installApp} disabled={appInstalled} className="shrink-0 gap-1.5">
+                <Download className="w-4 h-4" />{appInstalled ? "Installed" : "Install"}
+              </Button>
             </div>
 
             {settingSections.map((section) => (
