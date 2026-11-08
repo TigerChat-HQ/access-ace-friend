@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo } from "react";
 import { Message } from "@/types/chat";
 import { cn } from "@/lib/utils";
+import { playChatEmojiSound } from "@/lib/chat-emoji";
 import { Button } from "@/components/ui/button";
 import { Check, CheckCheck, Play, Pause, FileText, Download, Reply, Forward, Trash2, MoreVertical, Clock } from "lucide-react";
 import {
@@ -146,7 +147,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
             <Download className="w-4 h-4 opacity-60" />
           </a>
         ) : (
-          <p dir="auto" className={cn("whitespace-pre-wrap", isEmojiOnly && "chat-emoji-message")}>{(displayText || "").split(/(https:\/\/www\.google\.com\/maps\?q=-?[\d.]+,-?[\d.]+)/g).map((part, i) => part.startsWith("https://www.google.com/maps?q=") ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline">Open location in Maps</a> : part)}</p>
+          <p dir="auto" role={isEmojiOnly ? "button" : undefined} tabIndex={isEmojiOnly ? 0 : undefined} title={isEmojiOnly ? "Tap emoji to replay sound" : undefined} onClick={isEmojiOnly ? () => playChatEmojiSound(displayText || "") : undefined} onKeyDown={isEmojiOnly ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); playChatEmojiSound(displayText || ""); } } : undefined} className={cn("whitespace-pre-wrap", isEmojiOnly && "chat-emoji-message cursor-pointer select-none")}>{(displayText || "").split(/(https:\/\/www\.google\.com\/maps\?q=-?[\d.]+,-?[\d.]+)/g).map((part, i) => part.startsWith("https://www.google.com/maps?q=") ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline">Open location in Maps</a> : part)}</p>
         )}
         {hasTranslation && <Button variant="link" size="sm" className="h-auto p-0 mt-1 text-[11px] text-muted-foreground" onClick={() => setShowOriginal(value => !value)}>{showOriginal ? "Show translation" : "Translated · Show original"}</Button>}
         <div className={cn("flex items-center gap-1 mt-1", isMe ? "justify-end" : "justify-start", isImage && !message.text && "px-2 pb-1")}>
