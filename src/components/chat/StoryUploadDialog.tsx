@@ -41,6 +41,10 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
     if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
   }, [preview]);
 
+  useEffect(() => () => {
+    if (localMusicPreview?.startsWith("blob:")) URL.revokeObjectURL(localMusicPreview);
+  }, [localMusicPreview]);
+
   const clearLocalMusic = () => {
     if (localMusicPreview?.startsWith("blob:")) URL.revokeObjectURL(localMusicPreview);
     setLocalMusicFile(null);
@@ -181,6 +185,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
     setPreview(null);
     setDuration(null);
     setMediaType("image");
+    setImageFilter("none");
   };
 
   return (
