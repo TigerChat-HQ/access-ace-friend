@@ -23,7 +23,7 @@ import { ReportReplyDialog } from "@/components/admin/ReportReplyDialog";
 type AdminPost = Tables<"posts">;
 type AdminUser = Tables<"profiles">;
 type AdminReport = Tables<"reports">;
-type AdminRole = "admin" | "moderator" | "adviser" | "none";
+type AdminRole = "admin" | "moderator" | "adviser" | "none" | "superior_admin";
 
 const Admin = () => {
   const { isAdmin, isSuperiorAdmin, loading } = useUserRole();
@@ -33,6 +33,7 @@ const Admin = () => {
   const [recentPosts, setRecentPosts] = useState<AdminPost[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [admins, setAdmins] = useState<Set<string>>(new Set());
+  const [superiorAdmins, setSuperiorAdmins] = useState<Set<string>>(new Set());
   const [moderators, setModerators] = useState<Set<string>>(new Set());
   const [advisers, setAdvisers] = useState<Set<string>>(new Set());
   const [reports, setReports] = useState<AdminReport[]>([]);
@@ -71,6 +72,7 @@ const Admin = () => {
     setUsers(usersData.data || []);
     const roles = (rolesData.data || []) as { user_id: string; role: string }[];
     setAdmins(new Set(roles.filter((r) => r.role === "admin").map((r) => r.user_id)));
+    setSuperiorAdmins(new Set(roles.filter((r) => r.role === "superior_admin").map((r) => r.user_id)));
     setModerators(new Set(roles.filter((r) => r.role === "moderator").map((r) => r.user_id)));
     setAdvisers(new Set(roles.filter((r) => r.role === "adviser").map((r) => r.user_id)));
     setReports(reportsData.data || []);
@@ -318,11 +320,12 @@ const Admin = () => {
           </div>
           <div className="space-y-1 max-h-80 overflow-y-auto scrollbar-thin">
             {filtered.map((u) => {
+              const isSuperAdmin = superiorAdmins.has(u.user_id);
               const isUserAdmin = admins.has(u.user_id);
               const isMod = moderators.has(u.user_id);
               const isAdv = advisers.has(u.user_id);
-              const currentRole: "admin" | "moderator" | "adviser" | "none" =
-                isUserAdmin ? "admin" : isMod ? "moderator" : isAdv ? "adviser" : "none";
+              const currentRole: AdminRole =
+                isSuperAdmin ? "superior_admin" : isUserAdmin ? "admin" : isMod ? "moderator" : isAdv ? "adviser" : "none";
               return (
                 <div key={u.id} className="flex flex-col gap-2 px-2 py-2 bg-card border border-border/50 rounded-lg">
                   <Link to={`/profile/${u.user_id}`} className="flex items-center gap-3 flex-1 min-w-0">
@@ -336,7 +339,8 @@ const Admin = () => {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-foreground truncate flex items-center gap-1.5">
                         {u.display_name || "Unnamed"}
-                        {isUserAdmin && <Shield className="w-3 h-3 text-primary" />}
+                        {isSuperAdmin && <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/15 text-primary font-semibold">SUPER ADMIN</span>}
+                        {!isSuperAdmin && isUserAdmin && <Shield className="w-3 h-3 text-primary" />}
                         {isMod && <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">MOD</span>}
                         {isAdv && <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">ADV</span>}
                       </p>
@@ -345,13 +349,19 @@ const Admin = () => {
                   </Link>
                   <select
                     value={currentRole}
-                    onChange={(e) => setRole(u.user_id, e.target.value as AdminRole)}
+                    disabled={isSuperAdmin}
+                    onChange={(e) => {
+                      if (e.target.value !== "superior_admin") {
+                        setRole(u.user_id, e.target.value as Exclude<AdminRole, "superior_admin">);
+                      }
+                    }}
                     className="text-xs bg-surface border border-border/50 rounded px-2 py-1 text-foreground"
                   >
                     <option value="none">User</option>
                     <option value="adviser">Adviser (read-only)</option>
                     <option value="moderator">Moderator</option>
                     <option value="admin">Admin</option>
+                    <option value="superior_admin">Superior Admin (protected)</option>
                   </select>
                 </div>
               );
