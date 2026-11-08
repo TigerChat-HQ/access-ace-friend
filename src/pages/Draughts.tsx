@@ -241,7 +241,7 @@ const Draughts = () => {
       const { data: latest } = await supabase.from("draft_matches").select("*").eq("id", match.id).maybeSingle();
       if (latest) setMatch(latest as unknown as MatchRow);
     } else {
-      if (soundEnabled && !w) playDraughtsSound(piece ? "capture" : "move", soundVolume);
+      if (soundEnabled && !w) playDraughtsSound(move.promote ? "king" : move.captures.length > 0 ? "capture" : "move", soundVolume);
       setMatch(data as unknown as MatchRow);
     }
   };
