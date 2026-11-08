@@ -460,6 +460,7 @@ export type Database = {
         Row: {
           board: Json
           created_at: string
+          draw_offer_by: string | null
           current_turn: string
           id: string
           join_code: string
@@ -475,6 +476,7 @@ export type Database = {
         Insert: {
           board: Json
           created_at?: string
+          draw_offer_by?: string | null
           current_turn?: string
           id?: string
           join_code?: string
@@ -1240,6 +1242,16 @@ export type Database = {
         Args: { _member_ids: string[]; _name: string }
         Returns: string
       }
+      accept_draft_draw: {
+        Args: { p_id: string }
+        Returns: Database["public"]["Tables"]["draft_matches"]["Row"]
+      }
+      offer_draft_draw: {
+        Args: { p_id: string }
+        Returns: Database["public"]["Tables"]["draft_matches"]["Row"]
+      }
+      draughts_division: { Args: { p_points: number }; Returns: string }
+      close_draughts_season: { Args: { p_season_id?: string }; Returns: Json }
       ensure_admin_super_group: { Args: never; Returns: string }
       has_role: {
         Args: {
