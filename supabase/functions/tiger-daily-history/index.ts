@@ -17,7 +17,7 @@ Deno.serve(async(req:Request)=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:{"Access-Control-Allow-Origin":"*"}});
  try{
   const url=Deno.env.get("SUPABASE_URL"),key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),aiKey=Deno.env.get("LOVABLE_API_KEY");
-  if(!url||!key||!aiKey)return json({error:"Daily history service is not configured.",configured:{url:!!url,service_role:!!key,ai:!!aiKey}},500);
+  if(!url||!key)return json({error:"Daily history service is not configured.",configured:{url:!!url,service_role:!!key,ai:!!aiKey}},500);
   const body=await req.json().catch(()=>({}));
   const db=createClient(url,key);
   const {data:cfg}=await db.from("tiger_ai_daily_config").select("cron_token,enabled").eq("id",true).single();
@@ -38,18 +38,19 @@ Deno.serve(async(req:Request)=>{
   if(events.length<10||births.length<5)throw new Error("Vyanzo havina taarifa za kutosha; post haijachapishwa.");
   const eventInput=events.map((v,index)=>({index,year:v.year,event:v.text,title:page(v).title,source_url:page(v).content_urls?.desktop?.page}));
   const birthInput=births.map((v,index)=>({index,year:v.year,person:v.text,title:page(v).title,source_url:page(v).content_urls?.desktop?.page}));
-  const ai=await fetch("https://ai.gateway.lovable.dev/v1/chat/completions",{method:"POST",headers:{Authorization:`Bearer ${aiKey}`,"Content-Type":"application/json"},body:JSON.stringify({
-   model:"google/gemini-3-flash-preview",stream:false,response_format:{type:"json_object"},
-   messages:[
-    {role:"system",content:"Wewe ni mhariri wa historia wa TigerChat. Andika Kiswahili fasaha na kifupi. Tumia data iliyotolewa pekee; usibuni tukio, mwaka, mtu wala maelezo. Chagua matukio 5 yenye matokeo mazuri/maendeleo chanya na matukio 5 mabaya/ya kusikitisha kutoka orodha ya matukio; pia watu 5 maarufu waliozaliwa tarehe hii. Usirudie. Kwa kila kipengele toa index halisi ya chanzo na summary ya sentensi moja. Rudisha JSON tu yenye arrays positive_events, negative_events, births; kila item {index,summary}."},
-    {role:"user",content:`Tarehe Tanzania: ${dateKey}. Matukio: ${JSON.stringify(eventInput)}. Waliozaliwa: ${JSON.stringify(birthInput)}. Toa vipengele 5 kwa kila kundi.`}
-   ]
-  })});
-  if(!ai.ok)throw new Error(`AI generation failed: ${ai.status}`);
-  const aiData=await ai.json(),raw=aiData.choices?.[0]?.message?.content;
-  const result=typeof raw==="string"?JSON.parse(raw):raw;
-  const good=mapPicks(result?.positive_events,events),bad=mapPicks(result?.negative_events,events),born=mapPicks(result?.births,births);
-  if(good.length!==5||bad.length!==5||born.length<3)throw new Error("AI haikupata vipengele vya kutosha vyenye vyanzo; hakuna kilichochapishwa.");
+  // Build short summaries directly from Wikimedia's dated historical records.
+  // This keeps the daily publisher self-contained and does not depend on an unconfigured AI API secret.
+  const positiveWords = /independence|liberat|peace|treaty|discover|invent|founded|establish|launch|opened|first|elected|victory|award|won|rights|reform|success|agreement|united|freedom|abolish|rescue|saved|cure|vaccine|mission|democracy|constitution|ratified|created|completed/i;
+  const negativeWords = /war|attack|bomb|massacre|killed|death|died|disaster|earthquake|tsunami|flood|fire|crash|explosion|assassin|murder|invasion|genocide|terror|hurricane|plague|epidemic|pandemic|battle|riot|collapse|sank|execution|slavery|famine|tragedy/i;
+  const makeSummary = (item: WikiItem) => String(item.text || "Tukio limerekodiwa katika historia.").trim().slice(0, 240);
+  const score = (item: WikiItem, pattern: RegExp) => (makeSummary(item).match(new RegExp(pattern.source, "gi")) || []).length;
+  const rankedPositive = events.map((v,i)=>({v,i,s:score(v,positiveWords)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s);
+  const rankedNegative = events.map((v,i)=>({v,i,s:score(v,negativeWords)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s);
+  const used = new Set<number>();
+  const positive = rankedPositive.filter(x=>{if(used.has(x.i))return false;used.add(x.i);return true;}).slice(0,5).map(x=>({year:x.v.year??null,title:page(x.v).title||x.v.text||"Tukio la kihistoria",summary:makeSummary(x.v),source_url:page(x.v).content_urls?.desktop?.page||"https://en.wikipedia.org/wiki/Portal:Current_events"}));
+  const negative = rankedNegative.filter(x=>!used.has(x.i)).slice(0,5).map(x=>({year:x.v.year??null,title:page(x.v).title||x.v.text||"Tukio la kihistoria",summary:makeSummary(x.v),source_url:page(x.v).content_urls?.desktop?.page||"https://en.wikipedia.org/wiki/Portal:Current_events"}));
+  const born = births.slice(0,5).map(v=>({year:v.year??null,title:page(v).title||v.text||"Mtu maarufu",summary:makeSummary(v),source_url:page(v).content_urls?.desktop?.page||"https://en.wikipedia.org/wiki/Main_Page"}));
+  if(positive.length!==5||negative.length!==5||born.length<3)throw new Error("Chanzo hakina matukio ya kutosha ya aina zote; post haijachapishwa ili kuepuka kubuni taarifa.");
   const content={positive_events:good,negative_events:bad,births:born};
   const source_urls=[...new Set([...good,...bad,...born].map(x=>x.source_url))];
   const {error}=await db.from("tiger_ai_daily_posts").insert({date_key:dateKey,title:`Leo katika historia — ${dateKey}`,content,source_urls});
