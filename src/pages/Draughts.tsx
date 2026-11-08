@@ -6,6 +6,7 @@ import type { Json, Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { BoardAppearance, useDraughtsAppearance } from "@/components/draughts/BoardAppearance";
 import {
   Board, Color, Move, applyMove, initialBoard, isDark, legalMoves,
   pickAIMove, winner,
@@ -23,6 +24,7 @@ const Draughts = () => {
   const nav = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { theme, setTheme, pieceStyle, setPieceStyle, boardStyle } = useDraughtsAppearance();
   const [mode, setMode] = useState<Mode>("menu");
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
@@ -431,9 +433,10 @@ const Draughts = () => {
         </div>
       </div>
 
+      <div className="px-3 pt-3"><BoardAppearance theme={theme} setTheme={setTheme} pieceStyle={pieceStyle} setPieceStyle={setPieceStyle} /></div>
       <div className="flex-1 min-h-0 overflow-y-auto flex items-center justify-center p-3 sm:p-5 bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.10),transparent_68%)]">
-        <div className="w-full max-w-[520px] rounded-[22px] p-2 sm:p-3 bg-gradient-to-br from-amber-200 via-amber-700 to-amber-950 shadow-[0_22px_45px_-16px_rgba(0,0,0,0.85),inset_0_2px_3px_rgba(255,255,255,0.55),inset_0_-5px_10px_rgba(0,0,0,0.65)] ring-1 ring-amber-300/50">
-          <div className="aspect-square w-full grid grid-cols-8 overflow-hidden rounded-md border-[3px] border-amber-950/80 shadow-[inset_0_4px_12px_rgba(0,0,0,0.55)]">
+        <div style={boardStyle} className="draught-frame w-full max-w-[520px] rounded-[22px] p-2 sm:p-3 shadow-[0_22px_45px_-16px_rgba(0,0,0,0.85),inset_0_2px_3px_rgba(255,255,255,0.55),inset_0_-5px_10px_rgba(0,0,0,0.65)] ring-1 ring-white/30">
+          <div className="aspect-square w-full grid grid-cols-8 overflow-hidden rounded-md border-[3px] border-black/50 shadow-[inset_0_4px_12px_rgba(0,0,0,0.55)]">
             {Array.from({ length: 64 }).map((_, gridIdx) => {
               const i = isFlipped ? 63 - gridIdx : gridIdx;
               const r = Math.floor(i / 8), c = i % 8;
@@ -451,10 +454,7 @@ const Draughts = () => {
                 >
                   {dest && <span className={`absolute z-0 rounded-full bg-primary/70 shadow-[0_0_12px_hsl(var(--primary)/0.8)] animate-pulse ${piece ? "inset-0 opacity-35 rounded-none" : "w-3 h-3 sm:w-4 sm:h-4"}`} />}
                   {piece && (
-                    <div className={`relative z-[1] w-[78%] aspect-square rounded-full flex items-center justify-center transition-transform duration-150 ${sel ? "scale-110 -translate-y-1" : ""} ${piece.c === "w"
-                      ? "bg-[radial-gradient(circle_at_32%_24%,#ffffff_0%,#f8fafc_22%,#cbd5e1_58%,#64748b_100%)] border-[2px] border-white/90 shadow-[0_5px_0_#64748b,0_8px_10px_rgba(0,0,0,0.55),inset_0_2px_4px_rgba(255,255,255,0.95)]"
-                      : "bg-[radial-gradient(circle_at_32%_22%,#71717a_0%,#27272a_30%,#09090b_72%,#000000_100%)] border-[2px] border-zinc-500 shadow-[0_5px_0_#09090b,0_8px_10px_rgba(0,0,0,0.7),inset_0_2px_4px_rgba(255,255,255,0.35)]"
-                    }`}>
+                    <div className={`relative z-[1] w-[78%] aspect-square rounded-full flex items-center justify-center transition-transform duration-150 ${sel ? "scale-110 -translate-y-1" : ""} $piece.c === "w" ? "draught-piece-online-white" : "draught-piece-online-black"`}>
                       <span className="absolute left-[18%] top-[12%] w-[30%] h-[15%] rounded-full bg-white/55 blur-[2px]" />
                       {piece.k && <span className="relative flex items-center justify-center w-[68%] h-[68%] rounded-full border border-amber-400/80 bg-gradient-to-br from-amber-100 via-yellow-500 to-amber-800 shadow-[inset_0_1px_3px_rgba(255,255,255,0.8),0_2px_4px_rgba(0,0,0,0.5)]"><Crown className="w-[72%] h-[72%] text-amber-950 drop-shadow-sm" /></span>}
                     </div>
