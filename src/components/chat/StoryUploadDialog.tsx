@@ -297,8 +297,10 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
           )}
 
           {!mediaFile && (
-            <div className="rounded-xl p-4 min-h-28 flex items-center justify-center" style={{ backgroundColor }}>
+            <div className="relative rounded-xl p-4 min-h-28 flex items-center justify-center" style={{ backgroundColor }}>
               <textarea value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={700} placeholder="What's on your mind?" className="w-full bg-transparent text-white text-center text-lg font-semibold placeholder:text-white/70 resize-none outline-none" rows={3} />
+              {textOverlay && <span className="absolute top-2 inset-x-3 text-center text-sm font-bold px-2 py-1 rounded pointer-events-none" style={{ color: textColor, backgroundColor: textBackground }}>{textOverlay}</span>}
+              {sticker && <span className="absolute bottom-2 right-3 text-4xl pointer-events-none">{sticker}</span>}
             </div>
           )}
           {mediaFile && <Input value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={700} placeholder="Add a caption..." className="bg-surface border-border/50" />}
