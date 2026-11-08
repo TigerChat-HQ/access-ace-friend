@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import { AnnouncementComposer } from "@/components/admin/AnnouncementComposer";
 import { GameAdmin } from "@/components/admin/GameAdmin";
+import { DraughtsAdminControl } from "@/components/admin/DraughtsAdminControl";
 import { TigerCommandCenter } from "@/components/admin/TigerCommandCenter";
 import { ReportReplyDialog } from "@/components/admin/ReportReplyDialog";
 
@@ -363,6 +364,8 @@ const Admin = () => {
             ))}
           </div>
         </section>
+
+        <DraughtsAdminControl />
 
         <TigerCommandCenter />
 
