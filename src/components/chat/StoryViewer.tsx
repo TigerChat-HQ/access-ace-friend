@@ -46,7 +46,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
   const [floaters, setFloaters] = useState<{ id: string; emoji: string; left: number }[]>([]);
   const [tigerTrigger, setTigerTrigger] = useState(0);
   const [commentsOpen, setCommentsOpen] = useState(false);
-  const [comments, setComments] = useState<{ id: string; content: string; user_id: string }[]>([]);
+  const [comments, setComments] = useState<{ id: string; content: string; user_id: string; user_name: string }[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
   const [viewCount, setViewCount] = useState(0);
@@ -68,7 +68,24 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
     setFloaters([]);
     setCommentsOpen(false);
     setCommentDraft("");
+    setViewCount(0);
   }, [currentIndex]);
+
+  // Load owner view count and keep it live.
+  useEffect(() => {
+    if (!story || !isOwner) return;
+    let active = true;
+    const refreshViews = async () => {
+      const { count, error } = await supabase.from("story_views").select("id", { count: "exact", head: true }).eq("story_id", story.id);
+      if (!error && active) setViewCount(count || 0);
+    };
+    void refreshViews();
+    const channel = supabase.channel(`story-views-${story.id}-${crypto.randomUUID()}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "story_views", filter: `story_id=eq.${story.id}` }, () => {
+        if (active) setViewCount(value => value + 1);
+      }).subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
+  }, [story?.id, isOwner]);
 
   // Load existing reaction counts (visible to owner & self)
   useEffect(() => {
@@ -92,19 +109,30 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
   useEffect(() => {
     if (!story) return;
     let active = true;
-    void supabase.from("messages")
+    const loadComments = async () => {
+      const { data, error } = await supabase.from("messages")
       .select("id, content, sender_id")
       .eq("status_context->>story_id", story.id)
       .order("created_at", { ascending: true })
-      .then(({ data, error }) => {
-        if (!active) return;
-        if (error) {
-          console.warn("Could not load story comments:", error.message);
-          return;
-        }
-        setComments((data || []).map(m => ({ id: m.id, content: m.content || "", user_id: m.sender_id })));
-      });
-    return () => { active = false; };
+      ;
+      if (!active) return;
+      if (error) { console.warn("Could not load story comments:", error.message); return; }
+      const rows = data || [];
+      const ids = [...new Set(rows.map(m => m.sender_id))];
+      const { data: profiles } = ids.length ? await supabase.from("profiles").select("user_id, display_name").in("user_id", ids) : { data: [] };
+      const names = new Map((profiles || []).map(profile => [profile.user_id, profile.display_name || "User"]));
+      if (active) setComments(rows.map(m => ({ id: m.id, content: m.content || "", user_id: m.sender_id, user_name: names.get(m.sender_id) || "User" })));
+    };
+    void loadComments();
+    const channel = supabase.channel(`story-comments-${story.id}-${crypto.randomUUID()}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
+        const row = payload.new as { id: string; content: string | null; sender_id: string; status_context?: { story_id?: string } | null };
+        if (row.status_context?.story_id !== story.id) return;
+        void supabase.from("profiles").select("display_name").eq("user_id", row.sender_id).maybeSingle().then(({ data: profile }) => {
+          if (active) setComments(current => current.some(item => item.id === row.id) ? current : [...current, { id: row.id, content: row.content || "", user_id: row.sender_id, user_name: profile?.display_name || "User" }]);
+        });
+      }).subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
   }, [story?.id]);
 
   const sendComment = async () => {
@@ -171,7 +199,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
     }, tickMs);
 
     if (currentUserId && story && story.userId !== currentUserId) {
-      void supabase.from("story_views").insert({ story_id: story.id, viewer_id: currentUserId }).then(({ error }) => {
+      void supabase.from("story_views").upsert({ story_id: story.id, viewer_id: currentUserId }, { onConflict: "story_id,viewer_id", ignoreDuplicates: true }).then(({ error }) => {
         if (error) console.warn("Could not record story view:", error.message);
       });
     }
@@ -362,12 +390,12 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
       {commentsOpen && (
         <div className="absolute bottom-20 left-3 right-3 z-30 max-h-56 rounded-xl bg-background/95 text-foreground backdrop-blur border border-border shadow-xl p-3 flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold">Private replies ({comments.length})</p>
+            <p className="text-sm font-semibold">{isOwner ? `Status activity · ${comments.length} comments` : `Private replies (${comments.length})`}</p>
             <button type="button" onClick={() => setCommentsOpen(false)} className="text-xs text-muted-foreground">Close</button>
           </div>
           <div className="overflow-y-auto min-h-0 space-y-2">
             {comments.length === 0 ? <p className="text-xs text-muted-foreground">Be the first to reply.</p> : comments.map((comment) => (
-              <p key={comment.id} className="text-sm break-words"><span className="font-semibold">User</span> {comment.content}</p>
+              <p key={comment.id} className="text-sm break-words"><span className="font-semibold">{comment.user_name}</span> {comment.content}</p>
             ))}
           </div>
           {!isOwner && currentUserId && (
