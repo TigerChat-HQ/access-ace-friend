@@ -1,0 +1,2 @@
+-- Conversation leave/delete policies are defined in 20261105000003_delete_conversations.sql.
+-- This version marker preserves the already-applied remote migration history.
