@@ -147,7 +147,7 @@ const Chats = () => {
       lastEmojiSoundMessageRef.current = newest.id;
       const isIncoming = newest.sender_id !== user?.id;
       const content = newest.content || "";
-      const emojiOnly = /^(?:\p{Extended_Pictographic}|\uFE0F|\u200D|\\s)+$/u.test(content.trim()) && Array.from(content.trim()).length <= 8;
+      const emojiOnly = /^(?:\p{Extended_Pictographic}|\uFE0F|\u200D|\s)+$/u.test(content.trim()) && Array.from(content.trim()).length <= 8;
       if (isIncoming && emojiOnly && localStorage.getItem(CHAT_EMOJI_SOUND_KEY) !== "false") playChatEmojiSound(content.trim());
     }
   }, [messages, user?.id, activeChat]);
