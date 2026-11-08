@@ -18,6 +18,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS draft_matches_join_code_key
 -- A joining player is not yet a participant, so the previous policy prevented
 -- every opponent from claiming the empty black-player slot.
 DROP POLICY IF EXISTS "Players update their matches" ON public.draft_matches;
+DROP POLICY IF EXISTS "Players update or join matches" ON public.draft_matches;
 CREATE POLICY "Players update or join matches"
 ON public.draft_matches
 FOR UPDATE TO authenticated
