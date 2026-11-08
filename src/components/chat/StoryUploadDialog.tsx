@@ -146,7 +146,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
       const overlayMetadata = {
         ...(textOverlay.trim() ? { text: textOverlay.trim(), text_color: textColor, text_background: textBackground } : {}),
         ...(sticker ? { sticker } : {}),
-        ...(musicUrl ? { music_start: music?.start ?? 0, music_end: music?.end ?? localMusicDuration } : {}),
+        ...(musicUrl ? { music_start: music?.start ?? 0, music_end: music?.end ?? localMusicDuration, music_title: music?.title || localMusicFile?.name || "Background music" } : {}),
         ...(imageFilter !== "none" ? { image_filter: imageFilter } : {}),
       };
       const { error } = await db.from("stories").insert({
