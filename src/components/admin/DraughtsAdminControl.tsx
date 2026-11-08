@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Award, Bot, CalendarCheck, Plus, ShieldCheck } from "lucide-react";
+import { Award, Bot, CalendarCheck, Plus, ShieldCheck, Activity, Users, Clock3 } from "lucide-react";
 
 type BadgeType = { id: string; badge_name: string; emoji: string; description: string; award_rule: string; threshold: number; is_enabled: boolean };
 type Settings = { seasons_enabled: boolean; tiger_ai_supervisor_enabled: boolean };
@@ -18,6 +18,10 @@ export function DraughtsAdminControl() {
   const [rule, setRule] = useState("top_n");
   const [threshold, setThreshold] = useState(10);
   const [saving, setSaving] = useState(false);
+  const [liveCounts, setLiveCounts] = useState({ active: 0, waiting: 0, total: 0 });
+  const [liveLoading, setLiveLoading] = useState(true);
+  const [liveError, setLiveError] = useState<string | null>(null);
+  const [lastLiveUpdate, setLastLiveUpdate] = useState<Date | null>(null);
 
   const load = async () => {
     const [s, b, active] = await Promise.all([
@@ -29,7 +33,39 @@ export function DraughtsAdminControl() {
     setBadges((b.data || []) as BadgeType[]);
     setSeason(active.data);
   };
-  useEffect(() => { void load(); }, []);
+  const loadLiveCounts = useCallback(async () => {
+    const { data, error } = await supabase.from("draft_matches").select("id,status");
+    if (error) {
+      setLiveError(error.message);
+      setLiveLoading(false);
+      return;
+    }
+    const rows = data || [];
+    setLiveCounts({
+      active: rows.filter(row => row.status === "active").length,
+      waiting: rows.filter(row => row.status === "waiting").length,
+      total: rows.length,
+    });
+    setLiveError(null);
+    setLastLiveUpdate(new Date());
+    setLiveLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void load();
+    void loadLiveCounts();
+    const channel = supabase.channel("draughts-admin-live-counts")
+      .on("postgres_changes", { event: "*", schema: "public", table: "draft_matches" }, () => {
+        void loadLiveCounts();
+      })
+      .subscribe();
+    // Reconcile periodically in case a realtime event is missed while a device is offline.
+    const refresh = window.setInterval(() => { void loadLiveCounts(); }, 30000);
+    return () => {
+      window.clearInterval(refresh);
+      void supabase.removeChannel(channel);
+    };
+  }, [loadLiveCounts]);
 
   const updateSetting = async (key: keyof Settings, value: boolean) => {
     const next = { ...settings, [key]: value };
@@ -66,6 +102,27 @@ export function DraughtsAdminControl() {
 
   return <section className="rounded-2xl border border-border/60 bg-card p-4 space-y-4">
     <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary"/><div><h2 className="font-bold text-sm">Draughts Season & Badge Control</h2><p className="text-xs text-muted-foreground">Admin-only controls · Active: {season?.name || "No active season"}</p></div></div>
+    <div className="space-y-3 rounded-xl border border-primary/25 bg-primary/5 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2"><Activity className="h-4 w-4 text-primary"/><h3 className="text-sm font-bold">Live Draughts Sessions</h3></div>
+        <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600"><span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"/>LIVE</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-lg border border-border/50 bg-card p-3">
+          <div className="flex items-center gap-2 text-muted-foreground"><Activity className="h-4 w-4"/><span className="text-xs">Games in progress</span></div>
+          <p className="mt-1 text-2xl font-bold tabular-nums">{liveLoading ? "…" : liveCounts.active}</p>
+        </div>
+        <div className="rounded-lg border border-border/50 bg-card p-3">
+          <div className="flex items-center gap-2 text-muted-foreground"><Users className="h-4 w-4"/><span className="text-xs">Waiting rooms</span></div>
+          <p className="mt-1 text-2xl font-bold tabular-nums">{liveLoading ? "…" : liveCounts.waiting}</p>
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+        <span>{liveLoading ? "Loading live data…" : `${liveCounts.total} total saved matches`}</span>
+        <span className="flex items-center gap-1"><Clock3 className="h-3 w-3"/>{lastLiveUpdate ? `Updated ${lastLiveUpdate.toLocaleTimeString()}` : "Waiting for data"}</span>
+      </div>
+      {liveError && <p role="alert" className="text-xs text-destructive">Live session data unavailable: {liveError}</p>}
+    </div>
     <label className="flex items-center justify-between gap-3 rounded-xl bg-muted/40 p-3"><span className="text-sm font-medium">Enable season management and awards</span><input type="checkbox" checked={settings.seasons_enabled} onChange={e => void updateSetting("seasons_enabled", e.target.checked)} /></label>
     <label className="flex items-center justify-between gap-3 rounded-xl bg-muted/40 p-3"><span className="flex items-center gap-2 text-sm font-medium"><Bot className="h-4 w-4"/>Tiger AI game supervisor</span><input type="checkbox" checked={settings.tiger_ai_supervisor_enabled} onChange={e => void updateSetting("tiger_ai_supervisor_enabled", e.target.checked)} /></label>
     <Button className="w-full" disabled={!settings.seasons_enabled || saving || !season} onClick={closeSeason}><CalendarCheck className="mr-2 h-4 w-4"/>Close season & award enabled badges</Button>
