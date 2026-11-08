@@ -51,8 +51,8 @@ Deno.serve(async(req:Request)=>{
   const negative = rankedNegative.filter(x=>!used.has(x.i)).slice(0,5).map(x=>({year:x.v.year??null,title:page(x.v).title||x.v.text||"Tukio la kihistoria",summary:makeSummary(x.v),source_url:page(x.v).content_urls?.desktop?.page||"https://en.wikipedia.org/wiki/Portal:Current_events"}));
   const born = births.slice(0,5).map(v=>({year:v.year??null,title:page(v).title||v.text||"Mtu maarufu",summary:makeSummary(v),source_url:page(v).content_urls?.desktop?.page||"https://en.wikipedia.org/wiki/Main_Page"}));
   if(positive.length!==5||negative.length!==5||born.length<3)throw new Error("Chanzo hakina matukio ya kutosha ya aina zote; post haijachapishwa ili kuepuka kubuni taarifa.");
-  const content={positive_events:good,negative_events:bad,births:born};
-  const source_urls=[...new Set([...good,...bad,...born].map(x=>x.source_url))];
+  const content={positive_events:positive,negative_events:negative,births:born};
+  const source_urls=[...new Set([...positive,...negative,...born].map(x=>x.source_url))];
   const {error}=await db.from("tiger_ai_daily_posts").insert({date_key:dateKey,title:`Leo katika historia — ${dateKey}`,content,source_urls});
   if(error){if(error.code==="23505")return json({success:true,already_published:true,date:dateKey});throw error;}
   return json({success:true,published:true,date:dateKey,positive:good.length,negative:bad.length,births:born.length});
