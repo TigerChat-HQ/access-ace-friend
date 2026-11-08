@@ -492,6 +492,7 @@ export type Database = {
         Update: {
           board?: Json
           created_at?: string
+          draw_offer_by?: string | null
           current_turn?: string
           id?: string
           join_code?: string
