@@ -1,59 +1,19 @@
 name: Deploy TIGERCHAT to Cloudflare Pages
 
+# TigerChat is published through Lovable. Cloudflare deployment is intentionally
+# disabled so pushes to main do not attempt an unrequested Cloudflare release.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: tigerchat-cloudflare-pages-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  build-and-deploy:
+  publishing-target:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout exact GitHub revision
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Prepare npm lockfile
-        run: npm install --package-lock-only --ignore-scripts --no-audit
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Verify required public build configuration
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      - name: Confirm publishing target
         run: |
-          test -n "$VITE_SUPABASE_URL" || { echo "::error::Missing GitHub Actions secret VITE_SUPABASE_URL"; exit 1; }
-          test -n "$VITE_SUPABASE_PUBLISHABLE_KEY" || { echo "::error::Missing GitHub Actions secret VITE_SUPABASE_PUBLISHABLE_KEY"; exit 1; }
-
-      - name: Type check
-        run: npm run typecheck
-
-      - name: Run tests
-        run: npm run test
-
-      - name: Build production site
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
-        run: npm run build
-
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=tigerchat-web --branch=main
+          echo "Cloudflare deployment is disabled by project publishing policy."
+          echo "Use the connected Lovable project to preview and publish TigerChat."
+          echo "No deployment was attempted."
