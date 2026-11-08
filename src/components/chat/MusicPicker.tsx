@@ -98,7 +98,7 @@ export const MusicPicker = ({ trigger, value, onChange, maxClip = MAX_DEFAULT }:
         <div className="space-y-3">
           <div className="flex flex-wrap gap-1">
             {["All", "Happy", "Sad", "Love", "Motivation"].map((mood) => (
-              <button key={mood} type="button" onClick={() => setMoodFilter(mood)} className={`rounded-full px-3 py-1 text-xs ${moodFilter === mood ? "bg-primary text-primary-foreground" : "bg-surface text-muted-foreground"}`}>{mood}</button>
+              <button key={mood} type="button" onClick={() => setMoodFilter(mood)} className={`rounded-full px-3 py-1 text-xs ${moodFilter === mood ? "bg-primary text-primary-foreground" : "bg-surface text-muted-foreground"}`}>{mood === "Love" ? "Love / Romantic" : mood}</button>
             ))}
           </div>
           <div className="max-h-56 overflow-y-auto scrollbar-thin space-y-1 -mx-2 px-2">
