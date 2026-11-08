@@ -454,7 +454,7 @@ const Draughts = () => {
                 >
                   {dest && <span className={`absolute z-0 rounded-full bg-primary/70 shadow-[0_0_12px_hsl(var(--primary)/0.8)] animate-pulse ${piece ? "inset-0 opacity-35 rounded-none" : "w-3 h-3 sm:w-4 sm:h-4"}`} />}
                   {piece && (
-                    <div className={`relative z-[1] w-[78%] aspect-square rounded-full flex items-center justify-center transition-transform duration-150 ${sel ? "scale-110 -translate-y-1" : ""} $piece.c === "w" ? "draught-piece-online-white" : "draught-piece-online-black"`}>
+                    <div className={`relative z-[1] w-[78%] aspect-square rounded-full flex items-center justify-center transition-transform duration-150 ${sel ? "scale-110 -translate-y-1" : ""} ${piece.c === "w" ? "draught-piece-online-white" : "draught-piece-online-black"}`}>
                       <span className="absolute left-[18%] top-[12%] w-[30%] h-[15%] rounded-full bg-white/55 blur-[2px]" />
                       {piece.k && <span className="relative flex items-center justify-center w-[68%] h-[68%] rounded-full border border-amber-400/80 bg-gradient-to-br from-amber-100 via-yellow-500 to-amber-800 shadow-[inset_0_1px_3px_rgba(255,255,255,0.8),0_2px_4px_rgba(0,0,0,0.5)]"><Crown className="w-[72%] h-[72%] text-amber-950 drop-shadow-sm" /></span>}
                     </div>
