@@ -130,3 +130,28 @@ REVOKE ALL ON FUNCTION public.reply_to_status(uuid,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.reply_to_status(uuid,text) TO authenticated;
 
 ALTER PUBLICATION supabase_realtime ADD TABLE public.story_comments;
+
+DROP POLICY IF EXISTS "Users record views" ON public.story_views;
+CREATE POLICY "Users record views" ON public.story_views
+FOR INSERT TO authenticated
+WITH CHECK (
+  auth.uid() = viewer_id
+  AND EXISTS (
+    SELECT 1 FROM public.stories s
+    WHERE s.id = story_views.story_id AND s.expires_at > now()
+      AND s.user_id <> auth.uid()
+      AND (
+        s.audience = 'everyone'
+        OR (
+          s.audience = 'contacts'
+          AND EXISTS (SELECT 1 FROM public.follows f WHERE f.follower_id = auth.uid() AND f.following_id = s.user_id)
+          AND EXISTS (SELECT 1 FROM public.follows f WHERE f.follower_id = s.user_id AND f.following_id = auth.uid())
+          AND NOT EXISTS (
+            SELECT 1 FROM public.blocks b
+            WHERE (b.blocker_id = auth.uid() AND b.blocked_id = s.user_id)
+               OR (b.blocker_id = s.user_id AND b.blocked_id = auth.uid())
+          )
+        )
+      )
+  )
+);
