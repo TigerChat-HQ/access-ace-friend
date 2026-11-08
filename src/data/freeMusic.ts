@@ -23,6 +23,6 @@ export const FREE_TRACKS: FreeTrack[] = [
     url: "https://cdn.pixabay.com/download/audio/2022/03/10/audio_99fc832300.mp3" },
   { id: "trap-1", title: "Trap Drift", artist: "Pixabay", duration: 130, mood: "Motivation",
     url: "https://cdn.pixabay.com/download/audio/2023/02/28/audio_550d875f4f.mp3" },
-  { id: "rock-1", title: "Rock Energy", artist: "Pixabay", duration: 154, mood: "Energetic",
+  { id: "rock-1", title: "Rock Energy", artist: "Pixabay", duration: 154, mood: "Happy",
     url: "https://cdn.pixabay.com/download/audio/2022/09/26/audio_72b5ad58cb.mp3" },
 ];
