@@ -381,7 +381,7 @@ const Admin = () => {
 
         {selectedSection === "draughts" && <DraughtsAdminControl />}
         {selectedSection === "developer" && <TigerCommandCenter />}
-        {selectedSection === "games" && <GameAdmin />
+        {selectedSection === "games" && <GameAdmin />}
       </div>
 
       {replyTarget && (
