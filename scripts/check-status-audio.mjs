@@ -15,9 +15,10 @@ async function checkTrack(track) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
   try {
-    let response = await fetch(track.url, { method: "HEAD", redirect: "follow", signal: controller.signal });
+    const headers = { "User-Agent": "Mozilla/5.0 TIGERCHAT status-audio-check", Referer: "https://mixkit.co/" };
+    let response = await fetch(track.url, { method: "HEAD", headers, redirect: "follow", signal: controller.signal });
     if (response.status === 405 || response.status === 403) {
-      response = await fetch(track.url, { method: "GET", headers: { Range: "bytes=0-0" }, redirect: "follow", signal: controller.signal });
+      response = await fetch(track.url, { method: "GET", headers: { ...headers, Range: "bytes=0-0" }, redirect: "follow", signal: controller.signal });
       await response.body?.cancel();
     }
     if (!response.ok) throw new Error("HTTP " + response.status);
