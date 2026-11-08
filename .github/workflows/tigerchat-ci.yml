@@ -38,7 +38,7 @@ jobs:
       - name: Lint changed Stage 2 files
         run: |
           npx eslint src/lib/tiger-planner.test.ts
-          bunx eslint supabase/functions/tiger-dev-planner/index.ts
+          npx eslint supabase/functions/tiger-dev-planner/index.ts
 
       - name: Full repository lint
         run: npm run lint
