@@ -29,8 +29,8 @@ export function playDraughtsSound(kind: "move" | "capture" | "win", volume = 0.6
 }
 
 
-const LAUGH_AUDIO_URL = "https://sfxmint.com/dl/laugh-02.mp3";
-const TIGER_ROAR_AUDIO_URL = "https://sfxmint.com/dl/short-tiger-roar-01.mp3";
+// Real human recording, released into the public domain by its author (ezwa).\nconst LAUGH_AUDIO_URL = "https://commons.wikimedia.org/wiki/Special:Redirect/file/Laughter.ogg";
+// Tiger roar recording by Bilberryerer, CC BY-SA 4.0 (Wikimedia Commons).\nconst TIGER_ROAR_AUDIO_URL = "https://commons.wikimedia.org/wiki/Special:Redirect/file/Tiger_Mad.ogg";
 
 export function playReactionSound(emoji: string, volume = 0.65) {
   if (volume <= 0 || emoji !== "😂") return;
