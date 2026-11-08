@@ -92,6 +92,7 @@ const Chats = () => {
   }, [activeChat]);
 
   const lastEmojiSoundMessageRef = useRef<string | null>(null);
+  const lastEmojiSoundConversationRef = useRef<string | null>(activeChat);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
 
@@ -136,15 +137,20 @@ const Chats = () => {
   useEffect(() => {
     const newest = messages[messages.length - 1];
     if (!newest) return;
+    if (lastEmojiSoundConversationRef.current !== activeChat) {
+      lastEmojiSoundConversationRef.current = activeChat;
+      lastEmojiSoundMessageRef.current = newest.id;
+      return;
+    }
     if (lastEmojiSoundMessageRef.current === null) { lastEmojiSoundMessageRef.current = newest.id; return; }
     if (lastEmojiSoundMessageRef.current !== newest.id) {
       lastEmojiSoundMessageRef.current = newest.id;
       const isIncoming = newest.sender_id !== user?.id;
       const content = newest.content || "";
-      const emojiOnly = /^(?:\\p{Extended_Pictographic}|\\uFE0F|\\u200D|\\s)+$/u.test(content.trim()) && Array.from(content.trim()).length <= 8;
+      const emojiOnly = /^(?:\p{Extended_Pictographic}|\uFE0F|\u200D|\\s)+$/u.test(content.trim()) && Array.from(content.trim()).length <= 8;
       if (isIncoming && emojiOnly && localStorage.getItem(CHAT_EMOJI_SOUND_KEY) !== "false") playChatEmojiSound(content.trim());
     }
-  }, [messages, user?.id]);
+  }, [messages, user?.id, activeChat]);
 
   useEffect(() => {
     setChatSearchOpen(false);
