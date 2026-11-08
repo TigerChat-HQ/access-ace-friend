@@ -507,6 +507,30 @@ export type Database = {
         }
         Relationships: []
       }
+      draughts_seasons: {
+        Row: { id: string; name: string; starts_at: string; ends_at: string | null; is_active: boolean; created_at: string }
+        Insert: { id?: string; name: string; starts_at?: string; ends_at?: string | null; is_active?: boolean; created_at?: string }
+        Update: { id?: string; name?: string; starts_at?: string; ends_at?: string | null; is_active?: boolean; created_at?: string }
+        Relationships: []
+      }
+      draughts_player_stats: {
+        Row: { season_id: string; user_id: string; rating_points: number; wins: number; losses: number; draws: number; updated_at: string }
+        Insert: { season_id: string; user_id: string; rating_points?: number; wins?: number; losses?: number; draws?: number; updated_at?: string }
+        Update: { season_id?: string; user_id?: string; rating_points?: number; wins?: number; losses?: number; draws?: number; updated_at?: string }
+        Relationships: []
+      }
+      draughts_player_badges: {
+        Row: { id: string; season_id: string; user_id: string; rank: number; badge_name: string; show_on_profile: boolean; awarded_at: string }
+        Insert: { id?: string; season_id: string; user_id: string; rank: number; badge_name?: string; show_on_profile?: boolean; awarded_at?: string }
+        Update: { id?: string; season_id?: string; user_id?: string; rank?: number; badge_name?: string; show_on_profile?: boolean; awarded_at?: string }
+        Relationships: []
+      }
+      draughts_match_results: {
+        Row: { match_id: string; season_id: string; player_white: string; player_black: string; winner: string; white_points: number; black_points: number; completed_at: string }
+        Insert: { match_id: string; season_id: string; player_white: string; player_black: string; winner: string; white_points: number; black_points: number; completed_at?: string }
+        Update: { match_id?: string; season_id?: string; player_white?: string; player_black?: string; winner?: string; white_points?: number; black_points?: number; completed_at?: string }
+        Relationships: []
+      }
       follows: {
         Row: {
           created_at: string
