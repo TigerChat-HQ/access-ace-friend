@@ -55,6 +55,6 @@ Deno.serve(async(req:Request)=>{
   const source_urls=[...new Set([...positive,...negative,...born].map(x=>x.source_url))];
   const {error}=await db.from("tiger_ai_daily_posts").insert({date_key:dateKey,title:`Leo katika historia — ${dateKey}`,content,source_urls});
   if(error){if(error.code==="23505")return json({success:true,already_published:true,date:dateKey});throw error;}
-  return json({success:true,published:true,date:dateKey,positive:good.length,negative:bad.length,births:born.length});
+  return json({success:true,published:true,date:dateKey,positive:positive.length,negative:negative.length,births:born.length});
  }catch(e){console.error("Tiger AI daily history",e);return json({error:e instanceof Error?e.message:"Daily history failed"},500);}
 });
