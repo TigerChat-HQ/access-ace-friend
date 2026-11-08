@@ -371,9 +371,9 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
                 </label>
               </div>
             )}
-            <p className="text-xs text-muted-foreground">Phone audio (including vocals or spoken narration) is uploaded with the status. The selected 15-second segment plays in the story.</p>
+            <p className="text-xs text-muted-foreground">The built-in 20 tracks are instrumental. For vocals or spoken narration, choose an audio file or record your voice. A 15-second section is used in the story.</p>
           </div>
-          <Button onClick={handleUpload} disabled={loading || (!mediaFile && !caption.trim() && !textOverlay.trim())} className="w-full neon-glow">
+          <Button onClick={handleUpload} disabled={loading || recordingVoice || (!mediaFile && !caption.trim() && !textOverlay.trim())} className="w-full neon-glow">
             {loading ? "Posting..." : "Post Status"}
           </Button>
         </div>
