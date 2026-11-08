@@ -102,6 +102,26 @@ export const TigerCommandCenter = () => {
     } catch (error) { console.warn("Could not persist Tiger AI chat history:", error); }
   }, [devMessages]);
 
+  // Recover browser sessions invalidated when the app moved to the new Supabase project.
+  const invokePlanner = async (payload: Record<string, unknown>) => {
+    let result = await supabase.functions.invoke("tiger-dev-planner", { body: payload });
+    if (!result.error) return result;
+    const status = (result.error as { context?: Response }).context?.status;
+    if (status !== 401) return result;
+
+    const refreshed = await supabase.auth.refreshSession();
+    if (refreshed.error || !refreshed.data.session) {
+      await supabase.auth.signOut({ scope: "local" });
+      throw new Error("Session yako ya Supabase mpya si halali tena. Ingia tena kwenye TigerChat, kisha bonyeza Refresh GitHub.");
+    }
+    result = await supabase.functions.invoke("tiger-dev-planner", { body: payload });
+    if (result.error && (result.error as { context?: Response }).context?.status === 401) {
+      await supabase.auth.signOut({ scope: "local" });
+      throw new Error("Supabase imekataa session yako. Ingia tena kisha ujaribu Refresh GitHub.");
+    }
+    return result;
+  };
+
   const sendDevMessage = async (customText?: string) => {
     const textToSend = (customText ?? inputPrompt).trim();
     if (!textToSend || chatLoading) return;
@@ -127,9 +147,7 @@ export const TigerCommandCenter = () => {
         payload.inspect_file = inspectFile.trim();
       }
 
-      const { data, error } = await supabase.functions.invoke("tiger-dev-planner", {
-        body: payload,
-      });
+      const { data, error } = await invokePlanner(payload);
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
@@ -208,7 +226,7 @@ export const TigerCommandCenter = () => {
   useEffect(() => { void load(); }, [load]);
 
   const call = useCallback(async (body: Record<string, unknown>): Promise<PlannerResponse> => {
-    const { data, error } = await supabase.functions.invoke("tiger-dev-planner", { body });
+    const { data, error } = await invokePlanner(body);
     if (error) {
       const context = (error as { context?: unknown }).context;
       let detail = error.message;
