@@ -45,6 +45,10 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
   useEffect(() => () => {
     if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
   }, [preview]);
+  
+  useEffect(() => () => {
+    if (recorderRef.current && recorderRef.current.state !== "inactive") recorderRef.current.stop();
+  }, []);
 
   useEffect(() => () => {
     if (localMusicPreview?.startsWith("blob:")) URL.revokeObjectURL(localMusicPreview);
