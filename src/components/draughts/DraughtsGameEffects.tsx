@@ -5,29 +5,63 @@ import { supabase } from "@/integrations/supabase/client";
 type Reaction = { id: string; emoji: string; sender: string; createdAt: number };
 const EMOJIS = ["🔥", "😂", "😮", "👏", "😎", "💪", "❤️", "🐯"];
 
-export function playDraughtsSound(kind: "move" | "capture" | "win", volume = 0.65) {
+export function playDraughtsSound(kind: "move" | "capture" | "king" | "win", volume = 0.65) {
   try {
     const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextClass) return;
+    if (!AudioContextClass || volume <= 0) return;
     const ctx = new AudioContextClass();
     const now = ctx.currentTime;
-    const notes = kind === "win" ? [523.25, 659.25, 783.99, 1046.5] : kind === "capture" ? [260, 390] : [440];
+    const level = Math.max(0, Math.min(1, volume));
+
+    // Capture: a sharp wooden clack followed by a short, low impact thump.
+    if (kind === "capture") {
+      const hit = ctx.createOscillator();
+      const hitGain = ctx.createGain();
+      hit.type = "triangle";
+      hit.frequency.setValueAtTime(210, now);
+      hit.frequency.exponentialRampToValueAtTime(72, now + 0.18);
+      hitGain.gain.setValueAtTime(0.0001, now);
+      hitGain.gain.exponentialRampToValueAtTime(0.22 * level, now + 0.012);
+      hitGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
+      hit.connect(hitGain); hitGain.connect(ctx.destination);
+      hit.start(now); hit.stop(now + 0.25);
+
+      const click = ctx.createOscillator();
+      const clickGain = ctx.createGain();
+      click.type = "square";
+      click.frequency.setValueAtTime(1150, now);
+      click.frequency.exponentialRampToValueAtTime(420, now + 0.045);
+      clickGain.gain.setValueAtTime(0.0001, now);
+      clickGain.gain.exponentialRampToValueAtTime(0.07 * level, now + 0.004);
+      clickGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.055);
+      click.connect(clickGain); clickGain.connect(ctx.destination);
+      click.start(now); click.stop(now + 0.06);
+      window.setTimeout(() => { void ctx.close(); }, 500);
+      return;
+    }
+
+    // King promotion: a distinct rising, bell-like four-note royal fanfare.
+    const notes = kind === "king" ? [523.25, 659.25, 783.99, 1046.5] : kind === "win" ? [392, 523.25, 659.25, 783.99] : [440];
     notes.forEach((frequency, index) => {
+      const start = now + index * (kind === "king" || kind === "win" ? 0.17 : 0);
+      const duration = kind === "king" || kind === "win" ? 0.42 : 0.12;
       const oscillator = ctx.createOscillator();
+      const overtone = ctx.createOscillator();
       const gain = ctx.createGain();
-      oscillator.type = kind === "win" ? "triangle" : "sine";
-      oscillator.frequency.setValueAtTime(frequency, now + index * (kind === "win" ? 0.16 : 0.045));
-      gain.gain.setValueAtTime(0.0001, now + index * (kind === "win" ? 0.16 : 0.045));
-      gain.gain.exponentialRampToValueAtTime((kind === "win" ? 0.11 : 0.055) * Math.max(0, Math.min(1, volume)), now + index * (kind === "win" ? 0.16 : 0.045) + 0.025);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + index * (kind === "win" ? 0.16 : 0.045) + (kind === "win" ? 0.22 : 0.11));
-      oscillator.connect(gain); gain.connect(ctx.destination);
-      oscillator.start(now + index * (kind === "win" ? 0.16 : 0.045));
-      oscillator.stop(now + index * (kind === "win" ? 0.16 : 0.045) + (kind === "win" ? 0.24 : 0.13));
+      oscillator.type = "triangle";
+      overtone.type = "sine";
+      oscillator.frequency.setValueAtTime(frequency, start);
+      overtone.frequency.setValueAtTime(frequency * 2.01, start);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime((kind === "king" ? 0.13 : 0.055) * level, start + 0.025);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+      oscillator.connect(gain); overtone.connect(gain); gain.connect(ctx.destination);
+      oscillator.start(start); overtone.start(start);
+      oscillator.stop(start + duration); overtone.stop(start + duration);
     });
-    window.setTimeout(() => { void ctx.close(); }, kind === "win" ? 1200 : 400);
+    window.setTimeout(() => { void ctx.close(); }, 1500);
   } catch { /* Audio is optional; the game remains playable without it. */ }
 }
-
 
 // Short real-world recordings from Wikimedia Commons (public domain / CC licensed).
 // Playback is capped at two seconds so reactions stay quick and unobtrusive.
