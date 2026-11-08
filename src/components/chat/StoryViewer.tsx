@@ -242,8 +242,8 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
       try {
         const audio = audioRef.current;
         const video = videoRef.current;
-        if (audio) await audio.play();
-        if (video) await video.play();
+        if (audio && story?.musicUrl) await audio.play();
+        if (video && isVideo) await video.play();
       } catch {
         toast({ title: "Sound could not start", description: "Tap the play control on the status to enable audio.", variant: "destructive" });
       }
