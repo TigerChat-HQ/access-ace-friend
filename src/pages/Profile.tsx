@@ -8,6 +8,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useBlocks } from "@/hooks/useBlocks";
 import { ReportDialog } from "@/components/social/ReportDialog";
 import { FollowListDialog } from "@/components/social/FollowListDialog";
+import { DraughtsProfileRank } from "@/components/draughts/DraughtsProfileRank";
 import {
   ArrowLeft, Settings, Shield, MessageCircle, Grid3x3, LogOut, Pencil, Lock,
   MoreVertical, Flag, UserX, UserCheck, Trash2, ChevronDown, ChevronUp,
@@ -286,6 +287,8 @@ const Profile = () => {
               />
             </div>
           )}
+
+          {userId && <DraughtsProfileRank userId={userId} isMe={isMe} />}
 
           <div className="flex gap-2">
             {isMe ? (
