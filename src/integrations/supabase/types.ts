@@ -507,6 +507,18 @@ export type Database = {
         }
         Relationships: []
       }
+      draughts_admin_settings: {
+        Row: { id: boolean; seasons_enabled: boolean; tiger_ai_supervisor_enabled: boolean; updated_at: string; updated_by: string | null }
+        Insert: { id?: boolean; seasons_enabled?: boolean; tiger_ai_supervisor_enabled?: boolean; updated_at?: string; updated_by?: string | null }
+        Update: { id?: boolean; seasons_enabled?: boolean; tiger_ai_supervisor_enabled?: boolean; updated_at?: string; updated_by?: string | null }
+        Relationships: []
+      }
+      draughts_badge_types: {
+        Row: { id: string; badge_name: string; emoji: string; description: string; award_rule: string; threshold: number; is_enabled: boolean; created_at: string }
+        Insert: { id?: string; badge_name: string; emoji?: string; description?: string; award_rule: string; threshold?: number; is_enabled?: boolean; created_at?: string }
+        Update: { id?: string; badge_name?: string; emoji?: string; description?: string; award_rule?: string; threshold?: number; is_enabled?: boolean; created_at?: string }
+        Relationships: []
+      }
       draughts_seasons: {
         Row: { id: string; name: string; starts_at: string; ends_at: string | null; is_active: boolean; created_at: string }
         Insert: { id?: string; name: string; starts_at?: string; ends_at?: string | null; is_active?: boolean; created_at?: string }
@@ -520,10 +532,10 @@ export type Database = {
         Relationships: []
       }
       draughts_player_badges: {
-        Row: { id: string; season_id: string; user_id: string; rank: number; badge_name: string; show_on_profile: boolean; awarded_at: string }
-        Insert: { id?: string; season_id: string; user_id: string; rank: number; badge_name?: string; show_on_profile?: boolean; awarded_at?: string }
-        Update: { id?: string; season_id?: string; user_id?: string; rank?: number; badge_name?: string; show_on_profile?: boolean; awarded_at?: string }
-        Relationships: []
+        Row: { id: string; season_id: string; user_id: string; rank: number | null; badge_name: string; badge_type_id: string | null; show_on_profile: boolean; awarded_at: string }
+        Insert: { id?: string; season_id: string; user_id: string; rank?: number | null; badge_name?: string; badge_type_id?: string | null; show_on_profile?: boolean; awarded_at?: string }
+        Update: { id?: string; season_id?: string; user_id?: string; rank?: number | null; badge_name?: string; badge_type_id?: string | null; show_on_profile?: boolean; awarded_at?: string }
+        Relationships: [{ foreignKeyName: "draughts_player_badges_badge_type_id_fkey"; columns: ["badge_type_id"]; isOneToOne: false; referencedRelation: "draughts_badge_types"; referencedColumns: ["id"] }]
       }
       draughts_match_results: {
         Row: { match_id: string; season_id: string; player_white: string; player_black: string; winner: string; white_points: number; black_points: number; completed_at: string }
