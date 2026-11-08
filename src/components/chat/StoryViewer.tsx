@@ -29,12 +29,13 @@ interface StoryViewerProps {
   initialIndex: number;
   onClose: () => void;
   currentUserId?: string;
+  onStoryDeleted?: (storyId: string) => void;
 }
 
 const REACTIONS = ["❤️", "🔥", "😂", "😮", "😢", "👏"];
 const db = supabase as unknown as SupabaseClient;
 
-export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: StoryViewerProps) => {
+export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId, onStoryDeleted }: StoryViewerProps) => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
@@ -282,6 +283,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
       return;
     }
     toast({ title: "Status deleted" });
+    onStoryDeleted?.(story.id);
     onClose();
   };
 
