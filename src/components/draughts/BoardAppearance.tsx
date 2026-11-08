@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
 export type BoardTheme = "wood" | "slate" | "ocean" | "forest";
 export type PieceStyle = "classic" | "ivory" | "ruby" | "gold";
@@ -52,7 +52,7 @@ export function useDraughtsAppearance() {
     "--piece-black": pieceTheme.black,
     "--piece-white-border": pieceTheme.whiteBorder,
     "--piece-black-border": pieceTheme.blackBorder,
-  } as React.CSSProperties;
+  } as CSSProperties;
 
   return { theme, setTheme, pieceStyle, setPieceStyle, boardStyle };
 }
