@@ -40,7 +40,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [progress, setProgress] = useState(0);
   const [imgLoaded, setImgLoaded] = useState(false);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(true);
   const [paused, setPaused] = useState(false);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [floaters, setFloaters] = useState<{ id: string; emoji: string; left: number }[]>([]);
@@ -235,6 +235,21 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
     };
   }, [story?.musicUrl, currentIndex]);
 
+  const toggleSound = async () => {
+    const nextMuted = !muted;
+    setMuted(nextMuted);
+    if (!nextMuted) {
+      try {
+        const audio = audioRef.current;
+        const video = videoRef.current;
+        if (audio) await audio.play();
+        if (video) await video.play();
+      } catch {
+        toast({ title: "Sound could not start", description: "Tap the play control on the status to enable audio.", variant: "destructive" });
+      }
+    }
+  };
+
   const goNext = () => {
     if (currentIndex < stories.length - 1) {
       setCurrentIndex(currentIndex + 1);
@@ -295,7 +310,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
         </div>
         <div className="flex items-center gap-2 mt-2">
           {(story.musicUrl || isVideo) && (
-            <button onClick={() => setMuted(!muted)} className="p-2 rounded-full hover:bg-white/10">
+            <button onClick={() => void toggleSound()} className="p-2 rounded-full hover:bg-white/10" aria-label={muted ? "Enable status sound" : "Mute status sound"}>
               {muted ? <VolumeX className="w-5 h-5 text-white" /> : <Volume2 className="w-5 h-5 text-white" />}
             </button>
           )}
