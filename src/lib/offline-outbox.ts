@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import { dispatchPush } from "@/lib/dispatch-push";
 
 export interface QueuedMessage {
@@ -109,7 +110,7 @@ export const processOutbox = async (): Promise<number> => {
       notifyOutboxListeners();
 
       try {
-        const payload: Record<string, unknown> = {
+        const payload: Database["public"]["Tables"]["messages"]["Insert"] = {
           conversation_id: msg.conversationId,
           sender_id: msg.senderId,
           content: msg.content,
@@ -120,7 +121,7 @@ export const processOutbox = async (): Promise<number> => {
           payload.media_url = msg.mediaUrl;
         }
 
-        const { error } = await supabase.from("messages").insert(payload as any);
+        const { error } = await supabase.from("messages").insert(payload);
 
         if (error) {
           console.warn("Outbox message send failed:", error);
