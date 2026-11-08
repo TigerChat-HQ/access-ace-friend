@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Camera, User, Bell, Shield, Palette, LogOut,
-  ChevronRight, Moon, Sun, Globe, Lock, Fingerprint, Mail, Volume2,
+  ChevronRight, Moon, Sun, Globe, Lock, Fingerprint, Mail, Volume2, Smartphone, Download,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAppLock, isWebAuthnSupported } from "@/hooks/useAppLock";
