@@ -10,7 +10,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_status_context_story_id
 CREATE OR REPLACE FUNCTION public.create_direct_conversation(_other_user_id uuid)
 RETURNS uuid
 LANGUAGE plpgsql
-SECURITY INVOKER
+SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
