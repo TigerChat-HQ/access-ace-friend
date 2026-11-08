@@ -292,7 +292,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
             <MusicPicker value={music} onChange={(value) => { setMusic(value); if (value) clearLocalMusic(); }} maxClip={15} />
             <label className="flex items-center gap-2 rounded-lg border border-border/60 p-3 cursor-pointer hover:bg-surface">
               <Music className="w-4 h-4 text-primary" />
-              <span className="text-sm text-foreground flex-1 truncate">{localMusicFile ? localMusicFile.name : "Choose audio from this phone"}</span>
+              <span className="text-sm text-foreground flex-1 truncate">{localMusicFile ? localMusicFile.name : "Choose song, vocals or narration from this phone"}</span>
               <input type="file" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg" onChange={handleLocalMusicSelect} className="hidden" />
             </label>
             {localMusicPreview && (
@@ -301,7 +301,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
                 <button type="button" onClick={clearLocalMusic} aria-label="Remove phone audio" className="p-2 text-muted-foreground hover:text-destructive"><X className="w-4 h-4" /></button>
               </div>
             )}
-            <p className="text-xs text-muted-foreground">Phone audio is uploaded with the status. The first 15 seconds play in the story.</p>
+            <p className="text-xs text-muted-foreground">Phone audio (including vocals or spoken narration) is uploaded with the status. The selected 15-second segment plays in the story.</p>
           </div>
           <Button onClick={handleUpload} disabled={loading || (!mediaFile && !caption.trim() && !textOverlay.trim())} className="w-full neon-glow">
             {loading ? "Posting..." : "Post Status"}
