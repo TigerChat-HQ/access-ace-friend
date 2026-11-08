@@ -647,7 +647,7 @@ const Chats = () => {
                 const isActive = ui.id === activeMatchId;
                 return (
                   <div key={ui.id} data-msg-id={ui.id} className={isActive ? "rounded-lg ring-2 ring-primary ring-offset-2 ring-offset-background transition-all" : isMatch ? "rounded-lg ring-1 ring-primary/40 transition-all" : ""}>
-                    <MessageBubble message={ui} translatedText={translation.translations[ui.id]} replyMessage={replyToId ? messageMap.get(replyToId) || null : null} onReply={(msg) => setReplyTo(msg)} onForward={(msg) => setForwardMsg({ content: msg.text, type: msg.type, mediaUrl: msg.mediaUrl })} onDelete={handleDeleteMessage} myBubbleClass={bubbleColorClass(chatPrefs.bubble_color)} />
+                    <MessageBubble message={ui} translatedText={translation.translations[ui.id]} replyMessage={replyToId ? messageMap.get(replyToId) || null : null} onReply={(msg) => setReplyTo(msg)} onForward={(msg) => setForwardMsg({ content: msg.text, type: msg.type, mediaUrl: msg.mediaUrl })} onDelete={handleDeleteMessage} onStatusClick={(storyId) => { const index = storyViewerData.findIndex(item => item.id === storyId); if (index >= 0) setStoryViewerIndex(index); else toast({ title: "Status haipatikani", description: "Huenda muda wake wa saa 24 umeisha." }); }} myBubbleClass={bubbleColorClass(chatPrefs.bubble_color)} />
                   </div>
                 );
               })}
