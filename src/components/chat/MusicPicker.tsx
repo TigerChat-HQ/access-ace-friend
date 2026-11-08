@@ -21,6 +21,7 @@ export const MusicPicker = ({ trigger, value, onChange, maxClip = MAX_DEFAULT }:
   const [range, setRange] = useState<[number, number]>([0, maxClip]);
   const [playing, setPlaying] = useState(false);
   const [pos, setPos] = useState(0);
+  const [moodFilter, setMoodFilter] = useState("All");
   const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
@@ -93,8 +94,13 @@ export const MusicPicker = ({ trigger, value, onChange, maxClip = MAX_DEFAULT }:
         </DialogHeader>
 
         <div className="space-y-3">
+          <div className="flex flex-wrap gap-1">
+            {["All", "Happy", "Sad", "Love", "Motivation"].map((mood) => (
+              <button key={mood} type="button" onClick={() => setMoodFilter(mood)} className={`rounded-full px-3 py-1 text-xs ${moodFilter === mood ? "bg-primary text-primary-foreground" : "bg-surface text-muted-foreground"}`}>{mood}</button>
+            ))}
+          </div>
           <div className="max-h-56 overflow-y-auto scrollbar-thin space-y-1 -mx-2 px-2">
-            {FREE_TRACKS.map((t) => (
+            {FREE_TRACKS.filter((track) => moodFilter === "All" || track.mood === moodFilter).map((t) => (
               <button
                 key={t.id}
                 onClick={() => setSelected(t)}
