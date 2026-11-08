@@ -24,7 +24,7 @@ const Draughts = () => {
   const nav = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { theme, setTheme, pieceStyle, setPieceStyle, boardStyle } = useDraughtsAppearance();
+  const { theme, setTheme, pieceStyle, setPieceStyle, scale, setScale, depth, setDepth, boardStyle, boardSizeStyle, board3dStyle } = useDraughtsAppearance();
   const [mode, setMode] = useState<Mode>("menu");
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
@@ -433,9 +433,9 @@ const Draughts = () => {
         </div>
       </div>
 
-      <div className="px-3 pt-3"><BoardAppearance theme={theme} setTheme={setTheme} pieceStyle={pieceStyle} setPieceStyle={setPieceStyle} /></div>
+      <div className="flex items-center justify-between gap-3 px-4 pt-3"><p className="text-xs font-medium text-muted-foreground">Live board appearance</p><BoardAppearance theme={theme} setTheme={setTheme} pieceStyle={pieceStyle} setPieceStyle={setPieceStyle} scale={scale} setScale={setScale} depth={depth} setDepth={setDepth} /></div>
       <div className="flex-1 min-h-0 overflow-y-auto flex items-center justify-center p-3 sm:p-5 bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.10),transparent_68%)]">
-        <div style={boardStyle} className="draught-frame w-full max-w-[520px] rounded-[22px] p-2 sm:p-3 shadow-[0_22px_45px_-16px_rgba(0,0,0,0.85),inset_0_2px_3px_rgba(255,255,255,0.55),inset_0_-5px_10px_rgba(0,0,0,0.65)] ring-1 ring-white/30">
+        <div style={{ ...boardStyle, ...boardSizeStyle, ...board3dStyle }} className="draught-frame w-full max-w-[520px] rounded-[22px] p-2 sm:p-3 shadow-[0_22px_45px_-16px_rgba(0,0,0,0.85),inset_0_2px_3px_rgba(255,255,255,0.55),inset_0_-5px_10px_rgba(0,0,0,0.65)] ring-1 ring-white/30">
           <div className="aspect-square w-full grid grid-cols-8 overflow-hidden rounded-md border-[3px] border-black/50 shadow-[inset_0_4px_12px_rgba(0,0,0,0.55)]">
             {Array.from({ length: 64 }).map((_, gridIdx) => {
               const i = isFlipped ? 63 - gridIdx : gridIdx;
