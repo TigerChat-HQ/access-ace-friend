@@ -35,6 +35,10 @@ const Draughts = () => {
   const [flipBoard, setFlipBoard] = useState<boolean | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(() => { try { return localStorage.getItem("tiger-draughts-sound") !== "off"; } catch { return true; } });
   useEffect(() => { try { localStorage.setItem("tiger-draughts-sound", soundEnabled ? "on" : "off"); } catch { /* optional preference */ } }, [soundEnabled]);
+  const [soundVolume, setSoundVolume] = useState(() => { try { return Number(localStorage.getItem("tiger-draughts-volume") ?? "0.65"); } catch { return 0.65; } });
+  const [reactionVolume, setReactionVolume] = useState(() => { try { return Number(localStorage.getItem("tiger-draughts-reaction-volume") ?? "0.65"); } catch { return 0.65; } });
+  useEffect(() => { try { localStorage.setItem("tiger-draughts-volume", String(soundVolume)); } catch { /* optional preference */ } }, [soundVolume]);
+  useEffect(() => { try { localStorage.setItem("tiger-draughts-reaction-volume", String(reactionVolume)); } catch { /* optional preference */ } }, [reactionVolume]);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const aiMoveInFlight = useRef<string | null>(null);
 
@@ -237,7 +241,7 @@ const Draughts = () => {
       const { data: latest } = await supabase.from("draft_matches").select("*").eq("id", match.id).maybeSingle();
       if (latest) setMatch(latest as unknown as MatchRow);
     } else {
-      if (soundEnabled && !w) playDraughtsSound(piece ? "capture" : "move");
+      if (soundEnabled && !w) playDraughtsSound(piece ? "capture" : "move", soundVolume);
       setMatch(data as unknown as MatchRow);
     }
   };
@@ -477,7 +481,7 @@ const Draughts = () => {
         </div>
       )}
 
-      <DraughtsGameEffects matchId={match.id} isFinished={match.status === "finished"} isWinner={Boolean(myColor && match.winner === (myColor === "w" ? "white" : "black"))} soundEnabled={soundEnabled} onSoundEnabledChange={setSoundEnabled} />
+      <DraughtsGameEffects matchId={match.id} isFinished={match.status === "finished"} isWinner={Boolean(myColor && match.winner === (myColor === "w" ? "white" : "black"))} soundEnabled={soundEnabled} onSoundEnabledChange={setSoundEnabled} soundVolume={soundVolume} onSoundVolumeChange={setSoundVolume} reactionVolume={reactionVolume} onReactionVolumeChange={setReactionVolume} />
 
       {match.status !== "finished" && (
         <div className="px-4 py-2 text-[11px] text-center text-muted-foreground border-t border-border/50">
