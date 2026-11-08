@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
-import { Send, Smile, Paperclip, Mic, X, FileText, Reply, MapPin, Contact } from "lucide-react";
+import { Send, Smile, Paperclip, Mic, X, FileText, Reply, MapPin, Contact, Volume2, VolumeX } from "lucide-react";
+import { playChatEmojiSound, CHAT_EMOJIS, CHAT_EMOJI_SOUND_KEY } from "@/lib/chat-emoji";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -21,6 +22,8 @@ interface MessageInputProps {
 
 export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyTo, onCancelReply }: MessageInputProps) => {
   const [text, setText] = useState("");
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [emojiSound, setEmojiSound] = useState(() => localStorage.getItem(CHAT_EMOJI_SOUND_KEY) !== "false");
   const [isRecording, setIsRecording] = useState(false);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -35,6 +38,20 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
     navigator.geolocation.getCurrentPosition(position => {
       setText(locationMessage(position.coords.latitude, position.coords.longitude)); setLocating(false);
     }, error => { toast.error(error.message); setLocating(false); }, { enableHighAccuracy: true, timeout: 15000 });
+  };
+
+  const toggleEmojiSound = () => {
+    setEmojiSound((enabled) => {
+      const next = !enabled;
+      localStorage.setItem(CHAT_EMOJI_SOUND_KEY, String(next));
+      return next;
+    });
+  };
+
+  const insertEmoji = (emoji: string) => {
+    setText((current) => `${current}${emoji}`);
+    if (emojiSound) playChatEmojiSound(emoji);
+    setEmojiOpen(false);
   };
 
   const handleSend = () => {
@@ -123,8 +140,14 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
           </button>
         </div>
       )}
+      {emojiOpen && (
+        <div className="mb-3 rounded-2xl border border-border/60 bg-card/95 p-3 shadow-xl animate-in fade-in slide-in-from-bottom-2">
+          <div className="mb-2 flex items-center justify-between"><span className="text-xs font-semibold text-muted-foreground">Animated emojis</span><button type="button" onClick={toggleEmojiSound} aria-label={emojiSound ? "Mute emoji sounds" : "Enable emoji sounds"} className="rounded-full p-1.5 text-muted-foreground hover:bg-surface-hover">{emojiSound ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}</button></div>
+          <div className="grid grid-cols-8 gap-2">{CHAT_EMOJIS.map((emoji) => <button key={emoji} type="button" onClick={() => insertEmoji(emoji)} className="chat-emoji-picker-item rounded-lg p-1 text-2xl hover:bg-surface-hover" aria-label={`Insert ${emoji}`}>{emoji}</button>)}</div>
+        </div>
+      )}
       <div className="flex items-center gap-2">
-        <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-foreground">
+        <button type="button" onClick={() => setEmojiOpen((open) => !open)} aria-label="Open emoji picker" aria-expanded={emojiOpen} className={cn("p-2 rounded-full transition-colors", emojiOpen ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-surface-hover hover:text-foreground")}>
           <Smile className="w-5 h-5" />
         </button>
         <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="Share attachment" disabled={locating}><Paperclip className="w-5 h-5" /></Button></DropdownMenuTrigger>
