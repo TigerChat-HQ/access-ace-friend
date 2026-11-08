@@ -340,6 +340,9 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
               <span className="text-sm text-foreground flex-1 truncate">{localMusicFile ? localMusicFile.name : "Choose song, vocals or narration from this phone"}</span>
               <input type="file" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg" onChange={handleLocalMusicSelect} className="hidden" />
             </label>
+            <Button type="button" variant="outline" size="sm" className="w-full gap-2" onClick={() => void toggleVoiceRecording()}>
+              {recordingVoice ? <><Square className="w-4 h-4" /> Stop voice recording</> : <><Mic className="w-4 h-4" /> Record voice narration</>}
+            </Button>
             {localMusicPreview && (
               <div className="flex items-center gap-2">
                 <audio src={localMusicPreview} controls className="w-full h-9" />
