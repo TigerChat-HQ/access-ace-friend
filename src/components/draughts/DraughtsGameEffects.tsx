@@ -42,13 +42,10 @@ export function playReactionSound(emoji: string, volume = 0.65) {
 export function DraughtsGameEffects({
   matchId, isWinner, isLoser, isFinished, soundEnabled, soundVolume, reactionVolume,
 }: {
-  matchId: string; isWinner: boolean; isFinished: boolean;
-  soundEnabled: boolean; onSoundEnabledChange: (enabled: boolean) => void;
-  soundVolume: number; onSoundVolumeChange: (volume: number) => void;
-  reactionVolume: number; onReactionVolumeChange: (volume: number) => void;
+  matchId: string; isWinner: boolean; isLoser: boolean; isFinished: boolean;
+  soundEnabled: boolean; soundVolume: number; reactionVolume: number;
 }) {
   const [reactions, setReactions] = useState<Reaction[]>([]);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const winnerSoundPlayed = useRef(false);
 
@@ -84,7 +81,7 @@ export function DraughtsGameEffects({
       <div className="fixed bottom-20 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-2 pointer-events-none" aria-live="polite">
         {reactions.map((reaction) => <div key={reaction.id} className="draught-reaction-pop rounded-full border border-white/20 bg-black/75 px-4 py-2 text-2xl shadow-2xl backdrop-blur-xl">{reaction.emoji}</div>)}
       </div>
-      <div className="flex items-center justify-between gap-2 border-t border-border/50 bg-card/70 px-3 py-2">
+      <div className="flex items-center justify-center gap-2 border-t border-border/50 bg-card/70 px-3 py-2">
         <div className="flex items-center gap-1.5" aria-label="Live reactions">
           {EMOJIS.map((emoji) => <button key={emoji} type="button" onClick={() => void sendReaction(emoji)} disabled={isFinished} aria-label={`Send ${emoji} reaction`} className="rounded-lg p-2 text-lg transition hover:-translate-y-1 hover:scale-110 hover:bg-primary/15 active:scale-90 disabled:opacity-40">{emoji}</button>)}
         </div>
