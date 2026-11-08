@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Camera, X, Upload, Type, Globe, Lock, Music } from "lucide-react";
+import { Camera, X, Upload, Type, Globe, Lock, Music, Mic, Square } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MusicPicker } from "./MusicPicker";
 
@@ -39,6 +39,8 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
   const [loading, setLoading] = useState(false);
   const [audience, setAudience] = useState<"everyone" | "contacts" | "only_me">("everyone");
   const [backgroundColor, setBackgroundColor] = useState(BACKGROUNDS[0]);
+  const [recordingVoice, setRecordingVoice] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
 
   useEffect(() => () => {
     if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
