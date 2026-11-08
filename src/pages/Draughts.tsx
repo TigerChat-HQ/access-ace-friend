@@ -37,7 +37,7 @@ const Draughts = () => {
   const [tigerSupervisorEnabled, setTigerSupervisorEnabled] = useState(true);
   useEffect(() => {
     let alive = true;
-    (supabase as any).from("draughts_admin_settings").select("tiger_ai_supervisor_enabled").eq("id", true).maybeSingle()
+    supabase.from("draughts_admin_settings").select("tiger_ai_supervisor_enabled").eq("id", true).maybeSingle()
       .then(({ data }: { data: { tiger_ai_supervisor_enabled?: boolean } | null }) => { if (alive && data) setTigerSupervisorEnabled(data.tiger_ai_supervisor_enabled !== false); });
     const settingsChannel = supabase.channel("draughts-supervisor-settings")
       .on("postgres_changes", { event: "*", schema: "public", table: "draughts_admin_settings" }, (payload) => {
