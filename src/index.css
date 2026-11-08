@@ -260,3 +260,24 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .draught-reaction-pop, .draught-tiger-celebrate, .draught-win-card, .draught-win-confetti { animation: none !important; }
 }
+
+
+/* Chat emoji motion and picker feedback */
+@keyframes chat-emoji-bounce {
+  0%, 100% { transform: translateY(0) scale(1) rotate(0); }
+  25% { transform: translateY(-7px) scale(1.16) rotate(-7deg); }
+  55% { transform: translateY(1px) scale(.96) rotate(5deg); }
+  78% { transform: translateY(-3px) scale(1.08) rotate(-3deg); }
+}
+.chat-emoji-message {
+  display: inline-block;
+  font-size: clamp(2rem, 9vw, 3.2rem);
+  line-height: 1.25;
+  transform-origin: center bottom;
+  animation: chat-emoji-bounce 1.25s ease-in-out infinite;
+}
+.chat-emoji-picker-item { transition: transform 160ms ease, filter 160ms ease; }
+.chat-emoji-picker-item:hover { transform: translateY(-4px) scale(1.2); filter: drop-shadow(0 4px 7px hsl(var(--primary) / .28)); }
+@media (prefers-reduced-motion: reduce) {
+  .chat-emoji-message { animation: none !important; }
+}
