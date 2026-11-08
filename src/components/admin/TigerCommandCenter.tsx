@@ -148,7 +148,14 @@ export const TigerCommandCenter = () => {
       }
 
       const { data, error } = await invokePlanner(payload);
-      if (error) throw error;
+      if (error) {
+        const context = (error as { context?: unknown }).context;
+        if (context instanceof Response) {
+          const payload = await context.clone().json().catch(() => null) as { error?: string; message?: string } | null;
+          throw new Error(payload?.error || payload?.message || `Tiger Developers AI server error (HTTP ${context.status}).`);
+        }
+        throw error;
+      }
       if (data?.error) throw new Error(data.error);
 
       const assistantMsg: ChatMessage = {
