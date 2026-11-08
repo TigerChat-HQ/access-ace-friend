@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- tournament tables are added by SQL migrations and are not yet in generated Supabase types */
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Trophy, Users, CalendarDays, Crown, Swords, Plus, LockKeyhole, Radio, Medal } from "lucide-react";
