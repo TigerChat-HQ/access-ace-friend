@@ -14,6 +14,12 @@ export type Database = {
   }
   public: {
     Tables: {
+      tiger_ai_daily_posts: {
+        Row: { id: string; date_key: string; title: string; content: Json; source_urls: string[]; created_at: string }
+        Insert: { id?: string; date_key: string; title: string; content: Json; source_urls?: string[]; created_at?: string }
+        Update: { id?: string; date_key?: string; title?: string; content?: Json; source_urls?: string[]; created_at?: string }
+        Relationships: []
+      }
       announcement_dismissals: {
         Row: {
           announcement_id: string
