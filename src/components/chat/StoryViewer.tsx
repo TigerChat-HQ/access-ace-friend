@@ -20,7 +20,7 @@ interface StoryData {
   musicUrl?: string;
   mediaType?: "image" | "video" | "text";
   backgroundColor?: string;
-  textOverlay?: { text?: string; text_color?: string; text_background?: string; sticker?: string; music_start?: number; music_end?: number; image_filter?: string } | null;
+  textOverlay?: { text?: string; text_color?: string; text_background?: string; sticker?: string; music_title?: string; music_start?: number; music_end?: number; image_filter?: string } | null;
   duration?: number | null;
 }
 
@@ -420,7 +420,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId, onS
               />
             ))}
           </div>
-          <span className="text-white text-[10px]">♪ Playing music</span>
+          <span className="text-white text-[10px]">{story.textOverlay?.music_title || "♪ Playing music"}</span>
         </div>
       )}
 
