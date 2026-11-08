@@ -1,0 +1,57 @@
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Trophy, Users, CalendarDays, Crown, Swords, Plus, LockKeyhole, Radio, Medal } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+
+type Tournament = {
+ id:string; title:string; description:string; format:string; status:string; visibility:string;
+ max_players:number; starts_at:string; ends_at:string|null; rules:string; prize:string; invite_code?:string|null;
+ draughts_tournament_entries?: {id:string;user_id:string;status:string}[];
+};
+const formats:Record<string,string>={quick_cup:"Quick Cup · Knockout",league:"League Championship",daily:"Daily Challenge",weekly:"Weekly Masters",grand:"Grand Championship",team:"Team Battles",open:"Open Tournament",private:"Private Tournament"};
+const localDate=(v:string)=>new Date(v).toLocaleString("en-TZ",{dateStyle:"medium",timeStyle:"short",timeZone:"Africa/Dar_es_Salaam"});
+export default function DraughtsTournaments(){
+ const nav=useNavigate(); const {user}=useAuth(); const {isAdmin}=useUserRole(); const {toast}=useToast();
+ const [items,setItems]=useState<Tournament[]>([]); const [mine,setMine]=useState<Set<string>>(new Set()); const [tab,setTab]=useState("all"); const [loading,setLoading]=useState(true); const [joining,setJoining]=useState<string|null>(null);
+ const [showCreate,setShowCreate]=useState(false); const [title,setTitle]=useState(""); const [description,setDescription]=useState(""); const [format,setFormat]=useState("quick_cup"); const [starts,setStarts]=useState(""); const [capacity,setCapacity]=useState("32"); const [prize,setPrize]=useState(""); const [rules,setRules]=useState(""); const [visibility,setVisibility]=useState("public"); const [invite,setInvite]=useState("");
+ const load=useCallback(async()=>{
+  setLoading(true);
+  const {data,error}=await (supabase as any).from("draughts_tournaments").select("*,draughts_tournament_entries(id,user_id,status)").order("starts_at",{ascending:true});
+  if(error) toast({title:"Could not load tournaments",description:error.message,variant:"destructive"});
+  const rows=(data||[]) as Tournament[]; setItems(rows);
+  setMine(new Set(rows.filter(t=>t.draughts_tournament_entries?.some(e=>e.user_id===user?.id&&["registered","waitlisted"].includes(e.status))).map(t=>t.id)));
+  setLoading(false);
+ },[user?.id,toast]);
+ useEffect(()=>{void load(); const ch=supabase.channel("draughts-tournaments-live").on("postgres_changes",{event:"*",schema:"public",table:"draughts_tournaments"},()=>void load()).on("postgres_changes",{event:"*",schema:"public",table:"draughts_tournament_entries"},()=>void load()).subscribe(); return()=>{void supabase.removeChannel(ch)};},[load]);
+ const join=async(t:Tournament)=>{
+  setJoining(t.id); let code:string|null=null;
+  if(t.visibility==="private"){code=window.prompt("Enter tournament invite code")?.trim()||null;if(!code){setJoining(null);return;}}
+  const {error}=await (supabase as any).rpc("join_draughts_tournament",{p_tournament_id:t.id,p_invite_code:code});
+  setJoining(null); if(error){toast({title:"Could not join tournament",description:error.message,variant:"destructive"});return;}
+  toast({title:"Tournament registration saved"}); void load();
+ };
+ const create=async()=>{
+  if(!title.trim()||!starts){toast({title:"Add a title and start time",variant:"destructive"});return;}
+  const {error}=await (supabase as any).rpc("create_draughts_tournament",{p_title:title,p_description:description,p_format:format,p_starts_at:new Date(starts).toISOString(),p_max_players:Number(capacity),p_rules:rules,p_prize:prize,p_visibility:visibility,p_invite_code:invite||null});
+  if(error){toast({title:"Could not create tournament",description:error.message,variant:"destructive"});return;}
+  setShowCreate(false);setTitle("");toast({title:"Tournament published"});void load();
+ };
+ const filtered=items.filter(t=>tab==="mine"?mine.has(t.id):tab==="live"?t.status==="live":tab==="upcoming"?["registration","draft"].includes(t.status):tab==="completed"?t.status==="completed":true);
+ return <main className="min-h-full bg-background text-foreground">
+  <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur">
+   <div className="flex items-center gap-3"><button onClick={()=>nav("/draughts")} className="rounded-full p-2 hover:bg-muted"><ArrowLeft className="h-5 w-5"/></button><div><h1 className="font-bold">Draughts Tournaments</h1><p className="text-xs text-muted-foreground">Compete · Climb · Become a champion</p></div></div>
+   {isAdmin&&<Button size="sm" onClick={()=>setShowCreate(v=>!v)}><Plus className="mr-1 h-4 w-4"/>Create</Button>}
+  </header>
+  <section className="mx-auto max-w-4xl space-y-5 p-4">
+   <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/15 via-card to-card p-5"><div className="flex items-center gap-2 text-primary"><Trophy className="h-5 w-5"/><span className="text-xs font-bold uppercase tracking-widest">Tiger Arena</span></div><h2 className="mt-2 text-2xl font-black">Your next victory starts here.</h2><p className="mt-1 max-w-xl text-sm text-muted-foreground">Join live competitions, challenge top-ranked players and earn your place on the leaderboard.</p><div className="mt-4 grid grid-cols-3 gap-2 text-center"><div className="rounded-xl bg-background/70 p-3"><p className="text-xl font-black">{items.filter(t=>t.status==="live").length}</p><p className="text-xs text-muted-foreground">Live</p></div><div className="rounded-xl bg-background/70 p-3"><p className="text-xl font-black">{items.filter(t=>t.status==="registration").length}</p><p className="text-xs text-muted-foreground">Open</p></div><div className="rounded-xl bg-background/70 p-3"><p className="text-xl font-black">{mine.size}</p><p className="text-xs text-muted-foreground">My events</p></div></div></div>
+   <nav className="flex gap-2 overflow-x-auto pb-1">{[["all","Discover"],["mine","My tournaments"],["live","Live now"],["upcoming","Upcoming"],["completed","Completed"]].map(([id,label])=><button key={id} onClick={()=>setTab(id)} className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold ${tab===id?"bg-primary text-primary-foreground":"bg-muted text-muted-foreground"}`}>{label}</button>)}</nav>
+   {showCreate&&isAdmin&&<section className="space-y-3 rounded-2xl border border-border bg-card p-4"><h3 className="font-bold">Create a tournament</h3><input className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" placeholder="Tournament name" value={title} onChange={e=>setTitle(e.target.value)}/><textarea className="w-full rounded-lg border border-input bg-background p-3 text-sm" placeholder="Description" value={description} onChange={e=>setDescription(e.target.value)}/><div className="grid grid-cols-2 gap-2"><select className="h-10 rounded-lg border border-input bg-background px-2 text-sm" value={format} onChange={e=>setFormat(e.target.value)}>{Object.entries(formats).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select><input type="number" min="2" max="512" className="h-10 rounded-lg border border-input bg-background px-3 text-sm" value={capacity} onChange={e=>setCapacity(e.target.value)} placeholder="Capacity"/></div><label className="text-xs text-muted-foreground">Start time (your device timezone)</label><input type="datetime-local" className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" value={starts} onChange={e=>setStarts(e.target.value)}/><input className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" placeholder="Prize / rewards" value={prize} onChange={e=>setPrize(e.target.value)}/><textarea className="w-full rounded-lg border border-input bg-background p-3 text-sm" placeholder="Rules and eligibility" value={rules} onChange={e=>setRules(e.target.value)}/><select className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" value={visibility} onChange={e=>setVisibility(e.target.value)}><option value="public">Public tournament</option><option value="private">Private · invite code</option></select>{visibility==="private"&&<input className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm" placeholder="Invite code (optional)" value={invite} onChange={e=>setInvite(e.target.value)}/>}<div className="flex gap-2"><Button onClick={()=>void create()}>Publish tournament</Button><Button variant="outline" onClick={()=>setShowCreate(false)}>Cancel</Button></div></section>}
+   {loading?<div className="py-16 text-center text-sm text-muted-foreground">Loading live tournaments…</div>:filtered.length===0?<div className="rounded-2xl border border-dashed border-border p-10 text-center"><Trophy className="mx-auto h-8 w-8 text-muted-foreground"/><h3 className="mt-3 font-semibold">No tournaments here yet</h3><p className="mt-1 text-sm text-muted-foreground">Check back soon for the next competition.</p></div>:<div className="grid gap-3 sm:grid-cols-2">{filtered.map(t=>{const entries=t.draughts_tournament_entries||[];const count=entries.filter(e=>["registered","waitlisted"].includes(e.status)).length;return <article key={t.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm"><div className="flex items-start justify-between gap-2"><span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">{formats[t.format]||t.format}</span><span className="flex items-center gap-1 text-xs text-muted-foreground">{t.status==="live"?<Radio className="h-3 w-3 text-red-500"/>:<CalendarDays className="h-3 w-3"/>}{t.status}</span></div><h3 className="mt-3 text-lg font-bold">{t.title}</h3><p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{t.description||t.rules||"Join the arena and compete for the title."}</p><div className="mt-4 space-y-2 text-xs text-muted-foreground"><div className="flex items-center gap-2"><CalendarDays className="h-4 w-4"/>{localDate(t.starts_at)}</div><div className="flex items-center gap-2"><Users className="h-4 w-4"/>{count}/{t.max_players} players registered</div>{t.prize&&<div className="flex items-center gap-2"><Medal className="h-4 w-4"/>Prize: {t.prize}</div>}{t.visibility==="private"&&<div className="flex items-center gap-2"><LockKeyhole className="h-4 w-4"/>Invite only</div>}</div><div className="mt-4 flex items-center justify-between gap-2">{mine.has(t.id)?<span className="text-xs font-semibold text-primary">You are registered</span>:<span className="text-xs text-muted-foreground">{t.status==="registration"?"Registration open":t.status}</span>}<Button size="sm" disabled={joining===t.id||mine.has(t.id)||t.status!=="registration"} onClick={()=>void join(t)}>{joining===t.id?"Joining…":mine.has(t.id)?"Joined":"Join tournament"}</Button></div></article>})}</div>}
+   <div className="rounded-xl border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground"><div className="flex items-center gap-2 font-semibold text-foreground"><Crown className="h-4 w-4"/>Competition formats</div><p className="mt-1">Knockout cups · Round-robin leagues · Daily challenges · Weekly Masters · Season finals · Team battles · Open and private events.</p></div>
+  </section>
+ </main>;
+}
