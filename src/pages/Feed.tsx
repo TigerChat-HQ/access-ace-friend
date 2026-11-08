@@ -117,6 +117,7 @@ const Feed = () => {
       {/* Floating Tiger AI button */}
       <Link
         to="/tiger-ai"
+        state={{ from: "/" }}
         className="fixed bottom-20 right-4 z-20 w-14 h-14 rounded-full bg-gradient-to-br from-primary to-accent shadow-lg shadow-primary/40 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
         aria-label="Fungua Tiger AI — msaidizi wa app nzima"
         title="Tiger AI — Msaada wa TigerChats"
