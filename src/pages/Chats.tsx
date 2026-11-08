@@ -22,13 +22,14 @@ import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
 import { StoryUploadDialog } from "@/components/chat/StoryUploadDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, EyeOff, Trash2, X, ChevronUp, ChevronDown, Archive, RotateCcw, Palette, UserPlus, Settings, LogOut } from "lucide-react";
+import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, EyeOff, Trash2, X, ChevronUp, ChevronDown, Archive, RotateCcw, Palette, UserPlus, Settings, LogOut, Clock } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
 import { Message } from "@/types/chat";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 import { dispatchPush } from "@/lib/dispatch-push";
+import { enqueueMessage, getQueuedMessages, removeQueuedMessage, subscribeOutbox, processOutbox, QueuedMessage } from "@/lib/offline-outbox";
 import { useChatTranslation } from "@/hooks/useChatTranslation";
 import { ChatTranslationControls } from "@/components/chat/ChatTranslationControls";
 
@@ -74,6 +75,20 @@ const Chats = () => {
   const [chatSearchOpen, setChatSearchOpen] = useState(false);
   const [chatSearch, setChatSearch] = useState("");
   const [matchIdx, setMatchIdx] = useState(0);
+  const [queuedForActiveChat, setQueuedForActiveChat] = useState<QueuedMessage[]>([]);
+
+  useEffect(() => {
+    const update = () => {
+      if (activeChat) {
+        setQueuedForActiveChat(getQueuedMessages(activeChat));
+      } else {
+        setQueuedForActiveChat([]);
+      }
+    };
+    update();
+    const unsubscribe = subscribeOutbox(update);
+    return () => { unsubscribe(); };
+  }, [activeChat]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
@@ -123,18 +138,62 @@ const Chats = () => {
   }, [activeChat]);
 
   const handleSend = async (text: string) => {
-    if (!activeChat || !user) return;
+    if (!activeChat || !user || !text.trim()) return;
     const replyId = replyTo?.id;
     setReplyTo(null);
-    const { error } = await supabase.from("messages").insert({
-      conversation_id: activeChat,
-      sender_id: user.id,
-      content: text,
-      message_type: "text",
-      reply_to_id: replyId || null,
-    });
-    if (error) toast({ title: "Message not sent", description: error.message, variant: "destructive" });
-    else void dispatchPush(activeChat);
+
+    // If offline, queue immediately
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      enqueueMessage({
+        conversationId: activeChat,
+        senderId: user.id,
+        content: text.trim(),
+        messageType: "text",
+        replyToId: replyId || null,
+      });
+      toast({
+        title: "Ujumbe umehifadhiwa kwenye foleni (Offline)",
+        description: "Utatumwa kiotomatiki mtandao ukirudi.",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from("messages").insert({
+        conversation_id: activeChat,
+        sender_id: user.id,
+        content: text.trim(),
+        message_type: "text",
+        reply_to_id: replyId || null,
+      });
+      if (error) {
+        enqueueMessage({
+          conversationId: activeChat,
+          senderId: user.id,
+          content: text.trim(),
+          messageType: "text",
+          replyToId: replyId || null,
+        });
+        toast({
+          title: "Ujumbe umehifadhiwa kwenye foleni",
+          description: "Utatumwa kiotomatiki mtandao ukirudi.",
+        });
+      } else {
+        void dispatchPush(activeChat);
+      }
+    } catch {
+      enqueueMessage({
+        conversationId: activeChat,
+        senderId: user.id,
+        content: text.trim(),
+        messageType: "text",
+        replyToId: replyId || null,
+      });
+      toast({
+        title: "Ujumbe umehifadhiwa kwenye foleni",
+        description: "Utatumwa kiotomatiki mtandao ukirudi.",
+      });
+    }
   };
 
   const handleSendVoice = async (blob: Blob, duration: number) => {
@@ -253,6 +312,11 @@ const Chats = () => {
   };
 
   const handleDeleteMessage = async (messageId: string, mode: "me" | "everyone" = "everyone") => {
+    if (messageId.startsWith("queued_")) {
+      removeQueuedMessage(messageId);
+      toast({ title: "Ujumbe umeondolewa kwenye foleni" });
+      return;
+    }
     const { error } = await deleteMessage(messageId, mode);
     if (error) toast({ title: "Delete failed", description: error.message, variant: "destructive" });
   };
@@ -281,12 +345,28 @@ const Chats = () => {
     return { ui: m, replyToId: metadata.reply_to_id ?? null };
   });
 
-  const translation = useChatTranslation(user?.id, activeChat, uiMessages.map(item => item.ui));
+  const queuedUiList = queuedForActiveChat.map((q) => {
+    const m: Message = {
+      id: q.id,
+      senderId: "me",
+      text: q.content,
+      time: new Date(q.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      status: "pending",
+      type: (q.messageType || "text") as Message["type"],
+      mediaUrl: q.mediaUrl || undefined,
+    };
+    messageMap.set(q.id, m);
+    return { ui: m, replyToId: q.replyToId ?? null };
+  });
+
+  const allUiMessages = [...uiMessages, ...queuedUiList];
+
+  const translation = useChatTranslation(user?.id, activeChat, allUiMessages.map(item => item.ui));
 
   const matchIds = useMemo(() => {
     const q = chatSearch.trim().toLowerCase();
     if (!q) return [] as string[];
-    return uiMessages.filter(({ ui }) => ui.text.toLowerCase().includes(q)).map(({ ui }) => ui.id);
+    return allUiMessages.filter(({ ui }) => ui.text.toLowerCase().includes(q)).map(({ ui }) => ui.id);
   }, [chatSearch, uiMessages]);
 
   useEffect(() => { setMatchIdx(0); }, [chatSearch]);
@@ -541,7 +621,7 @@ const Chats = () => {
 
             <div ref={messagesScrollRef} className={`flex-1 min-w-0 overflow-y-auto overflow-x-hidden scrollbar-thin p-4 space-y-1 relative ${wallpaperClass(chatPrefs.wallpaper)} ${fontSizeClass(chatPrefs.font_size)}`}>
               {(!chatPrefs.wallpaper || chatPrefs.wallpaper === "default") && <TigerChatBackground />}
-              {uiMessages.map(({ ui, replyToId }) => {
+              {allUiMessages.map(({ ui, replyToId }) => {
                 const isMatch = matchSet.has(ui.id);
                 const isActive = ui.id === activeMatchId;
                 return (
@@ -553,6 +633,23 @@ const Chats = () => {
               <div ref={messagesEndRef} />
             </div>
 
+            {queuedForActiveChat.length > 0 && (
+              <div className="flex items-center justify-between px-4 py-1.5 bg-amber-500/10 border-t border-amber-500/25 text-amber-300 text-xs">
+                <div className="flex items-center gap-2 truncate">
+                  <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
+                  <span>
+                    {queuedForActiveChat.length} {queuedForActiveChat.length === 1 ? "ujumbe upo" : "jumbe zipo"} kwenye foleni ya kutumwa mtandao ukirudi
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void processOutbox()}
+                  className="px-2.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-[11px] font-medium transition-colors ml-2 shrink-0"
+                >
+                  Tuma sasa
+                </button>
+              </div>
+            )}
             <MessageInput onSend={handleSend} onSendVoice={handleSendVoice} onSendFile={handleSendFile} onTyping={notifyTyping} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} />
           </div>
         ) : (

@@ -14,7 +14,7 @@ export interface Message {
   senderId: string;
   text: string;
   time: string;
-  status: "sent" | "delivered" | "read";
+  status: "sent" | "delivered" | "read" | "pending" | "queued";
   type: "text" | "image" | "voice" | "file";
   mediaUrl?: string;
   statusContext?: { caption: string; story_id: string };

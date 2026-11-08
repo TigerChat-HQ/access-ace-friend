@@ -2,7 +2,7 @@ import { useState, useRef, useMemo } from "react";
 import { Message } from "@/types/chat";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Check, CheckCheck, Play, Pause, FileText, Download, Reply, Forward, Trash2, MoreVertical } from "lucide-react";
+import { Check, CheckCheck, Play, Pause, FileText, Download, Reply, Forward, Trash2, MoreVertical, Clock } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -151,7 +151,9 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
         <div className={cn("flex items-center gap-1 mt-1", isMe ? "justify-end" : "justify-start", isImage && !message.text && "px-2 pb-1")}>
           <span className="text-[10px] opacity-60">{message.time}</span>
           {isMe && (
-            message.status === "read" ? (
+            message.status === "pending" || message.status === "queued" ? (
+              <Clock aria-label="Foleni (Inasubiri mtandao)" className="w-3.5 h-3.5 text-amber-300 opacity-80 animate-pulse" />
+            ) : message.status === "read" ? (
               <CheckCheck aria-label="Read" className="w-3.5 h-3.5 text-primary" />
             ) : message.status === "delivered" ? (
               <CheckCheck aria-label="Delivered" className="w-3.5 h-3.5 opacity-60" />
