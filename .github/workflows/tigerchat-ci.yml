@@ -35,6 +35,9 @@ jobs:
       - name: TypeScript project checks
         run: npm run typecheck
 
+      - name: Verify 20 status music tracks
+        run: node scripts/check-status-audio.mjs
+
       - name: Lint changed Stage 2 files
         run: |
           npx eslint src/lib/tiger-planner.test.ts
