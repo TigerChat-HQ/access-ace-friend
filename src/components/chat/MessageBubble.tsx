@@ -44,7 +44,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
   const isFile = message.type === "file";
   const isImage = message.type === "image";
   const isVoice = message.type === "voice";
-  const isEmojiOnly = !!message.text && /^(?:\p{Extended_Pictographic}|\uFE0F|\u200D|\\s)+$/u.test(message.text.trim()) && Array.from(message.text.trim()).length <= 8;
+  const isEmojiOnly = !!message.text && /^(?:\p{Extended_Pictographic}|\uFE0F|\u200D|\s)+$/u.test(message.text.trim()) && Array.from(message.text.trim()).length <= 8;
 
   return (
     <div className={cn("flex w-full min-w-0 mb-2 animate-fade-in group", isMe ? "justify-end" : "justify-start")}>
