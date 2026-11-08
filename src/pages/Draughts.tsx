@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { BoardAppearance, useDraughtsAppearance } from "@/components/draughts/BoardAppearance";
+import { DraughtsGameEffects, playDraughtsSound } from "@/components/draughts/DraughtsGameEffects";
 import {
   Board, Color, Move, applyMove, initialBoard, isDark, legalMoves,
   pickAIMove, winner,
@@ -32,6 +33,8 @@ const Draughts = () => {
   const [openMatches, setOpenMatches] = useState<MatchRow[]>([]);
   const [creating, setCreating] = useState(false);
   const [flipBoard, setFlipBoard] = useState<boolean | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(() => { try { return localStorage.getItem("tiger-draughts-sound") !== "off"; } catch { return true; } });
+  useEffect(() => { try { localStorage.setItem("tiger-draughts-sound", soundEnabled ? "on" : "off"); } catch { /* optional preference */ } }, [soundEnabled]);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const aiMoveInFlight = useRef<string | null>(null);
 
@@ -234,6 +237,7 @@ const Draughts = () => {
       const { data: latest } = await supabase.from("draft_matches").select("*").eq("id", match.id).maybeSingle();
       if (latest) setMatch(latest as unknown as MatchRow);
     } else {
+      if (soundEnabled) playDraughtsSound(w ? "win" : piece ? "capture" : "move");
       setMatch(data as unknown as MatchRow);
     }
   };
@@ -472,6 +476,8 @@ const Draughts = () => {
           <p className="text-[10px] text-muted-foreground mt-0.5">Pieces left — White: {wCount} · Black: {bCount}</p>
         </div>
       )}
+
+      <DraughtsGameEffects matchId={match.id} isFinished={match.status === "finished"} isWinner={Boolean(myColor && match.winner === (myColor === "w" ? "white" : "black"))} soundEnabled={soundEnabled} onSoundEnabledChange={setSoundEnabled} />
 
       {match.status !== "finished" && (
         <div className="px-4 py-2 text-[11px] text-center text-muted-foreground border-t border-border/50">
