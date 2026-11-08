@@ -20,7 +20,7 @@ interface StoryData {
   musicUrl?: string;
   mediaType?: "image" | "video" | "text";
   backgroundColor?: string;
-  textOverlay?: { text: string } | null;
+  textOverlay?: { text?: string; music_start?: number; music_end?: number; image_filter?: string } | null;
   duration?: number | null;
 }
 
@@ -180,17 +180,31 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
   }, [currentIndex, stories.length, onClose, currentUserId, story, paused, commentsOpen, storyDuration]);
 
   useEffect(() => {
-    if (audioRef.current) {
-      if (story?.musicUrl) {
-        audioRef.current.src = story.musicUrl;
-        void audioRef.current.play().catch((error: unknown) => {
-          console.warn("Story audio could not be played:", error);
-        });
-      } else {
-        audioRef.current.pause();
-        audioRef.current.src = "";
-      }
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (!story?.musicUrl) {
+      audio.pause();
+      audio.src = "";
+      return;
     }
+    const start = Math.max(0, story.textOverlay?.music_start ?? 0);
+    const end = story.textOverlay?.music_end ?? 0;
+    const seekAndPlay = () => {
+      audio.currentTime = start;
+      void audio.play().catch((error: unknown) => console.warn("Story audio could not be played:", error));
+    };
+    const loopClip = () => {
+      if (end > start && audio.currentTime >= end) audio.currentTime = start;
+    };
+    audio.addEventListener("loadedmetadata", seekAndPlay, { once: true });
+    audio.addEventListener("timeupdate", loopClip);
+    audio.src = story.musicUrl;
+    if (audio.readyState >= 1) seekAndPlay();
+    return () => {
+      audio.removeEventListener("loadedmetadata", seekAndPlay);
+      audio.removeEventListener("timeupdate", loopClip);
+      audio.pause();
+    };
   }, [story?.musicUrl, currentIndex]);
 
   const goNext = () => {
@@ -277,6 +291,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
             muted={muted}
             playsInline
             className="max-w-full max-h-full object-contain"
+            style={{ filter: story.textOverlay?.image_filter || "none" }}
             onEnded={goNext}
           />
         ) : story.imageUrl ? (
@@ -290,6 +305,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
               src={story.imageUrl}
               alt="Story"
               className={`max-w-full max-h-full object-contain transition-opacity duration-500 ${imgLoaded ? "opacity-100" : "opacity-0 absolute"}`}
+              style={{ filter: story.textOverlay?.image_filter || "none" }}
               onLoad={() => setImgLoaded(true)}
             />
           </>
