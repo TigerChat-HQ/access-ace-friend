@@ -30,9 +30,9 @@ export const FREE_TRACKS: FreeTrack[] = [
   // Love / Romantic — 5
   { id: "love-1", title: "Beautiful Dream", artist: "Diego Nava", duration: 97, mood: "Love", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-beautiful-dream-493.mp3") },
   { id: "love-2", title: "Romantic", artist: "Francisco Alvear", duration: 159, mood: "Love", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-romantic-659.mp3") },
-  { id: "love-3", title: "Dreaming Big", artist: "Mixkit", duration: 110, mood: "Love", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-dreaming-big-31.mp3") },
+  { id: "love-3", title: "Love is Eternal", artist: "Ahjay Stelino", duration: 94, mood: "Love", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-love-is-eternal-37.mp3") },
   { id: "love-4", title: "Serene View", artist: "Arulo", duration: 114, mood: "Love", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-serene-view-443.mp3") },
-  { id: "love-5", title: "Spirit in the Woods", artist: "Alejandro Magaña", duration: 113, mood: "Love", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-spirit-in-the-woods-139.mp3") },
+  { id: "love-5", title: "Latin Lovers", artist: "Ahjay Stelino", duration: 95, mood: "Love", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-latin-lovers-39.mp3") },
 
   // Motivation — 5
   { id: "motivation-1", title: "Driving Ambition", artist: "Ahjay Stelino", duration: 102, mood: "Motivation", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-driving-ambition-32.mp3") },
