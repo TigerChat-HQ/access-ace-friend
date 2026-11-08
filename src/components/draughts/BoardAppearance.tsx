@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { Settings2, X } from "lucide-react";
+import { Settings2, Volume2, VolumeX, X } from "lucide-react";
 
 export type BoardTheme = "wood" | "slate" | "ocean" | "forest";
 export type PieceStyle = "classic" | "ivory" | "ruby" | "gold";
@@ -69,17 +69,17 @@ export function BoardAppearance({
   const [open, setOpen] = useState(false);
   return (
     <div className="relative z-30">
-      <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-label="Board settings"
+      <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-label="Draughts settings"
         className="inline-flex items-center gap-2 rounded-xl border border-primary/30 bg-card/90 px-3 py-2 text-xs font-semibold text-foreground shadow-lg backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-xl">
         <Settings2 className="h-4 w-4 text-primary" /> Board settings
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-2 w-[min(88vw,320px)] rounded-2xl border border-primary/25 bg-card/95 p-4 shadow-2xl backdrop-blur-2xl ring-1 ring-white/10">
           <div className="mb-3 flex items-center justify-between">
-            <div><p className="text-sm font-bold text-foreground">Live board controls</p><p className="text-[10px] text-muted-foreground">Changes apply instantly</p></div>
+            <div><p className="text-sm font-bold text-foreground">Draughts settings</p><p className="text-[10px] text-muted-foreground">Board & sound controls</p></div>
             <button type="button" onClick={() => setOpen(false)} aria-label="Close board settings" className="rounded-lg p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
           </div>
-          <label className="mb-3 block space-y-1.5 text-xs text-muted-foreground">Board theme
+          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-primary">Board settings</p>\n          <label className="mb-3 block space-y-1.5 text-xs text-muted-foreground">Board theme
             <select value={theme} onChange={(event) => setTheme(event.target.value as BoardTheme)} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground">
               {themes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
             </select>
@@ -94,7 +94,7 @@ export function BoardAppearance({
             <input type="range" min="80" max="120" step="5" value={scale} onChange={(event) => setScale(Number(event.target.value))} className="w-full accent-primary" />
             <span className="flex justify-between text-[10px]"><span>Compact</span><span>Large</span></span>
           </label>
-          <label className="flex cursor-pointer items-center justify-between rounded-xl border border-border/70 bg-background/70 p-3 text-xs text-foreground">
+          <div className="my-4 border-t border-border/70 pt-3">\n            <p className="mb-3 text-xs font-bold uppercase tracking-wider text-primary">Sound settings</p>\n            <button type="button" onClick={() => setSoundEnabled(!soundEnabled)} className="mb-3 flex w-full items-center justify-between rounded-xl border border-border/70 bg-background/70 p-3 text-xs text-foreground"><span className="font-semibold">Game & emoji sounds</span><span className="flex items-center gap-1">{soundEnabled ? <Volume2 className="h-4 w-4 text-primary" /> : <VolumeX className="h-4 w-4" />}{soundEnabled ? "On" : "Off"}</span></button>\n            <label className="mb-3 block space-y-1.5 text-xs text-muted-foreground"><span className="flex justify-between"><span>Game volume</span><strong className="text-foreground">{Math.round(soundVolume * 100)}%</strong></span><input type="range" min="0" max="1" step="0.05" value={soundVolume} onChange={(event) => setSoundVolume(Number(event.target.value))} className="w-full accent-primary" /></label>\n            <label className="block space-y-1.5 text-xs text-muted-foreground"><span className="flex justify-between"><span>Emoji volume</span><strong className="text-foreground">{Math.round(reactionVolume * 100)}%</strong></span><input type="range" min="0" max="1" step="0.05" value={reactionVolume} onChange={(event) => setReactionVolume(Number(event.target.value))} className="w-full accent-primary" /></label>\n            <p className="mt-2 text-[10px] text-muted-foreground">😂 plays a human laugh; 🐯 uses a tiger roar.</p>\n          </div>\n          <label className="flex cursor-pointer items-center justify-between rounded-xl border border-border/70 bg-background/70 p-3 text-xs text-foreground">
             <span><strong className="block">3D depth effect</strong><span className="text-[10px] text-muted-foreground">Perspective, lift & shadow</span></span>
             <input type="checkbox" checked={depth} onChange={(event) => setDepth(event.target.checked)} className="h-4 w-4 accent-primary" />
           </label>
