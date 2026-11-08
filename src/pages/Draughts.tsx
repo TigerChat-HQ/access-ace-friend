@@ -159,7 +159,7 @@ const Draughts = () => {
       setAiThinking(false);
     }, 350);
     return () => clearTimeout(t);
-  }, [match?.id, match?.current_turn, match?.vs_ai, match?.status, match?.revision, match?.board]);
+  }, [match?.id, match?.current_turn, match?.vs_ai, match?.status, match?.revision, match?.board, soundEnabled, soundVolume]);
 
   const startAI = async () => {
     if (!user) return;
