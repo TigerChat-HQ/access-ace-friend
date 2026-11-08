@@ -82,7 +82,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
     void refreshViews();
     const channel = supabase.channel(`story-views-${story.id}-${crypto.randomUUID()}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "story_views", filter: `story_id=eq.${story.id}` }, () => {
-        if (active) setViewCount(value => value + 1);
+        if (active) void refreshViews();
       }).subscribe();
     return () => { active = false; void supabase.removeChannel(channel); };
   }, [story?.id, isOwner]);
