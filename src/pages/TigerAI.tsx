@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { ArrowLeft, Send, Loader2, Megaphone, Image as ImageIcon, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -25,12 +25,13 @@ const SUGGESTED = [
 
 const TigerAI = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [messages, setMessages] = useState<Msg[]>([
     {
       role: "assistant",
       content:
-        "Hey there! I'm **Tiger AI** — your built-in helper for everything TIGERCHATS. Ask me anything: how to post stories, manage privacy, start calls, file a report. 🐯",
+        "Habari! Mimi ni **Tiger AI**, msaidizi wa TigerChats nzima. Naweza kukuongoza kutumia chats, groups, stories, posts, games, settings, usalama na vipengele vingine. Niambie unataka kufanya nini. 🐯",
     },
   ]);
   const [input, setInput] = useState("");
@@ -142,7 +143,7 @@ const TigerAI = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${ANON}`,
         },
-        body: JSON.stringify({ messages: [...messages, userMsg] }),
+        body: JSON.stringify({ messages: [...messages, userMsg], app_context: { current_path: location.pathname, entry_point: location.state?.from || "app" } }),
       });
 
       if (resp.status === 429) {
@@ -214,7 +215,7 @@ const TigerAI = () => {
         <img src={tigerLogo} alt="" className="w-9 h-9" />
         <div className="flex-1">
           <h1 className="text-base font-bold text-foreground leading-tight">Tiger AI</h1>
-          <p className="text-[10px] text-primary">Online · always here</p>
+          <p className="text-[10px] text-primary">Msaidizi wa TigerChats nzima · Online</p>
         </div>
         <button
           onClick={() => { setFeedbackPrefill(input); setFeedbackOpen(true); }}
