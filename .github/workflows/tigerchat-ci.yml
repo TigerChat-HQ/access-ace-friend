@@ -20,25 +20,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Prepare npm lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
       - name: TypeScript project checks
-        run: bun run typecheck
+        run: npm run typecheck
 
       - name: Lint changed Stage 2 files
         run: |
-          bunx eslint src/lib/tiger-planner.test.ts
+          npx eslint src/lib/tiger-planner.test.ts
           bunx eslint supabase/functions/tiger-dev-planner/index.ts
 
       - name: Full repository lint
-        run: bun run lint
+        run: npm run lint
 
       - name: Unit tests
-        run: bun run test
+        run: npm run test
 
       - name: Production build
-        run: bun run build
+        run: npm run build
