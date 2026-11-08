@@ -37,9 +37,10 @@ BEGIN
  SELECT * INTO v_match FROM public.draft_matches WHERE id=p_id FOR UPDATE;
  IF NOT FOUND OR v_match.status<>'active' THEN RAISE EXCEPTION 'Match is not active'; END IF;
  IF v_match.revision<>p_revision THEN RAISE EXCEPTION 'Board revision conflict'; END IF;
- IF v_match.player_white=(select auth.uid()) THEN v_mover:='w';
- ELSIF v_match.player_black=(select auth.uid()) THEN v_mover:='b';
- ELSE RAISE EXCEPTION 'Not a match participant'; END IF;
+ IF v_match.player_white=(select auth.uid()) AND v_match.current_turn='w' THEN v_mover:='w';
+ ELSIF v_match.player_black=(select auth.uid()) AND v_match.current_turn='b' THEN v_mover:='b';
+ ELSIF v_match.vs_ai AND v_match.player_white=(select auth.uid()) AND v_match.current_turn='b' THEN v_mover:='b';
+ ELSE RAISE EXCEPTION 'Not your turn or not a match participant'; END IF;
  IF v_match.current_turn<>v_mover THEN RAISE EXCEPTION 'Not your turn'; END IF;
  IF p_turn NOT IN('w','b') OR p_turn=v_mover THEN RAISE EXCEPTION 'Invalid next turn'; END IF;
  IF p_status NOT IN('active','finished') THEN RAISE EXCEPTION 'Invalid match status'; END IF;
