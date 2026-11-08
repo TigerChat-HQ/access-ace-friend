@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import {
   ArrowLeft, Trash2, Users, FileText, MessageSquare, Search, Shield, ShieldOff, Flag,
-  TrendingUp, Heart, Eye, Crown,
+  TrendingUp, Heart, Eye, Crown, BarChart3, Gamepad2, Bot, ChevronRight, ArrowLeft as BackArrow,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,7 @@ const Admin = () => {
   const [engagement, setEngagement] = useState<{ name: string; value: number }[]>([]);
   const [creating, setCreating] = useState(false);
   const [replyTarget, setReplyTarget] = useState<AdminReport | null>(null);
+  const [selectedSection, setSelectedSection] = useState("home");
 
   const load = async () => {
     const [
@@ -161,36 +162,49 @@ const Admin = () => {
 
   return (
     <div className="h-full flex flex-col bg-background">
-      <header className="flex items-center gap-3 px-4 py-3 border-b border-border/50">
-        <button onClick={() => navigate(-1)} className="text-foreground">
-          <ArrowLeft className="w-5 h-5" />
+      <header className="flex items-center gap-3 px-4 py-3 border-b border-border/50 sticky top-0 z-20 bg-background/95 backdrop-blur">
+        <button onClick={() => selectedSection === "home" ? navigate(-1) : setSelectedSection("home")} className="text-foreground" aria-label="Back to Admin Panel">
+          {selectedSection === "home" ? <ArrowLeft className="w-5 h-5" /> : <BackArrow className="w-5 h-5" />}
         </button>
-        <h1 className="text-sm font-semibold text-foreground flex items-center gap-2">
-          <Crown className="w-4 h-4 text-primary" /> Developer Panel
-        </h1>
+        <div className="min-w-0">
+          <h1 className="text-sm font-semibold text-foreground flex items-center gap-2"><Crown className="w-4 h-4 text-primary" /> Admin Panel</h1>
+          <p className="text-[10px] text-muted-foreground">{selectedSection === "home" ? "Choose a category to manage TigerChat" : adminSections.find((item) => item.id === selectedSection)?.title}</p>
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
-        <Button
-          onClick={openSuperGroup}
-          disabled={creating}
-          className="w-full"
-        >
-          <Crown className="w-4 h-4 mr-2" />
-          {creating ? "Opening..." : "Open Admin Super Group"}
-        </Button>
+        {selectedSection === "home" ? (
+          <>
+            <section className="space-y-1"><h2 className="text-lg font-bold text-foreground">Admin Control Center</h2><p className="text-sm text-muted-foreground">Mipangilio imepangwa kwa makundi. Chagua sehemu unayotaka kufungua.</p></section>
+            <Button onClick={openSuperGroup} disabled={creating} className="w-full"><Crown className="w-4 h-4 mr-2" />{creating ? "Opening..." : "Open Admin Super Group"}</Button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {adminSections.map((item) => { const Icon = item.icon; return (
+                <button key={item.id} onClick={() => setSelectedSection(item.id)} className="group flex items-center gap-3 rounded-xl border border-border/60 bg-card p-4 text-left transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="h-5 w-5" /></span>
+                  <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-foreground">{item.title}</span><span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{item.description}</span></span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                </button>
+              ); })}
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center justify-between gap-2">
+            <div><h2 className="text-lg font-bold text-foreground">{adminSections.find((item) => item.id === selectedSection)?.title}</h2><p className="text-xs text-muted-foreground">{adminSections.find((item) => item.id === selectedSection)?.description}</p></div>
+            <Button size="sm" variant="outline" onClick={() => setSelectedSection("home")}><BackArrow className="mr-1 h-4 w-4" /> Admin Home</Button>
+          </div>
+        )}
 
-        {(isSuperiorAdmin || isAdmin) && <AnnouncementComposer />}
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+        {selectedSection === "content" && (isSuperiorAdmin || isAdmin) && <AnnouncementComposer />}
+        {selectedSection === "overview" && <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
           <Stat icon={Users} label="Users" value={stats.users} />
           <Stat icon={FileText} label="Posts" value={stats.posts} />
           <Stat icon={MessageSquare} label="Comments" value={stats.comments} />
           <Stat icon={Heart} label="Likes" value={stats.likes} />
           <Stat icon={Eye} label="Stories" value={stats.stories} />
           <Stat icon={MessageSquare} label="Messages" value={stats.messages} />
-        </div>
+        </div>}
 
-        <section>
+        {selectedSection === "overview" && <section>
           <h2 className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-2 flex items-center gap-2">
             <TrendingUp className="w-3.5 h-3.5" /> Growth — last 14 days
           </h2>
@@ -216,9 +230,9 @@ const Admin = () => {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </section>
+        </section>}
 
-        <section>
+        {selectedSection === "overview" && <section>
           <h2 className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-2">
             Engagement breakdown
           </h2>
@@ -247,9 +261,9 @@ const Admin = () => {
               </ResponsiveContainer>
             </div>
           </div>
-        </section>
+        </section>}
 
-        <section>
+        {selectedSection === "content" && <section>
           <h2 className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-2 flex items-center gap-2">
             <Flag className="w-3.5 h-3.5" /> Reports & Contact ({reports.filter((r) => r.status === "pending").length} pending)
           </h2>
@@ -289,9 +303,9 @@ const Admin = () => {
               ))
             )}
           </div>
-        </section>
+        </section>}
 
-        <section>
+        {selectedSection === "users" && <section>
           <h2 className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-2">Manage users & admins</h2>
           <div className="flex items-center gap-2 bg-surface rounded-lg px-3 py-2 mb-2">
             <Search className="w-4 h-4 text-muted-foreground" />
@@ -343,9 +357,9 @@ const Admin = () => {
               );
             })}
           </div>
-        </section>
+        </section>}
 
-        <section>
+        {selectedSection === "content" && <section>
           <h2 className="text-xs uppercase tracking-wide text-muted-foreground font-semibold mb-2">Recent posts</h2>
           <div className="space-y-2">
             {recentPosts.map((p) => (
@@ -363,13 +377,11 @@ const Admin = () => {
               </div>
             ))}
           </div>
-        </section>
+        </section>}
 
-        <DraughtsAdminControl />
-
-        <TigerCommandCenter />
-
-        <GameAdmin />
+        {selectedSection === "draughts" && <DraughtsAdminControl />}
+        {selectedSection === "developer" && <TigerCommandCenter />}
+        {selectedSection === "games" && <GameAdmin />
       </div>
 
       {replyTarget && (
@@ -383,6 +395,15 @@ const Admin = () => {
     </div>
   );
 };
+
+const adminSections: { id: string; title: string; description: string; icon: LucideIcon }[] = [
+  { id: "overview", title: "Overview & Live Activity", description: "Takwimu za app, ukuaji na mwenendo wa matumizi.", icon: BarChart3 },
+  { id: "users", title: "Users & Access", description: "Tafuta watumiaji na dhibiti roles za admin, moderator na adviser.", icon: Users },
+  { id: "content", title: "Content & Communication", description: "Matangazo, reports, majibu na posts za hivi karibuni.", icon: FileText },
+  { id: "draughts", title: "Draughts & Tournaments", description: "Michezo inayoendelea, waiting rooms, seasons na badges.", icon: Shield },
+  { id: "games", title: "Games & Quiz Settings", description: "Maswali ya mchezo na viwango vya zawadi.", icon: Gamepad2 },
+  { id: "developer", title: "Developer & System Tools", description: "Tiger AI Command Center, kazi za kiufundi na ukaguzi wa GitHub.", icon: Bot },
+];
 
 const Stat = ({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number }) => (
   <div className="bg-card border border-border/50 rounded-xl p-3 text-center">
