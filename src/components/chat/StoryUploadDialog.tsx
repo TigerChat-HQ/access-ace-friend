@@ -34,7 +34,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
   const [preview, setPreview] = useState<string | null>(null);
   const [duration, setDuration] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
-  const [audience, setAudience] = useState<"everyone" | "only_me">("everyone");
+  const [audience, setAudience] = useState<"everyone" | "contacts" | "only_me">("everyone");
   const [backgroundColor, setBackgroundColor] = useState(BACKGROUNDS[0]);
 
   useEffect(() => () => {
@@ -249,10 +249,12 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
 
           <div className="space-y-2">
             <p className="text-sm font-medium text-foreground">Who can see this status?</p>
-            <div className="grid grid-cols-2 gap-2">
-              <Button type="button" variant={audience === "everyone" ? "default" : "outline"} onClick={() => setAudience("everyone")} className="gap-2"><Globe className="w-4 h-4" /> Everyone</Button>
-              <Button type="button" variant={audience === "only_me" ? "default" : "outline"} onClick={() => setAudience("only_me")} className="gap-2"><Lock className="w-4 h-4" /> Only me</Button>
+            <div className="grid grid-cols-3 gap-2">
+              <Button type="button" size="sm" variant={audience === "everyone" ? "default" : "outline"} onClick={() => setAudience("everyone")} className="gap-1 px-2"><Globe className="w-3.5 h-3.5" /> Everyone</Button>
+              <Button type="button" size="sm" variant={audience === "contacts" ? "default" : "outline"} onClick={() => setAudience("contacts")} className="gap-1 px-2"><span aria-hidden="true">👥</span> Contacts</Button>
+              <Button type="button" size="sm" variant={audience === "only_me" ? "default" : "outline"} onClick={() => setAudience("only_me")} className="gap-1 px-2"><Lock className="w-3.5 h-3.5" /> Only me</Button>
             </div>
+            <p className="text-xs text-muted-foreground">Contacts means people who follow each other. Blocked accounts are excluded.</p>
           </div>
 
           <div className="space-y-2">
