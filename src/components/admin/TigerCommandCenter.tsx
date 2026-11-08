@@ -81,7 +81,7 @@ export const TigerCommandCenter = () => {
     try {
       const saved = localStorage.getItem("tiger_dev_chat_history");
       if (saved) return JSON.parse(saved);
-    } catch {}
+    } catch (error) { console.warn("Could not restore Tiger AI chat history:", error); }
     return [
       {
         id: "intro",
@@ -99,7 +99,7 @@ export const TigerCommandCenter = () => {
   useEffect(() => {
     try {
       localStorage.setItem("tiger_dev_chat_history", JSON.stringify(devMessages));
-    } catch {}
+    } catch (error) { console.warn("Could not persist Tiger AI chat history:", error); }
   }, [devMessages]);
 
   const sendDevMessage = async (customText?: string) => {
@@ -174,7 +174,7 @@ export const TigerCommandCenter = () => {
       await navigator.clipboard.writeText(text);
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
-    } catch {}
+    } catch (error) { console.warn("Could not copy Tiger AI response:", error); }
   };
   const [tasks, setTasks] = useState<Task[]>([]);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
