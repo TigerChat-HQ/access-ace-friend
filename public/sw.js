@@ -1,5 +1,5 @@
-// TIGERCHATS push notification service worker
-// Registered only on production hosts, never inside the editor preview iframe.
+// TIGERCHATS push notification & PWA service worker
+// Registered on production hosts for push notifications and Add to Home Screen installability.
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
@@ -7,6 +7,14 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
+});
+
+// Passive fetch listener to satisfy Chrome PWA installability requirements
+self.addEventListener("fetch", (event) => {
+  // Let network handle request, or fallback to cache if available
+  event.respondWith(
+    fetch(event.request).catch(() => caches.match(event.request))
+  );
 });
 
 const showAppNotification = (payload = {}) => {

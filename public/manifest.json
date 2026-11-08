@@ -2,7 +2,9 @@
   "name": "TIGERCHATS",
   "short_name": "TIGERCHATS",
   "description": "Fast. Secure. Premium messaging app.",
-  "start_url": "/",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "id": "/?source=pwa",
   "display": "standalone",
   "background_color": "#0a0a0a",
   "theme_color": "#00e68a",
@@ -22,7 +24,7 @@
       "src": "/pwa-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any maskable"
     }
   ]
 }
