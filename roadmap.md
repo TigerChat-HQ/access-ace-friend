@@ -1,4 +1,5 @@
 # Requested updates
+- [ ] Finish push notifications: preserve Firebase worker, unify registration, add enable/disable state and verify delivery (requires Include web push).
 - [ ] Confirm connected Firebase configuration and deploy affected push functions.
 - [ ] Add per-chat automatic incoming-message translation with language selection and original text; verify authenticated translation.
 - [ ] Current request: private status replies in chats; location/contact/video sharing.

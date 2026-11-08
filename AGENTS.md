@@ -2,7 +2,7 @@
 - Chat translation fetches message IDs through caller-scoped RLS and never overwrites originals; per-device, per-user chat language preferences opt in to AI processing.
 - Status replies use a security-invoker RPC and snapshot context in direct messages; status visibility and chat membership remain enforced by RLS.
 - Authenticator MFA gates signed-in navigation; biometric verification is a synchronized local device lock, never account authorization.
-- Firebase push uses a dedicated messaging worker and authenticated server dispatch; device tokens are private to their owner.
+- Firebase push uses a dedicated messaging worker and authenticated server dispatch; device tokens are private to their owner. Registration is centralized in firebase-push after consent; startup must never unregister the messaging worker, and logout removes the current device token to protect account privacy.
 - Fresh quizzes are generated server-side with validated answers and per-user served-question history; AI does not write the shared admin question bank.
 - Contact reuses reports through authenticated validation RPCs; report replies and notifications are committed atomically to avoid missing user alerts.
 - Public draughts practice uses the shared engine without exposing private multiplayer data; sitemap generation lists only public content routes.
