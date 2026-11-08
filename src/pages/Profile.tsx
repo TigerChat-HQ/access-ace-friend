@@ -288,7 +288,7 @@ const Profile = () => {
             </div>
           )}
 
-          {userId && <DraughtsProfileRank userId={userId} isMe={isMe} />}
+          {userId && <DraughtsProfileRank userId={profile.user_id} isMe={isMe} />}
 
           <div className="flex gap-2">
             {isMe ? (
