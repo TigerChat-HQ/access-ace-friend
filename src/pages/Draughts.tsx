@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Bot, Users, Crown, Loader2, RotateCw, Flag, Share2, Copy } from "lucide-react";
+import { ArrowLeft, Bot, Users, Crown, Loader2, RotateCw, Flag, Share2, Copy, ArrowUpDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json, Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,6 +29,7 @@ const Draughts = () => {
   const [aiThinking, setAiThinking] = useState(false);
   const [openMatches, setOpenMatches] = useState<MatchRow[]>([]);
   const [creating, setCreating] = useState(false);
+  const [flipBoard, setFlipBoard] = useState<boolean | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const aiMoveInFlight = useRef<string | null>(null);
 
@@ -239,6 +240,7 @@ const Draughts = () => {
     if (channelRef.current) supabase.removeChannel(channelRef.current);
     setMatch(null);
     setSelected(null);
+    setFlipBoard(null);
     setMode("menu");
   };
 
@@ -320,6 +322,8 @@ const Draughts = () => {
   }
 
   // Game view
+  // When playing as Black, automatically orient board so black pieces are at the bottom unless manually toggled
+  const isFlipped = flipBoard !== null ? flipBoard : myColor === "b";
   const validDest = new Set(movesForSelected.map((m) => m.to));
   const lastFrom = match.last_move?.from;
   const lastTo = match.last_move?.to;
@@ -369,6 +373,14 @@ const Draughts = () => {
           </h1>
           <p className="text-[10px] text-primary">{turnLabel}</p>
         </div>
+        <button
+          onClick={() => setFlipBoard(!isFlipped)}
+          className={`p-2 rounded-full transition-colors ${isFlipped ? "bg-primary/20 text-primary" : "hover:bg-surface-hover text-foreground"}`}
+          title={isFlipped ? "Normal view (White at bottom)" : "Flip board (Black at bottom)"}
+          aria-label="Flip board perspective"
+        >
+          <ArrowUpDown className="w-4 h-4" />
+        </button>
         {!match.vs_ai && match.status !== "finished" && (
           <button onClick={shareMatch} className="p-2 rounded-full hover:bg-surface-hover" title="Share match">
             <Share2 className="w-4 h-4 text-foreground" />
@@ -403,17 +415,17 @@ const Draughts = () => {
 
       {/* Score bar */}
       <div className="grid grid-cols-2 gap-2 px-3 py-2 border-b border-border/50 bg-card/30">
-        <div className={`flex items-center gap-2 p-2 rounded-lg ${myColor && match.current_turn === myColor && match.status === "active" ? "bg-primary/15 ring-1 ring-primary/40" : "bg-surface/40"}`}>
+        <div className={`flex items-center gap-2 p-2 rounded-lg ${match.current_turn === "w" && match.status === "active" ? "bg-primary/15 ring-1 ring-primary/40" : "bg-surface/40"}`}>
           <div className="w-6 h-6 rounded-full bg-gradient-to-br from-white to-zinc-300 border border-zinc-400 shadow" />
           <div className="flex-1">
-            <p className="text-[10px] text-muted-foreground">{myColor === "w" ? "You" : myColor === "b" ? "Opponent" : "White"}</p>
+            <p className="text-[10px] text-muted-foreground">{myColor === "w" ? "You (White)" : myColor === "b" ? "Opponent (White)" : "White"}</p>
             <p className="text-sm font-bold text-foreground">{wCount} <span className="text-[10px] font-normal text-muted-foreground">pieces</span></p>
           </div>
         </div>
-        <div className={`flex items-center gap-2 p-2 rounded-lg ${myColor && match.current_turn !== myColor && match.status === "active" ? "bg-primary/15 ring-1 ring-primary/40" : "bg-surface/40"}`}>
+        <div className={`flex items-center gap-2 p-2 rounded-lg ${match.current_turn === "b" && match.status === "active" ? "bg-primary/15 ring-1 ring-primary/40" : "bg-surface/40"}`}>
           <div className="w-6 h-6 rounded-full bg-gradient-to-br from-zinc-800 to-black border border-zinc-700 shadow" />
           <div className="flex-1">
-            <p className="text-[10px] text-muted-foreground">{myColor === "b" ? "You" : myColor === "w" ? (match.vs_ai ? "Tiger AI" : "Opponent") : "Black"}</p>
+            <p className="text-[10px] text-muted-foreground">{myColor === "b" ? "You (Black)" : myColor === "w" ? (match.vs_ai ? "Tiger AI" : "Opponent (Black)") : "Black"}</p>
             <p className="text-sm font-bold text-foreground">{bCount} <span className="text-[10px] font-normal text-muted-foreground">pieces</span></p>
           </div>
         </div>
@@ -421,7 +433,8 @@ const Draughts = () => {
 
       <div className="flex-1 min-h-0 overflow-y-auto flex items-center justify-center p-3 bg-gradient-to-br from-background to-surface">
         <div className="aspect-square w-full max-w-[440px] grid grid-cols-8 rounded-lg overflow-hidden shadow-2xl ring-1 ring-primary/30">
-          {Array.from({ length: 64 }).map((_, i) => {
+          {Array.from({ length: 64 }).map((_, gridIdx) => {
+            const i = isFlipped ? 63 - gridIdx : gridIdx;
             const r = Math.floor(i / 8), c = i % 8;
             const dark = isDark(r, c);
             const piece = match.board[i];
