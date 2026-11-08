@@ -29,15 +29,33 @@ export function playDraughtsSound(kind: "move" | "capture" | "win", volume = 0.6
 }
 
 
-// Real human recording, released into the public domain by its author (ezwa).
-const LAUGH_AUDIO_URL = "https://commons.wikimedia.org/wiki/Special:Redirect/file/Laughter.ogg";
-// Tiger roar recording by Bilberryerer, CC BY-SA 4.0 (Wikimedia Commons).
+// Short real-world recordings from Wikimedia Commons (public domain / CC licensed).
+// Playback is capped at two seconds so reactions stay quick and unobtrusive.
+const REACTION_AUDIO: Record<string, string> = {
+  "🔥": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Ohhh_ahhh.ogg",
+  "😂": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Laughter.ogg",
+  "😮": "https://commons.wikimedia.org/wiki/Special:Redirect/file/En-us-gasped.ogg",
+  "👏": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Applause_ii.ogg",
+  "😎": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Human_whistling.ogg",
+  "💪": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Hurray.ogg",
+  "❤️": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Hm_and_sigh.ogg",
+  "😕": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Euh_2.ogg",
+};
 const TIGER_ROAR_AUDIO_URL = "https://commons.wikimedia.org/wiki/Special:Redirect/file/Tiger_Mad.ogg";
 
 export function playReactionSound(emoji: string, volume = 0.65) {
-  if (volume <= 0 || emoji !== "😂") return;
-  const audio = new Audio(LAUGH_AUDIO_URL);
+  const source = emoji === "🐯" ? TIGER_ROAR_AUDIO_URL : REACTION_AUDIO[emoji];
+  if (volume <= 0 || !source) return;
+  const audio = new Audio(source);
   audio.volume = Math.max(0, Math.min(1, volume));
+  const stopAtTwoSeconds = () => {
+    if (audio.currentTime >= 2) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+  };
+  audio.addEventListener("timeupdate", stopAtTwoSeconds);
+  audio.addEventListener("ended", () => audio.removeEventListener("timeupdate", stopAtTwoSeconds), { once: true });
   void audio.play().catch(() => {});
 }
 
