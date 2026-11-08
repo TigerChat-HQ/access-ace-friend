@@ -46,18 +46,19 @@ const insertSignal = async (data: SignalInsert) => {
 
 const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
-    { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+    { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun2.l.google.com:19302"] },
+    { urls: ["stun:stun.cloudflare.com:3478"] },
     {
-      urls: ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443", "turn:openrelay.metered.ca:443?transport=tcp"],
+      urls: ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443"],
       username: "openrelayproject",
       credential: "openrelayproject",
     },
   ],
-  iceCandidatePoolSize: 4,
+  iceCandidatePoolSize: 2,
 };
 
 const RING_TIMEOUT_MS = 45000;
-const RECENT_CALL_WINDOW_MS = 60000;
+const RECENT_CALL_WINDOW_MS = 15000;
 
 export interface CallInfo {
   callId: string;
@@ -162,8 +163,10 @@ export const useWebRTC = () => {
     signalReadyCallId.current = info.callId;
     const queued = localIceQueue.current.filter((item) => item.info.callId === info.callId);
     localIceQueue.current = localIceQueue.current.filter((item) => item.info.callId !== info.callId);
-    for (const item of queued) {
-      await sendSignal(info, "ice-candidate", { candidate: item.candidate });
+    if (queued.length > 0) {
+      await Promise.allSettled(
+        queued.map((item) => sendSignal(info, "ice-candidate", { candidate: item.candidate }))
+      );
     }
   }, [sendSignal]);
 
@@ -206,7 +209,17 @@ export const useWebRTC = () => {
       } catch (error) { console.error("Call reconnect failed:", error); }
     };
 
+    const markConnected = () => {
+      if (statusRef.current === "connected") return;
+      statusRef.current = "connected";
+      if (disconnectTimerRef.current) { clearTimeout(disconnectTimerRef.current); disconnectTimerRef.current = null; }
+      if (ringTimerRef.current) { clearTimeout(ringTimerRef.current); ringTimerRef.current = null; }
+      setCallStatus("connected");
+      if (!durationTimerRef.current) durationTimerRef.current = setInterval(() => setDuration((value) => value + 1), 1000);
+    };
+
     pc.ontrack = (event) => {
+      markConnected();
       setRemoteStream((prev) => {
         const stream = new MediaStream(prev.getTracks());
         (event.streams[0]?.getTracks() || [event.track]).forEach((track) => {
@@ -219,11 +232,7 @@ export const useWebRTC = () => {
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
       if (state === "connected") {
-        statusRef.current = "connected";
-        if (disconnectTimerRef.current) { clearTimeout(disconnectTimerRef.current); disconnectTimerRef.current = null; }
-        if (ringTimerRef.current) { clearTimeout(ringTimerRef.current); ringTimerRef.current = null; }
-        setCallStatus("connected");
-        if (!durationTimerRef.current) durationTimerRef.current = setInterval(() => setDuration((value) => value + 1), 1000);
+        markConnected();
       } else if (state === "disconnected") {
         try {
           pc.restartIce();
@@ -231,6 +240,15 @@ export const useWebRTC = () => {
           console.warn("ICE restart could not be requested:", error);
         }
         if (!disconnectTimerRef.current) disconnectTimerRef.current = setTimeout(() => { void endCall(); }, 15000);
+      } else if (state === "failed") {
+        void endCall();
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      const state = pc.iceConnectionState;
+      if (state === "connected" || state === "completed") {
+        markConnected();
       } else if (state === "failed") {
         void endCall();
       }
@@ -447,7 +465,7 @@ export const useWebRTC = () => {
           .map((row) => row.signal_data?.callId)
           .filter((callId): callId is string => typeof callId === "string"));
         const pendingOffer = recentSignals.find((row) => row.signal_type === "offer" && row.status === "pending" &&
-          typeof row.signal_data?.callId === "string" && !completed.has(row.signal_data.callId));
+          row.caller_id !== user.id && typeof row.signal_data?.callId === "string" && !completed.has(row.signal_data.callId));
         if (pendingOffer) await handle({ new: pendingOffer });
       });
 
