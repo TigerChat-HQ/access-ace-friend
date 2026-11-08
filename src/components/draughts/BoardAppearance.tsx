@@ -1,17 +1,16 @@
 import { useEffect, useState, type CSSProperties } from "react";
+import { Settings2, X } from "lucide-react";
 
 export type BoardTheme = "wood" | "slate" | "ocean" | "forest";
 export type PieceStyle = "classic" | "ivory" | "ruby" | "gold";
 
-const STORAGE_KEY = "tigerchats-draughts-appearance-v1";
-
+const STORAGE_KEY = "tigerchats-draughts-appearance-v2";
 const themes: { value: BoardTheme; label: string; dark: string; light: string; frame: string }[] = [
   { value: "wood", label: "Classic Wood", dark: "#87502e", light: "#e7c99f", frame: "linear-gradient(135deg,#f2d6a4,#8b572f,#3f2417)" },
   { value: "slate", label: "Slate Gray", dark: "#475569", light: "#cbd5e1", frame: "linear-gradient(135deg,#e2e8f0,#64748b,#1e293b)" },
   { value: "ocean", label: "Ocean Blue", dark: "#164e78", light: "#b9dced", frame: "linear-gradient(135deg,#bae6fd,#0369a1,#082f49)" },
   { value: "forest", label: "Forest Green", dark: "#245b3c", light: "#c5dfc5", frame: "linear-gradient(135deg,#bbf7d0,#166534,#052e16)" },
 ];
-
 const pieces: { value: PieceStyle; label: string; white: string; black: string; whiteBorder: string; blackBorder: string }[] = [
   { value: "classic", label: "Classic · White & Black", white: "#f8fafc", black: "#18181b", whiteBorder: "#cbd5e1", blackBorder: "#52525b" },
   { value: "ivory", label: "Ivory & Onyx", white: "#fff1cf", black: "#171717", whiteBorder: "#d6b978", blackBorder: "#525252" },
@@ -19,69 +18,88 @@ const pieces: { value: PieceStyle; label: string; white: string; black: string; 
   { value: "gold", label: "Gold & Silver", white: "#d4a017", black: "#94a3b8", whiteBorder: "#fde68a", blackBorder: "#e2e8f0" },
 ];
 
-const defaults = { theme: "wood" as BoardTheme, pieces: "classic" as PieceStyle };
-
 export function useDraughtsAppearance() {
-  const [theme, setTheme] = useState<BoardTheme>(defaults.theme);
-  const [pieceStyle, setPieceStyle] = useState<PieceStyle>(defaults.pieces);
+  const [theme, setTheme] = useState<BoardTheme>("wood");
+  const [pieceStyle, setPieceStyle] = useState<PieceStyle>("classic");
+  const [scale, setScale] = useState(100);
+  const [depth, setDepth] = useState(true);
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (!saved) return;
-      const parsed = JSON.parse(saved) as { theme?: string; pieces?: string };
+      const parsed = JSON.parse(saved) as { theme?: string; pieces?: string; scale?: number; depth?: boolean };
       if (themes.some((item) => item.value === parsed.theme)) setTheme(parsed.theme as BoardTheme);
       if (pieces.some((item) => item.value === parsed.pieces)) setPieceStyle(parsed.pieces as PieceStyle);
-    } catch {
-      // Ignore unavailable storage or malformed preferences.
-    }
+      if (typeof parsed.scale === "number") setScale(Math.min(120, Math.max(80, parsed.scale)));
+      if (typeof parsed.depth === "boolean") setDepth(parsed.depth);
+    } catch { /* Keep safe defaults when saved preferences are unavailable. */ }
   }, []);
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ theme, pieces: pieceStyle })); }
-    catch { /* Preferences remain usable for this session if storage is unavailable. */ }
-  }, [theme, pieceStyle]);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ theme, pieces: pieceStyle, scale, depth })); }
+    catch { /* Settings remain available for this session. */ }
+  }, [theme, pieceStyle, scale, depth]);
 
   const boardTheme = themes.find((item) => item.value === theme) ?? themes[0];
   const pieceTheme = pieces.find((item) => item.value === pieceStyle) ?? pieces[0];
   const boardStyle = {
-    "--board-dark": boardTheme.dark,
-    "--board-light": boardTheme.light,
-    "--board-frame": boardTheme.frame,
-    "--piece-white": pieceTheme.white,
-    "--piece-black": pieceTheme.black,
-    "--piece-white-border": pieceTheme.whiteBorder,
-    "--piece-black-border": pieceTheme.blackBorder,
+    "--board-dark": boardTheme.dark, "--board-light": boardTheme.light, "--board-frame": boardTheme.frame,
+    "--piece-white": pieceTheme.white, "--piece-black": pieceTheme.black,
+    "--piece-white-border": pieceTheme.whiteBorder, "--piece-black-border": pieceTheme.blackBorder,
   } as CSSProperties;
+  const boardSizeStyle = { width: `min(100%, ${520 * scale / 100}px)`, maxWidth: "100%" } as CSSProperties;
+  const board3dStyle = depth ? {
+    transform: "perspective(1100px) rotateX(5deg) translateZ(8px)",
+    transformOrigin: "center center",
+    filter: "drop-shadow(0 24px 22px rgba(0,0,0,.42))",
+  } as CSSProperties : { transform: "none", filter: "none" } as CSSProperties;
 
-  return { theme, setTheme, pieceStyle, setPieceStyle, boardStyle };
+  return { theme, setTheme, pieceStyle, setPieceStyle, scale, setScale, depth, setDepth, boardStyle, boardSizeStyle, board3dStyle };
 }
 
 export function BoardAppearance({
-  theme, setTheme, pieceStyle, setPieceStyle,
+  theme, setTheme, pieceStyle, setPieceStyle, scale, setScale, depth, setDepth,
 }: {
-  theme: BoardTheme;
-  setTheme: (value: BoardTheme) => void;
-  pieceStyle: PieceStyle;
-  setPieceStyle: (value: PieceStyle) => void;
+  theme: BoardTheme; setTheme: (value: BoardTheme) => void;
+  pieceStyle: PieceStyle; setPieceStyle: (value: PieceStyle) => void;
+  scale: number; setScale: (value: number) => void;
+  depth: boolean; setDepth: (value: boolean) => void;
 }) {
+  const [open, setOpen] = useState(false);
   return (
-    <section className="rounded-xl border border-border/60 bg-card/70 p-3 space-y-3" aria-label="Board appearance settings">
-      <h2 className="text-sm font-semibold">Board appearance</h2>
-      <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
-        Board Theme
-        <select value={theme} onChange={(event) => setTheme(event.target.value as BoardTheme)} className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground">
-          {themes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-        </select>
-        <span className="flex gap-1.5" aria-hidden="true">{themes.map((item) => <span key={item.value} title={item.label} className="h-5 flex-1 rounded border border-border/50" style={{ background: `linear-gradient(90deg,${item.dark} 50%,${item.light} 50%)` }} />)}</span>
-      </label>
-      <label className="flex flex-col gap-1.5 text-xs text-muted-foreground">
-        Piece Style / Set
-        <select value={pieceStyle} onChange={(event) => setPieceStyle(event.target.value as PieceStyle)} className="h-10 rounded-md border border-border bg-background px-3 text-sm text-foreground">
-          {pieces.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-        </select>
-        <span className="flex gap-2" aria-hidden="true">{pieces.map((item) => <span key={item.value} className="flex flex-1 items-center justify-center gap-1 rounded border border-border/50 py-1"><i className="h-4 w-4 rounded-full border" style={{ background: item.white, borderColor: item.whiteBorder }} /><i className="h-4 w-4 rounded-full border" style={{ background: item.black, borderColor: item.blackBorder }} /></span>)}</span>
-      </label>
-    </section>
+    <div className="relative z-30">
+      <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-label="Board settings"
+        className="inline-flex items-center gap-2 rounded-xl border border-primary/30 bg-card/90 px-3 py-2 text-xs font-semibold text-foreground shadow-lg backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-xl">
+        <Settings2 className="h-4 w-4 text-primary" /> Board settings
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-[min(88vw,320px)] rounded-2xl border border-primary/25 bg-card/95 p-4 shadow-2xl backdrop-blur-2xl ring-1 ring-white/10">
+          <div className="mb-3 flex items-center justify-between">
+            <div><p className="text-sm font-bold text-foreground">Live board controls</p><p className="text-[10px] text-muted-foreground">Changes apply instantly</p></div>
+            <button type="button" onClick={() => setOpen(false)} aria-label="Close board settings" className="rounded-lg p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
+          </div>
+          <label className="mb-3 block space-y-1.5 text-xs text-muted-foreground">Board theme
+            <select value={theme} onChange={(event) => setTheme(event.target.value as BoardTheme)} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground">
+              {themes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select>
+          </label>
+          <label className="mb-3 block space-y-1.5 text-xs text-muted-foreground">Piece style / set
+            <select value={pieceStyle} onChange={(event) => setPieceStyle(event.target.value as PieceStyle)} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground">
+              {pieces.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select>
+          </label>
+          <label className="mb-3 block space-y-2 text-xs text-muted-foreground">
+            <span className="flex justify-between"><span>Board size</span><strong className="text-foreground">{scale}%</strong></span>
+            <input type="range" min="80" max="120" step="5" value={scale} onChange={(event) => setScale(Number(event.target.value))} className="w-full accent-primary" />
+            <span className="flex justify-between text-[10px]"><span>Compact</span><span>Large</span></span>
+          </label>
+          <label className="flex cursor-pointer items-center justify-between rounded-xl border border-border/70 bg-background/70 p-3 text-xs text-foreground">
+            <span><strong className="block">3D depth effect</strong><span className="text-[10px] text-muted-foreground">Perspective, lift & shadow</span></span>
+            <input type="checkbox" checked={depth} onChange={(event) => setDepth(event.target.checked)} className="h-4 w-4 accent-primary" />
+          </label>
+        </div>
+      )}
+    </div>
   );
 }
