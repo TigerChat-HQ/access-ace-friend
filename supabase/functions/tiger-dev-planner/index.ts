@@ -332,12 +332,83 @@ Deno.serve(async (req) => {
       return json({ ok: true, task });
     }
 
+    if (body.action === "dev_chat") {
+      const messages = Array.isArray(body.messages) ? body.messages : [];
+      const userMessage = typeof body.message === "string" ? body.message.trim() : "";
+      if (!userMessage && messages.length === 0) {
+        return json({ error: "Message or messages array is required" }, 400);
+      }
+
+      let fileContext = "";
+      const inspectPath = typeof body.inspect_file === "string" ? body.inspect_file.trim() : null;
+      if (inspectPath && (inspectPath.startsWith("src/") || inspectPath.startsWith("supabase/functions/")) && !inspectPath.includes("..")) {
+        try {
+          const token = Deno.env.get("GITHUB_TOKEN");
+          const file = await githubJson(
+            `${GITHUB_API}/repos/${GITHUB_REPO}/contents/${encodeURIComponent(inspectPath).replace(/%2F/g, "/")}?ref=main`,
+            token
+          );
+          if (file.type === "file" && typeof file.content === "string") {
+            const decoded = atob(file.content.replace(/\n/g, ""));
+            fileContext = `\n\n--- Live file content from repository for "${inspectPath}" (ref: main) ---\n${decodeURIComponent(escape(decoded)).slice(0, 45000)}\n--- End of file ---`;
+          }
+        } catch (err) {
+          fileContext = `\n\n[Notice: Could not load file "${inspectPath}" from GitHub: ${err instanceof Error ? err.message : "Error"}]`;
+        }
+      }
+
+      const apiKey = Deno.env.get("LOVABLE_API_KEY");
+      if (!apiKey) return json({ error: "Lovable AI gateway key not configured." }, 503);
+
+      const systemPrompt = `You are Tiger AI Dev Assistant 🐯🛠️ — the dedicated senior AI software engineer and technical co-developer for TIGERCHATS (GitHub repo: TigerChat-HQ/access-ace-friend).
+Your boss and lead developer is MAXIMO JOSEPH INYASI.
+You are communicating directly with Maximo inside the Tiger Command Center console.
+
+Your role:
+1. Advise Maximo on app features, bug fixes, architecture, performance, WebRTC voice/video calls, Draughts game logic, and PWA setup across React, TypeScript, Tailwind CSS, Supabase Edge Functions, and PostgreSQL.
+2. Provide exact code diffs, code snippets, file recommendations, and GitHub instructions.
+3. Suggest the exact files under src/ or supabase/functions/ to edit.
+4. When Maximo writes in Swahili (Kiswahili), respond in warm, fluent Swahili mixed naturally with standard developer terms (e.g. kodi, faili, pull request, branch, deploy, function, component, nk.). When he writes in English, reply in English.
+5. Provide clear, direct, practical advice like a top senior engineer working hand-in-hand with his tech lead. Be cheerful, respectful, confident, and accurate.${fileContext}`;
+
+      const chatHistory = messages.length > 0
+        ? messages.map((m: { role?: string; content?: string }) => ({
+            role: m.role === "assistant" ? "assistant" : "user",
+            content: String(m.content || "").slice(0, 10000),
+          }))
+        : [{ role: "user", content: userMessage.slice(0, 10000) }];
+
+      const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...chatHistory,
+          ],
+        }),
+      });
+
+      if (!aiResponse.ok) {
+        const errText = await aiResponse.text();
+        return json({ error: `AI error [${aiResponse.status}]: ${errText}` }, 502);
+      }
+
+      const aiData = await aiResponse.json();
+      const reply = aiData.choices?.[0]?.message?.content || "Samahani, sikupata jibu kwa sasa.";
+      return json({ reply, inspected_file: inspectPath || null });
+    }
+
     if (body.action !== "triage") return json({
       error: "Unknown action",
       received_action: requestedAction || null,
       normalized_action: normalizedAction || null,
       received_keys: Object.keys(body),
-      supported_actions: ["github_list_prs", "check_status", "set_task_files", "propose_code", "set_status", "create_task", "triage"],
+      supported_actions: ["github_list_prs", "check_status", "set_task_files", "propose_code", "set_status", "create_task", "triage", "dev_chat"],
     }, 400);
 
     const { data: existing } = await sb.from("dev_tasks").select("source_report_id").not("source_report_id", "is", null);
