@@ -31,6 +31,9 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
   const [imageFilter, setImageFilter] = useState("none");
   const [caption, setCaption] = useState("");
   const [textOverlay, setTextOverlay] = useState("");
+  const [textColor, setTextColor] = useState("#FFFFFF");
+  const [textBackground, setTextBackground] = useState("rgba(0,0,0,0.65)");
+  const [sticker, setSticker] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
   const [duration, setDuration] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -141,7 +144,8 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
       }
 
       const overlayMetadata = {
-        ...(textOverlay.trim() ? { text: textOverlay.trim() } : {}),
+        ...(textOverlay.trim() ? { text: textOverlay.trim(), text_color: textColor, text_background: textBackground } : {}),
+        ...(sticker ? { sticker } : {}),
         ...(musicUrl ? { music_start: music?.start ?? 0, music_end: music?.end ?? localMusicDuration } : {}),
         ...(imageFilter !== "none" ? { image_filter: imageFilter } : {}),
       };
@@ -166,6 +170,9 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
       setImageFilter("none");
       setCaption("");
       setTextOverlay("");
+      setTextColor("#FFFFFF");
+      setTextBackground("rgba(0,0,0,0.65)");
+      setSticker("");
       setPreview(null);
       setDuration(null);
       setAudience("everyone");
@@ -201,7 +208,8 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
           {preview ? (
             <div className="relative">
               {mediaType === "video" ? <video src={preview} controls className="w-full h-48 object-cover rounded-lg" style={{ filter: imageFilter }} /> : <img src={preview} alt="Status preview" className="w-full h-48 object-cover rounded-lg" style={{ filter: imageFilter }} />}
-              {textOverlay && <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center px-4 pointer-events-none"><span className="inline-block bg-black/60 text-white text-lg font-bold px-3 py-1 rounded">{textOverlay}</span></div>}
+              {textOverlay && <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center px-4 pointer-events-none"><span className="inline-block text-lg font-bold px-3 py-1 rounded" style={{ color: textColor, backgroundColor: textBackground }}>{textOverlay}</span></div>}
+              {sticker && <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-6xl">{sticker}</div>}
               <button type="button" onClick={clearMedia} aria-label="Remove media" className="absolute top-2 right-2 p-1 bg-black/60 rounded-full"><X className="w-4 h-4 text-white" /></button>
             </div>
           ) : (
@@ -245,6 +253,28 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
           <div className="flex items-center gap-2">
             <Type className="w-4 h-4 text-primary shrink-0" />
             <Input value={textOverlay} onChange={(e) => setTextOverlay(e.target.value)} maxLength={120} placeholder="Text overlay (optional)" className="bg-surface border-border/50" />
+          </div>
+          {textOverlay.trim() && (
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-xs text-muted-foreground">Text colour
+                <select value={textColor} onChange={(e) => setTextColor(e.target.value)} className="mt-1 w-full h-9 rounded-md border border-border bg-surface px-2 text-foreground">
+                  <option value="#FFFFFF">White</option><option value="#FDE047">Yellow</option><option value="#FB7185">Pink</option><option value="#86EFAC">Green</option><option value="#93C5FD">Blue</option><option value="#111827">Black</option>
+                </select>
+              </label>
+              <label className="text-xs text-muted-foreground">Text background
+                <select value={textBackground} onChange={(e) => setTextBackground(e.target.value)} className="mt-1 w-full h-9 rounded-md border border-border bg-surface px-2 text-foreground">
+                  <option value="rgba(0,0,0,0.65)">Dark</option><option value="rgba(255,255,255,0.85)">Light</option><option value="rgba(109,40,217,0.8)">Purple</option><option value="transparent">None</option>
+                </select>
+              </label>
+            </div>
+          )}
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Sticker</label>
+            <div className="flex flex-wrap gap-2">
+              {["", "❤️", "🔥", "😂", "😍", "🎉", "🌟", "🐯", "👏"].map((item) => (
+                <button key={item || "none"} type="button" onClick={() => setSticker(item)} aria-pressed={sticker === item} className={"rounded-lg border px-2 py-1 text-xl " + (sticker === item ? "border-primary bg-primary/15" : "border-border")}>{item || "✕"}</button>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-2">
