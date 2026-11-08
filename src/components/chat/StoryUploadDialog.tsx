@@ -28,6 +28,8 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
   const [localMusicFile, setLocalMusicFile] = useState<File | null>(null);
   const [localMusicPreview, setLocalMusicPreview] = useState<string | null>(null);
   const [localMusicDuration, setLocalMusicDuration] = useState(15);
+  const [localMusicStart, setLocalMusicStart] = useState(0);
+  const [localMusicEnd, setLocalMusicEnd] = useState(15);
   const [imageFilter, setImageFilter] = useState("none");
   const [caption, setCaption] = useState("");
   const [textOverlay, setTextOverlay] = useState("");
@@ -59,6 +61,8 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
     setLocalMusicFile(null);
     setLocalMusicPreview(null);
     setLocalMusicDuration(15);
+    setLocalMusicStart(0);
+    setLocalMusicEnd(15);
   };
 
   const toggleVoiceRecording = async () => {
@@ -87,7 +91,10 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
           setMusic(null);
           const audio = new Audio(url);
           audio.onloadedmetadata = () => {
-            setLocalMusicDuration(Number.isFinite(audio.duration) ? Math.min(15, audio.duration) : 15);
+            const fullDuration = Number.isFinite(audio.duration) ? audio.duration : 15;
+            setLocalMusicDuration(fullDuration);
+            setLocalMusicStart(0);
+            setLocalMusicEnd(Math.min(15, fullDuration));
             audio.src = "";
           };
         } else {
@@ -122,7 +129,10 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
     setMusic(null);
     const audio = new Audio(url);
     audio.onloadedmetadata = () => {
-      setLocalMusicDuration(Number.isFinite(audio.duration) ? Math.min(15, audio.duration) : 15);
+      const fullDuration = Number.isFinite(audio.duration) ? audio.duration : 15;
+      setLocalMusicDuration(fullDuration);
+      setLocalMusicStart(0);
+      setLocalMusicEnd(Math.min(15, fullDuration));
       audio.src = "";
     };
   };
@@ -195,7 +205,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
       const overlayMetadata = {
         ...(textOverlay.trim() ? { text: textOverlay.trim(), text_color: textColor, text_background: textBackground } : {}),
         ...(sticker ? { sticker } : {}),
-        ...(musicUrl ? { music_start: music?.start ?? 0, music_end: music?.end ?? localMusicDuration, music_title: music?.title || localMusicFile?.name || "Background music" } : {}),
+        ...(musicUrl ? { music_start: music?.start ?? localMusicStart, music_end: music?.end ?? localMusicEnd, music_title: music?.title || localMusicFile?.name || "Background music" } : {}),
         ...(imageFilter !== "none" ? { image_filter: imageFilter } : {}),
       };
       const { error } = await db.from("stories").insert({
@@ -348,9 +358,15 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
               {recordingVoice ? <><Square className="w-4 h-4" /> Stop voice recording</> : <><Mic className="w-4 h-4" /> Record voice narration</>}
             </Button>
             {localMusicPreview && (
-              <div className="flex items-center gap-2">
-                <audio src={localMusicPreview} controls className="w-full h-9" />
-                <button type="button" onClick={clearLocalMusic} aria-label="Remove phone audio" className="p-2 text-muted-foreground hover:text-destructive"><X className="w-4 h-4" /></button>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <audio src={localMusicPreview} controls className="w-full h-9" />
+                  <button type="button" onClick={clearLocalMusic} aria-label="Remove phone audio" className="p-2 text-muted-foreground hover:text-destructive"><X className="w-4 h-4" /></button>
+                </div>
+                <label className="block text-xs text-muted-foreground">
+                  Choose 15-second section · {localMusicStart.toFixed(1)}s–{localMusicEnd.toFixed(1)}s
+                  <input type="range" min={0} max={Math.max(0, localMusicDuration - 15)} step={0.5} value={localMusicStart} onChange={(event) => { const start = Number(event.target.value); setLocalMusicStart(start); setLocalMusicEnd(Math.min(localMusicDuration, start + 15)); }} className="w-full mt-1" />
+                </label>
               </div>
             )}
             <p className="text-xs text-muted-foreground">Phone audio (including vocals or spoken narration) is uploaded with the status. The selected 15-second segment plays in the story.</p>
