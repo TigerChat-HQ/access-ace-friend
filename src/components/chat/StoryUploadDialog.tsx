@@ -57,6 +57,49 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
     setLocalMusicDuration(15);
   };
 
+  const toggleVoiceRecording = async () => {
+    if (recordingVoice) {
+      recorderRef.current?.stop();
+      setRecordingVoice(false);
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.push(event.data);
+      };
+      recorder.onstop = () => {
+        const mime = recorder.mimeType || "audio/webm";
+        const blob = new Blob(chunks, { type: mime });
+        const extension = mime.includes("mp4") ? "m4a" : "webm";
+        const file = new File([blob], "tigerchat-voiceover-" + Date.now() + "." + extension, { type: mime });
+        if (file.size > 0 && file.size <= MAX_AUDIO_BYTES) {
+          clearLocalMusic();
+          const url = URL.createObjectURL(file);
+          setLocalMusicFile(file);
+          setLocalMusicPreview(url);
+          setMusic(null);
+          const audio = new Audio(url);
+          audio.onloadedmetadata = () => {
+            setLocalMusicDuration(Number.isFinite(audio.duration) ? Math.min(15, audio.duration) : 15);
+            audio.src = "";
+          };
+        } else {
+          toast({ title: "Voice recording too large", description: "Please record a shorter voiceover.", variant: "destructive" });
+        }
+        stream.getTracks().forEach((track) => track.stop());
+        recorderRef.current = null;
+      };
+      recorderRef.current = recorder;
+      recorder.start();
+      setRecordingVoice(true);
+    } catch (error) {
+      toast({ title: "Microphone unavailable", description: error instanceof Error ? error.message : "Allow microphone access and try again.", variant: "destructive" });
+    }
+  };
+
   const handleLocalMusicSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
