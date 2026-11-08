@@ -17,7 +17,7 @@ Deno.serve(async(req:Request)=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:{"Access-Control-Allow-Origin":"*"}});
  try{
   const url=Deno.env.get("SUPABASE_URL"),key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),aiKey=Deno.env.get("LOVABLE_API_KEY");
-  if(!url||!key||!aiKey)return json({error:"Daily history service is not configured."},500);
+  if(!url||!key||!aiKey)return json({error:"Daily history service is not configured.",configured:{url:!!url,service_role:!!key,ai:!!aiKey}},500);
   const body=await req.json().catch(()=>({}));
   const db=createClient(url,key);
   const {data:cfg}=await db.from("tiger_ai_daily_config").select("cron_token,enabled").eq("id",true).single();
