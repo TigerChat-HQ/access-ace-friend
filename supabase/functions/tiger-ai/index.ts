@@ -26,6 +26,19 @@ const MODE_PROMPTS: Record<string, string> = {
     "Summarize the user's feedback into 1-2 crisp sentences for the developer. Then add a single suggested action prefixed with 'Action: '.",
 };
 
+async function callOpenAI(body: unknown, stream = true) {
+  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+  if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not configured");
+  return fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ stream, ...(body as object) }),
+  });
+}
+
 async function callGateway(body: unknown, stream = true) {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
@@ -138,8 +151,10 @@ Deno.serve(async (req) => {
 
     const sys = (mode && MODE_PROMPTS[mode]) || SYSTEM_PROMPT;
 
-    const r = await callGateway({
-      model: "google/gemini-3-flash-preview",
+    // Text chat uses the user's OpenAI API key. Image/video generation
+    // continue using the existing Lovable Gateway integration above.
+    const r = await callOpenAI({
+      model: "gpt-4.1-mini",
       messages: [{ role: "system", content: sys }, ...messages],
     });
 
@@ -155,8 +170,8 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       const t = await r.text();
-      console.error("AI gateway error:", r.status, t);
-      return new Response(JSON.stringify({ error: "AI gateway error" }), {
+      console.error("OpenAI API error:", r.status, t);
+      return new Response(JSON.stringify({ error: "OpenAI API error" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
