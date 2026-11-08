@@ -30,7 +30,6 @@ import Contact from "./pages/Contact";
 import PublicDraughts from "./pages/PublicDraughts";
 import { HelmetProvider } from "react-helmet-async";
 import { TwoFactorGate } from "@/components/TwoFactorSecurity";
-import { PWAInstallBanner } from "@/components/PWAInstallBanner";
 
 const queryClient = new QueryClient();
 
@@ -64,7 +63,6 @@ const App = () => (
             <Toaster />
             <Sonner />
             <TwoFactorGate><BrowserRouter>
-              <PWAInstallBanner />
               <Routes>
                 <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
