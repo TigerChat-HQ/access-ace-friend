@@ -12,11 +12,10 @@ export function DraughtsProfileRank({ userId, isMe }: { userId: string; isMe: bo
  const [badge,setBadge] = useState<BadgeRow|null>(null);
  const [loading,setLoading] = useState(true);
  const load = useCallback(async () => {
-  const db = supabase as any;
-  const {data:active} = await db.from("draughts_seasons").select("id,name").eq("is_active",true).maybeSingle();
+  const {data:active} = await supabase.from("draughts_seasons").select("id,name").eq("is_active",true).maybeSingle();
   if (!active) { setSeason(null);setStats(null);setRank(null);setLoading(false);return; }
   setSeason(active);
-  const {data:all} = await db.from("draughts_player_stats").select("season_id,user_id,rating_points,wins,losses,draws").eq("season_id",active.id).order("rating_points",{ascending:false}).order("wins",{ascending:false}).order("losses",{ascending:true}).limit(2000);
+  const {data:all} = await supabase.from("draughts_player_stats").select("season_id,user_id,rating_points,wins,losses,draws").eq("season_id",active.id).order("rating_points",{ascending:false}).order("wins",{ascending:false}).order("losses",{ascending:true}).limit(2000);
   const rows = (all || []) as StatRow[];
   setStats(rows.find((r)=>r.user_id===userId)||null);
   const position=rows.findIndex((r)=>r.user_id===userId);
@@ -38,7 +37,7 @@ export function DraughtsProfileRank({ userId, isMe }: { userId: string; isMe: bo
  const toggleBadge=async()=>{
   if(!badge||!isMe)return;
   const next=!badge.show_on_profile;
-  const {error}=await (supabase as any).from("draughts_player_badges").update({show_on_profile:next}).eq("id",badge.id).eq("user_id",userId);
+  const {error}=await supabase.from("draughts_player_badges").update({show_on_profile:next}).eq("id",badge.id).eq("user_id",userId);
   if(!error)setBadge({...badge,show_on_profile:next});
  };
  if(loading)return <div className="rounded-2xl border border-border/50 p-4 text-xs text-muted-foreground">Loading Draughts ranking…</div>;
