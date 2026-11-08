@@ -32,6 +32,7 @@ import { dispatchPush } from "@/lib/dispatch-push";
 import { enqueueMessage, getQueuedMessages, removeQueuedMessage, subscribeOutbox, processOutbox, QueuedMessage } from "@/lib/offline-outbox";
 import { useChatTranslation } from "@/hooks/useChatTranslation";
 import { ChatTranslationControls } from "@/components/chat/ChatTranslationControls";
+import { playChatEmojiSound, CHAT_EMOJI_SOUND_KEY } from "@/lib/chat-emoji";
 
 type Story = Tables<"stories"> & { profile?: Tables<"profiles"> };
 type MessageMetadata = { read_at?: string | null; is_read?: boolean | null; delivered_at?: string | null; reply_to_id?: string | null };
@@ -90,6 +91,7 @@ const Chats = () => {
     return () => { unsubscribe(); };
   }, [activeChat]);
 
+  const lastEmojiSoundMessageRef = useRef<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesScrollRef = useRef<HTMLDivElement>(null);
 
@@ -130,6 +132,19 @@ const Chats = () => {
   useEffect(() => {
     if (!chatSearchOpen) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, chatSearchOpen]);
+
+  useEffect(() => {
+    const newest = messages[messages.length - 1];
+    if (!newest) return;
+    if (lastEmojiSoundMessageRef.current === null) { lastEmojiSoundMessageRef.current = newest.id; return; }
+    if (lastEmojiSoundMessageRef.current !== newest.id) {
+      lastEmojiSoundMessageRef.current = newest.id;
+      const isIncoming = newest.sender_id !== user?.id;
+      const content = newest.content || "";
+      const emojiOnly = /^(?:\\p{Extended_Pictographic}|\\uFE0F|\\u200D|\\s)+$/u.test(content.trim()) && Array.from(content.trim()).length <= 8;
+      if (isIncoming && emojiOnly && localStorage.getItem(CHAT_EMOJI_SOUND_KEY) !== "false") playChatEmojiSound(content.trim());
+    }
+  }, [messages, user?.id]);
 
   useEffect(() => {
     setChatSearchOpen(false);
