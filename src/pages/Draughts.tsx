@@ -4,7 +4,6 @@ import { ArrowLeft, Bot, Users, Crown, Loader2, RotateCw, Flag, Share2, Copy, Ar
 import { supabase } from "@/integrations/supabase/client";
 import type { Json, Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
-import { useUserRole } from "@/hooks/useUserRole";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { BoardAppearance, useDraughtsAppearance } from "@/components/draughts/BoardAppearance";
@@ -26,7 +25,6 @@ type MatchRow = Omit<Tables<"draft_matches">, "board" | "last_move" | "current_t
 const Draughts = () => {
   const nav = useNavigate();
   const { user } = useAuth();
-  const { isAdmin } = useUserRole();
   const { toast } = useToast();
   const { theme, setTheme, pieceStyle, setPieceStyle, scale, setScale, depth, setDepth, boardStyle, boardSizeStyle, board3dStyle } = useDraughtsAppearance();
   const [mode, setMode] = useState<Mode>("menu");
@@ -176,17 +174,6 @@ const Draughts = () => {
     return () => clearTimeout(t);
   }, [match?.id, match?.current_turn, match?.vs_ai, match?.status, match?.revision, match?.board, soundEnabled, soundVolume]);
 
-  const closeSeason = async () => {
-    if (!isAdmin || !confirm("Close the current Draughts season and award Top Player badges to the top 100? A new season will start immediately.")) return;
-    const { data, error } = await supabase.rpc("close_draughts_season", { p_season_id: null });
-    if (error) {
-      toast({ title: "Could not close season", description: error.message, variant: "destructive" });
-      return;
-    }
-    const result = data as { badges_awarded?: number } | null;
-    toast({ title: "Season closed", description: (result?.badges_awarded ?? 0) + " Top Player badges awarded. A new season is now active." });
-  };
-
   const startAI = async () => {
     if (!user) return;
     setCreating(true);
@@ -317,11 +304,6 @@ const Draughts = () => {
                   <p className="text-xs text-muted-foreground">Realtime online matches</p>
                 </div>
               </button>
-              {isAdmin && (
-                <Button onClick={closeSeason} variant="outline" className="w-full">
-                  <Crown className="mr-2 h-4 w-4 text-amber-500" /> Close season & award Top 100
-                </Button>
-              )}
             </>
           )}
           {mode === "pvp" && !match && (
