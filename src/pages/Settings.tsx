@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Camera, User, Bell, Shield, Palette, LogOut,
-  ChevronRight, Moon, Sun, Globe, Lock, Fingerprint, Mail, Volume2, Smartphone, Download,
+  ChevronRight, Moon, Sun, Globe, Lock, Fingerprint, Mail, Volume2, Smartphone, Download, KeyRound, Copy,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAppLock, isWebAuthnSupported } from "@/hooks/useAppLock";
@@ -66,6 +66,10 @@ const Settings = () => {
   const [readReceipts, setReadReceipts] = useState(true);
   const [lastSeen, setLastSeen] = useState(true);
   const [isPrivate, setIsPrivate] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
     const [incomingCallTone, setIncomingCallTone] = useState<RingtoneId>(() => getStoredRingtone("incoming_call"));
   const [incomingSmsTone, setIncomingSmsTone] = useState<RingtoneId>(() => getStoredRingtone("incoming_sms"));
   const previewStopRef = useRef<(() => void) | null>(null);
@@ -195,6 +199,56 @@ const Settings = () => {
     toast({ title: t("avatarUpdated") });
   };
 
+  const changePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      toast({ title: "Jaza sehemu zote za nenosiri", variant: "destructive" });
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast({ title: "Nenosiri ni fupi", description: "Tumia angalau herufi/namba 8.", variant: "destructive" });
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      toast({ title: "Nenosiri halifanani", description: "Thibitisha nenosiri jipya kwa usahihi.", variant: "destructive" });
+      return;
+    }
+    if (currentPassword === newPassword) {
+      toast({ title: "Chagua nenosiri tofauti", description: "Nenosiri jipya lisifanane na la sasa.", variant: "destructive" });
+      return;
+    }
+
+    setPasswordBusy(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+        current_password: currentPassword,
+      });
+      if (error) throw error;
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+      toast({ title: "Nenosiri limebadilishwa", description: "Mabadiliko haya yanahusu akaunti ya database hii pekee." });
+    } catch (error) {
+      toast({
+        title: "Imeshindikana kubadili nenosiri",
+        description: error instanceof Error ? error.message : "Jaribu tena.",
+        variant: "destructive",
+      });
+    } finally {
+      setPasswordBusy(false);
+    }
+  };
+
+  const copyAccountId = async () => {
+    if (!user?.id) return;
+    try {
+      await navigator.clipboard.writeText(user.id);
+      toast({ title: "Account ID imenakiliwa" });
+    } catch {
+      toast({ title: "Imeshindikana kunakili ID", description: user.id });
+    }
+  };
+
   const handleSignOut = async () => {
     await signOut();
     navigate("/");
@@ -204,6 +258,7 @@ const Settings = () => {
     { id: "profile", icon: User, label: t("editProfile"), description: t("nameDesc") },
     { id: "notifications", icon: Bell, label: t("notifications"), description: t("notifDesc") },
     { id: "privacy", icon: Shield, label: t("privacy"), description: t("privacyDesc") },
+    { id: "security", icon: KeyRound, label: "Usalama na nenosiri", description: "Account ID na kubadili nenosiri" },
     { id: "appearance", icon: Palette, label: t("appearance"), description: t("appearDesc") },
   ];
 
@@ -311,6 +366,43 @@ const Settings = () => {
               />
             )}
             <TwoFactorSecurity />
+          </div>
+        );
+      case "security":
+        return (
+          <div className="space-y-5 animate-fade-in">
+            <div className="rounded-xl border border-border/60 bg-surface p-4 space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-foreground">ID ya akaunti hii</p>
+                <Button type="button" size="sm" variant="outline" onClick={copyAccountId} className="shrink-0">
+                  <Copy className="mr-2 h-4 w-4" />Nakili ID
+                </Button>
+              </div>
+              <p className="break-all font-mono text-xs text-muted-foreground">{user?.id || "Haipatikani"}</p>
+              <p className="text-xs text-muted-foreground">Hii ni UUID ya kipekee ya akaunti yako kwenye database hii. Akaunti iliyo kwenye database nyingine ina ID yake tofauti.</p>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Badili nenosiri</h3>
+                <p className="text-xs text-muted-foreground">Thibitisha nenosiri la sasa kabla ya kuweka jipya.</p>
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="current-password" className="text-xs text-muted-foreground">Nenosiri la sasa</label>
+                <Input id="current-password" type="password" autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="bg-surface border-border/50" />
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="new-password" className="text-xs text-muted-foreground">Nenosiri jipya (angalau herufi/namba 8)</label>
+                <Input id="new-password" type="password" autoComplete="new-password" minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="bg-surface border-border/50" />
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="confirm-new-password" className="text-xs text-muted-foreground">Rudia nenosiri jipya</label>
+                <Input id="confirm-new-password" type="password" autoComplete="new-password" minLength={8} value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} className="bg-surface border-border/50" />
+              </div>
+              <Button type="button" onClick={changePassword} disabled={passwordBusy || !currentPassword || !newPassword || !confirmNewPassword} className="w-full neon-glow">
+                <KeyRound className="mr-2 h-4 w-4" />{passwordBusy ? "Inabadilisha..." : "Hifadhi nenosiri jipya"}
+              </Button>
+              <p className="text-xs text-muted-foreground">Muhimu: kubadili nenosiri hapa kunabadilisha akaunti ya TigerChats kwenye database inayotumika sasa tu; hakuathiri nenosiri la database ya zamani.</p>
+            </div>
           </div>
         );
       case "appearance":
