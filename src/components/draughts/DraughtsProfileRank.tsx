@@ -20,7 +20,7 @@ export function DraughtsProfileRank({ userId, isMe }: { userId: string; isMe: bo
   setStats(rows.find((r)=>r.user_id===userId)||null);
   const position=rows.findIndex((r)=>r.user_id===userId);
   setRank(position>=0?position+1:null);
-  const {data:badges} = await db.from("draughts_player_badges").select("id,season_id,rank,badge_name,show_on_profile").eq("user_id",userId).order("awarded_at",{ascending:false}).limit(1);
+  const {data:badges} = await supabase.from("draughts_player_badges").select("id,season_id,rank,badge_name,show_on_profile").eq("user_id",userId).order("awarded_at",{ascending:false}).limit(1);
   setBadge((badges?.[0]||null) as BadgeRow|null);
   setLoading(false);
  },[userId]);
