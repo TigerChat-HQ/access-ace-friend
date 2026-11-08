@@ -1,5 +1,8 @@
 import { readFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 
+const execFileAsync = promisify(execFile);
 const source = await readFile(new URL("../src/data/freeMusic.ts", import.meta.url), "utf8");
 const tracks = [...source.matchAll(/id: "([^"]+)", title: "([^"]+)"[^\n]*mood: "(Happy|Sad|Love|Motivation)"[^\n]*url: mixkit\("([^"]+)"\)/g)]
   .map((match) => ({ id: match[1], title: match[2], mood: match[3], url: "https://assets.mixkit.co/music/preview/" + match[4] }));
@@ -12,25 +15,18 @@ if (tracks.length !== 20 || new Set(tracks.map((track) => track.url)).size !== 2
 }
 
 async function checkTrack(track) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
   try {
-    const headers = { "User-Agent": "Mozilla/5.0 TIGERCHAT status-audio-check", Referer: "https://mixkit.co/" };
-    let response = await fetch(track.url, { method: "HEAD", headers, redirect: "follow", signal: controller.signal });
-    if (response.status === 405 || response.status === 403) {
-      response = await fetch(track.url, { method: "GET", headers: { ...headers, Range: "bytes=0-0" }, redirect: "follow", signal: controller.signal });
-      await response.body?.cancel();
-    }
-    if (!response.ok) throw new Error("HTTP " + response.status);
-    const type = response.headers.get("content-type") || "";
-    if (type && !type.includes("audio") && !type.includes("octet-stream")) {
-      throw new Error("Unexpected content type " + type);
-    }
-    return { id: track.id, ok: true };
+    const { stdout } = await execFileAsync("curl", [
+      "--location", "--silent", "--show-error", "--fail", "--max-time", "20",
+      "--range", "0-0", "--referer", "https://mixkit.co/",
+      "--output", "/dev/null", "--write-out", "%{http_code}", track.url,
+    ]);
+    const status = Number(stdout.trim());
+    if (status < 200 || status >= 300) throw new Error("HTTP " + status);
+    return { id: track.id, ok: true, status };
   } catch (error) {
-    return { id: track.id, ok: false, error: error instanceof Error ? error.message : String(error) };
-  } finally {
-    clearTimeout(timeout);
+    const message = error instanceof Error ? error.message : String(error);
+    return { id: track.id, ok: false, error: message };
   }
 }
 
