@@ -22,12 +22,15 @@ export const MusicPicker = ({ trigger, value, onChange, maxClip = MAX_DEFAULT }:
   const [playing, setPlaying] = useState(false);
   const [pos, setPos] = useState(0);
   const [moodFilter, setMoodFilter] = useState("All");
+  const [audioError, setAudioError] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     if (!selected) return;
     setRange([0, Math.min(maxClip, selected.duration)]);
     setPos(0);
+    setAudioError(false);
+    setPlaying(false);
   }, [selected, maxClip]);
 
   useEffect(() => {
@@ -53,8 +56,7 @@ export const MusicPicker = ({ trigger, value, onChange, maxClip = MAX_DEFAULT }:
       setPlaying(false);
     } else {
       if (a.currentTime < range[0] || a.currentTime >= range[1]) a.currentTime = range[0];
-      a.play().catch(() => {});
-      setPlaying(true);
+      a.play().then(() => setPlaying(true)).catch(() => { setPlaying(false); setAudioError(true); });
     }
   };
 
@@ -119,7 +121,7 @@ export const MusicPicker = ({ trigger, value, onChange, maxClip = MAX_DEFAULT }:
 
           {selected && (
             <div className="space-y-3 pt-2 border-t border-border/50">
-              <audio ref={audioRef} src={selected.url} preload="metadata" />
+              <audio ref={audioRef} src={selected.url} preload="metadata" onError={() => { setAudioError(true); setPlaying(false); }} />
               <div className="flex items-center gap-3">
                 <button
                   onClick={togglePlay}
@@ -144,6 +146,7 @@ export const MusicPicker = ({ trigger, value, onChange, maxClip = MAX_DEFAULT }:
                 }}
               />
               <p className="text-[10px] text-muted-foreground">Max clip: {maxClip}s</p>
+              {audioError && <p role="alert" className="text-xs text-destructive">This track could not be loaded. Try another track or choose audio from your phone.</p>}
               <Button onClick={confirm} className="w-full neon-glow">Use this clip</Button>
             </div>
           )}
