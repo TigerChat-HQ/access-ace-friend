@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { X, Volume2, VolumeX, ShieldCheck, MessageCircle, Send, Eye, Heart } from "lucide-react";
+import { X, Volume2, VolumeX, ShieldCheck, MessageCircle, Send, Eye, Heart, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useScreenshotProtection } from "@/hooks/useScreenshotProtection";
 import { TigerReactionLayer } from "@/components/TigerReaction";
@@ -50,6 +50,8 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
   const [commentDraft, setCommentDraft] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
   const [viewCount, setViewCount] = useState(0);
+  const [viewers, setViewers] = useState<{ id: string; user_id: string; user_name: string; viewed_at: string }[]>([]);
+  const [viewsOpen, setViewsOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const story = stories[currentIndex];
@@ -69,6 +71,8 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
     setCommentsOpen(false);
     setCommentDraft("");
     setViewCount(0);
+    setViewers([]);
+    setViewsOpen(false);
   }, [currentIndex]);
 
   // Load owner view count and keep it live.
@@ -76,8 +80,16 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
     if (!story || !isOwner) return;
     let active = true;
     const refreshViews = async () => {
-      const { count, error } = await supabase.from("story_views").select("id", { count: "exact", head: true }).eq("story_id", story.id);
-      if (!error && active) setViewCount(count || 0);
+      const { data, error } = await supabase.from("story_views").select("id, viewer_id, viewed_at").eq("story_id", story.id).order("viewed_at", { ascending: false });
+      if (error || !active) return;
+      const rows = data || [];
+      const ids = [...new Set(rows.map(row => row.viewer_id))];
+      const { data: profiles } = ids.length ? await supabase.from("profiles").select("user_id, display_name").in("user_id", ids) : { data: [] };
+      const names = new Map((profiles || []).map(profile => [profile.user_id, profile.display_name || "User"]));
+      if (active) {
+        setViewCount(rows.length);
+        setViewers(rows.map(row => ({ id: row.id, user_id: row.viewer_id, user_name: names.get(row.viewer_id) || "User", viewed_at: row.viewed_at })));
+      }
     };
     void refreshViews();
     const channel = supabase.channel(`story-views-${story.id}-${crypto.randomUUID()}`)
@@ -110,26 +122,24 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
     if (!story) return;
     let active = true;
     const loadComments = async () => {
-      const { data, error } = await supabase.from("messages")
-      .select("id, content, sender_id")
-      .eq("status_context->>story_id", story.id)
-      .order("created_at", { ascending: true })
-      ;
+      const { data, error } = await supabase.from("story_comments")
+      .select("id, content, user_id")
+      .eq("story_id", story.id)
+      .order("created_at", { ascending: true });
       if (!active) return;
       if (error) { console.warn("Could not load story comments:", error.message); return; }
       const rows = data || [];
-      const ids = [...new Set(rows.map(m => m.sender_id))];
+      const ids = [...new Set(rows.map(m => m.user_id))];
       const { data: profiles } = ids.length ? await supabase.from("profiles").select("user_id, display_name").in("user_id", ids) : { data: [] };
       const names = new Map((profiles || []).map(profile => [profile.user_id, profile.display_name || "User"]));
-      if (active) setComments(rows.map(m => ({ id: m.id, content: m.content || "", user_id: m.sender_id, user_name: names.get(m.sender_id) || "User" })));
+      if (active) setComments(rows.map(m => ({ id: m.id, content: m.content || "", user_id: m.user_id, user_name: names.get(m.user_id) || "User" })));
     };
     void loadComments();
     const channel = supabase.channel(`story-comments-${story.id}-${crypto.randomUUID()}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
-        const row = payload.new as { id: string; content: string | null; sender_id: string; status_context?: { story_id?: string } | null };
-        if (row.status_context?.story_id !== story.id) return;
-        void supabase.from("profiles").select("display_name").eq("user_id", row.sender_id).maybeSingle().then(({ data: profile }) => {
-          if (active) setComments(current => current.some(item => item.id === row.id) ? current : [...current, { id: row.id, content: row.content || "", user_id: row.sender_id, user_name: profile?.display_name || "User" }]);
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "story_comments", filter: "story_id=eq." + story.id }, (payload) => {
+        const row = payload.new as { id: string; content: string; user_id: string };
+        void supabase.from("profiles").select("display_name").eq("user_id", row.user_id).maybeSingle().then(({ data: profile }) => {
+          if (active) setComments(current => current.some(item => item.id === row.id) ? current : [...current, { id: row.id, content: row.content || "", user_id: row.user_id, user_name: profile?.display_name || "User" }]);
         });
       }).subscribe();
     return () => { active = false; void supabase.removeChannel(channel); };
@@ -263,6 +273,18 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
     }
   };
 
+  const deleteStory = async () => {
+    if (!story || !isOwner) return;
+    if (!window.confirm("Delete this status?")) return;
+    const { error } = await supabase.from("stories").delete().eq("id", story.id).eq("user_id", currentUserId!);
+    if (error) {
+      toast({ title: "Could not delete status", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Status deleted" });
+    onClose();
+  };
+
   const sendReaction = async (emoji: string) => {
     if (!currentUserId || !story) return;
     if (emoji === "🐯") {
@@ -314,7 +336,11 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
               {muted ? <VolumeX className="w-5 h-5 text-white" /> : <Volume2 className="w-5 h-5 text-white" />}
             </button>
           )}
-          {isOwner && <><span className="flex items-center gap-1 text-white text-xs"><Heart className="w-4 h-4 text-rose-400" /> {Object.values(counts).reduce((total, count) => total + count, 0)}</span><span className="flex items-center gap-1 text-white text-xs"><Eye className="w-4 h-4" /> {viewCount}</span></>}
+          {isOwner && <>
+            <span className="flex items-center gap-1 text-white text-xs"><Heart className="w-4 h-4 text-rose-400" /> {Object.values(counts).reduce((total, count) => total + count, 0)}</span>
+            <button type="button" onClick={() => { setViewsOpen(true); setCommentsOpen(true); }} className="flex items-center gap-1 text-white text-xs" aria-label="Show people who viewed status"><Eye className="w-4 h-4" /> {viewCount}</button>
+            <button type="button" onClick={() => void deleteStory()} className="p-2 rounded-full hover:bg-white/10" aria-label="Delete status"><Trash2 className="w-4 h-4 text-white" /></button>
+          </>}
           <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10">
             <X className="w-5 h-5 text-white" />
           </button>
@@ -405,10 +431,19 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId }: S
       {commentsOpen && (
         <div className="absolute bottom-20 left-3 right-3 z-30 max-h-56 rounded-xl bg-background/95 text-foreground backdrop-blur border border-border shadow-xl p-3 flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold">{isOwner ? `Status activity · ${comments.length} comments` : `Private replies (${comments.length})`}</p>
+            <p className="text-sm font-semibold">{isOwner ? `Status activity · ${comments.length} comments · ${viewCount} views` : `Private replies (${comments.length})`}</p>
             <button type="button" onClick={() => setCommentsOpen(false)} className="text-xs text-muted-foreground">Close</button>
           </div>
           <div className="overflow-y-auto min-h-0 space-y-2">
+            {isOwner && viewsOpen && (
+              <div className="pb-2 border-b border-border/60">
+                <p className="text-xs font-semibold mb-1">Viewed by</p>
+                {viewers.length === 0 ? <p className="text-xs text-muted-foreground">No views yet.</p> : viewers.map((viewer) => (
+                  <p key={viewer.id} className="text-xs py-1">{viewer.user_name} <span className="text-muted-foreground">{new Date(viewer.viewed_at).toLocaleString()}</span></p>
+                ))}
+              </div>
+            )}
+            <p className="text-xs font-semibold">Comments and replies</p>
             {comments.length === 0 ? <p className="text-xs text-muted-foreground">Be the first to reply.</p> : comments.map((comment) => (
               <p key={comment.id} className="text-sm break-words"><span className="font-semibold">{comment.user_name}</span> {comment.content}</p>
             ))}
