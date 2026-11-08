@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Bot, Sparkles, GitPullRequest, ShieldCheck, Loader2, Rocket, RotateCcw, ExternalLink, GitBranch, RefreshCw } from "lucide-react";
+import { Bot, Sparkles, GitPullRequest, ShieldCheck, Loader2, Rocket, RotateCcw, ExternalLink, GitBranch, RefreshCw, Send, Trash2, Terminal, Code2, FileCode, Check, Copy } from "lucide-react";
 
 type TaskPlan = {
   steps?: string[];
@@ -66,8 +66,116 @@ const REPO_ACTIONS = "https://github.com/TigerChat-HQ/access-ace-friend/actions"
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : "An unexpected error occurred.";
 
+type ChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  inspected_file?: string | null;
+};
+
 export const TigerCommandCenter = () => {
   const { toast } = useToast();
+  // Tiger AI Dev Interactive Chat State
+  const [devMessages, setDevMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const saved = localStorage.getItem("tiger_dev_chat_history");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [
+      {
+        id: "intro",
+        role: "assistant",
+        content: "Habari Bosi Maximo! 🐯🛠️\n\nMimi ni Tiger AI Dev Assistant wako hapa Command Center. Niko tayari kukusaidia kukagua kodi za TIGERCHAT, kuelekeza mabadiliko ya GitHub, kutatua bugs (kama WebRTC calls au Drafts game), na kuandika code diffs.\n\nNiambie unahitaji nisaidie nini leo?",
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      },
+    ];
+  });
+  const [inputPrompt, setInputPrompt] = useState("");
+  const [inspectFile, setInspectFile] = useState<string>("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("tiger_dev_chat_history", JSON.stringify(devMessages));
+    } catch {}
+  }, [devMessages]);
+
+  const sendDevMessage = async (customText?: string) => {
+    const textToSend = (customText ?? inputPrompt).trim();
+    if (!textToSend || chatLoading) return;
+
+    const userMsg: ChatMessage = {
+      id: `u-${Date.now()}`,
+      role: "user",
+      content: textToSend,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    const nextMessages = [...devMessages, userMsg];
+    setDevMessages(nextMessages);
+    if (!customText) setInputPrompt("");
+    setChatLoading(true);
+
+    try {
+      const payload: Record<string, unknown> = {
+        action: "dev_chat",
+        messages: nextMessages.map((m) => ({ role: m.role, content: m.content })),
+      };
+      if (inspectFile.trim()) {
+        payload.inspect_file = inspectFile.trim();
+      }
+
+      const { data, error } = await supabase.functions.invoke("tiger-dev-planner", {
+        body: payload,
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      const assistantMsg: ChatMessage = {
+        id: `a-${Date.now()}`,
+        role: "assistant",
+        content: data.reply || "Nimepokea maelekezo yako.",
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        inspected_file: data.inspected_file,
+      };
+      setDevMessages([...nextMessages, assistantMsg]);
+    } catch (err: unknown) {
+      const errMessage = getErrorMessage(err);
+      toast({ title: "Tiger AI error", description: errMessage, variant: "destructive" });
+      const errReply: ChatMessage = {
+        id: `err-${Date.now()}`,
+        role: "assistant",
+        content: `⚠️ Samahani Bosi Maximo, nimekutana na hitilafu: ${errMessage}. Tafadhali jaribu tena.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      };
+      setDevMessages([...nextMessages, errReply]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const clearChat = () => {
+    const reset: ChatMessage[] = [
+      {
+        id: "intro",
+        role: "assistant",
+        content: "Mazungumzo yamefutwa. Nipo tayari kwa kazi mpya, Bosi Maximo! 🐯",
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      },
+    ];
+    setDevMessages(reset);
+    localStorage.removeItem("tiger_dev_chat_history");
+  };
+
+  const copyText = async (id: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch {}
+  };
   const [tasks, setTasks] = useState<Task[]>([]);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [busy, setBusy] = useState(false);
@@ -254,6 +362,151 @@ export const TigerCommandCenter = () => {
         ))}
       </div>
 
+
+      {/* Tiger AI Dev Console & Interactive Chat */}
+      <div className="bg-card border-2 border-primary/40 rounded-xl overflow-hidden shadow-lg space-y-0">
+        <div className="bg-gradient-to-r from-primary/20 via-card to-primary/10 px-4 py-3 border-b border-border/60 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-primary/20 border border-primary/50 flex items-center justify-center text-primary font-bold text-sm">
+              🐯
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-foreground">Tiger AI Dev Assistant</h3>
+                <span className="flex items-center gap-1 text-[10px] text-emerald-500 font-medium bg-emerald-500/10 px-1.5 py-0.5 rounded-full border border-emerald-500/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Online
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">Kagua kodi, elekeza GitHub updates & fanya planning moja kwa moja</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button size="icon" variant="ghost" onClick={clearChat} title="Futa mazungumzo" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Quick file inspector selector */}
+        <div className="px-3 py-2 bg-muted/30 border-b border-border/40 flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
+            <FileCode className="w-3.5 h-3.5 text-primary" /> Kagua faili:
+          </span>
+          {[
+            "src/hooks/useWebRTC.ts",
+            "src/pages/Draughts.tsx",
+            "src/lib/draughts.ts",
+            "supabase/functions/tiger-ai/index.ts",
+          ].map((f) => (
+            <button
+              key={f}
+              onClick={() => setInspectFile(inspectFile === f ? "" : f)}
+              className={`px-2 py-0.5 rounded-md text-[10px] transition-colors border ${
+                inspectFile === f
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card text-muted-foreground hover:text-foreground border-border/50"
+              }`}
+            >
+              {f.split("/").pop()}
+            </button>
+          ))}
+          {inspectFile && (
+            <span className="text-[10px] text-primary font-mono ml-auto truncate max-w-[200px]">
+              Active: {inspectFile}
+            </span>
+          )}
+        </div>
+
+        {/* Message Thread */}
+        <div className="p-3 max-h-[380px] min-h-[180px] overflow-y-auto space-y-3 bg-gradient-to-b from-background to-card/60">
+          {devMessages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
+            >
+              <div
+                className={`max-w-[88%] rounded-xl px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap ${
+                  msg.role === "user"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "bg-surface/90 border border-border/60 text-foreground shadow-sm font-sans"
+                }`}
+              >
+                {msg.inspected_file && (
+                  <div className="mb-1.5 pb-1 border-b border-border/40 text-[10px] text-primary font-mono flex items-center gap-1">
+                    <FileCode className="w-3 h-3" /> Inspected: {msg.inspected_file}
+                  </div>
+                )}
+                {msg.content}
+              </div>
+              <div className="flex items-center gap-1.5 mt-1 px-1">
+                <span className="text-[9px] text-muted-foreground">{msg.timestamp}</span>
+                {msg.role === "assistant" && (
+                  <button
+                    onClick={() => copyText(msg.id, msg.content)}
+                    className="text-[9px] text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5"
+                    title="Copy response"
+                  >
+                    {copiedId === msg.id ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {chatLoading && (
+            <div className="flex items-center gap-2 text-xs text-primary bg-primary/10 border border-primary/20 rounded-lg px-3 py-2 w-fit">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>Tiger AI inafikiria & inachambua kodi…</span>
+            </div>
+          )}
+        </div>
+
+        {/* Quick prompt suggestions */}
+        <div className="p-2 border-t border-border/40 bg-card/40 flex items-center gap-1.5 overflow-x-auto text-xs no-scrollbar">
+          {[
+            "📞 Kagua kodi za WebRTC calling",
+            "♟️ Boresha mfumo wa game ya Drafti",
+            "🔍 Kagua open GitHub PRs & CI",
+            "💡 Pendekeza feature mpya",
+          ].map((promptText) => (
+            <button
+              key={promptText}
+              disabled={chatLoading}
+              onClick={() => sendDevMessage(promptText)}
+              className="shrink-0 px-2.5 py-1 rounded-full bg-secondary/80 hover:bg-secondary text-[11px] text-secondary-foreground border border-border/50 transition-colors"
+            >
+              {promptText}
+            </button>
+          ))}
+        </div>
+
+        {/* Input Bar */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void sendDevMessage();
+          }}
+          className="p-2.5 border-t border-border/60 bg-card flex items-center gap-2"
+        >
+          <div className="relative flex-1">
+            <input
+              value={inputPrompt}
+              onChange={(e) => setInputPrompt(e.target.value)}
+              placeholder={inspectFile ? `Uliza kuhusu ${inspectFile}...` : "Andika hapa kuelekeza kodi, kuomba ushauri au kupanga kazi na Tiger AI..."}
+              disabled={chatLoading}
+              className="w-full h-10 px-3 pr-8 rounded-lg bg-background border border-border/60 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            {inspectFile && (
+              <span className="absolute right-2 top-2.5 text-[9px] text-primary bg-primary/10 px-1 rounded">
+                File active
+              </span>
+            )}
+          </div>
+          <Button type="submit" size="sm" disabled={!inputPrompt.trim() || chatLoading} className="h-10 px-4">
+            {chatLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          </Button>
+        </form>
+      </div>
 
       <div className="bg-card border border-border/50 rounded-lg p-3 space-y-2">
         <div className="flex items-center justify-between gap-2">
