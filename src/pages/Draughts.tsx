@@ -151,7 +151,10 @@ const Draughts = () => {
         p_status: w ? "finished" : "active",
         p_winner: (w === "w" ? "white" : w === "b" ? "black" : null) as string,
       });
-      if (aiSaved) setMatch(aiSaved as unknown as MatchRow);
+      if (aiSaved) {
+        if (soundEnabled && !w) playDraughtsSound(aiMove.promote ? "king" : aiMove.captures.length > 0 ? "capture" : "move", soundVolume);
+        setMatch(aiSaved as unknown as MatchRow);
+      }
       aiMoveInFlight.current = null;
       setAiThinking(false);
     }, 350);
