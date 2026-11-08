@@ -36,6 +36,18 @@ const Draughts = () => {
   const [openMatches, setOpenMatches] = useState<MatchRow[]>([]);
   const [creating, setCreating] = useState(false);
   const [flipBoard, setFlipBoard] = useState<boolean | null>(null);
+  const [tigerSupervisorEnabled, setTigerSupervisorEnabled] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    (supabase as any).from("draughts_admin_settings").select("tiger_ai_supervisor_enabled").eq("id", true).maybeSingle()
+      .then(({ data }: { data: { tiger_ai_supervisor_enabled?: boolean } | null }) => { if (alive && data) setTigerSupervisorEnabled(data.tiger_ai_supervisor_enabled !== false); });
+    const settingsChannel = supabase.channel("draughts-supervisor-settings")
+      .on("postgres_changes", { event: "*", schema: "public", table: "draughts_admin_settings" }, (payload) => {
+        const row = payload.new as { tiger_ai_supervisor_enabled?: boolean };
+        setTigerSupervisorEnabled(row.tiger_ai_supervisor_enabled !== false);
+      }).subscribe();
+    return () => { alive = false; void supabase.removeChannel(settingsChannel); };
+  }, []);
   const [soundEnabled, setSoundEnabled] = useState(() => { try { return localStorage.getItem("tiger-draughts-sound") !== "off"; } catch { return true; } });
   useEffect(() => { try { localStorage.setItem("tiger-draughts-sound", soundEnabled ? "on" : "off"); } catch { /* optional preference */ } }, [soundEnabled]);
   const [soundVolume, setSoundVolume] = useState(() => { try { return Number(localStorage.getItem("tiger-draughts-volume") ?? "0.65"); } catch { return 0.65; } });
@@ -481,6 +493,21 @@ const Draughts = () => {
           </div>
         </div>
       </div>
+
+      {tigerSupervisorEnabled && (
+        <div className="mx-3 mt-3 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <Bot className="h-4 w-4 text-primary" />
+            <p className="text-xs font-bold text-foreground">Tiger AI · Game Supervisor</p>
+            <span className="ml-auto rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-semibold text-emerald-600">OBSERVING</span>
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {match.status === "finished"
+              ? match.winner === "draw" ? "Tiger AI acknowledges this game as a draw. The result is recorded in the match." : `Tiger AI acknowledges the result: ${match.winner === "white" ? "White" : "Black"} wins. The match result is recorded.`
+              : match.status === "waiting" ? "Tiger AI acknowledges this match lobby and is waiting for both players." : `Tiger AI is supervising the live board · Move updates: ${match.revision}. It observes and acknowledges only; it does not control player moves or alter scores.`}
+          </p>
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-3 px-4 pt-3"><p className="text-xs font-medium text-muted-foreground">Live board appearance</p><BoardAppearance theme={theme} setTheme={setTheme} pieceStyle={pieceStyle} setPieceStyle={setPieceStyle} scale={scale} setScale={setScale} depth={depth} setDepth={setDepth} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} soundVolume={soundVolume} setSoundVolume={setSoundVolume} reactionVolume={reactionVolume} setReactionVolume={setReactionVolume} /></div>
       <div className="flex-1 min-h-0 overflow-y-auto flex items-center justify-center p-3 sm:p-5 bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.10),transparent_68%)]">
