@@ -21,8 +21,8 @@ export function DraughtsAdminControl() {
 
   const load = async () => {
     const [s, b, active] = await Promise.all([
-      (supabase as any).from("draughts_admin_settings").select("seasons_enabled,tiger_ai_supervisor_enabled").eq("id", true).maybeSingle(),
-      (supabase as any).from("draughts_badge_types").select("*").order("created_at"),
+      supabase.from("draughts_admin_settings").select("seasons_enabled,tiger_ai_supervisor_enabled").eq("id", true).maybeSingle(),
+      supabase.from("draughts_badge_types").select("*").order("created_at"),
       supabase.from("draughts_seasons").select("name").eq("is_active", true).maybeSingle(),
     ]);
     if (s.data) setSettings(s.data);
