@@ -26,6 +26,7 @@ import NotFound from "./pages/NotFound";
 import TigerAI from "./pages/TigerAI";
 import Game from "./pages/Game";
 import Draughts from "./pages/Draughts";
+import DraughtsTournaments from "./pages/DraughtsTournaments";
 import Contact from "./pages/Contact";
 import PublicDraughts from "./pages/PublicDraughts";
 import { HelmetProvider } from "react-helmet-async";
@@ -88,6 +89,7 @@ const App = () => (
                   <Route path="/tiger-ai" element={<TigerAI />} />
                   <Route path="/game" element={<Game />} />
                   <Route path="/draughts" element={<Draughts />} />
+                  <Route path="/draughts/tournaments" element={<DraughtsTournaments />} />
                 </Route>
 
                 <Route path="*" element={<NotFound />} />
