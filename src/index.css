@@ -99,11 +99,11 @@
 
 
 @layer utilities {
-  .draught-dark { background: hsl(var(--board-dark)); }
-  .draught-light { background: hsl(var(--board-light)); }
+  .draught-dark { background: var(--board-dark); }
+  .draught-light { background: var(--board-light); }
   .draught-piece { width: 78%; aspect-ratio: 1; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid hsl(var(--border)); color: hsl(var(--piece-crown)); box-shadow: 0 3px 5px hsl(var(--piece-black) / 0.4), inset 0 0 0 3px hsl(var(--piece-white) / 0.12); }
-  .draught-white { background: hsl(var(--piece-white)); }
-  .draught-black { background: hsl(var(--piece-black)); }
+  .draught-white { background: var(--piece-white); border-color: var(--piece-white-border); }
+  .draught-black { background: var(--piece-black); border-color: var(--piece-black-border); }
   .neon-glow {
     box-shadow: 0 0 15px hsl(var(--neon-glow) / 0.3), 0 0 30px hsl(var(--neon-glow) / 0.1);
   }
@@ -154,3 +154,9 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* Draughts appearance themes */
+.draught-frame { background: var(--board-frame); }
+.draught-piece-online { border: 2px solid; box-shadow: 0 5px 0 rgba(0,0,0,.35), 0 8px 10px rgba(0,0,0,.45), inset 0 2px 4px rgba(255,255,255,.45); }
+.draught-piece-online-white { background: radial-gradient(circle at 32% 24%, #fff 0%, var(--piece-white) 48%, color-mix(in srgb, var(--piece-white) 65%, #000) 100%); border-color: var(--piece-white-border); }
+.draught-piece-online-black { background: radial-gradient(circle at 32% 22%, color-mix(in srgb, var(--piece-black) 65%, #fff) 0%, var(--piece-black) 70%, #000 100%); border-color: var(--piece-black-border); }
