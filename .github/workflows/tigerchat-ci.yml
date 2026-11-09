@@ -35,7 +35,7 @@ jobs:
       - name: TypeScript project checks
         run: npm run typecheck
 
-      - name: Verify 20 CC0 status music tracks
+      - name: Validate 20 CC0 status music catalog (offline)
         run: node scripts/check-status-audio.mjs
 
       - name: Full repository lint
