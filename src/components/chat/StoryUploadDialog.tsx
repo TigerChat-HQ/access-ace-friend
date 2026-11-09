@@ -41,7 +41,14 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
   const [preview, setPreview] = useState<string | null>(null);
   const [duration, setDuration] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
-  const [audience, setAudience] = useState<"everyone" | "contacts" | "only_me">("everyone");
+  const [audience, setAudience] = useState<"everyone" | "contacts" | "contacts_except" | "selected" | "only_me">("everyone");
+  const [contactOptions, setContactOptions] = useState<{ user_id: string; display_name: string }[]>([]);
+  const [selectedAudienceIds, setSelectedAudienceIds] = useState<string[]>([]);
+  const [excludedAudienceIds, setExcludedAudienceIds] = useState<string[]>([]);
+  const [drawColor, setDrawColor] = useState("#FF3B30");
+  const [drawMode, setDrawMode] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const drawingRef = useRef(false);
   const [backgroundColor, setBackgroundColor] = useState(BACKGROUNDS[0]);
   const [recordingVoice, setRecordingVoice] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -57,6 +64,33 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
   useEffect(() => () => {
     if (localMusicPreview?.startsWith("blob:")) URL.revokeObjectURL(localMusicPreview);
   }, [localMusicPreview]);
+
+
+  useEffect(() => {
+    if (!open || !user) return;
+    let active = true;
+    const loadContacts = async () => {
+      const [outgoingResult, incomingResult] = await Promise.all([supabase.from("follows").select("following_id").eq("follower_id", user.id), supabase.from("follows").select("follower_id").eq("following_id", user.id)]);
+      const outgoingIds = new Set((outgoingResult.data || []).map(row => row.following_id));
+      const mutualIds = [...new Set((incomingResult.data || []).map(row => row.follower_id).filter(id => outgoingIds.has(id)))];
+      if (!mutualIds.length) { if (active) setContactOptions([]); return; }
+      const { data } = await supabase.from("profiles").select("user_id, display_name").in("user_id", mutualIds);
+      if (active) setContactOptions((data || []).map(profile => ({ user_id: profile.user_id, display_name: profile.display_name || "User" })));
+    };
+    void loadContacts();
+    return () => { active = false; };
+  }, [open, user?.id]);
+  const startDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawMode) return;
+    const canvas = canvasRef.current; const ctx = canvas?.getContext("2d"); if (!canvas || !ctx) return;
+    const rect = canvas.getBoundingClientRect(); drawingRef.current = true; canvas.setPointerCapture(event.pointerId);
+    ctx.beginPath(); ctx.moveTo((event.clientX - rect.left) * canvas.width / rect.width, (event.clientY - rect.top) * canvas.height / rect.height); ctx.strokeStyle = drawColor; ctx.lineWidth = 7; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  };
+  const continueDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawingRef.current) return; const canvas = canvasRef.current; const ctx = canvas?.getContext("2d"); if (!canvas || !ctx) return;
+    const rect = canvas.getBoundingClientRect(); ctx.lineTo((event.clientX - rect.left) * canvas.width / rect.width, (event.clientY - rect.top) * canvas.height / rect.height); ctx.stroke();
+  };
+  const clearDrawing = () => { const canvas = canvasRef.current; const ctx = canvas?.getContext("2d"); if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height); };
 
   const clearLocalMusic = () => {
     if (localMusicPreview?.startsWith("blob:")) URL.revokeObjectURL(localMusicPreview);
@@ -204,13 +238,24 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
         musicUrl = supabase.storage.from("stories").getPublicUrl(audioPath).data.publicUrl;
       }
 
+      let drawingUrl: string | null = null;
+      if (canvasRef.current && mediaFile) {
+        const drawingBlob = await new Promise<Blob | null>(resolve => canvasRef.current?.toBlob(resolve, 'image/png'));
+        if (drawingBlob && drawingBlob.size > 0) {
+          const drawingPath = user.id + '/drawing-' + crypto.randomUUID() + '.png';
+          const { error: drawingError } = await supabase.storage.from('stories').upload(drawingPath, drawingBlob, { contentType: 'image/png', upsert: false });
+          if (drawingError) throw drawingError;
+          drawingUrl = supabase.storage.from('stories').getPublicUrl(drawingPath).data.publicUrl;
+        }
+      }
       const overlayMetadata = {
+        ...(drawingUrl ? { drawing_url: drawingUrl } : {}),
         ...(textOverlay.trim() ? { text: textOverlay.trim(), text_color: textColor, text_background: textBackground, text_font: textFont, text_size: textSize } : {}),
         ...(sticker ? { sticker } : {}),
         ...(musicUrl ? { music_start: music?.start ?? localMusicStart, music_end: music?.end ?? localMusicEnd, music_title: music?.title || localMusicFile?.name || "Background music" } : {}),
         ...(imageFilter !== "none" ? { image_filter: imageFilter } : {}),
       };
-      const { error } = await db.from("stories").insert({
+      const { data: createdStory, error } = await db.from("stories").insert({
         user_id: user.id,
         image_url: mediaUrl,
         caption: caption.trim() || null,
@@ -220,8 +265,16 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
         text_overlay: Object.keys(overlayMetadata).length ? overlayMetadata : null,
         audience,
         background_color: backgroundColor,
-      });
+      }).select("id").single();
       if (error) throw error;
+      if (audience === "selected" && selectedAudienceIds.length) {
+        const { error: audienceError } = await db.from("story_audience_members").insert(selectedAudienceIds.map(member_id => ({ story_id: createdStory.id, member_id, audience_type: "include" })));
+        if (audienceError) throw audienceError;
+      }
+      if (audience === "contacts_except" && excludedAudienceIds.length) {
+        const { error: audienceError } = await db.from("story_audience_members").insert(excludedAudienceIds.map(member_id => ({ story_id: createdStory.id, member_id, audience_type: "exclude" })));
+        if (audienceError) throw audienceError;
+      }
 
       toast({ title: "Status posted successfully" });
       setOpen(false);
@@ -238,7 +291,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
       setSticker("");
       setPreview(null);
       setDuration(null);
-      setAudience("everyone");
+      setAudience("everyone"); setSelectedAudienceIds([]); setExcludedAudienceIds([]); clearDrawing(); setDrawMode(false);
       setBackgroundColor(BACKGROUNDS[0]);
       onUploaded();
     } catch (error) {
@@ -273,6 +326,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
               {mediaType === "video" ? <video src={preview} controls className="w-full h-48 object-cover rounded-lg" style={{ filter: imageFilter }} /> : <img src={preview} alt="Status preview" className="w-full h-48 object-cover rounded-lg" style={{ filter: imageFilter }} />}
               {textOverlay && <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center px-4 pointer-events-none"><span className="inline-block text-lg font-bold px-3 py-1 rounded" style={{ color: textColor, backgroundColor: textBackground, fontFamily: textFont, fontSize: textSize }}>{textOverlay}</span></div>}
               {sticker && <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-6xl">{sticker}</div>}
+              <canvas ref={canvasRef} width={600} height={400} className={"absolute inset-0 w-full h-48 touch-none " + (drawMode ? "cursor-crosshair" : "pointer-events-none")} onPointerDown={startDrawing} onPointerMove={continueDrawing} onPointerUp={() => { drawingRef.current = false; }} onPointerCancel={() => { drawingRef.current = false; }} />
               <button type="button" onClick={clearMedia} aria-label="Remove media" className="absolute top-2 right-2 p-1 bg-black/60 rounded-full"><X className="w-4 h-4 text-white" /></button>
             </div>
           ) : (
@@ -287,7 +341,8 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
           )}
 
           {mediaFile && (
-            <div className="space-y-1">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2"><Button type="button" size="sm" variant={drawMode ? "default" : "outline"} onClick={() => setDrawMode(value => !value)}>{drawMode ? "Finish drawing" : "Draw on photo"}</Button><input aria-label="Drawing colour" type="color" value={drawColor} onChange={event => setDrawColor(event.target.value)} className="w-9 h-9 rounded border border-border" /><Button type="button" size="sm" variant="ghost" onClick={clearDrawing}>Clear drawing</Button></div>
               <label className="text-xs text-muted-foreground">Photo/video filter</label>
               <select value={imageFilter} onChange={(e) => setImageFilter(e.target.value)} className="w-full h-10 rounded-md border border-border bg-surface px-3 text-sm text-foreground">
                 <option value="none">Original</option>
@@ -344,7 +399,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Sticker</label>
             <div className="flex flex-wrap gap-2">
-              {["", "❤️", "🔥", "😂", "😍", "🎉", "🌟", "🐯", "👏"].map((item) => (
+              {["", "❤️", "🔥", "😂", "😍", "🎉", "🌟", "🐯", "👏", "🥳", "💯", "✨", "💔", "🙏", "💪", "🥰", "😎", "🤩", "🎂", "🏆", "🌈", "☀️", "🌹", "💐", "🦋", "🚀", "📍", "🎵", "👑", "🤝"].map((item) => (
                 <button key={item || "none"} type="button" onClick={() => setSticker(item)} aria-pressed={sticker === item} className={"rounded-lg border px-2 py-1 text-xl " + (sticker === item ? "border-primary bg-primary/15" : "border-border")}>{item || "✕"}</button>
               ))}
             </div>
@@ -352,12 +407,21 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
 
           <div className="space-y-2">
             <p className="text-sm font-medium text-foreground">Who can see this status?</p>
-            <div className="grid grid-cols-3 gap-2">
-              <Button type="button" size="sm" variant={audience === "everyone" ? "default" : "outline"} onClick={() => setAudience("everyone")} className="gap-1 px-2"><Globe className="w-3.5 h-3.5" /> Everyone</Button>
-              <Button type="button" size="sm" variant={audience === "contacts" ? "default" : "outline"} onClick={() => setAudience("contacts")} className="gap-1 px-2"><span aria-hidden="true">👥</span> Contacts</Button>
-              <Button type="button" size="sm" variant={audience === "only_me" ? "default" : "outline"} onClick={() => setAudience("only_me")} className="gap-1 px-2"><Lock className="w-3.5 h-3.5" /> Only me</Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button type="button" size="sm" variant={audience === "everyone" ? "default" : "outline"} onClick={() => setAudience("everyone")}>Everyone</Button>
+              <Button type="button" size="sm" variant={audience === "contacts" ? "default" : "outline"} onClick={() => setAudience("contacts")}>👥 Contacts</Button>
+              <Button type="button" size="sm" variant={audience === "contacts_except" ? "default" : "outline"} onClick={() => setAudience("contacts_except")}>Contacts except…</Button>
+              <Button type="button" size="sm" variant={audience === "selected" ? "default" : "outline"} onClick={() => setAudience("selected")}>Share with selected</Button>
+              <Button type="button" size="sm" variant={audience === "only_me" ? "default" : "outline"} onClick={() => setAudience("only_me")} className="col-span-2"><Lock className="w-3.5 h-3.5" /> Only me</Button>
             </div>
-            <p className="text-xs text-muted-foreground">Contacts means people who follow each other. Blocked accounts are excluded.</p>
+            {(audience === "contacts_except" || audience === "selected") && <div className="max-h-36 overflow-y-auto rounded-lg border border-border p-2 space-y-2">
+              {contactOptions.length === 0 ? <p className="text-xs text-muted-foreground">No mutual contacts found yet.</p> : contactOptions.map(contact => {
+                const ids = audience === "selected" ? selectedAudienceIds : excludedAudienceIds;
+                const setIds = audience === "selected" ? setSelectedAudienceIds : setExcludedAudienceIds;
+                return <label key={contact.user_id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={ids.includes(contact.user_id)} onChange={event => setIds(old => event.target.checked ? [...old, contact.user_id] : old.filter(id => id !== contact.user_id))} />{contact.display_name}</label>;
+              })}
+            </div>}
+            <p className="text-xs text-muted-foreground">Contacts are mutual follows. Blocked accounts are excluded.</p>
           </div>
 
           <div className="space-y-2">
