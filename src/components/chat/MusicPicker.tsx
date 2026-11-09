@@ -114,7 +114,7 @@ export const MusicPicker = ({ trigger, value, onChange, maxClip = MAX_DEFAULT }:
               >
                 <div className="min-w-0">
                   <p className="text-sm text-foreground truncate">{t.title}</p>
-                  <p className="text-[10px] text-muted-foreground truncate">{t.artist} · {t.mood} · {t.kind} · {trackDuration && selected?.id === t.id ? fmt(trackDuration) : "Loading duration"}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{t.artist} · {t.mood} · {t.kind}</p>
                 </div>
                 {selected?.id === t.id && <Check className="w-4 h-4 text-primary shrink-0" />}
               </button>
