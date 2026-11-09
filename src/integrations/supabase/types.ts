@@ -14,88 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      tiger_ai_daily_posts: {
-        Row: { id: string; date_key: string; title: string; content: Json; source_urls: string[]; created_at: string }
-        Insert: { id?: string; date_key: string; title: string; content: Json; source_urls?: string[]; created_at?: string }
-        Update: { id?: string; date_key?: string; title?: string; content?: Json; source_urls?: string[]; created_at?: string }
-        Relationships: []
-      }
-      tiger_ai_daily_post_likes: {
-        Row: { created_at: string; post_id: string; user_id: string }
-        Insert: { created_at?: string; post_id: string; user_id: string }
-        Update: { created_at?: string; post_id?: string; user_id?: string }
-        Relationships: [
-          {
-            foreignKeyName: "tiger_ai_daily_post_likes_post_id_fkey"
-            columns: ["post_id"]
-            isOneToOne: false
-            referencedRelation: "tiger_ai_daily_posts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tiger_ai_daily_comments: {
-        Row: {
-          ai_liked: boolean
-          body: string
-          created_at: string
-          id: string
-          is_tiger_ai: boolean
-          parent_id: string | null
-          post_id: string
-          user_id: string | null
-        }
-        Insert: {
-          ai_liked?: boolean
-          body: string
-          created_at?: string
-          id?: string
-          is_tiger_ai?: boolean
-          parent_id?: string | null
-          post_id: string
-          user_id?: string | null
-        }
-        Update: {
-          ai_liked?: boolean
-          body?: string
-          created_at?: string
-          id?: string
-          is_tiger_ai?: boolean
-          parent_id?: string | null
-          post_id?: string
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "tiger_ai_daily_comments_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "tiger_ai_daily_comments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tiger_ai_daily_comments_post_id_fkey"
-            columns: ["post_id"]
-            isOneToOne: false
-            referencedRelation: "tiger_ai_daily_posts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      tiger_ai_daily_comment_likes: {
-        Row: { comment_id: string; created_at: string; user_id: string }
-        Insert: { comment_id: string; created_at?: string; user_id: string }
-        Update: { comment_id?: string; created_at?: string; user_id?: string }
-        Relationships: [
-          {
-            foreignKeyName: "tiger_ai_daily_comment_likes_comment_id_fkey"
-            columns: ["comment_id"]
-            isOneToOne: false
-            referencedRelation: "tiger_ai_daily_comments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       announcement_dismissals: {
         Row: {
           announcement_id: string
@@ -542,7 +460,6 @@ export type Database = {
         Row: {
           board: Json
           created_at: string
-          draw_offer_by: string | null
           current_turn: string
           id: string
           join_code: string
@@ -558,7 +475,6 @@ export type Database = {
         Insert: {
           board: Json
           created_at?: string
-          draw_offer_by?: string | null
           current_turn?: string
           id?: string
           join_code?: string
@@ -574,7 +490,6 @@ export type Database = {
         Update: {
           board?: Json
           created_at?: string
-          draw_offer_by?: string | null
           current_turn?: string
           id?: string
           join_code?: string
@@ -587,42 +502,6 @@ export type Database = {
           vs_ai?: boolean
           winner?: string | null
         }
-        Relationships: []
-      }
-      draughts_admin_settings: {
-        Row: { id: boolean; seasons_enabled: boolean; tiger_ai_supervisor_enabled: boolean; updated_at: string; updated_by: string | null }
-        Insert: { id?: boolean; seasons_enabled?: boolean; tiger_ai_supervisor_enabled?: boolean; updated_at?: string; updated_by?: string | null }
-        Update: { id?: boolean; seasons_enabled?: boolean; tiger_ai_supervisor_enabled?: boolean; updated_at?: string; updated_by?: string | null }
-        Relationships: []
-      }
-      draughts_badge_types: {
-        Row: { id: string; badge_name: string; emoji: string; description: string; award_rule: string; threshold: number; is_enabled: boolean; created_at: string }
-        Insert: { id?: string; badge_name: string; emoji?: string; description?: string; award_rule: string; threshold?: number; is_enabled?: boolean; created_at?: string }
-        Update: { id?: string; badge_name?: string; emoji?: string; description?: string; award_rule?: string; threshold?: number; is_enabled?: boolean; created_at?: string }
-        Relationships: []
-      }
-      draughts_seasons: {
-        Row: { id: string; name: string; starts_at: string; ends_at: string | null; is_active: boolean; created_at: string }
-        Insert: { id?: string; name: string; starts_at?: string; ends_at?: string | null; is_active?: boolean; created_at?: string }
-        Update: { id?: string; name?: string; starts_at?: string; ends_at?: string | null; is_active?: boolean; created_at?: string }
-        Relationships: []
-      }
-      draughts_player_stats: {
-        Row: { season_id: string; user_id: string; rating_points: number; wins: number; losses: number; draws: number; updated_at: string }
-        Insert: { season_id: string; user_id: string; rating_points?: number; wins?: number; losses?: number; draws?: number; updated_at?: string }
-        Update: { season_id?: string; user_id?: string; rating_points?: number; wins?: number; losses?: number; draws?: number; updated_at?: string }
-        Relationships: []
-      }
-      draughts_player_badges: {
-        Row: { id: string; season_id: string; user_id: string; rank: number | null; badge_name: string; badge_type_id: string | null; show_on_profile: boolean; awarded_at: string }
-        Insert: { id?: string; season_id: string; user_id: string; rank?: number | null; badge_name?: string; badge_type_id?: string | null; show_on_profile?: boolean; awarded_at?: string }
-        Update: { id?: string; season_id?: string; user_id?: string; rank?: number | null; badge_name?: string; badge_type_id?: string | null; show_on_profile?: boolean; awarded_at?: string }
-        Relationships: [{ foreignKeyName: "draughts_player_badges_badge_type_id_fkey"; columns: ["badge_type_id"]; isOneToOne: false; referencedRelation: "draughts_badge_types"; referencedColumns: ["id"] }]
-      }
-      draughts_match_results: {
-        Row: { match_id: string; season_id: string; player_white: string; player_black: string; winner: string; white_points: number; black_points: number; completed_at: string }
-        Insert: { match_id: string; season_id: string; player_white: string; player_black: string; winner: string; white_points: number; black_points: number; completed_at?: string }
-        Update: { match_id?: string; season_id?: string; player_white?: string; player_black?: string; winner?: string; white_points?: number; black_points?: number; completed_at?: string }
         Relationships: []
       }
       follows: {
@@ -1146,38 +1025,6 @@ export type Database = {
         }
         Relationships: []
       }
-      story_comments: {
-        Row: {
-          content: string
-          created_at: string
-          id: string
-          story_id: string
-          user_id: string
-        }
-        Insert: {
-          content: string
-          created_at?: string
-          id?: string
-          story_id: string
-          user_id: string
-        }
-        Update: {
-          content?: string
-          created_at?: string
-          id?: string
-          story_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "story_comments_story_id_fkey"
-            columns: ["story_id"]
-            isOneToOne: false
-            referencedRelation: "stories"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       story_reactions: {
         Row: {
           created_at: string
@@ -1393,16 +1240,6 @@ export type Database = {
         Args: { _member_ids: string[]; _name: string }
         Returns: string
       }
-      accept_draft_draw: {
-        Args: { p_id: string }
-        Returns: Database["public"]["Tables"]["draft_matches"]["Row"]
-      }
-      offer_draft_draw: {
-        Args: { p_id: string }
-        Returns: Database["public"]["Tables"]["draft_matches"]["Row"]
-      }
-      draughts_division: { Args: { p_points: number }; Returns: string }
-      close_draughts_season: { Args: { p_season_id?: string }; Returns: Json }
       ensure_admin_super_group: { Args: never; Returns: string }
       has_role: {
         Args: {
