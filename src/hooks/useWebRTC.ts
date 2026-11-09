@@ -49,8 +49,8 @@ const STUN_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.cloudflare.com:3478" },
 ];
 
-const getCallIceServers = async (): Promise<RTCIceServer[]> => {
-  const { data, error } = await supabase.functions.invoke("turn-credentials", { body: {} });
+const getCallIceServers = async (conversationId: string): Promise<RTCIceServer[]> => {
+  const { data, error } = await supabase.functions.invoke("turn-credentials", { body: { conversationId } });
   if (error) {
     // Keep calls available on networks that support direct ICE while TURN is being configured.
     // Restrictive NATs may still require a production TURN provider.
@@ -294,7 +294,7 @@ export const useWebRTC = () => {
     localIceQueue.current = [];
     signalReadyCallId.current = null;
     try {
-      const iceServers = await getCallIceServers();
+      const iceServers = await getCallIceServers(conversationId);
       const stream = await getMedia(callType === "video");
       if (callIdRef.current !== info.callId) { stream.getTracks().forEach((track) => track.stop()); return; }
       localStreamRef.current = stream;
@@ -327,7 +327,7 @@ export const useWebRTC = () => {
     localIceQueue.current = [];
     signalReadyCallId.current = null;
     try {
-      const iceServers = await getCallIceServers();
+      const iceServers = await getCallIceServers(info.conversationId);
       const stream = await getMedia(info.callType === "video");
       if (callIdRef.current !== info.callId) { stream.getTracks().forEach((track) => track.stop()); return; }
       localStreamRef.current = stream;
