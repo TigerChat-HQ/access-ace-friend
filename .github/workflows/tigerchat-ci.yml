@@ -47,7 +47,9 @@ jobs:
         run: npm run lint
 
       - name: Unit tests
+        if: always()
         run: npm run test
 
       - name: Production build
+        if: always()
         run: npm run build
