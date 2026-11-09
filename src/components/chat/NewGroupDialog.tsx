@@ -74,24 +74,24 @@ export const NewGroupDialog = ({ onCreated, trigger }: NewGroupDialogProps) => {
       _member_ids: memberIds,
     });
 
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    if (error || !convoId) {
+      toast({
+        title: "Group creation failed",
+        description: error?.message || "The server did not return a group ID. Please try again.",
+        variant: "destructive",
+      });
       setLoading(false);
       return;
     }
 
-    // Make creator first admin
-    if (convoId) {
-      await supabase.from("group_admins").insert({ conversation_id: convoId as string, user_id: user.id });
-    }
-
+    // The database RPC creates the group, all memberships, and its first admin atomically.
     toast({ title: `Group "${name}" created 🎉` });
     setOpen(false);
     setGroupName("");
     setSelected([]);
     setQuery("");
     setLoading(false);
-    onCreated(convoId as string | undefined);
+    onCreated(convoId as string);
   };
 
   return (

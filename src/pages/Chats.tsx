@@ -542,7 +542,7 @@ const Chats = () => {
               </DropdownMenuContent>
             </DropdownMenu>
             <NewDmDialog onStarted={(id) => { setActiveChat(id); refetchConversations(); }} />
-            <NewGroupDialog onCreated={() => refetchConversations()} />
+            <NewGroupDialog onCreated={(id) => { if (id) setActiveChat(id); void refetchConversations(); }} />
             <StoryUploadDialog onUploaded={() => {
               supabase.from("stories").select("*").order("created_at", { ascending: false }).then(async ({ data }) => {
                 if (data) {
@@ -733,6 +733,18 @@ const Chats = () => {
               </div>
             )}
             <MessageInput onSend={handleSend} onSendVoice={handleSendVoice} onSendFile={handleSendFile} onTyping={notifyTyping} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} editingMessage={editingMessage} onCancelEdit={() => setEditingMessage(null)} />
+          </div>
+        ) : activeChat && convosLoading ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center p-8">
+            <div className="w-7 h-7 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm text-muted-foreground">Opening conversation...</p>
+          </div>
+        ) : activeChat ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center p-8">
+            <MessageCircle className="w-12 h-12 text-muted-foreground" />
+            <h2 className="text-lg font-semibold text-foreground">Conversation unavailable</h2>
+            <p className="text-sm text-muted-foreground max-w-sm">This conversation could not be loaded. Return to your chat list and try again.</p>
+            <button type="button" onClick={() => setActiveChat(null)} className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">Back to chats</button>
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-8">
