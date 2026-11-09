@@ -12,7 +12,7 @@ interface ChatListItemProps {
 
 export const ChatListItem = ({ contact, isActive, onClick, isFavorite = false, onToggleFavorite }: ChatListItemProps) => {
   return (
-    <div className={cn("w-full flex items-center gap-2 px-3 py-3 transition-all duration-200 hover:bg-surface-hover", isActive && "bg-surface neon-glow")}>
+    <div className={cn("w-full flex items-center gap-2 px-3 py-3 transition-all duration-200 hover:bg-surface-hover", isActive && "bg-primary/5 border-l-2 border-primary")}>
     <button type="button" onClick={onClick} className="flex min-w-0 flex-1 items-center gap-3 text-left">
       <div className="relative">
         <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center text-sm font-semibold text-secondary-foreground">
