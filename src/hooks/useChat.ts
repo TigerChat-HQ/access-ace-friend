@@ -14,20 +14,37 @@ type ConversationItem = Tables<"conversations"> & {
 export const useMessages = (conversationId: string | null) => {
   const [messages, setMessages] = useState<(Message & { sender_profile?: Profile })[]>([]);
   const [loading, setLoading] = useState(false);
+  const requestRef = useRef(0);
 
   const fetchMessages = useCallback(async () => {
-    if (!conversationId) return;
+    const requestId = ++requestRef.current;
+    if (!conversationId) {
+      setMessages([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
-    const { data } = await supabase
-      .from("messages")
-      .select("*")
-      .eq("conversation_id", conversationId)
-      .order("created_at", { ascending: true });
-    if (data) setMessages(data);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("conversation_id", conversationId)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      if (requestId === requestRef.current) setMessages(data || []);
+    } catch (error) {
+      console.error("Failed to load chat messages:", error);
+      if (requestId === requestRef.current) setMessages([]);
+    } finally {
+      if (requestId === requestRef.current) setLoading(false);
+    }
   }, [conversationId]);
 
-  useEffect(() => { void fetchMessages(); }, [fetchMessages]);
+  useEffect(() => {
+    void fetchMessages();
+    return () => { requestRef.current += 1; };
+  }, [fetchMessages]);
 
   const deleteMessage = useCallback(async (messageId: string, mode: "me" | "everyone" = "everyone") => {
     if (mode === "me") {
