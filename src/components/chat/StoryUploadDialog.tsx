@@ -68,7 +68,6 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
   const toggleVoiceRecording = async () => {
     if (recordingVoice) {
       recorderRef.current?.stop();
-      setRecordingVoice(false);
       return;
     }
     try {
@@ -79,6 +78,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
         if (event.data.size > 0) chunks.push(event.data);
       };
       recorder.onstop = () => {
+        setRecordingVoice(false);
         const mime = recorder.mimeType || "audio/webm";
         const blob = new Blob(chunks, { type: mime });
         const extension = mime.includes("mp4") ? "m4a" : "webm";
