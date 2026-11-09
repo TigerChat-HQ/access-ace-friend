@@ -20,6 +20,82 @@ export type Database = {
         Update: { id?: string; date_key?: string; title?: string; content?: Json; source_urls?: string[]; created_at?: string }
         Relationships: []
       }
+      tiger_ai_daily_post_likes: {
+        Row: { created_at: string; post_id: string; user_id: string }
+        Insert: { created_at?: string; post_id: string; user_id: string }
+        Update: { created_at?: string; post_id?: string; user_id?: string }
+        Relationships: [
+          {
+            foreignKeyName: "tiger_ai_daily_post_likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "tiger_ai_daily_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tiger_ai_daily_comments: {
+        Row: {
+          ai_liked: boolean
+          body: string
+          created_at: string
+          id: string
+          is_tiger_ai: boolean
+          parent_id: string | null
+          post_id: string
+          user_id: string | null
+        }
+        Insert: {
+          ai_liked?: boolean
+          body: string
+          created_at?: string
+          id?: string
+          is_tiger_ai?: boolean
+          parent_id?: string | null
+          post_id: string
+          user_id?: string | null
+        }
+        Update: {
+          ai_liked?: boolean
+          body?: string
+          created_at?: string
+          id?: string
+          is_tiger_ai?: boolean
+          parent_id?: string | null
+          post_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiger_ai_daily_comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "tiger_ai_daily_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tiger_ai_daily_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "tiger_ai_daily_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tiger_ai_daily_comment_likes: {
+        Row: { comment_id: string; created_at: string; user_id: string }
+        Insert: { comment_id: string; created_at?: string; user_id: string }
+        Update: { comment_id?: string; created_at?: string; user_id?: string }
+        Relationships: [
+          {
+            foreignKeyName: "tiger_ai_daily_comment_likes_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "tiger_ai_daily_comments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       announcement_dismissals: {
         Row: {
           announcement_id: string
