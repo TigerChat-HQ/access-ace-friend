@@ -90,3 +90,24 @@ CREATE POLICY "Viewers record analytics for posts they can see"
 
 GRANT SELECT, INSERT ON public.post_analytics_events TO authenticated;
 REVOKE UPDATE, DELETE ON public.post_analytics_events FROM authenticated;
+
+
+-- Draft media must never be served from the public post-media bucket.
+-- Published Reels are copied to post-media only at the explicit publish step.
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('reel-drafts', 'reel-drafts', false)
+ON CONFLICT (id) DO UPDATE SET public = false;
+
+DROP POLICY IF EXISTS "Creators manage their private reel draft assets" ON storage.objects;
+CREATE POLICY "Creators manage their private reel draft assets"
+ON storage.objects
+FOR ALL
+TO authenticated
+USING (
+  bucket_id = 'reel-drafts'
+  AND (storage.foldername(name))[1] = (select auth.uid())::text
+)
+WITH CHECK (
+  bucket_id = 'reel-drafts'
+  AND (storage.foldername(name))[1] = (select auth.uid())::text
+);
