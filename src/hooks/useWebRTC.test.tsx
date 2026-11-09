@@ -12,6 +12,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
     const channel = { on: (_event: unknown, _filter: unknown, cb: (p: unknown) => void) => { mocks.handlers.push(cb); return channel; }, subscribe: () => channel };
     return channel;
   }, removeChannel: vi.fn(),
+  functions: { invoke: mocks.invoke },
 } }));
 import { useWebRTC } from "./useWebRTC";
 import { CallProvider, useCall } from "@/contexts/CallContext";
