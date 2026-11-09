@@ -90,6 +90,7 @@ const Chats = () => {
   const [inviteMembersOpen, setInviteMembersOpen] = useState(false);
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
   const [callHistoryOpen, setCallHistoryOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 
   const [chatSearchOpen, setChatSearchOpen] = useState(false);
   const [chatSearch, setChatSearch] = useState("");
@@ -574,6 +575,8 @@ const Chats = () => {
                 }}
                 isActive={activeChat === convo.id}
                 onClick={() => setActiveChat(convo.id)}
+                isFavorite={favoriteChats.includes(convo.id)}
+                onToggleFavorite={() => toggleFavoriteChat(convo.id)}
               />
             ))
           )}
@@ -617,8 +620,8 @@ const Chats = () => {
                     <DropdownMenuItem onSelect={() => setCustomizationOpen(true)}>
                       <Palette className="w-4 h-4 mr-2" /> Chat theme
                     </DropdownMenuItem>
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
+                    <DropdownMenuSub open={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
+                      <DropdownMenuSubTrigger onClick={() => setMoreMenuOpen(true)}>
                         <MoreVertical className="w-4 h-4 mr-2" /> More
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent>
