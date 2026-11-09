@@ -176,7 +176,7 @@
 }
 
 /* Draughts appearance themes */
-.draught-frame { background: var(--board-frame); }\n.draught-board-polished { border: 1px solid rgba(255,236,198,.55); background-image: linear-gradient(125deg, rgba(255,255,255,.34), transparent 24%, transparent 72%, rgba(0,0,0,.32)); box-shadow: 0 26px 48px rgba(0,0,0,.58), inset 0 2px 4px rgba(255,255,255,.68), inset 0 -7px 12px rgba(0,0,0,.58); }
+.draught-frame { background: var(--board-frame); }
 .draught-piece-online { border: 2px solid; box-shadow: 0 5px 0 rgba(0,0,0,.35), 0 8px 10px rgba(0,0,0,.45), inset 0 2px 4px rgba(255,255,255,.45); }
 .draught-piece-online-white { background: radial-gradient(circle at 32% 24%, #fff 0%, var(--piece-white) 48%, color-mix(in srgb, var(--piece-white) 65%, #000) 100%); border-color: var(--piece-white-border); }
 .draught-piece-online-black { background: radial-gradient(circle at 32% 22%, color-mix(in srgb, var(--piece-black) 65%, #fff) 0%, var(--piece-black) 70%, #000 100%); border-color: var(--piece-black-border); }
