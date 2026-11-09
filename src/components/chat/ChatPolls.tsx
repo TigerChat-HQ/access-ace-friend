@@ -100,7 +100,6 @@ export const ChatPolls = ({ conversationId, userId }: ChatPollsProps) => {
       </div>
       {polls.length > 0 && <div className="flex gap-3 overflow-x-auto pb-1">
         {polls.map((poll) => {
-          const total = poll.votes.length;
           const voterCount = new Set(poll.votes.map((vote) => vote.user_id)).size;
           return <div key={poll.id} className="min-w-[250px] max-w-[320px] flex-1 rounded-xl border border-border/60 bg-background/80 p-3">
             <p className="mb-2 text-sm font-semibold">{poll.question}</p>
