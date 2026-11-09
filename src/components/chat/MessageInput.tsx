@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { Send, Smile, Paperclip, Mic, X, FileText, Reply, MapPin, Contact, Volume2, VolumeX } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Send, Smile, Paperclip, Mic, X, FileText, Reply, MapPin, Contact, Volume2, VolumeX, Check } from "lucide-react";
 import { playChatEmojiSound, CHAT_EMOJIS, CHAT_EMOJI_SOUND_KEY } from "@/lib/chat-emoji";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,10 +18,13 @@ interface MessageInputProps {
   onTyping?: () => void;
   replyTo?: Message | null;
   onCancelReply?: () => void;
+  editingMessage?: Message | null;
+  onCancelEdit?: () => void;
 }
 
-export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyTo, onCancelReply }: MessageInputProps) => {
+export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyTo, onCancelReply, editingMessage, onCancelEdit }: MessageInputProps) => {
   const [text, setText] = useState("");
+  useEffect(() => { if (editingMessage) setText(editingMessage.text); }, [editingMessage?.id]);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [emojiSound, setEmojiSound] = useState(() => localStorage.getItem(CHAT_EMOJI_SOUND_KEY) !== "false");
   const [isRecording, setIsRecording] = useState(false);
@@ -103,6 +106,12 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
 
   return (
     <div className="p-3 border-t border-border/50 glass">
+      {editingMessage && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg border-l-2 border-amber-500 bg-amber-500/10 p-2">
+          <span className="flex-1 text-xs font-medium text-amber-600">Editing message</span>
+          <button type="button" onClick={() => { setText(""); onCancelEdit?.(); }} className="rounded-full p-1 hover:bg-surface-hover" aria-label="Cancel edit"><X className="h-3.5 w-3.5" /></button>
+        </div>
+      )}
       {/* Reply preview */}
       {replyTo && (
         <div className="flex items-center gap-2 mb-2 p-2 bg-surface rounded-lg border-l-2 border-primary">
@@ -158,7 +167,7 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
           value={text}
           onChange={handleTextChange}
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
-          placeholder="Type a message..."
+          placeholder={editingMessage ? "Edit your message..." : "Type a message..."}
           className="min-w-0 flex-1 bg-surface rounded-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary/50 transition-all"
         />
         {text.trim() || attachedFile ? (
@@ -166,7 +175,7 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
             onClick={handleSend}
             className="p-2.5 rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-all neon-glow"
           >
-            <Send className="w-4 h-4" />
+            {editingMessage ? <Check className="w-4 h-4" /> : <Send className="w-4 h-4" />}
           </button>
         ) : (
           <button
