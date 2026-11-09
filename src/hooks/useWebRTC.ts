@@ -52,8 +52,10 @@ const STUN_SERVERS: RTCIceServer[] = [
 const getCallIceServers = async (): Promise<RTCIceServer[]> => {
   const { data, error } = await supabase.functions.invoke("turn-credentials", { body: {} });
   if (error) {
-    console.error("TURN credential request failed:", error.message);
-    throw new Error("Secure call relay is not configured. Please try again later.");
+    // Keep calls available on networks that support direct ICE while TURN is being configured.
+    // Restrictive NATs may still require a production TURN provider.
+    console.warn("Authenticated TURN is unavailable; trying direct STUN connectivity:", error.message);
+    return STUN_SERVERS;
   }
   const turnServers = Array.isArray(data?.iceServers) ? data.iceServers as RTCIceServer[] : [];
   const hasAuthenticatedTurn = turnServers.some((server) =>
@@ -61,7 +63,8 @@ const getCallIceServers = async (): Promise<RTCIceServer[]> => {
     (Array.isArray(server.urls) ? server.urls : [server.urls]).some((url) => typeof url === "string" && /^(turn|turns):/i.test(url))
   );
   if (!hasAuthenticatedTurn) {
-    throw new Error("Secure call relay credentials are unavailable. Please try again later.");
+    console.warn("No authenticated TURN servers were returned; trying direct STUN connectivity.");
+    return STUN_SERVERS;
   }
   return [...STUN_SERVERS, ...turnServers];
 };
