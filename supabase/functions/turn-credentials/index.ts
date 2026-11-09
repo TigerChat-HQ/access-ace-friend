@@ -33,6 +33,19 @@ Deno.serve(async (request) => {
     const { data: { user }, error: authError } = await userClient.auth.getUser();
     if (authError || !user) return reply({ error: "Sign in required" }, 401);
 
+    const body = await request.json().catch(() => ({}));
+    const conversationId = typeof body?.conversationId === "string" ? body.conversationId : "";
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(conversationId)) {
+      return reply({ error: "A valid conversation is required" }, 400);
+    }
+    const { data: membership, error: membershipError } = await userClient
+      .from("conversation_members")
+      .select("conversation_id")
+      .eq("conversation_id", conversationId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (membershipError || !membership) return reply({ error: "Conversation access denied" }, 403);
+
     const sharedSecret = Deno.env.get("TURN_SHARED_SECRET");
     const rawUrls = Deno.env.get("TURN_URLS") || "";
     if (!sharedSecret || new TextEncoder().encode(sharedSecret).length < 32) {
