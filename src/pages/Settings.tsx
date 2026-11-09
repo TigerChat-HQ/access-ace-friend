@@ -77,6 +77,11 @@ const Settings = () => {
   const previewTimerRef = useRef<number | null>(null);
   const appLock = useAppLock();
 
+  useEffect(() => {
+    setNotificationPrefs(getNotificationPreferences(user?.id));
+    setNotifications(user ? isPushEnabled(user.id) : false);
+  }, [user?.id]);
+
   const updateNotificationPreference = (patch: Partial<NotificationPreferences>) => {
     setNotificationPrefs(saveNotificationPreferences(user?.id, patch));
   };
