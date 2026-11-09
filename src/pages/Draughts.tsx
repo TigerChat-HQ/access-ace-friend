@@ -544,7 +544,7 @@ const Draughts = () => {
                 >
                   {dest && <span className={`absolute z-0 rounded-full bg-primary/70 shadow-[0_0_12px_hsl(var(--primary)/0.8)] animate-pulse ${piece ? "inset-0 opacity-35 rounded-none" : "w-3 h-3 sm:w-4 sm:h-4"}`} />}
                   {piece && (
-                    <div className={`relative z-[1] ${showBrandedPieces ? "w-[88%]" : "w-[82%]"} aspect-square transition-transform duration-150 ${sel ? "scale-110 -translate-y-1" : ""}`}>
+                    <div className={`relative z-[1] "w-[90%]" aspect-square transition-transform duration-150 ${sel ? "scale-110 -translate-y-1" : ""}`}>
                       {showBrandedPieces ? (
                         <>
                           <img
