@@ -10,6 +10,7 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import { AppShell } from "@/components/AppShell";
 const Feed = lazy(() => import("./pages/Feed"));
 const Reels = lazy(() => import("./pages/Reels"));
+const ReelsStudio = lazy(() => import("./pages/ReelsStudio"));
 const ProfessionalDashboard = lazy(() => import("./pages/ProfessionalDashboard"));
 const Search = lazy(() => import("./pages/Search"));
 const Create = lazy(() => import("./pages/Create"));
@@ -78,6 +79,7 @@ const App = () => (
                 <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
                   <Route path="/" element={<Feed />} />
                   <Route path="/reels" element={<Reels />} />
+                  <Route path="/reels/studio" element={<ReelsStudio />} />
                   <Route path="/creator" element={<ProfessionalDashboard />} />
                   <Route path="/search" element={<Search />} />
                   <Route path="/create" element={<Create />} />
