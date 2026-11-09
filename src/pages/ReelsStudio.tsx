@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, AudioLines, Camera, Clapperboard, Loader2, Plus, Save, Trash2, Upload, Video } from "lucide-react";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -50,13 +50,13 @@ const ReelsStudio = () => {
   const [captionEnd, setCaptionEnd] = useState(3);
   const [busy, setBusy] = useState(false);
 
-  const refreshDrafts = async () => {
+  const refreshDrafts = useCallback(async () => {
     if (!user) return;
     const { data, error } = await db.from("reel_drafts").select("*").eq("user_id", user.id).order("updated_at", { ascending: false });
     if (!error) setDrafts((data || []) as DraftRow[]);
-  };
+  }, [user]);
 
-  useEffect(() => { void refreshDrafts(); }, [user]);
+  useEffect(() => { void refreshDrafts(); }, [refreshDrafts]);
 
   const uploadAsset = async (file: File, folder: string) => {
     if (!user) throw new Error("Sign in required");
@@ -237,7 +237,7 @@ const ReelsStudio = () => {
           <div className="rounded-2xl border border-border/60 bg-card p-4">
             {videoUrl ? (
               <div className="space-y-3">
-                <video ref={videoRef} src={videoUrl} controls playsInline className="max-h-[55dvh] w-full rounded-xl bg-black" onLoadedMetadata={(e) => { setDuration(e.currentTarget.duration); setTrimEnd((v) => v ?? e.currentTarget.duration); }} />
+                <video ref={videoRef} src={videoUrl} controls playsInline className="max-h-[55dvh] w-full rounded-xl bg-black" onLoadedMetadata={(e) => { const videoDuration = e.currentTarget.duration; setDuration(videoDuration); setTrimEnd((v) => v ?? videoDuration); }} />
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs text-muted-foreground">Video length: {duration.toFixed(1)}s</span>
                   <button onClick={captureCover} disabled={busy} className="flex items-center gap-1 rounded-lg bg-secondary px-3 py-2 text-xs text-secondary-foreground"><Camera className="h-4 w-4" /> Use current frame as cover</button>
