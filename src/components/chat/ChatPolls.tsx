@@ -101,13 +101,14 @@ export const ChatPolls = ({ conversationId, userId }: ChatPollsProps) => {
       {polls.length > 0 && <div className="flex gap-3 overflow-x-auto pb-1">
         {polls.map((poll) => {
           const total = poll.votes.length;
+          const voterCount = new Set(poll.votes.map((vote) => vote.user_id)).size;
           return <div key={poll.id} className="min-w-[250px] max-w-[320px] flex-1 rounded-xl border border-border/60 bg-background/80 p-3">
             <p className="mb-2 text-sm font-semibold">{poll.question}</p>
-            <p className="mb-2 text-[10px] text-muted-foreground">{total} vote{total === 1 ? "" : "s"} · {poll.allows_multiple ? "Multiple answers" : "Single answer"}</p>
+            <p className="mb-2 text-[10px] text-muted-foreground">{voterCount} voter{voterCount === 1 ? "" : "s"} · {poll.allows_multiple ? "Multiple answers" : "Single answer"}</p>
             <div className="space-y-2">{poll.options.map((option) => {
               const count = poll.votes.filter((vote) => vote.option_id === option.id).length;
               const selected = poll.votes.some((vote) => vote.option_id === option.id && vote.user_id === userId);
-              const percent = total ? Math.round(count / total * 100) : 0;
+              const percent = voterCount ? Math.round(count / voterCount * 100) : 0;
               return <button key={option.id} type="button" disabled={voting !== null} onClick={() => void castVote(poll.id, option.id)} className="w-full text-left disabled:opacity-60">
                 <div className={`relative overflow-hidden rounded-lg border px-2.5 py-2 text-xs ${selected ? "border-primary/60 bg-primary/5" : "border-border/60 bg-surface/60"}`}>
                   <div className="absolute inset-y-0 left-0 bg-primary/10 transition-all" style={{ width: `${percent}%` }} />
