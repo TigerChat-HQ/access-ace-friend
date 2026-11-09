@@ -17,19 +17,23 @@ if (tracks.length !== 20 || new Set(tracks.map((track) => track.url)).size !== 2
 async function checkTrack(track) {
   const headArgs = [
     "--head", "--location", "--silent", "--show-error", "--fail", "--max-time", "15",
-    "--output", "/dev/null", "--write-out", "%{http_code}", track.url,
+    "--output", "/dev/null", "--write-out", "%{http_code}|%{content_type}", track.url,
   ];
   try {
     let status;
     try {
       const { stdout } = await execFileAsync("curl", headArgs);
-      status = Number(stdout.trim());
+      const [statusText, contentType] = stdout.trim().split("|");
+      status = Number(statusText);
+      if (contentType && !contentType.includes("audio") && !contentType.includes("octet-stream")) throw new Error("Unexpected content type " + contentType);
     } catch {
       const { stdout } = await execFileAsync("curl", [
         "--location", "--silent", "--show-error", "--fail", "--max-time", "30",
-        "--range", "0-0", "--output", "/dev/null", "--write-out", "%{http_code}", track.url,
+        "--range", "0-0", "--output", "/dev/null", "--write-out", "%{http_code}|%{content_type}", track.url,
       ]);
-      status = Number(stdout.trim());
+      const [statusText, contentType] = stdout.trim().split("|");
+      status = Number(statusText);
+      if (contentType && !contentType.includes("audio") && !contentType.includes("octet-stream")) throw new Error("Unexpected content type " + contentType);
     }
     if (status < 200 || status >= 300) throw new Error("HTTP " + status);
     return { id: track.id, ok: true, status };
