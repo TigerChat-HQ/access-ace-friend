@@ -64,7 +64,9 @@ const ReelsStudio = () => {
     const path = `${user.id}/reels/${folder}-${Date.now()}-${safeName}`;
     const { error } = await supabase.storage.from("reel-drafts").upload(path, file, { upsert: false });
     if (error) throw error;
-    const { data: signed, error: signedError } = await supabase.storage.from("reel-drafts").createSignedUrl(path, 3600);\n    if (signedError || !signed?.signedUrl) throw signedError || new Error("Could not create a private preview URL");\n    return { path, url: signed.signedUrl };
+    const { data: signed, error: signedError } = await supabase.storage.from("reel-drafts").createSignedUrl(path, 3600);
+    if (signedError || !signed?.signedUrl) throw signedError || new Error("Could not create a private preview URL");
+    return { path, url: signed.signedUrl };
   };
 
   const chooseVideo = (file?: File) => {
@@ -130,7 +132,28 @@ const ReelsStudio = () => {
     return { nextVideoPath, nextVideoUrl, nextAudioPath, nextAudioUrl };
   };
 
-  const privateUrl = async (path: string | null) => {\n    if (!path) return null;\n    const { data, error } = await supabase.storage.from("reel-drafts").createSignedUrl(path, 3600);\n    if (error || !data?.signedUrl) throw error || new Error("Could not open private draft media");\n    return data.signedUrl;\n  };\n\n  const promoteDraftAsset = async (path: string | null, kind: string) => {\n    if (!path || !user) return null;\n    const signedUrl = await privateUrl(path);\n    if (!signedUrl) return null;\n    const response = await fetch(signedUrl);\n    if (!response.ok) throw new Error(`Could not read private ${kind} asset`);\n    const blob = await response.blob();\n    const extension = path.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "") || "bin";\n    const publicPath = `${user.id}/reels/published-${kind}-${crypto.randomUUID()}.${extension}`;\n    const { error } = await supabase.storage.from("post-media").upload(publicPath, blob, { contentType: blob.type || undefined, upsert: false });\n    if (error) throw error;\n    return supabase.storage.from("post-media").getPublicUrl(publicPath).data.publicUrl;\n  };\n\n  const saveDraft = async () => {
+  const privateUrl = async (path: string | null) => {
+    if (!path) return null;
+    const { data, error } = await supabase.storage.from("reel-drafts").createSignedUrl(path, 3600);
+    if (error || !data?.signedUrl) throw error || new Error("Could not open private draft media");
+    return data.signedUrl;
+  };
+
+  const promoteDraftAsset = async (path: string | null, kind: string) => {
+    if (!path || !user) return null;
+    const signedUrl = await privateUrl(path);
+    if (!signedUrl) return null;
+    const response = await fetch(signedUrl);
+    if (!response.ok) throw new Error(`Could not read private ${kind} asset`);
+    const blob = await response.blob();
+    const extension = path.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "") || "bin";
+    const publicPath = `${user.id}/reels/published-${kind}-${crypto.randomUUID()}.${extension}`;
+    const { error } = await supabase.storage.from("post-media").upload(publicPath, blob, { contentType: blob.type || undefined, upsert: false });
+    if (error) throw error;
+    return supabase.storage.from("post-media").getPublicUrl(publicPath).data.publicUrl;
+  };
+
+  const saveDraft = async () => {
     if (!user) return;
     setBusy(true);
     try {
@@ -191,7 +214,11 @@ const ReelsStudio = () => {
     setBusy(true);
     try {
       const assets = await ensureUploaded();
-      if (!assets.nextVideoUrl) throw new Error("Choose a video first.");
+      if (!assets.nextVideoPath) throw new Error("Choose a video first.");
+      const publishedVideoUrl = await promoteDraftAsset(assets.nextVideoPath, "video");
+      if (!publishedVideoUrl) throw new Error("Could not prepare the Reel video for publishing.");
+      const publishedCoverUrl = await promoteDraftAsset(coverPath, "cover");
+      const publishedAudioUrl = await promoteDraftAsset(assets.nextAudioPath, "audio");
       const { error } = await db.from("posts").insert({
         user_id: user.id,
         caption: caption.trim() || null,
@@ -207,6 +234,8 @@ const ReelsStudio = () => {
         reel_captions: captions,
       });
       if (error) throw error;
+      const privatePaths = [assets.nextVideoPath, coverPath, assets.nextAudioPath].filter((path): path is string => Boolean(path));
+      if (privatePaths.length) await supabase.storage.from("reel-drafts").remove(privatePaths);
       if (draftId) await db.from("reel_drafts").delete().eq("id", draftId).eq("user_id", user.id);
       toast({ title: "Your Reel is published" });
       navigate("/reels");

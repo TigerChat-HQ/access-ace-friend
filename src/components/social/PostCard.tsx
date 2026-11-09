@@ -6,6 +6,7 @@ import { FeedPost, toggleLike, deletePost } from "@/hooks/usePosts";
 import { CommentsSheet } from "./CommentsSheet";
 import { ReportDialog } from "./ReportDialog";
 import { ReelAnalyticsVideo } from "./ReelAnalyticsVideo";
+import { StoryAvatar } from "@/components/social/StoryAvatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -89,19 +90,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
   return (
     <article className={isReel ? "relative overflow-hidden rounded-2xl bg-card shadow-xl" : "bg-card border-b border-border/50"}>
       <header className="flex items-center justify-between px-4 py-3">
-        <Link to={`/u/${post.user_id}`} className="flex items-center gap-3">
-          {post.profile?.avatar_url ? (
-            <img src={post.profile.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover" />
-          ) : (
-            <div className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-xs font-semibold text-secondary-foreground">
-              {initials}
-            </div>
-          )}
-          <div>
-            <p className="text-sm font-semibold text-foreground leading-tight">{post.profile?.display_name || "User"}</p>
-            <p className="text-[11px] text-muted-foreground">@{post.profile?.username || "user"}</p>
-          </div>
-        </Link>
+        <StoryAvatar userId={post.user_id} displayName={post.profile?.display_name} username={post.profile?.username} avatarUrl={post.profile?.avatar_url} size="md" showName />
         <DropdownMenu>
           <DropdownMenuTrigger className="p-1 text-muted-foreground hover:text-foreground">
             <MoreVertical className="w-4 h-4" />
