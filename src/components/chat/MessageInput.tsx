@@ -24,7 +24,7 @@ interface MessageInputProps {
 
 export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyTo, onCancelReply, editingMessage, onCancelEdit }: MessageInputProps) => {
   const [text, setText] = useState("");
-  useEffect(() => { if (editingMessage) setText(editingMessage.text); }, [editingMessage?.id]);
+  useEffect(() => { setText(editingMessage?.text || ""); }, [editingMessage?.id]);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [emojiSound, setEmojiSound] = useState(() => localStorage.getItem(CHAT_EMOJI_SOUND_KEY) !== "false");
   const [isRecording, setIsRecording] = useState(false);
