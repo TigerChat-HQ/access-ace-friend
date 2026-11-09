@@ -47,7 +47,19 @@ const Create = () => {
     else setPreview(null);
   };
 
-  useEffect(() => {\n    if (!preview || !isVideo) return;\n    const probe = document.createElement("video");\n    probe.preload = "metadata"; probe.src = preview;\n    probe.onloadedmetadata = () => { const duration = Number.isFinite(probe.duration) ? probe.duration : 0; setVideoDuration(duration); setTrimEnd(duration); };\n    return () => { probe.src = ""; };\n  }, [preview, isVideo]);\n\n  // Apply CSS filter + overlay to image via canvas before upload
+  useEffect(() => {
+    if (!preview || !isVideo) return;
+    const probe = document.createElement("video");
+    probe.preload = "metadata";
+    probe.src = preview;
+    probe.onloadedmetadata = () => {
+      const duration = Number.isFinite(probe.duration) ? probe.duration : 0;
+      setVideoDuration(duration);
+      setTrimEnd(duration);
+    };
+    return () => { probe.src = ""; };
+  }, [preview, isVideo]);
+
   const renderEditedImage = async (src: File): Promise<File> => {
     if (filter === "none" && !overlay.trim()) return src;
     const css = FILTERS.find((f) => f.key === filter)?.css || "";
@@ -91,36 +103,47 @@ const Create = () => {
       return;
     }
     setLoading(true);
-    let mediaUrl: string | null = null;
-    let mediaType: "text" | "image" | "video" = "text";
-    if (file) {
-      const upload = isImage ? await renderEditedImage(file) : file;
-      const ext = isImage ? "jpg" : file.name.split(".").pop();
-      const path = `${user.id}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("post-media").upload(path, upload);
-      if (upErr) {
-        toast({ title: "Upload failed", description: upErr.message, variant: "destructive" });
-        setLoading(false);
-        return;
+    try {
+      let mediaUrl: string | null = null;
+      let mediaType: "text" | "image" | "video" = "text";
+      if (file) {
+        let upload = isImage ? await renderEditedImage(file) : file;
+        if (isVideo && (trimStart > 0 || trimEnd < videoDuration || originalVolume !== 100 || musicFile)) {
+          upload = await renderVideoEdit(file, {
+            start: trimStart,
+            end: trimEnd || videoDuration,
+            originalVolume: originalVolume / 100,
+            musicFile,
+            musicVolume: musicVolume / 100,
+          });
+        }
+        const ext = isImage ? "jpg" : upload.name.split(".").pop();
+        const path = `${user.id}/${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("post-media").upload(path, upload);
+        if (upErr) throw upErr;
+        const { data: { publicUrl } } = supabase.storage.from("post-media").getPublicUrl(path);
+        mediaUrl = publicUrl;
+        mediaType = isVideo ? "video" : "image";
       }
-      const { data: { publicUrl } } = supabase.storage.from("post-media").getPublicUrl(path);
-      mediaUrl = publicUrl;
-      mediaType = isVideo ? "video" : "image";
-    }
 
-    const { error } = await supabase.from("posts").insert({
-      user_id: user.id,
-      caption: caption.trim() || null,
-      media_url: mediaUrl,
-      media_type: mediaType,
-      hashtags: extractHashtags(caption),
-    });
-    setLoading(false);
-    if (error) {
-      toast({ title: "Failed", description: error.message, variant: "destructive" });
-    } else {
+      const { error } = await supabase.from("posts").insert({
+        user_id: user.id,
+        caption: caption.trim() || null,
+        media_url: mediaUrl,
+        media_type: mediaType,
+        hashtags: extractHashtags(caption),
+      });
+      if (error) throw error;
       toast({ title: "Posted! 🎉" });
       navigate("/");
+    } catch (error) {
+      toast({
+        title: "Could not publish post",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
