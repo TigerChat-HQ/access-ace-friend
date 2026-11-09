@@ -2,20 +2,22 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MessageCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 import { getNotificationPreferences } from "@/lib/notification-preferences";
 
 type BubbleNotice = { title: string; body: string; url: string; tag: string; kind: "chat" | "social" };
 
 export const NotificationBubble = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [notice, setNotice] = useState<BubbleNotice | null>(null);
-  const [enabled, setEnabled] = useState(() => getNotificationPreferences().floatingBubble);
+  const [enabled, setEnabled] = useState(() => getNotificationPreferences(user?.id).floatingBubble);
 
   useEffect(() => {
     const update = () => setEnabled(getNotificationPreferences().floatingBubble);
     const onNotice = (event: Event) => {
       const detail = (event as CustomEvent<BubbleNotice>).detail;
-      if (!detail || detail.kind !== "chat" || !getNotificationPreferences().floatingBubble) return;
+      if (!detail || detail.kind !== "chat" || !getNotificationPreferences(user?.id).floatingBubble) return;
       setNotice(detail);
     };
     window.addEventListener("tiger:notification-preferences-changed", update);
@@ -24,7 +26,7 @@ export const NotificationBubble = () => {
       window.removeEventListener("tiger:notification-preferences-changed", update);
       window.removeEventListener("tiger:notification", onNotice);
     };
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!notice) return;
