@@ -56,7 +56,7 @@ export const CreatorReelAnalytics = () => {
 
   const exportCsv = () => {
     const rows = [["date", "impressions", "plays"], ...daily.map((day) => [day.key, String(day.impressions), String(day.plays)])];
-    const csv = rows.map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(",")).join("\n");
+    const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
