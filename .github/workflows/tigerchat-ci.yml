@@ -35,8 +35,8 @@ jobs:
       - name: TypeScript project checks
         run: npm run typecheck
 
-      - name: Test Pixabay audio CDN accessibility
-        run: node scripts/test-pixabay-audio.mjs
+      - name: Verify 20 CC0 status music tracks
+        run: node scripts/check-status-audio.mjs
 
       - name: Lint changed Stage 2 files
         run: |
