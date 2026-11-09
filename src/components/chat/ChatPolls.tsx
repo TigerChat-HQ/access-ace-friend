@@ -15,6 +15,21 @@ interface PollItem {
 
 interface ChatPollsProps { conversationId: string; userId: string; }
 
+interface PollRow { id: string; question: string; allows_multiple: boolean; created_at: string; }
+interface PollOptionRow extends PollOption { poll_id: string; }
+interface PollVoteRow extends PollVote { poll_id: string; }
+interface PollQueryResult<T> { data: T | null; error: { message?: string } | null; }
+interface PollQuery extends PromiseLike<PollQueryResult<unknown>> {
+  select(columns: string): PollQuery;
+  eq(column: string, value: string): PollQuery;
+  in(column: string, values: string[]): PollQuery;
+  order(column: string, options?: { ascending?: boolean }): PollQuery;
+}
+interface PollClient {
+  from(table: string): PollQuery;
+  rpc(name: string, args: Record<string, unknown>): Promise<PollQueryResult<unknown>>;
+}
+
 export const ChatPolls = ({ conversationId, userId }: ChatPollsProps) => {
   const [polls, setPolls] = useState<PollItem[]>([]);
   const [open, setOpen] = useState(false);
@@ -25,11 +40,11 @@ export const ChatPolls = ({ conversationId, userId }: ChatPollsProps) => {
   const [voting, setVoting] = useState<string | null>(null);
 
   const loadPolls = useCallback(async () => {
-    const client = supabase as any;
+    const client = supabase as unknown as PollClient;
     const { data: pollRows, error } = await client.from("chat_polls").select("id,question,allows_multiple,created_at")
       .eq("conversation_id", conversationId).order("created_at", { ascending: false });
     if (error) { toast.error("Could not load polls"); return; }
-    const ids = (pollRows || []).map((poll: any) => poll.id);
+    const polls = (pollRows || []) as PollRow[];\n    const ids = polls.map((poll) => poll.id);
     if (!ids.length) { setPolls([]); return; }
     const [{ data: optionRows, error: optionError }, { data: voteRows, error: voteError }] = await Promise.all([
       client.from("chat_poll_options").select("id,poll_id,option_text,position").in("poll_id", ids).order("position"),
@@ -58,7 +73,7 @@ export const ChatPolls = ({ conversationId, userId }: ChatPollsProps) => {
     const cleanOptions = options.map((option) => option.trim()).filter(Boolean);
     if (!question.trim() || cleanOptions.length < 2) { toast.error("Enter a question and at least two options"); return; }
     setSaving(true);
-    const { error } = await (supabase as any).rpc("create_chat_poll", {
+    const { error } = await (supabase as unknown as PollClient).rpc("create_chat_poll", {
       _conversation_id: conversationId,
       _question: question.trim(),
       _options: cleanOptions,
