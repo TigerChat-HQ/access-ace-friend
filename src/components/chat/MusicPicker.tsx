@@ -148,8 +148,9 @@ export const MusicPicker = ({ trigger, value, onChange, maxClip = MAX_DEFAULT }:
                 }}
               />
               <p className="text-[10px] text-muted-foreground">Max clip: {maxClip}s</p>
+              {!trackDuration && !audioError && <p className="text-xs text-muted-foreground">Loading audio preview…</p>}
               {audioError && <p role="alert" className="text-xs text-destructive">This track could not be loaded. Try another track or choose audio from your phone.</p>}
-              <Button onClick={confirm} className="w-full neon-glow">Use this clip</Button>
+              <Button onClick={confirm} disabled={audioError || !trackDuration} className="w-full neon-glow">Use this clip</Button>
             </div>
           )}
         </div>
