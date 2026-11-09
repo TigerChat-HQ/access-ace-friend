@@ -324,3 +324,28 @@ body {
     [class~="bg-card"]
   ) { transform: none !important; }
 }
+
+
+/* Dark chat wallpaper overlays: decorative art stays behind messages and never blocks taps. */
+.chat-wallpaper-car, .chat-wallpaper-lion, .chat-wallpaper-wolf, .chat-wallpaper-eagle, .chat-wallpaper-tiger {
+  position: relative;
+  isolation: isolate;
+}
+.chat-wallpaper-car::before, .chat-wallpaper-lion::before, .chat-wallpaper-wolf::before, .chat-wallpaper-eagle::before, .chat-wallpaper-tiger::before {
+  position: absolute;
+  z-index: -1;
+  inset: 18% 0 auto;
+  display: block;
+  text-align: center;
+  font-size: clamp(7rem, 34vw, 15rem);
+  line-height: 1;
+  opacity: .13;
+  filter: grayscale(.35) drop-shadow(0 10px 22px rgba(0,0,0,.9));
+  pointer-events: none;
+  user-select: none;
+}
+.chat-wallpaper-car::before { content: "🏎️"; }
+.chat-wallpaper-lion::before { content: "🦁"; }
+.chat-wallpaper-wolf::before { content: "🐺"; }
+.chat-wallpaper-eagle::before { content: "🦅"; }
+.chat-wallpaper-tiger::before { content: "🐅"; }
