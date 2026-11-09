@@ -58,7 +58,7 @@ async function callGemini(body: unknown, stream = true) {
       "Content-Type": "application/json",
       "x-goog-api-client": "tigerchats/1.0",
     },
-    body: JSON.stringify({ model: "gemini-2.5-flash-lite", stream, ...(body as object) }),
+    body: JSON.stringify({ model: "gemini-3.5-flash-lite", stream, ...(body as object) }),
   });
 }
 
@@ -178,7 +178,7 @@ Deno.serve(async (req) => {
       : "";
     const sys = basePrompt + safeContext;
 
-    // Text chat uses Google's Gemini 2.5 Flash-Lite free tier.
+    // Text chat uses Google's Gemini 3.5 Flash-Lite free tier.
     // Image/video generation retain the existing Lovable Gateway integration.
     const r = await callGemini({
       messages: [{ role: "system", content: sys }, ...messages],
