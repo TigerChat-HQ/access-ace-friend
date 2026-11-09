@@ -29,7 +29,7 @@ const Draughts = () => {
   const { theme, setTheme, pieceStyle, setPieceStyle, scale, setScale, depth, setDepth, boardStyle, boardSizeStyle, board3dStyle } = useDraughtsAppearance();
   const [mode, setMode] = useState<Mode>("menu");
   const [match, setMatch] = useState<MatchRow | null>(null);
-  const [isAdminOpponent, setIsAdminOpponent] = useState(false);
+  const showBrandedPieces = true; // Coca-Cola and Pepsi caps are available to every player.
   const [selected, setSelected] = useState<number | null>(null);
   const [aiThinking, setAiThinking] = useState(false);
   const [openMatches, setOpenMatches] = useState<MatchRow[]>([]);
@@ -138,28 +138,7 @@ const Draughts = () => {
 
   const isMyTurn = match && myColor && match.current_turn === myColor && match.status === "active";
 
-  // Enable branded bottle-cap pieces for admin accounts: versus AI or another admin.
-  useEffect(() => {
-    let alive = true;
-    setIsAdminOpponent(false);
-    if (!match || !user) return;
 
-    // In AI matches, verify the signed-in player is an admin.
-    // In online matches, preserve the rule that the human opponent must be an admin.
-    const roleUserId = match.vs_ai
-      ? user.id
-      : match.player_black
-        ? (match.player_white === user.id ? match.player_black : match.player_white)
-        : null;
-    if (!roleUserId) return;
-
-    supabase.from("user_roles").select("role").eq("user_id", roleUserId)
-      .then(({ data, error }) => {
-        if (!alive || error) return;
-        setIsAdminOpponent((data ?? []).some((row) => row.role === "admin" || row.role === "superior_admin"));
-      });
-    return () => { alive = false; };
-  }, [match?.id, match?.player_white, match?.player_black, match?.vs_ai, user?.id]);
 
   // AI move trigger
   useEffect(() => {
@@ -199,51 +178,69 @@ const Draughts = () => {
   }, [match?.id, match?.current_turn, match?.vs_ai, match?.status, match?.revision, match?.board, soundEnabled, soundVolume]);
 
   const startAI = async () => {
-    if (!user) return;
+    if (!user || creating) return;
     setCreating(true);
-    const { data, error } = await supabase.rpc("create_draft_match", { p_vs_ai: true });
-    setCreating(false);
-    if (error || !data) {
-      toast({ title: "Could not start", description: error?.message, variant: "destructive" });
-      return;
+    try {
+      const { data, error } = await supabase.rpc("create_draft_match", { p_vs_ai: true });
+      if (error || !data) {
+        toast({ title: "Could not start Draughts", description: error?.message || "The match could not be created. Check your connection and try again.", variant: "destructive" });
+        return;
+      }
+      setMatch(data as unknown as MatchRow);
+      setMode("ai");
+    } catch (error) {
+      toast({ title: "Draughts could not open", description: error instanceof Error ? error.message : "Network error. Please try again.", variant: "destructive" });
+    } finally {
+      setCreating(false);
     }
-    setMatch(data as unknown as MatchRow);
-    setMode("ai");
   };
 
   const createPvP = async () => {
-    if (!user) return;
+    if (!user || creating) return;
     setCreating(true);
-    const { data, error } = await supabase.rpc("create_draft_match", { p_vs_ai: false });
-    setCreating(false);
-    if (error || !data) {
-      toast({ title: "Could not create", description: error?.message, variant: "destructive" });
-      return;
+    try {
+      const { data, error } = await supabase.rpc("create_draft_match", { p_vs_ai: false });
+      if (error || !data) {
+        toast({ title: "Could not create match", description: error?.message || "The lobby could not be created. Check your connection and try again.", variant: "destructive" });
+        return;
+      }
+      setMatch(data as unknown as MatchRow);
+      setMode("pvp");
+      toast({ title: "Waiting for opponent", description: "Share the lobby — others can join." });
+    } catch (error) {
+      toast({ title: "Draughts lobby could not open", description: error instanceof Error ? error.message : "Network error. Please try again.", variant: "destructive" });
+    } finally {
+      setCreating(false);
     }
-    setMatch(data as unknown as MatchRow);
-    setMode("pvp");
-    toast({ title: "Waiting for opponent", description: "Share the lobby — others can join." });
   };
 
   const joinMatch = async (m: MatchRow) => {
     if (!user) return;
-    const { data, error } = await supabase.rpc("join_draft_match", { p_match_id: m.id });
-    if (error || !data) {
-      toast({ title: "Could not join", description: error?.message, variant: "destructive" });
-      return;
+    try {
+      const { data, error } = await supabase.rpc("join_draft_match", { p_match_id: m.id });
+      if (error || !data) {
+        toast({ title: "Could not join match", description: error?.message || "This match may already be full. Refresh the lobby and try again.", variant: "destructive" });
+        return;
+      }
+      setMatch(data as unknown as MatchRow);
+      setMode("pvp");
+    } catch (error) {
+      toast({ title: "Could not open match", description: error instanceof Error ? error.message : "Network error. Please try again.", variant: "destructive" });
     }
-    setMatch(data as unknown as MatchRow);
-    setMode("pvp");
   };
 
   const [codeInput, setCodeInput] = useState("");
   const joinByCode = async () => {
     const code = codeInput.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (code.length !== 8) { toast({ title: "Enter the 8-character match code", variant: "destructive" }); return; }
-    const { data, error } = await supabase.rpc("join_draft_match", { p_code: code });
-    if (error || !data) { toast({ title: "Could not join with that code", description: error?.message, variant: "destructive" }); return; }
-    setMatch(data as unknown as MatchRow);
-    setMode("pvp");
+    try {
+      const { data, error } = await supabase.rpc("join_draft_match", { p_code: code });
+      if (error || !data) { toast({ title: "Could not join with that code", description: error?.message || "Check the code and try again.", variant: "destructive" }); return; }
+      setMatch(data as unknown as MatchRow);
+      setMode("pvp");
+    } catch (error) {
+      toast({ title: "Could not open match", description: error instanceof Error ? error.message : "Network error. Please try again.", variant: "destructive" });
+    }
   };
 
   const moves: Move[] = useMemo(() => {
@@ -528,7 +525,7 @@ const Draughts = () => {
 
       <div className="flex items-center justify-between gap-3 px-4 pt-3"><p className="text-xs font-medium text-muted-foreground">Live board appearance</p><BoardAppearance theme={theme} setTheme={setTheme} pieceStyle={pieceStyle} setPieceStyle={setPieceStyle} scale={scale} setScale={setScale} depth={depth} setDepth={setDepth} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} soundVolume={soundVolume} setSoundVolume={setSoundVolume} reactionVolume={reactionVolume} setReactionVolume={setReactionVolume} /></div>
       <div className="flex-1 min-h-0 overflow-y-auto flex items-center justify-center p-3 sm:p-5 bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.10),transparent_68%)]">
-        <div style={{ ...boardStyle, ...boardSizeStyle, ...board3dStyle }} className="draught-frame w-full max-w-none rounded-[22px] p-2 sm:p-3 shadow-[0_22px_45px_-16px_rgba(0,0,0,0.85),inset_0_2px_3px_rgba(255,255,255,0.55),inset_0_-5px_10px_rgba(0,0,0,0.65)] ring-1 ring-white/30">
+        <div style={{ ...boardStyle, ...boardSizeStyle, ...board3dStyle }} className="draught-frame draught-board-polished w-full max-w-none rounded-[22px] p-2 sm:p-3 shadow-[0_22px_45px_-16px_rgba(0,0,0,0.85),inset_0_2px_3px_rgba(255,255,255,0.55),inset_0_-5px_10px_rgba(0,0,0,0.65)] ring-1 ring-white/30">
           <div className="aspect-square w-full grid grid-cols-8 overflow-hidden rounded-md border-[3px] border-black/50 shadow-[inset_0_4px_12px_rgba(0,0,0,0.55)]">
             {Array.from({ length: 64 }).map((_, gridIdx) => {
               const i = isFlipped ? 63 - gridIdx : gridIdx;
@@ -547,8 +544,8 @@ const Draughts = () => {
                 >
                   {dest && <span className={`absolute z-0 rounded-full bg-primary/70 shadow-[0_0_12px_hsl(var(--primary)/0.8)] animate-pulse ${piece ? "inset-0 opacity-35 rounded-none" : "w-3 h-3 sm:w-4 sm:h-4"}`} />}
                   {piece && (
-                    <div className={`relative z-[1] ${isAdminOpponent ? "w-[88%]" : "w-[82%]"} aspect-square transition-transform duration-150 ${sel ? "scale-110 -translate-y-1" : ""}`}>
-                      {isAdminOpponent ? (
+                    <div className={`relative z-[1] "w-[90%]" aspect-square transition-transform duration-150 ${sel ? "scale-110 -translate-y-1" : ""}`}>
+                      {showBrandedPieces ? (
                         <>
                           <img
                             src={piece.c === "w" ? "/assets/coca-cola-cap.png" : "/assets/pepsi-cap.png"}
