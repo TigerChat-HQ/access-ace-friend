@@ -1,5 +1,3 @@
-// AI-powered post recommendations using Lovable AI
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -7,166 +5,121 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+  status,
+  headers: { ...corsHeaders, "Content-Type": "application/json" },
+});
+
+const words = (value: string) => new Set(
+  value.toLowerCase().match(/[a-z0-9_]{3,}/g)?.filter((word) => !["the", "and", "for", "with", "this", "that", "from", "you", "your"].includes(word)) || [],
+);
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!authHeader) return json({ error: "Unauthorized" }, 401);
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const url = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
+    if (!url || !serviceKey || !anonKey) return json({ error: "Recommendation service is not configured" }, 500);
 
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? supabaseKey;
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: userData } = await userClient.auth.getUser();
-    const user = userData.user;
-    if (!user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const admin = createClient(url, serviceKey);
+    const userClient = createClient(url, anonKey, { global: { headers: { Authorization: authHeader } } });
+    const { data: authData, error: authError } = await userClient.auth.getUser();
+    const user = authData.user;
+    if (authError || !user) return json({ error: "Unauthorized" }, 401);
 
-    // 1) Build user interest signals: posts they liked + their own captions/hashtags
-    const { data: liked } = await supabase
-      .from("post_likes")
-      .select("post_id")
-      .eq("user_id", user.id)
-      .limit(30);
-    const likedIds = (liked || []).map((l) => l.post_id);
-
-    const { data: likedPosts } = likedIds.length
-      ? await supabase.from("posts").select("caption, hashtags").in("id", likedIds)
-      : { data: [] as { caption: string | null; hashtags: string[] | null }[] };
-
-    const interestText = (likedPosts || [])
-      .map((p) => `${p.caption || ""} ${(p.hashtags || []).join(" ")}`)
-      .join(" | ")
-      .slice(0, 1500);
-
-    // 2) Candidate pool: recent popular posts not by self
-    const { data: candidates } = await supabase
-      .from("posts")
-      .select("id, user_id, caption, hashtags, created_at")
-      .neq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(40);
-
-    if (!candidates || candidates.length === 0) {
-      return new Response(JSON.stringify({ post_ids: [] }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Filter blocked
-    const [{ data: blocksA }, { data: blocksB }] = await Promise.all([
-      supabase.from("blocks").select("blocked_id").eq("blocker_id", user.id),
-      supabase.from("blocks").select("blocker_id").eq("blocked_id", user.id),
+    const [likedResult, commentedResult, followsResult, blocksAResult, blocksBResult] = await Promise.all([
+      admin.from("post_likes").select("post_id").eq("user_id", user.id).limit(100),
+      admin.from("post_comments").select("post_id").eq("user_id", user.id).limit(100),
+      admin.from("follows").select("following_id").eq("follower_id", user.id),
+      admin.from("blocks").select("blocked_id").eq("blocker_id", user.id),
+      admin.from("blocks").select("blocker_id").eq("blocked_id", user.id),
     ]);
-    const blocked = new Set<string>([
-      ...(blocksA || []).map((block) => block.blocked_id),
-      ...(blocksB || []).map((block) => block.blocker_id),
+
+    const interactedIds = [...new Set([
+      ...(likedResult.data || []).map((row) => row.post_id),
+      ...(commentedResult.data || []).map((row) => row.post_id),
+    ])];
+    const followedIds = new Set((followsResult.data || []).map((row) => row.following_id));
+    const blockedIds = new Set([
+      ...(blocksAResult.data || []).map((row) => row.blocked_id),
+      ...(blocksBResult.data || []).map((row) => row.blocker_id),
     ]);
-    const filtered = candidates.filter((c) => !blocked.has(c.user_id));
 
-    // If no interest signal, return latest
-    if (!interestText.trim()) {
-      return new Response(JSON.stringify({ post_ids: filtered.slice(0, 20).map((p) => p.id) }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const [interestResult, candidateResult] = await Promise.all([
+      interactedIds.length
+        ? admin.from("posts").select("caption, hashtags").in("id", interactedIds)
+        : Promise.resolve({ data: [] as { caption: string | null; hashtags: string[] | null }[] }),
+      admin.from("posts").select("id, user_id, caption, hashtags, created_at")
+        .neq("user_id", user.id).order("created_at", { ascending: false }).limit(100),
+    ]);
+    if (candidateResult.error) return json({ error: "Could not load recommendations" }, 500);
+    const candidates = candidateResult.data || [];
+    if (!candidates.length) return json({ post_ids: [] });
 
-    // 3) Ask Lovable AI to rank
-    const candidateText = filtered
-      .map((c, i) => `[${i}] ${c.caption || "(no caption)"} ${(c.hashtags || []).join(" ")}`)
-      .join("\n")
-      .slice(0, 6000);
+    const candidateIds = candidates.map((post) => post.id);
+    const authorIds = [...new Set(candidates.map((post) => post.user_id))];
+    const [profilesResult, likesResult, commentsResult] = await Promise.all([
+      admin.from("profiles").select("user_id, is_private").in("user_id", authorIds),
+      admin.from("post_likes").select("post_id").in("post_id", candidateIds),
+      admin.from("post_comments").select("post_id").in("post_id", candidateIds),
+    ]);
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
-    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You rank social media posts by relevance to a user's interests. Return only a JSON tool call with the indices of the most relevant posts in best order.",
-          },
-          {
-            role: "user",
-            content: `User interests:\n${interestText}\n\nCandidate posts:\n${candidateText}\n\nReturn the indices of the 15 most relevant posts in order, best first.`,
-          },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "recommend_posts",
-              description: "Return ranked post indices",
-              parameters: {
-                type: "object",
-                properties: {
-                  indices: { type: "array", items: { type: "integer" } },
-                },
-                required: ["indices"],
-                additionalProperties: false,
-              },
-            },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "recommend_posts" } },
-      }),
+    const profiles = new Map((profilesResult.data || []).map((profile) => [profile.user_id, profile]));
+    const likeCounts = new Map<string, number>();
+    const commentCounts = new Map<string, number>();
+    (likesResult.data || []).forEach((row) => likeCounts.set(row.post_id, (likeCounts.get(row.post_id) || 0) + 1));
+    (commentsResult.data || []).forEach((row) => commentCounts.set(row.post_id, (commentCounts.get(row.post_id) || 0) + 1));
+
+    const interestWords = new Set<string>();
+    const interestTags = new Set<string>();
+    (interestResult.data || []).forEach((post) => {
+      words(post.caption || "").forEach((word) => interestWords.add(word));
+      (post.hashtags || []).forEach((tag) => interestTags.add(tag.toLowerCase()));
     });
 
-    if (aiResp.status === 429 || aiResp.status === 402) {
-      // Fall back to recency
-      return new Response(JSON.stringify({ post_ids: filtered.slice(0, 15).map((p) => p.id) }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const now = Date.now();
+    const scored = candidates
+      .filter((post) => {
+        if (blockedIds.has(post.user_id)) return false;
+        const profile = profiles.get(post.user_id);
+        return !profile?.is_private || followedIds.has(post.user_id);
+      })
+      .map((post) => {
+        const captionWords = words(post.caption || "");
+        const wordMatches = [...captionWords].filter((word) => interestWords.has(word)).length;
+        const tagMatches = (post.hashtags || []).filter((tag) => interestTags.has(tag.toLowerCase())).length;
+        const ageHours = Math.max(0, (now - new Date(post.created_at).getTime()) / 3600000);
+        const recency = Math.exp(-ageHours / 96);
+        const likes = likeCounts.get(post.id) || 0;
+        const comments = commentCounts.get(post.id) || 0;
+        const engagement = Math.log1p(likes) * 0.8 + Math.log1p(comments) * 1.35;
+        const relevance = Math.min(wordMatches, 8) * 0.28 + Math.min(tagMatches, 5) * 1.1;
+        const network = followedIds.has(post.user_id) ? 2.4 : 0;
+        const score = recency * (1 + engagement) + relevance + network;
+        return { id: post.id, author: post.user_id, score, createdAt: post.created_at };
+      })
+      .sort((a, b) => b.score - a.score);
+
+    // Diversity guard: avoid letting one creator dominate a personalized feed.
+    const selected: typeof scored = [];
+    const authorCounts = new Map<string, number>();
+    for (const post of scored) {
+      const count = authorCounts.get(post.author) || 0;
+      if (count >= 2) continue;
+      selected.push(post);
+      authorCounts.set(post.author, count + 1);
+      if (selected.length === 30) break;
     }
 
-    if (!aiResp.ok) {
-      const t = await aiResp.text();
-      console.error("AI error", aiResp.status, t);
-      return new Response(JSON.stringify({ post_ids: filtered.slice(0, 15).map((p) => p.id) }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const aiJson = await aiResp.json();
-    const args = aiJson.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
-    let indices: number[] = [];
-    try {
-      indices = JSON.parse(args || "{}").indices || [];
-    } catch {
-      indices = [];
-    }
-    const ordered = indices
-      .filter((i) => i >= 0 && i < filtered.length)
-      .map((i) => filtered[i].id);
-
-    return new Response(JSON.stringify({ post_ids: ordered }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (e) {
-    console.error("recommend error", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ post_ids: selected.map((post) => post.id), algorithm: "hybrid-v1" });
+  } catch (error) {
+    console.error("recommend-posts failed:", error);
+    return json({ error: "Recommendation service failed" }, 500);
   }
 });
