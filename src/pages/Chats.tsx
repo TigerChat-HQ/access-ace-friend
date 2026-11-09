@@ -181,6 +181,7 @@ const Chats = () => {
     setChatSearchOpen(false);
     setChatSearch("");
     setReplyTo(null);
+    setEditingMessage(null);
   }, [activeChat]);
 
   const handleSend = async (text: string) => {
