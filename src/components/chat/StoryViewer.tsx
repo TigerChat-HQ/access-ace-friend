@@ -20,7 +20,7 @@ interface StoryData {
   musicUrl?: string;
   mediaType?: "image" | "video" | "text";
   backgroundColor?: string;
-  textOverlay?: { text?: string; text_color?: string; text_background?: string; text_font?: string; text_size?: number; sticker?: string; music_title?: string; music_start?: number; music_end?: number; image_filter?: string } | null;
+  textOverlay?: { text?: string; text_color?: string; text_background?: string; text_font?: string; text_size?: number; sticker?: string; music_title?: string; music_start?: number; music_end?: number; image_filter?: string; drawing_url?: string } | null;
   duration?: number | null;
 }
 
@@ -392,6 +392,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId, onS
           </span>
         </div>
       )}
+      {story.textOverlay?.drawing_url && <img src={story.textOverlay.drawing_url} alt="Status drawing" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />}
       {story.textOverlay?.sticker && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-7xl">{story.textOverlay.sticker}</div>
       )}
