@@ -56,6 +56,8 @@ Deno.serve(async (req) => {
     await admin.from("chat_preferences").delete().eq("user_id", userId);
     await admin.from("user_roles").delete().eq("user_id", userId);
     await admin.from("profiles").delete().eq("user_id", userId);
+    // Remove Draughts result rows that reference the auth user before deleting the Auth record.
+    await admin.from("draughts_match_results").delete().or(`player_white.eq.${userId},player_black.eq.${userId}`);
 
     // Finally delete the auth user
     const { error: delErr } = await admin.auth.admin.deleteUser(userId);
