@@ -17,6 +17,23 @@ export interface PinnedChatMessage {
   created_at: string | null;
 }
 
+interface ChatReactionRow { message_id: string; user_id: string; emoji: string; }
+interface PinnedMessageRow {
+  id: string; message_id: string; pinned_by: string; created_at: string | null;
+  messages?: { content: string | null; sender_id: string; message_type: string; created_at: string | null } | null;
+}
+interface ChatQueryResult<T> { data: T | null; error: { message?: string } | null; }
+interface ChatQuery extends PromiseLike<ChatQueryResult<unknown>> {
+  select(columns: string): ChatQuery;
+  eq(column: string, value: string): ChatQuery;
+  order(column: string, options?: { ascending?: boolean }): ChatQuery;
+  maybeSingle(): Promise<ChatQueryResult<{ id: string }>>;
+  delete(): ChatQuery;
+  insert(values: Record<string, unknown>): Promise<ChatQueryResult<unknown>>;
+  update(values: Record<string, unknown>): ChatQuery;
+}
+interface ChatFeaturesClient { from(table: string): ChatQuery; }
+
 export const useChatMessageFeatures = (conversationId: string | null, userId?: string) => {
   const [reactions, setReactions] = useState<Record<string, ChatReactionSummary[]>>({});
   const [pinnedMessages, setPinnedMessages] = useState<PinnedChatMessage[]>([]);
@@ -29,7 +46,7 @@ export const useChatMessageFeatures = (conversationId: string | null, userId?: s
       return;
     }
     setLoading(true);
-    const client = supabase as any;
+    const client = supabase as unknown as ChatFeaturesClient;
     const [reactionResult, pinResult] = await Promise.all([
       client.from("message_reactions")
         .select("message_id,user_id,emoji,messages!inner(conversation_id)")
@@ -42,7 +59,7 @@ export const useChatMessageFeatures = (conversationId: string | null, userId?: s
 
     if (!reactionResult.error) {
       const grouped: Record<string, ChatReactionSummary[]> = {};
-      for (const reaction of reactionResult.data || []) {
+      for (const reaction of (reactionResult.data || []) as ChatReactionRow[]) {
         const list = grouped[reaction.message_id] || [];
         const existing = list.find((item) => item.emoji === reaction.emoji);
         if (existing) {
@@ -56,7 +73,7 @@ export const useChatMessageFeatures = (conversationId: string | null, userId?: s
       setReactions(grouped);
     }
     if (!pinResult.error) {
-      setPinnedMessages((pinResult.data || []).map((item: any) => ({
+      setPinnedMessages(((pinResult.data || []) as PinnedMessageRow[]).map((item) => ({
         id: item.id,
         message_id: item.message_id,
         pinned_by: item.pinned_by,
@@ -82,7 +99,7 @@ export const useChatMessageFeatures = (conversationId: string | null, userId?: s
 
   const toggleReaction = useCallback(async (messageId: string, emoji: string) => {
     if (!userId) return { error: new Error("Sign in to react") };
-    const client = supabase as any;
+    const client = supabase as unknown as ChatFeaturesClient;
     const { data: existing, error: lookupError } = await client.from("message_reactions")
       .select("id").eq("message_id", messageId).eq("user_id", userId).eq("emoji", emoji).maybeSingle();
     if (lookupError) return { error: lookupError };
