@@ -89,50 +89,69 @@ export const useConversations = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchConversations = useCallback(async () => {
-    if (!user) return;
-    const { data: memberData } = await supabase
-      .from("conversation_members").select("conversation_id").eq("user_id", user.id);
-    if (!memberData?.length) {
+    if (!user) {
       setConversations([]);
       setLoading(false);
       return;
     }
 
-    const convoIds = memberData.map((member) => member.conversation_id);
-    const { data: convos } = await supabase
-      .from("conversations").select("*").in("id", convoIds).order("updated_at", { ascending: false });
+    setLoading(true);
+    try {
+      const { data: memberData, error: memberError } = await supabase
+        .from("conversation_members").select("conversation_id").eq("user_id", user.id);
+      if (memberError) throw memberError;
 
-    const enriched: ConversationItem[] = await Promise.all((convos || []).map(async (convo) => {
-      const { data: lastMsg } = await supabase.from("messages").select("*")
-        .eq("conversation_id", convo.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
-      const { data: members } = await supabase.from("conversation_members").select("user_id")
-        .eq("conversation_id", convo.id).neq("user_id", user.id);
-
-      let otherProfile: Profile | null = null;
-      if (members?.length) {
-        const { data: profile } = await supabase.from("profiles").select("*")
-          .eq("user_id", members[0].user_id).maybeSingle();
-        otherProfile = profile;
+      if (!memberData?.length) {
+        setConversations([]);
+        return;
       }
 
-      const { count: unreadCount } = await supabase.from("messages")
-        .select("*", { count: "exact", head: true })
-        .eq("conversation_id", convo.id)
-        .eq("is_read", false)
-        .is("read_at", null)
-        .neq("sender_id", user.id);
+      const convoIds = memberData.map((member) => member.conversation_id);
+      const { data: convos, error: convosError } = await supabase
+        .from("conversations").select("*").in("id", convoIds).order("updated_at", { ascending: false });
+      if (convosError) throw convosError;
 
-      return { ...convo, lastMessage: lastMsg, otherProfile, unreadCount: unreadCount || 0 };
-    }));
+      const enriched: ConversationItem[] = await Promise.all((convos || []).map(async (convo) => {
+        const [
+          { data: lastMsg, error: lastMsgError },
+          { data: members, error: membersError },
+          { count: unreadCount, error: unreadError },
+        ] = await Promise.all([
+          supabase.from("messages").select("*")
+            .eq("conversation_id", convo.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+          supabase.from("conversation_members").select("user_id")
+            .eq("conversation_id", convo.id).neq("user_id", user.id),
+          supabase.from("messages").select("*", { count: "exact", head: true })
+            .eq("conversation_id", convo.id).eq("is_read", false).is("read_at", null).neq("sender_id", user.id),
+        ]);
+        if (lastMsgError) throw lastMsgError;
+        if (membersError) throw membersError;
+        if (unreadError) throw unreadError;
 
-    enriched.sort((a, b) => {
-      const timeA = new Date(a.lastMessage?.created_at || a.updated_at || a.created_at || 0).getTime();
-      const timeB = new Date(b.lastMessage?.created_at || b.updated_at || b.created_at || 0).getTime();
-      return timeB - timeA;
-    });
+        let otherProfile: Profile | null = null;
+        if (members?.length) {
+          const { data: profile, error: profileError } = await supabase.from("profiles").select("*")
+            .eq("user_id", members[0].user_id).maybeSingle();
+          if (profileError) throw profileError;
+          otherProfile = profile;
+        }
 
-    setConversations(enriched);
-    setLoading(false);
+        return { ...convo, lastMessage: lastMsg, otherProfile, unreadCount: unreadCount || 0 };
+      }));
+
+      enriched.sort((a, b) => {
+        const timeA = new Date(a.lastMessage?.created_at || a.updated_at || a.created_at || 0).getTime();
+        const timeB = new Date(b.lastMessage?.created_at || b.updated_at || b.created_at || 0).getTime();
+        return timeB - timeA;
+      });
+
+      setConversations(enriched);
+    } catch (error) {
+      console.error("Failed to load conversations:", error);
+      setConversations([]);
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
   useEffect(() => { void fetchConversations(); }, [fetchConversations]);
