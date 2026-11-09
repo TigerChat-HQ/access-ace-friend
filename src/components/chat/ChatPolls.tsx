@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { BarChart3, Plus, X, Check, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -53,7 +53,7 @@ export const ChatPolls = ({ conversationId, userId }: ChatPollsProps) => {
     return () => { void supabase.removeChannel(channel); };
   }, [conversationId, loadPolls]);
 
-  const createPoll = async (event: React.FormEvent) => {
+  const createPoll = async (event: FormEvent) => {
     event.preventDefault();
     const cleanOptions = options.map((option) => option.trim()).filter(Boolean);
     if (!question.trim() || cleanOptions.length < 2) { toast.error("Enter a question and at least two options"); return; }
