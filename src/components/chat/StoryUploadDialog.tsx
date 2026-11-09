@@ -35,6 +35,8 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
   const [textOverlay, setTextOverlay] = useState("");
   const [textColor, setTextColor] = useState("#FFFFFF");
   const [textBackground, setTextBackground] = useState("rgba(0,0,0,0.65)");
+  const [textFont, setTextFont] = useState("sans-serif");
+  const [textSize, setTextSize] = useState(24);
   const [sticker, setSticker] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
   const [duration, setDuration] = useState<number | null>(null);
@@ -203,7 +205,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
       }
 
       const overlayMetadata = {
-        ...(textOverlay.trim() ? { text: textOverlay.trim(), text_color: textColor, text_background: textBackground } : {}),
+        ...(textOverlay.trim() ? { text: textOverlay.trim(), text_color: textColor, text_background: textBackground, text_font: textFont, text_size: textSize } : {}),
         ...(sticker ? { sticker } : {}),
         ...(musicUrl ? { music_start: music?.start ?? localMusicStart, music_end: music?.end ?? localMusicEnd, music_title: music?.title || localMusicFile?.name || "Background music" } : {}),
         ...(imageFilter !== "none" ? { image_filter: imageFilter } : {}),
@@ -231,6 +233,8 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
       setTextOverlay("");
       setTextColor("#FFFFFF");
       setTextBackground("rgba(0,0,0,0.65)");
+      setTextFont("sans-serif");
+      setTextSize(24);
       setSticker("");
       setPreview(null);
       setDuration(null);
@@ -267,7 +271,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
           {preview ? (
             <div className="relative">
               {mediaType === "video" ? <video src={preview} controls className="w-full h-48 object-cover rounded-lg" style={{ filter: imageFilter }} /> : <img src={preview} alt="Status preview" className="w-full h-48 object-cover rounded-lg" style={{ filter: imageFilter }} />}
-              {textOverlay && <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center px-4 pointer-events-none"><span className="inline-block text-lg font-bold px-3 py-1 rounded" style={{ color: textColor, backgroundColor: textBackground }}>{textOverlay}</span></div>}
+              {textOverlay && <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center px-4 pointer-events-none"><span className="inline-block text-lg font-bold px-3 py-1 rounded" style={{ color: textColor, backgroundColor: textBackground, fontFamily: textFont, fontSize: textSize }}>{textOverlay}</span></div>}
               {sticker && <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-6xl">{sticker}</div>}
               <button type="button" onClick={clearMedia} aria-label="Remove media" className="absolute top-2 right-2 p-1 bg-black/60 rounded-full"><X className="w-4 h-4 text-white" /></button>
             </div>
@@ -326,6 +330,14 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
                 <select value={textBackground} onChange={(e) => setTextBackground(e.target.value)} className="mt-1 w-full h-9 rounded-md border border-border bg-surface px-2 text-foreground">
                   <option value="rgba(0,0,0,0.65)">Dark</option><option value="rgba(255,255,255,0.85)">Light</option><option value="rgba(109,40,217,0.8)">Purple</option><option value="transparent">None</option>
                 </select>
+              </label>
+              <label className="text-xs text-muted-foreground">Font
+                <select value={textFont} onChange={(e) => setTextFont(e.target.value)} className="mt-1 w-full h-9 rounded-md border border-border bg-surface px-2 text-foreground">
+                  <option value="sans-serif">Modern</option><option value="serif">Classic</option><option value="monospace">Mono</option><option value="cursive">Handwritten</option>
+                </select>
+              </label>
+              <label className="text-xs text-muted-foreground">Text size · {textSize}px
+                <input type="range" min={16} max={40} step={2} value={textSize} onChange={(e) => setTextSize(Number(e.target.value))} className="mt-2 w-full" />
               </label>
             </div>
           )}
