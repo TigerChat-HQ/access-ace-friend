@@ -4,7 +4,7 @@ This branch intentionally does not deploy changes to production.
 
 ## TURN relay setup (required before real-call testing)
 
-The app requests short-lived TURN credentials from the authenticated `turn-credentials` Edge Function. The function signs a coturn REST API username using HMAC-SHA1; it never returns the shared secret to the browser.
+The app requests short-lived TURN credentials from the authenticated `turn-credentials` Edge Function, and the function verifies the signed-in user belongs to the supplied conversation before issuing credentials. The function signs a coturn REST API username using HMAC-SHA1; it never returns the shared secret to the browser.
 
 Configure these Edge Function secrets only after a TURN provider has been selected and configured for coturn REST authentication:
 
@@ -35,7 +35,7 @@ The current production RLS policy snapshot permits participant inserts using onl
 
 Remove client UPDATE and DELETE policies/grants; the current client protocol only inserts immutable signal events. Preserve participant-only SELECT for Realtime.
 
-This SQL change must be applied and tested on an isolated Supabase development branch before production. It is deliberately not applied to the live project by this code-only branch.
+The migration is included in this pull request. It must be applied to the Supabase project after code review; the live database has not yet been changed by this branch.
 
 ## Test gates
 
