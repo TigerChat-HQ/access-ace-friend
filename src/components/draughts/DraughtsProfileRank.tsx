@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Award, Crown, Medal, Swords, TrendingUp } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { appDatabase as supabase } from "@/lib/app-database";
 
 type StatRow = { season_id: string; user_id: string; rating_points: number; wins: number; losses: number; draws: number };
 type BadgeRow = { id: string; season_id: string; rank: number | null; badge_name: string; show_on_profile: boolean; badge_type?: { emoji?: string; description?: string } | null };
@@ -18,14 +18,14 @@ export function DraughtsProfileRank({ userId, isMe }: { userId: string; isMe: bo
   if (!active) { setSeason(null);setStats(null);setRank(null);setBadges([]);setLoading(false);return; }
   setSeason(active);
   const {data:all} = await supabase.from("draughts_player_stats").select("season_id,user_id,rating_points,wins,losses,draws").eq("season_id",active.id).order("rating_points",{ascending:false}).order("wins",{ascending:false}).order("losses",{ascending:true}).limit(2000);
-  const rows = (all || []) as StatRow[];
+  const rows = all || [];
   setStats(rows.find((r)=>r.user_id===userId)||null);
   const position=rows.findIndex((r)=>r.user_id===userId);
   setRank(position>=0?position+1:null);
   const {data:earned} = await supabase.from("draughts_player_badges")
     .select("id,season_id,rank,badge_name,show_on_profile,badge_type:draughts_badge_types(emoji,description)")
     .eq("user_id",userId).order("awarded_at",{ascending:false}).limit(20);
-  setBadges((earned||[]) as BadgeRow[]);
+  setBadges(earned||[]);
   setLoading(false);
  },[userId]);
  useEffect(()=>{

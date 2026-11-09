@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, CalendarDays, ExternalLink, Sparkles, Trophy, Cake, ChevronDown, Heart, MessageCircle, Share2, Send, Reply, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { appDatabase as supabase } from "@/lib/app-database";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
@@ -29,7 +29,7 @@ export const TigerDailyHistory = () => {
   const loadComments = async (postId: string) => {
     const { data, error } = await db.from("tiger_ai_daily_comments").select("*").eq("post_id", postId).order("created_at");
     if (error) { console.error(error); return; }
-    const rows = (data || []) as Comment[], ids = rows.map(x => x.id);
+    const rows = data || [], ids = rows.map(x => x.id);
     const [{ data: likes }, { data: mine }] = await Promise.all([
       ids.length ? db.from("tiger_ai_daily_comment_likes").select("comment_id").in("comment_id", ids) : Promise.resolve({ data: [] }),
       user && ids.length ? db.from("tiger_ai_daily_comment_likes").select("comment_id").in("comment_id", ids).eq("user_id", user.id) : Promise.resolve({ data: [] }),

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Bot, Users, Crown, Loader2, RotateCw, Flag, Share2, Copy, ArrowUpDown, Handshake } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { appDatabase as supabase } from "@/lib/app-database";
 import type { Json, Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
