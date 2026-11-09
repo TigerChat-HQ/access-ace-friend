@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -7,28 +8,28 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { AppShell } from "@/components/AppShell";
-import Feed from "./pages/Feed";
-import Search from "./pages/Search";
-import Create from "./pages/Create";
-import Chats from "./pages/Chats";
-import Groups from "./pages/Groups";
-import Stories from "./pages/Stories";
-import Profile from "./pages/Profile";
-import PostDetail from "./pages/PostDetail";
-import Admin from "./pages/Admin";
-import Notifications from "./pages/Notifications";
-import Auth from "./pages/Auth";
-import Settings from "./pages/Settings";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import Install from "./pages/Install";
-import NotFound from "./pages/NotFound";
-import TigerAI from "./pages/TigerAI";
-import Game from "./pages/Game";
-import Draughts from "./pages/Draughts";
-import DraughtsTournaments from "./pages/DraughtsTournaments";
-import Contact from "./pages/Contact";
-import PublicDraughts from "./pages/PublicDraughts";
+const Feed = lazy(() => import("./pages/Feed"));
+const Search = lazy(() => import("./pages/Search"));
+const Create = lazy(() => import("./pages/Create"));
+const Chats = lazy(() => import("./pages/Chats"));
+const Groups = lazy(() => import("./pages/Groups"));
+const Stories = lazy(() => import("./pages/Stories"));
+const Profile = lazy(() => import("./pages/Profile"));
+const PostDetail = lazy(() => import("./pages/PostDetail"));
+const Admin = lazy(() => import("./pages/Admin"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const Auth = lazy(() => import("./pages/Auth"));
+const Settings = lazy(() => import("./pages/Settings"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const Install = lazy(() => import("./pages/Install"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const TigerAI = lazy(() => import("./pages/TigerAI"));
+const Game = lazy(() => import("./pages/Game"));
+const Draughts = lazy(() => import("./pages/Draughts"));
+const DraughtsTournaments = lazy(() => import("./pages/DraughtsTournaments"));
+const Contact = lazy(() => import("./pages/Contact"));
+const PublicDraughts = lazy(() => import("./pages/PublicDraughts"));
 import { HelmetProvider } from "react-helmet-async";
 import { TwoFactorGate } from "@/components/TwoFactorSecurity";
 
@@ -64,7 +65,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <TwoFactorGate><BrowserRouter>
-              <Routes>
+              <Suspense fallback={<Spinner />}><Routes>
                 <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
@@ -93,7 +94,7 @@ const App = () => (
                 </Route>
 
                 <Route path="*" element={<NotFound />} />
-              </Routes>
+              </Routes></Suspense>
             </BrowserRouter></TwoFactorGate>
           </TooltipProvider>
         </AuthProvider>
