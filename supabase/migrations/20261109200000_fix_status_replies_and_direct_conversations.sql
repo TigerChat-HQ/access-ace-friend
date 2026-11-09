@@ -65,7 +65,7 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.create_direct_conversation(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.create_direct_conversation(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.create_direct_conversation(uuid) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.reply_to_status(p_story_id uuid, p_content text)
