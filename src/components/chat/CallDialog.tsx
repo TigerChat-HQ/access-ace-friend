@@ -155,7 +155,6 @@ export const CallDialog = ({
           {callStatus === "connected" && <span className="text-primary font-mono">{statusText()}</span>}
           {callStatus === "ended" && <span className="text-destructive">{statusText()}</span>}
         </p>
-        <p className="text-[10px] text-muted-foreground/50 mt-4">🔒 End-to-end encrypted</p>
       </div>
 
       {/* Bottom controls */}
