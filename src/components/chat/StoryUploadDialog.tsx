@@ -47,6 +47,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
   const [excludedAudienceIds, setExcludedAudienceIds] = useState<string[]>([]);
   const [drawColor, setDrawColor] = useState("#FF3B30");
   const [drawMode, setDrawMode] = useState(false);
+  const [hasDrawing, setHasDrawing] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawingRef = useRef(false);
   const [backgroundColor, setBackgroundColor] = useState(BACKGROUNDS[0]);
@@ -88,9 +89,9 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
   };
   const continueDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (!drawingRef.current) return; const canvas = canvasRef.current; const ctx = canvas?.getContext("2d"); if (!canvas || !ctx) return;
-    const rect = canvas.getBoundingClientRect(); ctx.lineTo((event.clientX - rect.left) * canvas.width / rect.width, (event.clientY - rect.top) * canvas.height / rect.height); ctx.stroke();
+    const rect = canvas.getBoundingClientRect(); ctx.lineTo((event.clientX - rect.left) * canvas.width / rect.width, (event.clientY - rect.top) * canvas.height / rect.height); ctx.stroke(); setHasDrawing(true);
   };
-  const clearDrawing = () => { const canvas = canvasRef.current; const ctx = canvas?.getContext("2d"); if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height); };
+  const clearDrawing = () => { const canvas = canvasRef.current; const ctx = canvas?.getContext("2d"); if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height); setHasDrawing(false); };
 
   const clearLocalMusic = () => {
     if (localMusicPreview?.startsWith("blob:")) URL.revokeObjectURL(localMusicPreview);
@@ -239,7 +240,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
       }
 
       let drawingUrl: string | null = null;
-      if (canvasRef.current && mediaFile) {
+      if (canvasRef.current && mediaFile && hasDrawing) {
         const drawingBlob = await new Promise<Blob | null>(resolve => canvasRef.current?.toBlob(resolve, 'image/png'));
         if (drawingBlob && drawingBlob.size > 0) {
           const drawingPath = user.id + '/drawing-' + crypto.randomUUID() + '.png';
@@ -291,7 +292,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
       setSticker("");
       setPreview(null);
       setDuration(null);
-      setAudience("everyone"); setSelectedAudienceIds([]); setExcludedAudienceIds([]); clearDrawing(); setDrawMode(false);
+      setAudience("everyone"); setSelectedAudienceIds([]); setExcludedAudienceIds([]); clearDrawing(); setDrawMode(false); setHasDrawing(false);
       setBackgroundColor(BACKGROUNDS[0]);
       onUploaded();
     } catch (error) {
