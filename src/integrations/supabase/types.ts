@@ -1410,6 +1410,10 @@ export type Database = {
       draughts_division: { Args: { p_points: number }; Returns: string }
       close_draughts_season: { Args: { p_season_id?: string }; Returns: Json }
       ensure_admin_super_group: { Args: never; Returns: string }
+      set_admin_user_role: {
+        Args: { p_role: string; p_user_id: string }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
