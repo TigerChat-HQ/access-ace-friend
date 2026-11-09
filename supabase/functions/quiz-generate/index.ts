@@ -2,8 +2,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@4";
 
-const quizSchema = z.object({ questions: z.array(z.object({ category: z.string().min(1), difficulty: z.enum(["easy", "medium", "hard"]), question: z.string().min(10).max(500), options: z.array(z.string().min(1).max(200)).length(4), correct_index: z.number().int().min(0).max(3), explanation: z.string().min(5).max(1000) })).length(10) });
 const normalizeQuestion = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/gi, "");
+const quizSchema = z.object({ questions: z.array(z.object({ category: z.string().min(1), difficulty: z.enum(["easy", "medium", "hard"]), question: z.string().min(10).max(500), options: z.array(z.string().min(1).max(200)).length(4).refine((options) => new Set(options.map(normalizeQuestion)).size === 4, "Options must be distinct"), correct_index: z.number().int().min(0).max(3), explanation: z.string().min(5).max(1000) })).length(10) });
 const isFreshBatch = (questions: { question: string }[], previous: string[]) => {
   const seen = new Set(previous.map(normalizeQuestion));
   for (const item of questions) { const key = normalizeQuestion(item.question); if (seen.has(key)) return false; seen.add(key); }
