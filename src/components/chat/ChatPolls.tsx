@@ -44,7 +44,8 @@ export const ChatPolls = ({ conversationId, userId }: ChatPollsProps) => {
     const { data: pollRows, error } = await client.from("chat_polls").select("id,question,allows_multiple,created_at")
       .eq("conversation_id", conversationId).order("created_at", { ascending: false });
     if (error) { toast.error("Could not load polls"); return; }
-    const polls = (pollRows || []) as PollRow[];\n    const ids = polls.map((poll) => poll.id);
+    const polls = (pollRows || []) as PollRow[];
+    const ids = polls.map((poll) => poll.id);
     if (!ids.length) { setPolls([]); return; }
     const [{ data: optionRows, error: optionError }, { data: voteRows, error: voteError }] = await Promise.all([
       client.from("chat_poll_options").select("id,poll_id,option_text,position").in("poll_id", ids).order("position"),
