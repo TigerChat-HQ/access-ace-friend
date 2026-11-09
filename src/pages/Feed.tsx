@@ -5,7 +5,7 @@ import { PostCard } from "@/components/social/PostCard";
 import { TrendingRail } from "@/components/social/TrendingRail";
 import { TigerDailyHistory } from "@/components/social/TigerDailyHistory";
 import { Link } from "react-router-dom";
-import { Bell, PlusSquare, Search, Settings as SettingsIcon, Sparkles } from "lucide-react";
+import { BarChart3, Bell, Clapperboard, PlusSquare, Search, Settings as SettingsIcon, Sparkles } from "lucide-react";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 import tigerAI from "@/assets/tiger-reaction.png";
 import { supabase } from "@/integrations/supabase/client";
@@ -59,6 +59,12 @@ const Feed = () => {
         <div className="flex items-center gap-1">
           <Link to="/search" className="p-2 text-muted-foreground hover:text-primary">
             <Search className="w-5 h-5" />
+          </Link>
+          <Link to="/reels" aria-label="Tiger Reels" className="p-2 text-muted-foreground hover:text-primary">
+            <Clapperboard className="w-5 h-5" />
+          </Link>
+          <Link to="/creator" aria-label="Professional dashboard" className="p-2 text-muted-foreground hover:text-primary">
+            <BarChart3 className="w-5 h-5" />
           </Link>
           <Link to="/create" className="p-2 text-muted-foreground hover:text-primary">
             <PlusSquare className="w-5 h-5" />

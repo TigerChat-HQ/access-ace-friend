@@ -9,6 +9,8 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { AppShell } from "@/components/AppShell";
 const Feed = lazy(() => import("./pages/Feed"));
+const Reels = lazy(() => import("./pages/Reels"));
+const ProfessionalDashboard = lazy(() => import("./pages/ProfessionalDashboard"));
 const Search = lazy(() => import("./pages/Search"));
 const Create = lazy(() => import("./pages/Create"));
 const Chats = lazy(() => import("./pages/Chats"));
@@ -75,6 +77,8 @@ const App = () => (
 
                 <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
                   <Route path="/" element={<Feed />} />
+                  <Route path="/reels" element={<Reels />} />
+                  <Route path="/creator" element={<ProfessionalDashboard />} />
                   <Route path="/search" element={<Search />} />
                   <Route path="/create" element={<Create />} />
                   <Route path="/chats" element={<Chats />} />
