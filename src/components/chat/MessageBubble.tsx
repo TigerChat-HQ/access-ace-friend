@@ -3,7 +3,7 @@ import { Message } from "@/types/chat";
 import { cn } from "@/lib/utils";
 import { playChatEmojiSound } from "@/lib/chat-emoji";
 import { Button } from "@/components/ui/button";
-import { Check, CheckCheck, Play, Pause, FileText, Download, Reply, Forward, Trash2, MoreVertical, Clock } from "lucide-react";
+import { Check, CheckCheck, Play, Pause, FileText, Download, Reply, Forward, Trash2, MoreVertical, Clock, Pin, Pencil } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,9 +20,15 @@ interface MessageBubbleProps {
   myBubbleClass?: string;
   translatedText?: string;
   onStatusClick?: (storyId: string) => void;
+  reactions?: { emoji: string; count: number; reactedByMe: boolean }[];
+  isPinned?: boolean;
+  onReact?: (emoji: string) => void;
+  onTogglePin?: () => void;
+  onEdit?: () => void;
+  isEdited?: boolean;
 }
 
-export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDelete, myBubbleClass, translatedText, onStatusClick }: MessageBubbleProps) => {
+export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDelete, myBubbleClass, translatedText, onStatusClick, reactions = [], isPinned = false, onReact, onTogglePin, onEdit, isEdited = false }: MessageBubbleProps) => {
   const isMe = message.senderId === "me";
   const [playing, setPlaying] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
@@ -65,6 +71,8 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
               <DropdownMenuItem onClick={() => onForward?.(message)} className="text-xs gap-2">
                 <Forward className="w-3.5 h-3.5" /> Forward
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={onTogglePin} className="text-xs gap-2"><Pin className="w-3.5 h-3.5" /> {isPinned ? "Unpin message" : "Pin message"}</DropdownMenuItem>
+              {isMe && message.type === "text" && <DropdownMenuItem onClick={onEdit} className="text-xs gap-2"><Pencil className="w-3.5 h-3.5" /> Edit message</DropdownMenuItem>
               {isMe ? (
                 <>
                   <DropdownMenuItem onClick={() => onDelete?.(message.id, "me")} className="text-xs gap-2">
@@ -93,6 +101,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
             : "bg-card/90 backdrop-blur border border-border/40 text-foreground rounded-bl-md"
         )}
       >
+        {isPinned && <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide opacity-70"><Pin className="h-3 w-3" /> Pinned message</div>}
         {message.statusContext && <button type="button" onClick={() => onStatusClick?.(message.statusContext!.story_id)} className="mb-2 w-full text-left border-l-2 border-current pl-2 text-xs opacity-80 hover:opacity-100 cursor-pointer"><p className="font-semibold">Status reply · Tap to view status</p><p className="line-clamp-2">{message.statusContext.caption}</p></button>}
         {replyMessage && (
           <div className={cn(
@@ -150,9 +159,13 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
         ) : (
           <p dir="auto" role={isEmojiOnly ? "button" : undefined} tabIndex={isEmojiOnly ? 0 : undefined} title={isEmojiOnly ? "Tap emoji to replay sound" : undefined} onClick={isEmojiOnly ? () => playChatEmojiSound(displayText || "") : undefined} onKeyDown={isEmojiOnly ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); playChatEmojiSound(displayText || ""); } } : undefined} className={cn("whitespace-pre-wrap", isEmojiOnly && "chat-emoji-message cursor-pointer select-none")}>{(displayText || "").split(/(https:\/\/www\.google\.com\/maps\?q=-?[\d.]+,-?[\d.]+)/g).map((part, i) => part.startsWith("https://www.google.com/maps?q=") ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline">Open location in Maps</a> : part)}</p>
         )}
+        {(reactions.length > 0 || onReact) && <div className="mt-2 flex flex-wrap items-center gap-1">
+          {reactions.map((reaction) => <button key={reaction.emoji} type="button" onClick={() => onReact?.(reaction.emoji)} aria-pressed={reaction.reactedByMe} className={cn("rounded-full border px-2 py-0.5 text-[11px] transition-colors", reaction.reactedByMe ? "border-primary/60 bg-primary/15 text-primary" : "border-border/60 bg-background/40 hover:bg-surface-hover")}>{reaction.emoji} {reaction.count}</button>)}
+          {onReact && <div className="flex items-center gap-0.5 border-l border-border/50 pl-1">{["👍", "❤️", "😂", "😮", "😢", "🙏"].map((emoji) => <button key={emoji} type="button" onClick={() => onReact(emoji)} aria-label={`React ${emoji}`} className="rounded-full p-1 text-sm opacity-70 hover:bg-surface-hover hover:opacity-100">{emoji}</button>)}</div>}
+        </div>}
         {hasTranslation && <Button variant="link" size="sm" className="h-auto p-0 mt-1 text-[11px] text-muted-foreground" onClick={() => setShowOriginal(value => !value)}>{showOriginal ? "Show translation" : "Translated · Show original"}</Button>}
         <div className={cn("flex items-center gap-1 mt-1", isMe ? "justify-end" : "justify-start", isImage && !message.text && "px-2 pb-1")}>
-          <span className="text-[10px] opacity-60">{message.time}</span>
+          <span className="text-[10px] opacity-60">{message.time}{isEdited ? " · Edited" : ""}</span>
           {isMe && (
             message.status === "pending" || message.status === "queued" ? (
               <Clock aria-label="Foleni (Inasubiri mtandao)" className="w-3.5 h-3.5 text-amber-300 opacity-80 animate-pulse" />
@@ -182,6 +195,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
               <DropdownMenuItem onClick={() => onForward?.(message)} className="text-xs gap-2">
                 <Forward className="w-3.5 h-3.5" /> Forward
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={onTogglePin} className="text-xs gap-2"><Pin className="w-3.5 h-3.5" /> {isPinned ? "Unpin message" : "Pin message"}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
