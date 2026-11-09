@@ -8,7 +8,7 @@ type HistoryItem = { year: number | null; title: string; summary: string; source
 type DailyHistory = { positive_events: HistoryItem[]; negative_events: HistoryItem[]; births: HistoryItem[] };
 type DailyPost = { id: string; date_key: string; title: string; content: DailyHistory; source_urls: string[] };
 type Comment = { id: string; post_id: string; parent_id: string | null; user_id: string | null; body: string; is_tiger_ai: boolean; ai_liked: boolean; created_at: string; liked_by_me: boolean; like_count: number };
-const db = supabase as any;
+const db = supabase;
 
 const HistoryList = ({ items }: { items: HistoryItem[] }) => <ol className="space-y-3">{items.map((item, i) => <li key={item.title + i} className="text-sm"><p className="font-semibold text-foreground">{item.year ? item.year + " — " : ""}{item.title}</p><p className="mt-0.5 text-muted-foreground leading-relaxed">{item.summary}</p><a href={item.source_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 mt-1 text-xs text-primary hover:underline">Chanzo <ExternalLink className="w-3 h-3" /></a></li>)}</ol>;
 
@@ -34,8 +34,8 @@ export const TigerDailyHistory = () => {
       ids.length ? db.from("tiger_ai_daily_comment_likes").select("comment_id").in("comment_id", ids) : Promise.resolve({ data: [] }),
       user && ids.length ? db.from("tiger_ai_daily_comment_likes").select("comment_id").in("comment_id", ids).eq("user_id", user.id) : Promise.resolve({ data: [] }),
     ]);
-    const counts = new Map<string, number>(); (likes || []).forEach((x: any) => counts.set(x.comment_id, (counts.get(x.comment_id) || 0) + 1));
-    const mineSet = new Set((mine || []).map((x: any) => x.comment_id));
+    const counts = new Map<string, number>(); (likes || []).forEach((x) => counts.set(x.comment_id, (counts.get(x.comment_id) || 0) + 1));
+    const mineSet = new Set((mine || []).map((x) => x.comment_id));
     setComments(rows.map(x => ({ ...x, like_count: counts.get(x.id) || 0, liked_by_me: mineSet.has(x.id) })));
   };
 
