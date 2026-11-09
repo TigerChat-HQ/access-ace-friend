@@ -14,7 +14,7 @@ export const NotificationBubble = () => {
   const [enabled, setEnabled] = useState(() => getNotificationPreferences(user?.id).floatingBubble);
 
   useEffect(() => {
-    const update = () => setEnabled(getNotificationPreferences().floatingBubble);
+    const update = () => setEnabled(getNotificationPreferences(user?.id).floatingBubble);
     const onNotice = (event: Event) => {
       const detail = (event as CustomEvent<BubbleNotice>).detail;
       if (!detail || detail.kind !== "chat" || !getNotificationPreferences(user?.id).floatingBubble) return;
