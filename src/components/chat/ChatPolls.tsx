@@ -52,10 +52,12 @@ export const ChatPolls = ({ conversationId, userId }: ChatPollsProps) => {
       client.from("chat_poll_votes").select("poll_id,option_id,user_id").in("poll_id", ids),
     ]);
     if (optionError || voteError) { toast.error("Could not load poll results"); return; }
-    setPolls((pollRows || []).map((poll: any) => ({
+    const typedOptions = (optionRows || []) as PollOptionRow[];
+    const typedVotes = (voteRows || []) as PollVoteRow[];
+    setPolls(polls.map((poll) => ({
       ...poll,
-      options: (optionRows || []).filter((option: any) => option.poll_id === poll.id),
-      votes: (voteRows || []).filter((vote: any) => vote.poll_id === poll.id),
+      options: typedOptions.filter((option) => option.poll_id === poll.id),
+      votes: typedVotes.filter((vote) => vote.poll_id === poll.id),
     })));
   }, [conversationId]);
 
@@ -90,7 +92,7 @@ export const ChatPolls = ({ conversationId, userId }: ChatPollsProps) => {
 
   const castVote = async (pollId: string, optionId: string) => {
     setVoting(optionId);
-    const { error } = await (supabase as any).rpc("cast_chat_poll_vote", { _poll_id: pollId, _option_id: optionId });
+    const { error } = await (supabase as unknown as PollClient).rpc("cast_chat_poll_vote", { _poll_id: pollId, _option_id: optionId });
     setVoting(null);
     if (error) { toast.error(error.message || "Vote could not be saved"); return; }
     await loadPolls();
