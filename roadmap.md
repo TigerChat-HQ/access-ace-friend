@@ -1,4 +1,5 @@
 # Requested updates
+- [ ] Connect the existing app to the user's requested external TigerChat project and verify schema, RPCs, RLS, Realtime, Storage and types. Blocked: this project has an immutable Lovable Cloud binding; tools cannot access the requested external project. Do not alter the current database or migrate user data to work around the binding.
 - [ ] Finish push notifications: preserve Firebase worker, unify registration, add enable/disable state and verify delivery (requires Include web push).
 - [ ] Confirm connected Firebase configuration and deploy affected push functions.
 - [ ] Add per-chat automatic incoming-message translation with language selection and original text; verify authenticated translation.
