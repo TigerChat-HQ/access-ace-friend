@@ -258,13 +258,19 @@ const Chats = () => {
     const { data: { publicUrl } } = supabase.storage.from("chat-media").getPublicUrl(filePath);
     const mins = Math.floor(duration / 60);
     const secs = duration % 60;
-    await supabase.from("messages").insert({
+    const { error } = await supabase.from("messages").insert({
       conversation_id: activeChat,
       sender_id: user.id,
       content: `${mins}:${secs.toString().padStart(2, "0")}`,
       message_type: "voice",
       media_url: publicUrl,
+      reply_to_id: replyTo?.id || null,
     });
+    if (error) {
+      toast({ title: "Voice message failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    setReplyTo(null);
     void dispatchPush(activeChat);
   };
 
@@ -276,13 +282,19 @@ const Chats = () => {
     if (uploadError) return toast({ title: "Upload failed", description: uploadError.message, variant: "destructive" });
     const { data: { publicUrl } } = supabase.storage.from("chat-media").getPublicUrl(filePath);
     const msgType = file.type.startsWith("image/") ? "image" : "file";
-    await supabase.from("messages").insert({
+    const { error } = await supabase.from("messages").insert({
       conversation_id: activeChat,
       sender_id: user.id,
       content: msgType === "image" ? "" : file.name,
       message_type: msgType,
       media_url: publicUrl,
+      reply_to_id: replyTo?.id || null,
     });
+    if (error) {
+      toast({ title: "Attachment failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    setReplyTo(null);
     void dispatchPush(activeChat);
   };
 
