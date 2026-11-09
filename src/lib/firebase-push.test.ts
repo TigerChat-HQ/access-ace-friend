@@ -35,7 +35,7 @@ describe("Firebase device notifications", () => {
 
   it("stores the registration privately for the current user", async () => {
     expect(await enablePush("user-a")).toContain("enabled");
-    expect(mocks.upsert).toHaveBeenCalledWith({ user_id: "user-a", token: "device-token" }, { onConflict: "token" });
+    expect(mocks.upsert).toHaveBeenCalledWith({ user_id: "user-a", token: "device-token" }, { onConflict: "user_id,token" });
     expect(isPushEnabled("user-a")).toBe(true);
     expect(isPushEnabled("user-b")).toBe(false);
     expect(navigator.serviceWorker.register).toHaveBeenCalledWith(expect.stringContaining("messagingSenderId=123"));
