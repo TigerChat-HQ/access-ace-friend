@@ -52,7 +52,36 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: GROQ_MODEL,
         temperature: 0.85,
-        response_format: { type: "json_object" },
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "tiger_quiz_questions",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                questions: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      category: { type: "string" },
+                      difficulty: { type: "string", enum: ["easy", "medium", "hard"] },
+                      question: { type: "string" },
+                      options: { type: "array", items: { type: "string" } },
+                      correct_index: { type: "integer" },
+                      explanation: { type: "string" }
+                    },
+                    required: ["category", "difficulty", "question", "options", "correct_index", "explanation"],
+                    additionalProperties: false
+                  }
+                }
+              },
+              required: ["questions"],
+              additionalProperties: false
+            }
+          }
+        },
         messages: [
           {
             role: "system",
