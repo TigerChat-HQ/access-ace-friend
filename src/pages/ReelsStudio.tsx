@@ -62,9 +62,9 @@ const ReelsStudio = () => {
     if (!user) throw new Error("Sign in required");
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
     const path = `${user.id}/reels/${folder}-${Date.now()}-${safeName}`;
-    const { error } = await supabase.storage.from("post-media").upload(path, file, { upsert: false });
+    const { error } = await supabase.storage.from("reel-drafts").upload(path, file, { upsert: false });
     if (error) throw error;
-    return { path, url: supabase.storage.from("post-media").getPublicUrl(path).data.publicUrl };
+    const { data: signed, error: signedError } = await supabase.storage.from("reel-drafts").createSignedUrl(path, 3600);\n    if (signedError || !signed?.signedUrl) throw signedError || new Error("Could not create a private preview URL");\n    return { path, url: signed.signedUrl };
   };
 
   const chooseVideo = (file?: File) => {
@@ -130,7 +130,7 @@ const ReelsStudio = () => {
     return { nextVideoPath, nextVideoUrl, nextAudioPath, nextAudioUrl };
   };
 
-  const saveDraft = async () => {
+  const privateUrl = async (path: string | null) => {\n    if (!path) return null;\n    const { data, error } = await supabase.storage.from("reel-drafts").createSignedUrl(path, 3600);\n    if (error || !data?.signedUrl) throw error || new Error("Could not open private draft media");\n    return data.signedUrl;\n  };\n\n  const promoteDraftAsset = async (path: string | null, kind: string) => {\n    if (!path || !user) return null;\n    const signedUrl = await privateUrl(path);\n    if (!signedUrl) return null;\n    const response = await fetch(signedUrl);\n    if (!response.ok) throw new Error(`Could not read private ${kind} asset`);\n    const blob = await response.blob();\n    const extension = path.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "") || "bin";\n    const publicPath = `${user.id}/reels/published-${kind}-${crypto.randomUUID()}.${extension}`;\n    const { error } = await supabase.storage.from("post-media").upload(publicPath, blob, { contentType: blob.type || undefined, upsert: false });\n    if (error) throw error;\n    return supabase.storage.from("post-media").getPublicUrl(publicPath).data.publicUrl;\n  };\n\n  const saveDraft = async () => {
     if (!user) return;
     setBusy(true);
     try {
@@ -162,16 +162,16 @@ const ReelsStudio = () => {
     } finally { setBusy(false); }
   };
 
-  const openDraft = (draft: DraftRow) => {
+  const openDraft = async (draft: DraftRow) => {
     setDraftId(draft.id);
     setCaption(draft.caption || "");
     setVideoPath(draft.source_media_path);
-    setVideoUrl(draft.source_media_path ? supabase.storage.from("post-media").getPublicUrl(draft.source_media_path).data.publicUrl : null);
+    setVideoUrl(await privateUrl(draft.source_media_path));
     setVideoFile(null);
     setCoverPath(draft.cover_path);
-    setCoverUrl(draft.cover_path ? supabase.storage.from("post-media").getPublicUrl(draft.cover_path).data.publicUrl : null);
+    setCoverUrl(await privateUrl(draft.cover_path));
     setAudioPath(draft.audio_path);
-    setAudioUrl(draft.audio_path ? supabase.storage.from("post-media").getPublicUrl(draft.audio_path).data.publicUrl : null);
+    setAudioUrl(await privateUrl(draft.audio_path));
     setAudioFile(null);
     setAudioTitle(draft.audio_title || "");
     setAudioStart(Number(draft.audio_start_seconds || 0));
@@ -195,11 +195,11 @@ const ReelsStudio = () => {
       const { error } = await db.from("posts").insert({
         user_id: user.id,
         caption: caption.trim() || null,
-        media_url: assets.nextVideoUrl,
+        media_url: publishedVideoUrl,
         media_type: "video",
         hashtags: hashtags(caption),
-        reel_cover_url: coverUrl,
-        reel_audio_url: assets.nextAudioUrl,
+        reel_cover_url: publishedCoverUrl,
+        reel_audio_url: publishedAudioUrl,
         reel_audio_title: audioTitle || (audioFile?.name ?? null),
         reel_audio_start_seconds: audioStart,
         reel_trim_start_seconds: trimStart,
@@ -290,7 +290,7 @@ const ReelsStudio = () => {
 
           <div className="rounded-2xl border border-border/60 bg-card p-4">
             <h2 className="mb-3 text-sm font-semibold text-foreground">Saved drafts</h2>
-            {drafts.length ? drafts.map((draft) => <div key={draft.id} className="mb-2 flex items-center gap-2 rounded-xl bg-background p-2"><button onClick={() => openDraft(draft)} className="min-w-0 flex-1 text-left"><span className="block truncate text-sm text-foreground">{draft.caption || "Untitled Reel"}</span><span className="text-[11px] text-muted-foreground">Updated {new Date(draft.updated_at).toLocaleString()}</span></button><button onClick={() => void removeDraft(draft.id)} aria-label="Delete draft" className="p-2 text-destructive"><Trash2 className="h-4 w-4" /></button></div>) : <p className="py-4 text-center text-xs text-muted-foreground">Your saved drafts will appear here.</p>}
+            {drafts.length ? drafts.map((draft) => <div key={draft.id} className="mb-2 flex items-center gap-2 rounded-xl bg-background p-2"><button onClick={() => void openDraft(draft).catch((error) => toast({ title: "Could not open draft", description: error instanceof Error ? error.message : "Try again.", variant: "destructive" }))} className="min-w-0 flex-1 text-left"><span className="block truncate text-sm text-foreground">{draft.caption || "Untitled Reel"}</span><span className="text-[11px] text-muted-foreground">Updated {new Date(draft.updated_at).toLocaleString()}</span></button><button onClick={() => void removeDraft(draft.id)} aria-label="Delete draft" className="p-2 text-destructive"><Trash2 className="h-4 w-4" /></button></div>) : <p className="py-4 text-center text-xs text-muted-foreground">Your saved drafts will appear here.</p>}
           </div>
 
           <button onClick={publish} disabled={busy || !videoUrl} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground disabled:opacity-50">
