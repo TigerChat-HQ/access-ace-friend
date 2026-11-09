@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   insert: vi.fn(), handlers: [] as Array<(payload: unknown) => void>,
-  media: vi.fn(), stop: vi.fn(), profile: vi.fn(),
+  media: vi.fn(), stop: vi.fn(), profile: vi.fn(), invoke: vi.fn(),
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "receiver" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
@@ -31,6 +31,7 @@ describe("call signaling reliability", () => {
     mocks.insert.mockReset().mockResolvedValue({ error: null });
     mocks.stop.mockClear();
     mocks.profile.mockReset().mockResolvedValue({ data: { display_name: "Caller" } });
+    mocks.invoke.mockReset().mockResolvedValue({ data: null, error: new Error("TURN not configured in unit test") });
     mocks.media.mockReset().mockResolvedValue(new FakeStream());
     vi.stubGlobal("MediaStream", FakeStream);
     vi.stubGlobal("RTCPeerConnection", FakePeer);
