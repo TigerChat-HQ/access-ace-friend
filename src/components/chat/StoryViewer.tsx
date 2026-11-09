@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { X, Volume2, VolumeX, ShieldCheck, MessageCircle, Send, Eye, Heart, Trash2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { appDatabase as supabase } from "@/lib/app-database";
 import { useScreenshotProtection } from "@/hooks/useScreenshotProtection";
 import { TigerReactionLayer } from "@/components/TigerReaction";
 import tigerImg from "@/assets/tiger-reaction.png";
@@ -33,7 +32,6 @@ interface StoryViewerProps {
 }
 
 const REACTIONS = ["❤️", "🔥", "😂", "😮", "😢", "👏"];
-const db = supabase as unknown as SupabaseClient;
 
 export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId, onStoryDeleted }: StoryViewerProps) => {
   const navigate = useNavigate();
@@ -78,7 +76,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId, onS
 
   // Load owner view count and keep it live.
   useEffect(() => {
-    if (!story || !isOwner) return;
+    if (!story || !isOwner || !currentUserId) return;
     let active = true;
     const refreshViews = async () => {
       const { data, error } = await supabase.from("story_views").select("id, viewer_id, viewed_at").eq("story_id", story.id).order("viewed_at", { ascending: false });
@@ -277,7 +275,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId, onS
   const deleteStory = async () => {
     if (!story || !isOwner) return;
     if (!window.confirm("Delete this status?")) return;
-    const { error } = await supabase.from("stories").delete().eq("id", story.id).eq("user_id", currentUserId!);
+    const { error } = await supabase.from("stories").delete().eq("id", story.id).eq("user_id", currentUserId);
     if (error) {
       toast({ title: "Could not delete status", description: error.message, variant: "destructive" });
       return;
@@ -296,7 +294,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId, onS
       setFloaters((f) => [...f, { id, emoji, left: 40 + Math.random() * 20 }]);
       setTimeout(() => setFloaters((f) => f.filter((x) => x.id !== id)), 2400);
     }
-    await db.from("story_reactions").insert({
+    await supabase.from("story_reactions").insert({
       story_id: story.id,
       user_id: currentUserId,
       emoji,

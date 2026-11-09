@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { appDatabase as supabase } from "@/lib/app-database";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Award, Bot, CalendarCheck, Plus, ShieldCheck, Activity, Users, Clock3 } from "lucide-react";
@@ -30,7 +30,7 @@ export function DraughtsAdminControl() {
       supabase.from("draughts_seasons").select("name").eq("is_active", true).maybeSingle(),
     ]);
     if (s.data) setSettings(s.data);
-    setBadges((b.data || []) as BadgeType[]);
+    setBadges(b.data || []);
     setSeason(active.data);
   };
   const loadLiveCounts = useCallback(async () => {
