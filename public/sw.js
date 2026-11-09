@@ -1,5 +1,5 @@
 // TIGERCHATS push notification & PWA offline cache service worker
-const CACHE_NAME = "tigerchats-cache-v2";
+const CACHE_NAME = "tigerchats-cache-v3";
 const PRECACHE_ASSETS = [
   "/",
   "/index.html",
