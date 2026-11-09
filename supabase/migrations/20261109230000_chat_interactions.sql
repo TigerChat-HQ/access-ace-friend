@@ -217,25 +217,35 @@ set search_path = ''
 as $$
 declare
   poll_allows_multiple boolean;
+  already_selected boolean;
 begin
   select p.allows_multiple into poll_allows_multiple
   from public.chat_polls p
   join public.conversation_members cm on cm.conversation_id = p.conversation_id
   where p.id = _poll_id and cm.user_id = (select auth.uid())
     and (p.expires_at is null or p.expires_at > now());
-
   if not found then raise exception 'Poll not found, expired, or access denied'; end if;
   if not exists (select 1 from public.chat_poll_options o where o.id = _option_id and o.poll_id = _poll_id) then
     raise exception 'Invalid poll option';
+  end if;
+  select exists (
+    select 1 from public.chat_poll_votes v
+    where v.poll_id = _poll_id and v.option_id = _option_id and v.user_id = (select auth.uid())
+  ) into already_selected;
+  if already_selected then
+    delete from public.chat_poll_votes where poll_id = _poll_id and option_id = _option_id and user_id = (select auth.uid());
+    return;
   end if;
   if not poll_allows_multiple then
     delete from public.chat_poll_votes where poll_id = _poll_id and user_id = (select auth.uid());
   end if;
   insert into public.chat_poll_votes (poll_id, option_id, user_id)
-  values (_poll_id, _option_id, (select auth.uid()))
-  on conflict (poll_id, option_id, user_id) do nothing;
+  values (_poll_id, _option_id, (select auth.uid()));
 end;
 $$;
+
+revoke all on function public.cast_chat_poll_vote(uuid, uuid) from public, anon;
+grant execute on function public.cast_chat_poll_vote(uuid, uuid) to authenticated;
 
 create or replace function public.create_chat_poll(
   _conversation_id uuid,
