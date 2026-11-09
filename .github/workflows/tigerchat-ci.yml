@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: tigerchat-ci-${{ github.ref }}
@@ -19,15 +19,25 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24.12.0
-          cache: npm
 
-      - name: Prepare npm lockfile
-        run: npm install --package-lock-only --ignore-scripts --no-audit
+      - name: Generate and commit synchronized npm lockfile
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: synchronize npm lockfile"
+            git push origin HEAD:main
+          fi
 
       - name: Install dependencies
         run: npm ci
