@@ -281,3 +281,43 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .chat-emoji-message { animation: none !important; }
 }
+
+/* Extend the 4D treatment to app-wide cards, dialogs, menus and overlays. */
+:where(
+  [role="dialog"],
+  [role="alertdialog"],
+  [role="menu"],
+  [role="listbox"],
+  [data-radix-popper-content-wrapper] > *,
+  [data-vaul-drawer]
+) {
+  border-color: var(--tiger-edge);
+  box-shadow: var(--tiger-depth-shadow);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+:where(
+  [class*="rounded-xl"][class*="border"],
+  [class*="rounded-2xl"][class*="border"],
+  [class~="bg-card"]
+) {
+  box-shadow: var(--tiger-depth-shadow);
+  border-color: var(--tiger-edge);
+}
+@media (hover: hover) and (pointer: fine) {
+  :where(
+    [class*="rounded-xl"][class*="border"],
+    [class*="rounded-2xl"][class*="border"],
+    [class~="bg-card"]
+  ):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 20px 44px hsl(var(--foreground) / 0.1), 0 5px 14px hsl(var(--primary) / 0.08);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(
+    [class*="rounded-xl"][class*="border"],
+    [class*="rounded-2xl"][class*="border"],
+    [class~="bg-card"]
+  ) { transform: none !important; }
+}
