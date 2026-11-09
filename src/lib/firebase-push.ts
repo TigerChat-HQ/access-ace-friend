@@ -28,7 +28,7 @@ export async function enablePush(userId: string): Promise<string> {
   const app = getApps().find(app => app.name === "tiger-push") || initializeApp(config, "tiger-push");
   const token = await getToken(getMessaging(app), { vapidKey, serviceWorkerRegistration: registration });
   if (!token) return "No notification registration was returned. Try again.";
-  const { error } = await supabase.from("device_push_tokens").upsert({ user_id: userId, token }, { onConflict: "token" });
+  const { error } = await supabase.from("device_push_tokens").upsert({ user_id: userId, token }, { onConflict: "user_id,token" });
   if (error) throw error;
   localStorage.setItem(deviceKey(userId), token);
   return "Background notifications enabled. Sound follows your phone and browser settings.";
