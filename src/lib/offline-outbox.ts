@@ -158,7 +158,7 @@ export const processOutbox = async (force = false): Promise<number> => {
           msg.retryCount = (msg.retryCount || 0) + 1;
           const delayMs = Math.min(5 * 60 * 1000, 2000 * (2 ** Math.min(msg.retryCount, 7)));
           msg.nextAttemptAt = new Date(Date.now() + delayMs).toISOString();
-          saveQueuedMessages(list);
+          saveQueuedMessages(getQueuedMessages().map((queued) => queued.id === msg.id ? msg : queued));
           if (!navigator.onLine || /fetch|network|timeout|connection/i.test(error.message || "")) {
             break;
           }
@@ -175,7 +175,7 @@ export const processOutbox = async (force = false): Promise<number> => {
         msg.retryCount = (msg.retryCount || 0) + 1;
         const delayMs = Math.min(5 * 60 * 1000, 2000 * (2 ** Math.min(msg.retryCount, 7)));
         msg.nextAttemptAt = new Date(Date.now() + delayMs).toISOString();
-        saveQueuedMessages(list);
+        saveQueuedMessages(getQueuedMessages().map((queued) => queued.id === msg.id ? msg : queued));
         break;
       }
     }
