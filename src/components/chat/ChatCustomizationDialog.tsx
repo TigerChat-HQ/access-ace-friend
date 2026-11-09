@@ -4,7 +4,7 @@ import { MoreVertical } from "lucide-react";
 import { ChatPrefs, useChatPreferences } from "@/hooks/useChatPreferences";
 import { cn } from "@/lib/utils";
 
-const WALLPAPERS: { key: string; label: string; bg: string }[] = [
+const WALLPAPERS: { key: string; label: string; bg: string; emoji?: string }[] = [
   { key: "default", label: "Default", bg: "bg-background" },
   { key: "tiger", label: "Tiger", emoji: "🐅", bg: "chat-wallpaper-tiger bg-gradient-to-br from-black via-orange-950/70 to-black" },
   { key: "neon", label: "Neon", bg: "bg-gradient-to-br from-emerald-900/40 via-black to-purple-900/40" },
