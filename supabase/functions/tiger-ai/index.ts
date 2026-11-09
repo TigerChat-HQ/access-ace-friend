@@ -46,16 +46,19 @@ const MODE_PROMPTS: Record<string, string> = {
     "Summarize the user's feedback into 1-2 crisp sentences for the developer. Then add a single suggested action prefixed with 'Action: '.",
 };
 
-async function callOpenAI(body: unknown, stream = true) {
-  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-  if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not configured");
-  return fetch("https://api.openai.com/v1/chat/completions", {
+async function callGemini(body: unknown, stream = true) {
+  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+  if (!GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY not configured. Add a free Gemini API key in Supabase Edge Function secrets.");
+  }
+  return fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      Authorization: `Bearer ${GEMINI_API_KEY}`,
       "Content-Type": "application/json",
+      "x-goog-api-client": "tigerchats/1.0",
     },
-    body: JSON.stringify({ stream, ...(body as object) }),
+    body: JSON.stringify({ model: "gemini-2.5-flash-lite", stream, ...(body as object) }),
   });
 }
 
@@ -175,28 +178,22 @@ Deno.serve(async (req) => {
       : "";
     const sys = basePrompt + safeContext;
 
-    // Text chat uses the user's OpenAI API key. Image/video generation
-    // continue using the existing Lovable Gateway integration above.
-    const r = await callOpenAI({
-      model: "gpt-4.1-mini",
+    // Text chat uses Google's Gemini 2.5 Flash-Lite free tier.
+    // Image/video generation retain the existing Lovable Gateway integration.
+    const r = await callGemini({
       messages: [{ role: "system", content: sys }, ...messages],
     });
 
     if (!r.ok) {
-      if (r.status === 429)
-        return new Response(JSON.stringify({ error: "Rate limit hit, try again shortly." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      if (r.status === 402)
-        return new Response(JSON.stringify({ error: "Workspace AI credits exhausted." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
       const t = await r.text();
-      console.error("OpenAI API error:", r.status, t);
-      return new Response(JSON.stringify({ error: "OpenAI API error" }), {
-        status: 500,
+      console.error("Gemini API error:", r.status, t.slice(0, 1200));
+      const message = r.status === 429
+        ? "Gemini free-tier limit reached. Please wait and try again."
+        : r.status === 401 || r.status === 403
+        ? "Gemini API key is invalid or not authorized. Check GEMINI_API_KEY in Supabase secrets."
+        : "Gemini AI request failed. Please try again later.";
+      return new Response(JSON.stringify({ error: message }), {
+        status: r.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
