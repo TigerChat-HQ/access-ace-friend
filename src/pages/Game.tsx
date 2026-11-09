@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Trophy, Clock, Sparkles, ArrowRight, RotateCcw, Crown, Flame } from "lucide-react";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 
 type Question = {
   id: string;
@@ -187,12 +188,12 @@ const Game = () => {
             <p className="text-xs text-muted-foreground">Answer fast. Earn trophies. Climb the ranks.</p>
           </div>
           <div className="flex items-center gap-2">
-            <a
-              href="/draughts"
+            <Link
+              to="/draughts"
               className="text-[11px] px-2.5 py-1.5 rounded-full bg-primary/15 border border-primary/30 text-primary hover:bg-primary/25"
             >
               ♟ Draughts
-            </a>
+            </Link>
             <Trophy className="w-7 h-7 text-primary drop-shadow-[0_0_12px_hsl(var(--primary)/0.6)]" />
           </div>
         </header>
