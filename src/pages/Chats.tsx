@@ -22,7 +22,7 @@ import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
 import { StoryUploadDialog } from "@/components/chat/StoryUploadDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, EyeOff, Trash2, X, ChevronUp, ChevronDown, Archive, RotateCcw, Palette, UserPlus, Settings, LogOut, Clock } from "lucide-react";
+import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, EyeOff, Trash2, X, ChevronUp, ChevronDown, Archive, RotateCcw, Palette, UserPlus, Settings, LogOut, Clock, Star } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
@@ -39,6 +39,17 @@ type MessageMetadata = { read_at?: string | null; is_read?: boolean | null; deli
 type StoryMetadata = Story & { music_url?: string | null; media_type?: string | null; text_overlay?: { text?: string; text_color?: string; text_background?: string; text_font?: string; text_size?: number; sticker?: string; music_title?: string; music_start?: number; music_end?: number; image_filter?: string; drawing_url?: string } | null; duration?: number | null };
 
 const HIDDEN_CHATS_STORAGE_KEY = "tigerchats:hidden-chats";
+const FAVORITE_CHATS_STORAGE_KEY = "tigerchats:favorite-chats";
+type ChatFilter = "all" | "unread" | "groups" | "favorites";
+
+const readFavoriteChats = (): string[] => {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(FAVORITE_CHATS_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
+  } catch { return []; }
+};
 
 const readHiddenChatMap = (): Record<string, number> => {
   if (typeof window === "undefined") return {};
@@ -62,6 +73,8 @@ const Chats = () => {
   };
 
   const [search, setSearch] = useState("");
+  const [chatFilter, setChatFilter] = useState<ChatFilter>("all");
+  const [favoriteChats, setFavoriteChats] = useState<string[]>(() => readFavoriteChats());
   const [stories, setStories] = useState<Story[]>([]);
   const [storyViewerIndex, setStoryViewerIndex] = useState<number | null>(null);
   const webrtc = useCall();
@@ -511,7 +524,7 @@ const Chats = () => {
           </div>
         </div>
 
-        <StoriesBar stories={storyBarData} onStoryClick={(index) => setStoryViewerIndex(index)} onAddStory={() => {}} />
+        <div className="flex items-center gap-2 overflow-x-auto px-4 pb-2 pt-1 scrollbar-thin" role="group" aria-label="Filter chats">\n          {([{ id: "all", label: "All" }, { id: "unread", label: "Unread" }, { id: "groups", label: "Groups" }, { id: "favorites", label: "Favorites" }] as const).map((filter) => (\n            <button key={filter.id} type="button" onClick={() => { setChatFilter(filter.id); setShowArchivedChats(false); }} aria-pressed={chatFilter === filter.id} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${chatFilter === filter.id ? "bg-primary text-primary-foreground shadow-sm" : "bg-surface text-muted-foreground hover:text-foreground hover:bg-surface-hover"}`}>{filter.label}{filter.id === "unread" && conversations.some((item) => item.unreadCount > 0) ? <span className="ml-1.5 opacity-80">•</span> : null}</button>\n          ))}\n        </div>\n\n        <StoriesBar stories={storyBarData} onStoryClick={(index) => setStoryViewerIndex(index)} onAddStory={() => {}} />
 
         <div className="flex-1 overflow-y-auto scrollbar-thin">
           {convosLoading ? (
