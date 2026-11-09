@@ -16,7 +16,7 @@ const Reels = () => {
       </header>
       <div className="flex-1 overflow-y-auto snap-y snap-mandatory">
         {loading ? <div className="py-20 text-center text-sm text-muted-foreground">Loading videos…</div> : videos.length ? (
-          videos.map((post) => <section key={post.id} className="min-h-[calc(100dvh-8.5rem)] snap-start flex items-center justify-center border-b border-border/50"><div className="w-full max-w-xl"><PostCard post={post} onChanged={refetch} /></div></section>)
+          videos.map((post) => <section key={post.id} className="min-h-[calc(100dvh-8.5rem)] snap-start flex items-center justify-center border-b border-border/50"><div className="w-full max-w-xl"><PostCard post={post} onChanged={refetch} isReel /></div></section>)
         ) : (
           <div className="mx-auto flex max-w-sm flex-col items-center px-6 py-24 text-center"><Clapperboard className="mb-4 h-12 w-12 text-muted-foreground" /><h2 className="font-semibold text-foreground">No Reels yet</h2><p className="mt-2 text-sm text-muted-foreground">Share a video to start the Tiger Reels feed.</p><Link to="/reels/studio" className="mt-5 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground">Create video</Link></div>
         )}
