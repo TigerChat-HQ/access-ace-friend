@@ -4,15 +4,9 @@ I have accunt but i fail to login as administrator
 
 This project was built with [Lovable](https://lovable.dev).
 
-**Live app**: https://access-ace-friend.lovable.app
+## Project source
 
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/8f4e1e08-fcf6-410f-8bf5-37eaba0fc80d).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+GitHub `main` is the canonical source repository. Backend services are managed separately in the designated Supabase project.
 
 ## Development
 
