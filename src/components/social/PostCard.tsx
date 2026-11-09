@@ -25,6 +25,10 @@ interface Props {
 type ReelCaption = { start: number; end: number; text: string };
 type ReelPost = FeedPost & {
   reel_cover_url?: string | null;
+  reel_audio_url?: string | null;
+  reel_audio_start_seconds?: number | null;
+  reel_trim_start_seconds?: number | null;
+  reel_trim_end_seconds?: number | null;
   reel_captions?: ReelCaption[] | null;
 };
 
@@ -125,6 +129,10 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
             viewerId={user.id}
             src={post.media_url}
             coverUrl={reelPost.reel_cover_url}
+            audioUrl={reelPost.reel_audio_url}
+            audioStart={Number(reelPost.reel_audio_start_seconds || 0)}
+            trimStart={Number(reelPost.reel_trim_start_seconds || 0)}
+            trimEnd={reelPost.reel_trim_end_seconds === null || reelPost.reel_trim_end_seconds === undefined ? null : Number(reelPost.reel_trim_end_seconds)}
             captions={reelPost.reel_captions}
             className="relative w-full bg-black"
           />
