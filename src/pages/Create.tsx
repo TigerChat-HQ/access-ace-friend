@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Image as ImageIcon, X, Loader2, Type } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { renderVideoEdit } from "@/lib/postMediaEditor";
 
 const extractHashtags = (text: string): string[] =>
   [...new Set((text.match(/#(\w+)/g) || []).map((t) => t.slice(1).toLowerCase()))];
@@ -29,6 +30,12 @@ const Create = () => {
   const [filter, setFilter] = useState("none");
   const [overlay, setOverlay] = useState("");
   const [loading, setLoading] = useState(false);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [trimStart, setTrimStart] = useState(0);
+  const [trimEnd, setTrimEnd] = useState(0);
+  const [originalVolume, setOriginalVolume] = useState(100);
+  const [musicVolume, setMusicVolume] = useState(35);
+  const [musicFile, setMusicFile] = useState<File | null>(null);
   const isImage = file?.type.startsWith("image/");
   const isVideo = file?.type.startsWith("video/");
 
@@ -40,7 +47,7 @@ const Create = () => {
     else setPreview(null);
   };
 
-  // Apply CSS filter + overlay to image via canvas before upload
+  useEffect(() => {\n    if (!preview || !isVideo) return;\n    const probe = document.createElement("video");\n    probe.preload = "metadata"; probe.src = preview;\n    probe.onloadedmetadata = () => { const duration = Number.isFinite(probe.duration) ? probe.duration : 0; setVideoDuration(duration); setTrimEnd(duration); };\n    return () => { probe.src = ""; };\n  }, [preview, isVideo]);\n\n  // Apply CSS filter + overlay to image via canvas before upload
   const renderEditedImage = async (src: File): Promise<File> => {
     if (filter === "none" && !overlay.trim()) return src;
     const css = FILTERS.find((f) => f.key === filter)?.css || "";
@@ -165,6 +172,30 @@ const Create = () => {
               <X className="w-4 h-4" />
             </button>
           </div>
+        )}
+
+        {isVideo && (
+          <section className="space-y-3 rounded-xl border border-border p-3">
+            <h2 className="text-sm font-semibold text-foreground">Video & audio editor</h2>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Trim start · {trimStart.toFixed(1)}s</label>
+              <input aria-label="Video trim start" type="range" min={0} max={Math.max(0, videoDuration - 0.2)} step={0.1} value={trimStart} onChange={(e) => { const value = Number(e.target.value); setTrimStart(Math.min(value, trimEnd - 0.2)); }} className="w-full" />
+              <label className="text-xs text-muted-foreground">Trim end · {trimEnd.toFixed(1)}s / {videoDuration.toFixed(1)}s</label>
+              <input aria-label="Video trim end" type="range" min={Math.min(videoDuration, trimStart + 0.2)} max={videoDuration || 0.2} step={0.1} value={trimEnd} onChange={(e) => setTrimEnd(Number(e.target.value))} className="w-full" />
+            </div>
+            <label className="block text-xs text-muted-foreground">Original video volume · {originalVolume}%
+              <input type="range" min={0} max={100} value={originalVolume} onChange={(e) => setOriginalVolume(Number(e.target.value))} className="w-full" />
+            </label>
+            <button type="button" onClick={() => setOriginalVolume(0)} className="text-xs text-primary underline">Remove original video sound</button>
+            <label className="block text-xs text-muted-foreground">Background music
+              <input type="file" accept="audio/*" onChange={(e) => setMusicFile(e.target.files?.[0] || null)} className="mt-1 block w-full text-xs" />
+            </label>
+            {musicFile && <div className="flex items-center justify-between gap-2 text-xs"><span className="truncate">{musicFile.name}</span><button type="button" onClick={() => setMusicFile(null)} className="text-destructive">Remove</button></div>}
+            {musicFile && <label className="block text-xs text-muted-foreground">Music volume · {musicVolume}%
+              <input type="range" min={0} max={100} value={musicVolume} onChange={(e) => setMusicVolume(Number(e.target.value))} className="w-full" />
+            </label>}
+            <p className="text-[11px] text-muted-foreground">Mabadiliko ya trim na mixing hutumika kwenye video inayopakiwa. Export inahitaji browser inayounga mkono MediaRecorder na video capture.</p>
+          </section>
         )}
 
         {isImage && (
