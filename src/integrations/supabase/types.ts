@@ -767,6 +767,8 @@ export type Database = {
           created_at: string | null
           delivered_at: string | null
           id: string
+          is_edited: boolean
+          edited_at: string | null
           is_read: boolean | null
           media_url: string | null
           message_status: string
@@ -782,6 +784,8 @@ export type Database = {
           created_at?: string | null
           delivered_at?: string | null
           id?: string
+          is_edited?: boolean
+          edited_at?: string | null
           is_read?: boolean | null
           media_url?: string | null
           message_status?: string
