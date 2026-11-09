@@ -129,22 +129,13 @@ const Admin = () => {
   };
 
   const setRole = async (userId: string, role: "admin" | "moderator" | "adviser" | "none") => {
-    // Remove all elevated roles for the user
-    const { error: delErr } = await supabase
-      .from("user_roles")
-      .delete()
-      .eq("user_id", userId)
-      .in("role", ["admin", "moderator", "adviser"]);
-    if (delErr) {
-      toast({ title: "Failed", description: delErr.message, variant: "destructive" });
+    const { error } = await supabase.rpc("set_admin_user_role", {
+      p_user_id: userId,
+      p_role: role,
+    });
+    if (error) {
+      toast({ title: "Failed", description: error.message, variant: "destructive" });
       return;
-    }
-    if (role !== "none") {
-      const { error } = await supabase.from("user_roles").insert({ user_id: userId, role });
-      if (error) {
-        toast({ title: "Failed", description: error.message, variant: "destructive" });
-        return;
-      }
     }
     toast({ title: role === "none" ? "Role cleared" : `Set as ${role}` });
     load();
