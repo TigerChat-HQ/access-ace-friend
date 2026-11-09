@@ -60,6 +60,20 @@ begin
     return false;
   end if;
 
+  -- Every response/ICE/hangup and renegotiation must belong to a real prior offer.
+  if p_signal_type <> 'offer' or renegotiate = 'true' then
+    if not exists (
+      select 1 from public.call_signals cs
+      where cs.signal_type = 'offer'
+        and cs.caller_id = p_caller_id
+        and cs.callee_id = p_callee_id
+        and cs.conversation_id = p_conversation_id
+        and cs.signal_data ->> 'callId' = signal_call_id
+    ) then
+      return false;
+    end if;
+  end if;
+
   if p_signal_type = 'offer' then
     return actor_id = p_caller_id
       and p_signal_data ? 'sdp'
