@@ -99,6 +99,9 @@
 
 
 @layer utilities {
+  /* Keep navigation and interaction feedback immediate on low-end devices. */
+  .transition-colors, .transition-opacity, .transition-transform, .transition-all { transition-duration: 100ms !important; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; } }
   .draught-dark { background: var(--board-dark); }
   .draught-light { background: var(--board-light); }
   .draught-piece { width: 78%; aspect-ratio: 1; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid hsl(var(--border)); color: hsl(var(--piece-crown)); box-shadow: 0 3px 5px hsl(var(--piece-black) / 0.4), inset 0 0 0 3px hsl(var(--piece-white) / 0.12); }

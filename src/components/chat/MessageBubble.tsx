@@ -2,6 +2,7 @@ import { useState, useRef, useMemo } from "react";
 import { Message } from "@/types/chat";
 import { cn } from "@/lib/utils";
 import { playChatEmojiSound } from "@/lib/chat-emoji";
+import { getMediaDisplayUrl, isDataSaverEnabled } from "@/lib/data-saver";
 import { Button } from "@/components/ui/button";
 import { Check, CheckCheck, Play, Pause, FileText, Download, Reply, Forward, Trash2, MoreVertical, Clock, Pin, Pencil } from "lucide-react";
 import {
@@ -36,6 +37,17 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
   const hasTranslation = !isMe && !!translatedText && translatedText !== message.text;
   const displayText = hasTranslation && !showOriginal ? translatedText : message.text;
   const audioRef = useRef<HTMLAudioElement>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const dataSaver = isDataSaverEnabled();
+  const mediaUrl = message.mediaUrl ? getMediaDisplayUrl(message.mediaUrl, dataSaver) : undefined;
+  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => { const touch = event.touches[0]; touchStartRef.current = { x: touch.clientX, y: touch.clientY }; };
+  const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    const start = touchStartRef.current; touchStartRef.current = null;
+    if (!start || !onReply) return;
+    const touch = event.changedTouches[0];
+    const dx = touch.clientX - start.x; const dy = touch.clientY - start.y;
+    if (Math.abs(dx) >= 58 && Math.abs(dy) <= 48) onReply(message);
+  };
 
   const waveformHeights = useMemo(
     () => Array.from({ length: 16 }, () => Math.random() * 12 + 4),
@@ -117,7 +129,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
 
         {isVoice && message.mediaUrl ? (
           <div className="flex items-center gap-3 min-w-[160px]">
-            <audio ref={audioRef} src={message.mediaUrl} onEnded={() => setPlaying(false)} className="hidden" />
+            <audio ref={audioRef} src={mediaUrl || message.mediaUrl} onEnded={() => setPlaying(false)} className="hidden" />
             <button onClick={toggleAudio} className="shrink-0">
               {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
             </button>
@@ -144,7 +156,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
             {message.text && <p dir="auto" className="mt-1 px-2">{displayText}</p>}
           </div>
         ) : isFile && message.mediaUrl && /\.(mp4|webm|mov)(\?|$)/i.test(message.mediaUrl) ? (
-          <video src={message.mediaUrl} controls playsInline className="max-w-full rounded-lg" />
+          <video src={mediaUrl || message.mediaUrl} controls playsInline preload={dataSaver ? "none" : "metadata"} className="max-w-full rounded-lg" />
         ) : isFile && message.mediaUrl ? (
           <a href={message.mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 min-w-[160px]">
             <div className={cn("p-2 rounded-lg", isMe ? "bg-primary-foreground/20" : "bg-surface")}>
@@ -157,7 +169,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
             <Download className="w-4 h-4 opacity-60" />
           </a>
         ) : (
-          <p dir="auto" role={isEmojiOnly ? "button" : undefined} tabIndex={isEmojiOnly ? 0 : undefined} title={isEmojiOnly ? "Tap emoji to replay sound" : undefined} onClick={isEmojiOnly ? () => playChatEmojiSound(displayText || "") : undefined} onKeyDown={isEmojiOnly ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); playChatEmojiSound(displayText || ""); } } : undefined} className={cn("whitespace-pre-wrap", isEmojiOnly && "chat-emoji-message cursor-pointer select-none")}>{(displayText || "").split(/(https:\/\/www\.google\.com\/maps\?q=-?[\d.]+,-?[\d.]+)/g).map((part, i) => part.startsWith("https://www.google.com/maps?q=") ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline">Open location in Maps</a> : part)}</p>
+          <p dir="auto" role={isEmojiOnly ? "button" : undefined} tabIndex={isEmojiOnly ? 0 : undefined} title={isEmojiOnly ? "Tap emoji to replay sound" : undefined} onClick={isEmojiOnly ? () => playChatEmojiSound(displayText || "") : undefined} onKeyDown={isEmojiOnly ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); playChatEmojiSound(displayText || ""); } } : undefined} className={cn("whitespace-pre-wrap", isEmojiOnly && "chat-emoji-message cursor-pointer select-none")}>{(displayText || "").split(/((?:https?:\/\/|www\.)[^\s<]+)/gi).map((part, i) => /^https?:\/\//i.test(part) || /^www\./i.test(part) ? <a key={i} href={/^https?:\/\//i.test(part) ? part : `https://${part}`} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer" className="underline break-all">{part}</a> : part)}</p>
         )}
         {(reactions.length > 0 || onReact) && <div className="mt-2 flex flex-wrap items-center gap-1">
           {reactions.map((reaction) => <button key={reaction.emoji} type="button" onClick={() => onReact?.(reaction.emoji)} aria-pressed={reaction.reactedByMe} className={cn("rounded-full border px-2 py-0.5 text-[11px] transition-colors", reaction.reactedByMe ? "border-primary/60 bg-primary/15 text-primary" : "border-border/60 bg-background/40 hover:bg-surface-hover")}>{reaction.emoji} {reaction.count}</button>)}

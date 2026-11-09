@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Camera, User, Bell, Shield, Palette, LogOut, MessageCircle,
-  ChevronRight, Moon, Sun, Globe, Lock, Fingerprint, Mail, Volume2, Smartphone, Download, KeyRound, Copy,
+  ChevronRight, Moon, Sun, Globe, Lock, Fingerprint, Mail, Volume2, Smartphone, Download, KeyRound, Copy, Gauge,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAppLock, isWebAuthnSupported } from "@/hooks/useAppLock";
@@ -64,6 +64,8 @@ const Settings = () => {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [dataSaver, setDataSaver] = useState(() => { try { return localStorage.getItem("tigerchats:data-saver") === "true"; } catch { return false; } });
+  const updateDataSaver = (enabled: boolean) => { setDataSaver(enabled); try { localStorage.setItem("tigerchats:data-saver", String(enabled)); } catch { /* storage may be unavailable */ } };
   const [notifications, setNotifications] = useState(() => user ? isPushEnabled(user.id) : false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
@@ -272,6 +274,7 @@ const Settings = () => {
   };
 
   const settingSections = [
+    { id: "general", icon: Gauge, label: "General settings", description: "Data Saver na matumizi ya mtandao" },
     { id: "profile", icon: User, label: t("editProfile"), description: t("nameDesc") },
     { id: "notifications", icon: Bell, label: t("notifications"), description: t("notifDesc") },
     { id: "privacy", icon: Shield, label: t("privacy"), description: t("privacyDesc") },
@@ -286,6 +289,15 @@ const Settings = () => {
 
   const renderSection = () => {
     switch (activeSection) {
+      case "general":
+        return (
+          <div className="space-y-4 animate-fade-in">
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 px-3 py-1">
+              <SettingToggle label="Data Saver Mode" description="Punguza ubora na ukubwa wa picha wakati wa kuzitazama ili kutumia data kidogo. Video zitapakia metadata tu hadi ubonyeze Play." value={dataSaver} onChange={updateDataSaver} icon={<Gauge className="w-5 h-5" />} />
+            </div>
+            <p className="text-xs text-muted-foreground">Mipangilio hii huhifadhiwa kwenye kifaa hiki. Zima Data Saver ili kurudi kwenye ubora wa kawaida.</p>
+          </div>
+        );
       case "profile":
         return (
           <div className="space-y-6 animate-fade-in">
