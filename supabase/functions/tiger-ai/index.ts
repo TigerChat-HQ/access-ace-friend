@@ -203,8 +203,10 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error("tiger-ai error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown" }), {
-      status: 500,
+    const message = e instanceof Error ? e.message : "Unknown";
+    const missingProviderKey = /(?:GEMINI_API_KEY|LOVABLE_API_KEY) not configured/.test(message);
+    return new Response(JSON.stringify({ error: message }), {
+      status: missingProviderKey ? 503 : 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
