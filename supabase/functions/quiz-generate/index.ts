@@ -52,44 +52,11 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: GROQ_MODEL,
         temperature: 0.85,
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "tiger_quiz_questions",
-            strict: true,
-            schema: {
-              type: "object",
-              properties: {
-                questions: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      category: { type: "string" },
-                      difficulty: { type: "string", enum: ["easy", "medium", "hard"] },
-                      question: { type: "string" },
-                      options: { type: "array", items: { type: "string" } },
-                      correct_index: { type: "integer" },
-                      explanation: { type: "string" }
-                    },
-                    required: ["category", "difficulty", "question", "options", "correct_index", "explanation"],
-                    additionalProperties: false
-                  }
-                }
-              },
-              required: ["questions"],
-              additionalProperties: false
-            }
-          }
-        },
+        max_completion_tokens: 4096,
         messages: [
           {
-            role: "system",
-            content: "You are Tiger Developer Assistant acting as a careful Tanzanian quiz question writer. Generate accurate, unambiguous educational multiple-choice questions. Never invent facts. Return JSON only.",
-          },
-          {
             role: "user",
-            content: `Return JSON with exactly 10 fresh multiple-choice questions about Tanzania, covering history, culture, geography, sport and science. Use natural Swahili for the questions, options and explanations. Each question must have: category, difficulty (easy/medium/hard), question, exactly 4 distinct options, correct_index (0-3), and a factual explanation. Vary the position of correct answers. Do not repeat or paraphrase these previously served questions: ${JSON.stringify(previous)}. Batch seed: ${crypto.randomUUID()}. Return exactly { "questions": [...] }.`,
+            content: `You are Tiger Developer Assistant, a careful Tanzanian quiz question writer. Generate accurate, unambiguous educational multiple-choice questions. Never invent facts. Output ONLY one valid JSON object, with no Markdown fences, no commentary, and no text before or after it. The object must have this exact top-level shape: {"questions":[...]}. Generate exactly 10 fresh multiple-choice questions about Tanzania, covering history, culture, geography, sport and science. Use natural Swahili for questions, options and explanations. Every question object must contain exactly these fields: category (string), difficulty (one of easy, medium, hard), question (string), options (array of exactly 4 distinct strings), correct_index (integer 0, 1, 2 or 3), explanation (string). Vary the correct answer position. Do not repeat or paraphrase these previously served questions: ${JSON.stringify(previous)}. Batch seed: ${crypto.randomUUID()}.`,
           },
         ],
       }),
@@ -110,7 +77,11 @@ Deno.serve(async (req) => {
     }
     let parsedJson: unknown;
     try {
-      parsedJson = JSON.parse(rawText);
+      const cleaned = rawText.trim().replace(/^```(?:json)?\\s*/i, "").replace(/\\s*```$/, "");
+      const start = cleaned.indexOf("{");
+      const end = cleaned.lastIndexOf("}");
+      if (start < 0 || end <= start) throw new Error("No JSON object found");
+      parsedJson = JSON.parse(cleaned.slice(start, end + 1));
     } catch {
       return reply({ error: "Tiger AI imerudisha muundo usio sahihi wa maswali. Jaribu tena." }, 502);
     }
