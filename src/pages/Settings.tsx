@@ -34,15 +34,22 @@ const SettingToggle = ({
   label: string; description: string; value: boolean;
   onChange: (v: boolean) => void; icon?: React.ReactNode;
 }) => (
-  <div className="flex items-center justify-between py-3">
-    <div className="flex items-center gap-3">
-      {icon && <span className="text-muted-foreground">{icon}</span>}
-      <div>
-        <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="text-xs text-muted-foreground">{description}</p>
-      </div>
+  <div className="flex w-full items-center gap-3 py-3">
+    <button
+      type="button"
+      aria-pressed={value}
+      onClick={() => onChange(!value)}
+      className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left outline-none transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+    >
+      {icon && <span className="flex h-9 w-9 shrink-0 items-center justify-center text-muted-foreground">{icon}</span>}
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium leading-5 text-foreground">{label}</span>
+        <span className="mt-0.5 block break-words text-xs leading-5 text-muted-foreground">{description}</span>
+      </span>
+    </button>
+    <div className="flex shrink-0 items-center justify-center pl-1">
+      <Switch checked={value} onCheckedChange={onChange} aria-label={label} />
     </div>
-    <Switch checked={value} onCheckedChange={onChange} />
   </div>
 );
 
@@ -329,7 +336,7 @@ const Settings = () => {
             }}><Bell className="mr-2 h-4 w-4" />{pushBusy ? "Please wait…" : notifications ? "Disable background notifications" : "Enable background notifications"}</Button>
             {pushMessage && <p role="status" className="text-sm text-muted-foreground">{pushMessage}</p>}
             {pushMessage.includes("own tab") && <Button variant="link" asChild><a href={window.location.href} target="_blank" rel="noopener noreferrer">Open in new tab</a></Button>}
-            <div className="rounded-2xl border border-primary/20 bg-primary/5 px-3 py-1">
+            <div className="w-full min-w-0 rounded-2xl border border-primary/20 bg-primary/5 px-3 py-1">
               <SettingToggle label="Notifications enabled" description="Master switch for app notifications on this device" value={notificationPrefs.enabled} onChange={(v) => updateNotificationPreference({ enabled: v })} icon={<Bell className="h-5 w-5" />} />
               <SettingToggle label="Chat notifications" description="New direct and group messages" value={notificationPrefs.chat} onChange={(v) => updateNotificationPreference({ chat: v })} icon={<Mail className="h-5 w-5" />} />
               <SettingToggle label="Social notifications" description="Likes, comments, replies and new followers" value={notificationPrefs.social} onChange={(v) => updateNotificationPreference({ social: v })} icon={<User className="h-5 w-5" />} />
@@ -339,7 +346,7 @@ const Settings = () => {
             </div>
             <div className="space-y-2">
               <label htmlFor="incoming-call-tone" className="text-sm font-medium text-foreground">Incoming call ringtone</label>
-              <div className="flex items-center gap-2">
+              <div className="flex w-full min-w-0 items-center gap-2">
                 <select id="incoming-call-tone" value={incomingCallTone} onChange={(e) => updateTone("incoming_call", e.target.value as RingtoneId)} className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground">
                   {ringtoneOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                 </select>
@@ -350,7 +357,7 @@ const Settings = () => {
             </div>
             <div className="space-y-2">
               <label htmlFor="incoming-sms-tone" className="text-sm font-medium text-foreground">Incoming SMS ringtone</label>
-              <div className="flex items-center gap-2">
+              <div className="flex w-full min-w-0 items-center gap-2">
                 <select id="incoming-sms-tone" value={incomingSmsTone} onChange={(e) => updateTone("incoming_sms", e.target.value as RingtoneId)} className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground">
                   {ringtoneOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                 </select>
@@ -433,7 +440,7 @@ const Settings = () => {
               icon={theme === "dark" ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
             />
             <div className="pt-4 border-t border-border/50">
-              <div className="flex items-center gap-3 mb-3">
+              <div className="flex min-w-0 items-center gap-3 mb-3">
                 <Globe className="w-5 h-5 text-muted-foreground" />
                 <p className="text-sm font-medium text-foreground">{t("language")}</p>
               </div>
@@ -442,7 +449,7 @@ const Settings = () => {
                   <button
                     key={lang.code}
                     onClick={() => setLanguage(lang.code)}
-                    className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors ${
+                    className={`w-full min-w-0 flex items-center justify-between gap-3 p-3 rounded-lg text-left transition-colors ${
                       language === lang.code ? "bg-primary/10 text-primary" : "hover:bg-surface-hover text-foreground"
                     }`}
                   >
@@ -462,11 +469,11 @@ const Settings = () => {
   return (
     <div className="h-full overflow-y-auto bg-background">
       <div className="max-w-lg mx-auto">
-        <div className="flex items-center gap-3 px-4 py-4 border-b border-border/50 glass sticky top-0 z-10">
+        <div className="flex min-w-0 items-center gap-3 px-4 py-4 border-b border-border/50 glass sticky top-0 z-10">
           <button onClick={() => activeSection ? setActiveSection(null) : navigate("/")} className="p-1 hover:bg-surface-hover rounded-full transition-colors">
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
-          <h1 className="text-lg font-bold text-foreground">
+          <h1 className="min-w-0 truncate text-lg font-bold text-foreground">
             {activeSection ? settingSections.find(s => s.id === activeSection)?.label : t("settings")}
           </h1>
         </div>
