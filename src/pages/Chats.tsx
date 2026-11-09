@@ -22,7 +22,8 @@ import { useChatPreferences } from "@/hooks/useChatPreferences";
 import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
 import { StoryUploadDialog } from "@/components/chat/StoryUploadDialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, EyeOff, Trash2, X, ChevronUp, ChevronDown, Archive, RotateCcw, Palette, UserPlus, Settings, LogOut, Clock } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -90,7 +91,7 @@ const Chats = () => {
   const [inviteMembersOpen, setInviteMembersOpen] = useState(false);
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
   const [callHistoryOpen, setCallHistoryOpen] = useState(false);
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [moreActionsOpen, setMoreActionsOpen] = useState(false);
 
   const [chatSearchOpen, setChatSearchOpen] = useState(false);
   const [chatSearch, setChatSearch] = useState("");
@@ -620,27 +621,9 @@ const Chats = () => {
                     <DropdownMenuItem onSelect={() => setCustomizationOpen(true)}>
                       <Palette className="w-4 h-4 mr-2" /> Chat theme
                     </DropdownMenuItem>
-                    <DropdownMenuSub open={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
-                      <DropdownMenuSubTrigger onClick={() => setMoreMenuOpen(true)}>
-                        <MoreVertical className="w-4 h-4 mr-2" /> More
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent>
-                        {isGroup && (
-                          <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => void handleExitGroup()}>
-                            <LogOut className="w-4 h-4 mr-2" /> Exit group
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem onSelect={() => handleHideChat(activeConvo.id)}>
-                          <EyeOff className="w-4 h-4 mr-2" /> Hide chat
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => void handleDeleteChat("me")}>
-                          <Trash2 className="w-4 h-4 mr-2" /> Delete for me
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => void handleDeleteChat("everyone")}>
-                          <Trash2 className="w-4 h-4 mr-2" /> Delete for everyone
-                        </DropdownMenuItem>
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
+                    <DropdownMenuItem onSelect={() => setMoreActionsOpen(true)}>
+                      <MoreVertical className="w-4 h-4 mr-2" /> More
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
                 {isGroup && <>
@@ -648,6 +631,17 @@ const Chats = () => {
                   <GroupAdminDialog conversationId={activeConvo.id} open={groupSettingsOpen} onOpenChange={setGroupSettingsOpen} hideTrigger />
                 </>}
                 <ChatCustomizationDialog conversationId={activeConvo.id} open={customizationOpen} onOpenChange={setCustomizationOpen} hideTrigger />
+                <Dialog open={moreActionsOpen} onOpenChange={setMoreActionsOpen}>
+                  <DialogContent className="bg-card border-border/50 max-w-sm">
+                    <DialogHeader><DialogTitle className="text-foreground">More chat actions</DialogTitle></DialogHeader>
+                    <div className="grid gap-2 pt-2">
+                      {isGroup && <button type="button" onClick={() => { setMoreActionsOpen(false); void handleExitGroup(); }} className="flex min-h-12 items-center gap-3 rounded-xl px-3 text-left text-destructive hover:bg-destructive/10"><LogOut className="h-5 w-5" /> Exit group</button>}
+                      <button type="button" onClick={() => { setMoreActionsOpen(false); handleHideChat(activeConvo.id); }} className="flex min-h-12 items-center gap-3 rounded-xl px-3 text-left hover:bg-muted"><EyeOff className="h-5 w-5" /> Hide chat</button>
+                      <button type="button" onClick={() => { setMoreActionsOpen(false); void handleDeleteChat("me"); }} className="flex min-h-12 items-center gap-3 rounded-xl px-3 text-left hover:bg-muted"><Trash2 className="h-5 w-5" /> Delete for me</button>
+                      <button type="button" onClick={() => { setMoreActionsOpen(false); void handleDeleteChat("everyone"); }} className="flex min-h-12 items-center gap-3 rounded-xl px-3 text-left text-destructive hover:bg-destructive/10"><Trash2 className="h-5 w-5" /> Delete for everyone</button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
             </div>
 
