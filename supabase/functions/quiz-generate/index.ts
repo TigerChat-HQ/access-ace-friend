@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
     }
     let parsedJson: unknown;
     try {
-      const cleaned = rawText.trim().replace(/^```(?:json)?\\s*/i, "").replace(/\\s*```$/, "");
+      const cleaned = rawText.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
       const start = cleaned.indexOf("{");
       const end = cleaned.lastIndexOf("}");
       if (start < 0 || end <= start) throw new Error("No JSON object found");
