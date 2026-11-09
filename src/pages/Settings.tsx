@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import {
-  ArrowLeft, Camera, User, Bell, Shield, Palette, LogOut,
+  ArrowLeft, Camera, User, Bell, Shield, Palette, LogOut, MessageCircle,
   ChevronRight, Moon, Sun, Globe, Lock, Fingerprint, Mail, Volume2, Smartphone, Download, KeyRound, Copy,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -19,6 +19,7 @@ import tigerLogo from "@/assets/tigerchats-logo.png";
 import { TwoFactorSecurity } from "@/components/TwoFactorSecurity";
 import { disablePush, enablePush, isPushEnabled } from "@/lib/firebase-push";
 import { ringtoneOptions, getStoredRingtone, setStoredRingtone, playRingtone, type RingtoneId } from "@/lib/ringtones";
+import { getNotificationPreferences, saveNotificationPreferences, type NotificationPreferences } from "@/lib/notification-preferences";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -62,7 +63,7 @@ const Settings = () => {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [appInstalled, setAppInstalled] = useState(false);
   const [installPlatform, setInstallPlatform] = useState<"ios" | "other">("other");
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences>(() => getNotificationPreferences(user?.id));
   const [readReceipts, setReadReceipts] = useState(true);
   const [lastSeen, setLastSeen] = useState(true);
   const [isPrivate, setIsPrivate] = useState(false);
@@ -75,6 +76,10 @@ const Settings = () => {
   const previewStopRef = useRef<(() => void) | null>(null);
   const previewTimerRef = useRef<number | null>(null);
   const appLock = useAppLock();
+
+  const updateNotificationPreference = (patch: Partial<NotificationPreferences>) => {
+    setNotificationPrefs(saveNotificationPreferences(user?.id, patch));
+  };
 
   const previewTone = (kind: "incoming_call" | "incoming_sms") => {
     if (previewTimerRef.current !== null) window.clearTimeout(previewTimerRef.current);
@@ -319,7 +324,14 @@ const Settings = () => {
             }}><Bell className="mr-2 h-4 w-4" />{pushBusy ? "Please wait…" : notifications ? "Disable background notifications" : "Enable background notifications"}</Button>
             {pushMessage && <p role="status" className="text-sm text-muted-foreground">{pushMessage}</p>}
             {pushMessage.includes("own tab") && <Button variant="link" asChild><a href={window.location.href} target="_blank" rel="noopener noreferrer">Open in new tab</a></Button>}
-            <SettingToggle label={t("sound")} description={t("soundDesc")} value={soundEnabled} onChange={setSoundEnabled} />
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 px-3 py-1">
+              <SettingToggle label="Notifications enabled" description="Master switch for app notifications on this device" value={notificationPrefs.enabled} onChange={(v) => updateNotificationPreference({ enabled: v })} icon={<Bell className="h-5 w-5" />} />
+              <SettingToggle label="Chat notifications" description="New direct and group messages" value={notificationPrefs.chat} onChange={(v) => updateNotificationPreference({ chat: v })} icon={<Mail className="h-5 w-5" />} />
+              <SettingToggle label="Social notifications" description="Likes, comments, replies and new followers" value={notificationPrefs.social} onChange={(v) => updateNotificationPreference({ social: v })} icon={<User className="h-5 w-5" />} />
+              <SettingToggle label="Floating chat bubble" description="Show a tappable message bubble while TIGERCHATS is open" value={notificationPrefs.floatingBubble} onChange={(v) => updateNotificationPreference({ floatingBubble: v })} icon={<MessageCircle className="h-5 w-5" />} />
+              <SettingToggle label="Notification sound" description="Play the selected incoming message ringtone" value={notificationPrefs.sound} onChange={(v) => updateNotificationPreference({ sound: v })} icon={<Volume2 className="h-5 w-5" />} />
+              <SettingToggle label="Vibration" description="Short vibration for incoming foreground notifications when supported" value={notificationPrefs.vibration} onChange={(v) => updateNotificationPreference({ vibration: v })} icon={<Smartphone className="h-5 w-5" />} />
+            </div>
             <div className="space-y-2">
               <label htmlFor="incoming-call-tone" className="text-sm font-medium text-foreground">Incoming call ringtone</label>
               <div className="flex items-center gap-2">
