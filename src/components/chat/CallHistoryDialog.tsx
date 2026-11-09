@@ -47,7 +47,8 @@ export const CallHistoryDialog = ({ onClose, onOpenConversation }: Props) => {
         const offer = signals.find(s => s.signal_type === "offer");
         if (!offer) continue;
         const end = signals.find(s => ["hangup", "reject"].includes(s.signal_type) || s.status === "ended");
-        const answered = signals.some(s => s.signal_type === "answer");
+        const answer = signals.find(s => s.signal_type === "answer");
+        const answered = Boolean(answer);
         const outgoing = offer.caller_id === user.id;
         history.push({
           callId, conversationId: offer.conversation_id,
@@ -55,7 +56,7 @@ export const CallHistoryDialog = ({ onClose, onOpenConversation }: Props) => {
           callType: offer.call_type === "video" ? "video" : "voice",
           direction: outgoing ? "outgoing" : "incoming",
           missed: !answered && (!outgoing || !!end),
-          startedAt: offer.created_at, endedAt: end?.created_at || null,
+          startedAt: answer?.created_at || offer.created_at, endedAt: end?.created_at || null,
         });
       }
       history.sort((a,b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
