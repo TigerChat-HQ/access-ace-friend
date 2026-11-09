@@ -320,13 +320,23 @@ const Draughts = () => {
                 </div>
               </button>
               <button
+                onClick={() => nav("/tanzanian-draft-game")}
+                className="w-full p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/40 flex items-center gap-3 hover:bg-emerald-500/15 transition-colors"
+              >
+                <Bot className="w-7 h-7 text-emerald-500" />
+                <div className="text-left">
+                  <p className="font-bold text-foreground">Play Offline vs Tiger AI</p>
+                  <p className="text-xs text-muted-foreground">Local AI · No internet needed after first load</p>
+                </div>
+              </button>
+              <button
                 onClick={() => setMode("pvp")}
                 className="w-full p-4 rounded-xl bg-card border border-border/50 flex items-center gap-3 hover:bg-surface-hover transition-colors"
               >
                 <Users className="w-7 h-7 text-primary" />
                 <div className="text-left">
-                  <p className="font-bold text-foreground">Play vs Player</p>
-                  <p className="text-xs text-muted-foreground">Realtime online matches</p>
+                  <p className="font-bold text-foreground">Play Online vs Player</p>
+                  <p className="text-xs text-muted-foreground">Requires internet · Realtime matches</p>
                 </div>
               </button>
             </>
