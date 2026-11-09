@@ -112,7 +112,7 @@ export const useChatMessageFeatures = (conversationId: string | null, userId?: s
 
   const togglePin = useCallback(async (messageId: string) => {
     if (!conversationId || !userId) return { error: new Error("Sign in to pin messages") };
-    const client = supabase as any;
+    const client = supabase as unknown as ChatFeaturesClient;
     const { data: existing, error: lookupError } = await client.from("pinned_messages")
       .select("id").eq("conversation_id", conversationId).eq("message_id", messageId).maybeSingle();
     if (lookupError) return { error: lookupError };
