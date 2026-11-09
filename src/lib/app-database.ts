@@ -12,6 +12,20 @@ type Table<Row, Required extends keyof Row, Relationships extends unknown[] = []
 };
 
 type MigrationTables = {
+  tiger_ai_daily_posts: Table<{
+    id: string; date_key: string; title: string; content: Json;
+    source_urls: string[]; created_at: string;
+  }, "date_key" | "title" | "content">;
+  tiger_ai_daily_comments: Table<{
+    id: string; post_id: string; parent_id: string | null; user_id: string | null;
+    body: string; is_tiger_ai: boolean; ai_liked: boolean; created_at: string;
+  }, "post_id" | "body">;
+  tiger_ai_daily_post_likes: Table<{
+    post_id: string; user_id: string; created_at: string;
+  }, "post_id" | "user_id">;
+  tiger_ai_daily_comment_likes: Table<{
+    comment_id: string; user_id: string; created_at: string;
+  }, "comment_id" | "user_id">;
   story_comments: Table<{
     id: string; story_id: string; user_id: string; content: string; created_at: string;
   }, "story_id" | "user_id" | "content">;
@@ -48,6 +62,14 @@ type AppDatabase = Omit<Database, "public"> & {
   public: Omit<Database["public"], "Tables" | "Functions"> & {
     Tables: Omit<Database["public"]["Tables"], keyof MigrationTables> & MigrationTables;
     Functions: Database["public"]["Functions"] & {
+      offer_draft_draw: {
+        Args: { p_id: string };
+        Returns: Database["public"]["Tables"]["draft_matches"]["Row"] & { draw_offer_by: string | null };
+      };
+      accept_draft_draw: {
+        Args: { p_id: string };
+        Returns: Database["public"]["Tables"]["draft_matches"]["Row"] & { draw_offer_by: string | null };
+      };
       close_draughts_season: {
         Args: { p_season_id?: string | null };
         Returns: Json;

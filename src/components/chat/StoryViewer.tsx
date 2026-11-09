@@ -273,7 +273,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId, onS
   };
 
   const deleteStory = async () => {
-    if (!story || !isOwner) return;
+    if (!story || !isOwner || !currentUserId) return;
     if (!window.confirm("Delete this status?")) return;
     const { error } = await supabase.from("stories").delete().eq("id", story.id).eq("user_id", currentUserId);
     if (error) {
