@@ -22,7 +22,7 @@ import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
 import { StoryUploadDialog } from "@/components/chat/StoryUploadDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, EyeOff, Trash2, X, ChevronUp, ChevronDown, Archive, RotateCcw, Palette, UserPlus, Settings, LogOut, Clock, Star } from "lucide-react";
+import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, EyeOff, Trash2, X, ChevronUp, ChevronDown, Archive, RotateCcw, Palette, UserPlus, Settings, LogOut, Clock } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
