@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { FeedPost, toggleLike, deletePost } from "@/hooks/usePosts";
 import { CommentsSheet } from "./CommentsSheet";
 import { ReportDialog } from "./ReportDialog";
+import { ReelAnalyticsVideo } from "./ReelAnalyticsVideo";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,9 +19,16 @@ import { useBlocks } from "@/hooks/useBlocks";
 interface Props {
   post: FeedPost;
   onChanged?: () => void;
+  isReel?: boolean;
 }
 
-export const PostCard = ({ post, onChanged }: Props) => {
+type ReelCaption = { start: number; end: number; text: string };
+type ReelPost = FeedPost & {
+  reel_cover_url?: string | null;
+  reel_captions?: ReelCaption[] | null;
+};
+
+export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
   const { block } = useBlocks();
@@ -72,9 +80,10 @@ export const PostCard = ({ post, onChanged }: Props) => {
   const initials = (post.profile?.display_name || post.profile?.username || "U").slice(0, 2).toUpperCase();
   const isOwner = user?.id === post.user_id;
   const canDelete = isOwner || isAdmin;
+  const reelPost = post as ReelPost;
 
   return (
-    <article className="bg-card border-b border-border/50">
+    <article className={isReel ? "relative overflow-hidden rounded-2xl bg-card shadow-xl" : "bg-card border-b border-border/50"}>
       <header className="flex items-center justify-between px-4 py-3">
         <Link to={`/u/${post.user_id}`} className="flex items-center gap-3">
           {post.profile?.avatar_url ? (
@@ -85,9 +94,7 @@ export const PostCard = ({ post, onChanged }: Props) => {
             </div>
           )}
           <div>
-            <p className="text-sm font-semibold text-foreground leading-tight">
-              {post.profile?.display_name || "User"}
-            </p>
+            <p className="text-sm font-semibold text-foreground leading-tight">{post.profile?.display_name || "User"}</p>
             <p className="text-[11px] text-muted-foreground">@{post.profile?.username || "user"}</p>
           </div>
         </Link>
@@ -96,19 +103,11 @@ export const PostCard = ({ post, onChanged }: Props) => {
             <MoreVertical className="w-4 h-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {canDelete && (
-              <DropdownMenuItem onClick={handleDelete} className="text-destructive">
-                <Trash2 className="w-4 h-4 mr-2" /> Delete
-              </DropdownMenuItem>
-            )}
+            {canDelete && <DropdownMenuItem onClick={handleDelete} className="text-destructive"><Trash2 className="w-4 h-4 mr-2" /> Delete</DropdownMenuItem>}
             {!isOwner && (
               <>
-                <DropdownMenuItem onClick={() => setReportOpen(true)}>
-                  <Flag className="w-4 h-4 mr-2" /> Report post
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleBlock}>
-                  <UserX className="w-4 h-4 mr-2" /> Block user
-                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setReportOpen(true)}><Flag className="w-4 h-4 mr-2" /> Report post</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleBlock}><UserX className="w-4 h-4 mr-2" /> Block user</DropdownMenuItem>
               </>
             )}
           </DropdownMenuContent>
@@ -119,7 +118,19 @@ export const PostCard = ({ post, onChanged }: Props) => {
         <img src={post.media_url} alt="" className="w-full max-h-[600px] object-cover bg-muted" loading="lazy" />
       )}
       {post.media_url && post.media_type === "video" && (
-        <video src={post.media_url} controls className="w-full max-h-[600px] bg-black" />
+        isReel && user ? (
+          <ReelAnalyticsVideo
+            postId={post.id}
+            creatorId={post.user_id}
+            viewerId={user.id}
+            src={post.media_url}
+            coverUrl={reelPost.reel_cover_url}
+            captions={reelPost.reel_captions}
+            className="relative w-full bg-black"
+          />
+        ) : (
+          <video src={post.media_url} poster={reelPost.reel_cover_url || undefined} controls playsInline className="w-full max-h-[600px] bg-black" />
+        )
       )}
 
       <div className="flex items-center gap-4 px-4 py-2.5">
@@ -131,36 +142,23 @@ export const PostCard = ({ post, onChanged }: Props) => {
           <MessageCircle className="w-6 h-6" />
           <span className="text-sm font-medium">{post.comment_count}</span>
         </button>
-        <button onClick={handleShare} className="text-foreground hover:text-primary transition-colors ml-auto">
-          <Share2 className="w-5 h-5" />
-        </button>
+        <button onClick={handleShare} className="text-foreground hover:text-primary transition-colors ml-auto"><Share2 className="w-5 h-5" /></button>
       </div>
 
       {post.caption && (
         <p className="px-4 pb-2 text-sm text-foreground whitespace-pre-wrap">
-          <span className="font-semibold mr-1.5">{post.profile?.username || "user"}</span>
-          {post.caption}
+          <span className="font-semibold mr-1.5">{post.profile?.username || "user"}</span>{post.caption}
         </p>
       )}
       {post.hashtags && post.hashtags.length > 0 && (
         <div className="px-4 pb-3 flex flex-wrap gap-1.5">
-          {post.hashtags.map((t) => (
-            <Link key={t} to={`/search?q=%23${t}`} className="text-xs text-primary hover:underline">
-              #{t}
-            </Link>
-          ))}
+          {post.hashtags.map((t) => <Link key={t} to={`/search?q=%23${t}`} className="text-xs text-primary hover:underline">#{t}</Link>)}
         </div>
       )}
-      <p className="px-4 pb-3 text-[10px] text-muted-foreground uppercase tracking-wide">
-        {new Date(post.created_at).toLocaleDateString()}
-      </p>
+      <p className="px-4 pb-3 text-[10px] text-muted-foreground uppercase tracking-wide">{new Date(post.created_at).toLocaleDateString()}</p>
 
-      {commentsOpen && (
-        <CommentsSheet postId={post.id} open={commentsOpen} onOpenChange={setCommentsOpen} onChange={onChanged} />
-      )}
-      {reportOpen && (
-        <ReportDialog open={reportOpen} onOpenChange={setReportOpen} targetType="post" targetId={post.id} />
-      )}
+      {commentsOpen && <CommentsSheet postId={post.id} open={commentsOpen} onOpenChange={setCommentsOpen} onChange={onChanged} />}
+      {reportOpen && <ReportDialog open={reportOpen} onOpenChange={setReportOpen} targetType="post" targetId={post.id} />}
     </article>
   );
 };
