@@ -138,14 +138,22 @@ const Draughts = () => {
 
   const isMyTurn = match && myColor && match.current_turn === myColor && match.status === "active";
 
-  // Enable the branded bottle-cap board only when the opponent is an admin.
+  // Enable branded bottle-cap pieces for admin accounts: versus AI or another admin.
   useEffect(() => {
     let alive = true;
     setIsAdminOpponent(false);
-    if (!match || match.vs_ai || !user || !match.player_black) return;
-    const opponentId = match.player_white === user.id ? match.player_black : match.player_white;
-    if (!opponentId || opponentId === user.id) return;
-    supabase.from("user_roles").select("role").eq("user_id", opponentId)
+    if (!match || !user) return;
+
+    // In AI matches, verify the signed-in player is an admin.
+    // In online matches, preserve the rule that the human opponent must be an admin.
+    const roleUserId = match.vs_ai
+      ? user.id
+      : match.player_black
+        ? (match.player_white === user.id ? match.player_black : match.player_white)
+        : null;
+    if (!roleUserId) return;
+
+    supabase.from("user_roles").select("role").eq("user_id", roleUserId)
       .then(({ data, error }) => {
         if (!alive || error) return;
         setIsAdminOpponent((data ?? []).some((row) => row.role === "admin" || row.role === "superior_admin"));
