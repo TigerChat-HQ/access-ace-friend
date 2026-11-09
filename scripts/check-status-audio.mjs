@@ -17,8 +17,8 @@ if (tracks.length !== 20 || new Set(tracks.map((track) => track.url)).size !== 2
 async function checkTrack(track) {
   try {
     const { stdout } = await execFileAsync("curl", [
-      "--location", "--silent", "--show-error", "--fail", "--max-time", "20",
-      "--range", "0-0", "--output", "/dev/null", "--write-out", "%{http_code}", track.url,
+      "--head", "--location", "--silent", "--show-error", "--fail", "--max-time", "15",
+      "--output", "/dev/null", "--write-out", "%{http_code}", track.url,
     ]);
     const status = Number(stdout.trim());
     if (status < 200 || status >= 300) throw new Error("HTTP " + status);
