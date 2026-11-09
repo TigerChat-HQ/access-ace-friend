@@ -29,9 +29,10 @@ begin
      or p_caller_id is null
      or p_callee_id is null
      or p_caller_id = p_callee_id
-     or p_call_type not in ('voice', 'video')
-     or p_status not in ('pending', 'active', 'ended')
-     or pg_catalog.jsonb_typeof(p_signal_data) <> 'object'
+     or p_call_type is null or p_call_type not in ('voice', 'video')
+     or p_status is null or p_status not in ('pending', 'active', 'ended')
+     or p_signal_data is null
+     or pg_catalog.jsonb_typeof(p_signal_data) is distinct from 'object'
   then
     return false;
   end if;
@@ -41,6 +42,7 @@ begin
   renegotiate := p_signal_data ->> 'renegotiate';
 
   if signal_from is distinct from actor_id::text
+     or signal_call_id is null
      or signal_call_id !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
   then
     return false;
@@ -60,11 +62,13 @@ begin
 
   if p_signal_type = 'offer' then
     return actor_id = p_caller_id
+      and p_signal_data ? 'sdp'
+      and p_signal_data ->> 'type' = 'offer'
       and ((p_status = 'pending' and coalesce(renegotiate, 'false') <> 'true')
         or (p_status = 'active' and renegotiate = 'true'));
   elsif p_signal_type = 'answer' then
     return actor_id = p_callee_id and p_status = 'active'
-      and p_signal_data ? 'sdp' and p_signal_data ? 'type';
+      and p_signal_data ? 'sdp' and p_signal_data ->> 'type' = 'answer';
   elsif p_signal_type = 'reject' then
     return actor_id = p_callee_id and p_status = 'ended';
   elsif p_signal_type = 'ice-candidate' then
