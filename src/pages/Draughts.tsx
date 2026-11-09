@@ -29,6 +29,7 @@ const Draughts = () => {
   const { theme, setTheme, pieceStyle, setPieceStyle, scale, setScale, depth, setDepth, boardStyle, boardSizeStyle, board3dStyle } = useDraughtsAppearance();
   const [mode, setMode] = useState<Mode>("menu");
   const [match, setMatch] = useState<MatchRow | null>(null);
+  const [isAdminOpponent, setIsAdminOpponent] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
   const [aiThinking, setAiThinking] = useState(false);
   const [openMatches, setOpenMatches] = useState<MatchRow[]>([]);
@@ -136,6 +137,21 @@ const Draughts = () => {
   }, [match, user]);
 
   const isMyTurn = match && myColor && match.current_turn === myColor && match.status === "active";
+
+  // Enable the branded bottle-cap board only when the opponent is an admin.
+  useEffect(() => {
+    let alive = true;
+    setIsAdminOpponent(false);
+    if (!match || match.vs_ai || !user || !match.player_black) return;
+    const opponentId = match.player_white === user.id ? match.player_black : match.player_white;
+    if (!opponentId || opponentId === user.id) return;
+    supabase.from("user_roles").select("role").eq("user_id", opponentId)
+      .then(({ data, error }) => {
+        if (!alive || error) return;
+        setIsAdminOpponent((data ?? []).some((row) => row.role === "admin" || row.role === "superior_admin"));
+      });
+    return () => { alive = false; };
+  }, [match?.id, match?.player_white, match?.player_black, match?.vs_ai, user?.id]);
 
   // AI move trigger
   useEffect(() => {
@@ -513,9 +529,24 @@ const Draughts = () => {
                 >
                   {dest && <span className={`absolute z-0 rounded-full bg-primary/70 shadow-[0_0_12px_hsl(var(--primary)/0.8)] animate-pulse ${piece ? "inset-0 opacity-35 rounded-none" : "w-3 h-3 sm:w-4 sm:h-4"}`} />}
                   {piece && (
-                    <div className={`relative z-[1] w-[78%] aspect-square rounded-full flex items-center justify-center transition-transform duration-150 ${sel ? "scale-110 -translate-y-1" : ""} ${piece.c === "w" ? "draught-piece-online-white" : "draught-piece-online-black"}`}>
-                      <span className="absolute left-[18%] top-[12%] w-[30%] h-[15%] rounded-full bg-white/55 blur-[2px]" />
-                      {piece.k && <span className="relative flex items-center justify-center w-[68%] h-[68%] rounded-full border border-amber-400/80 bg-gradient-to-br from-amber-100 via-yellow-500 to-amber-800 shadow-[inset_0_1px_3px_rgba(255,255,255,0.8),0_2px_4px_rgba(0,0,0,0.5)]"><Crown className="w-[72%] h-[72%] text-amber-950 drop-shadow-sm" /></span>}
+                    <div className={`relative z-[1] w-[82%] aspect-square rounded-full flex items-center justify-center overflow-hidden transition-transform duration-150 ${sel ? "scale-110 -translate-y-1" : ""} ${isAdminOpponent ? (piece.c === "w" ? "border-[3px] border-red-200 bg-[radial-gradient(circle_at_30%_20%,#ff8b8b_0%,#ed1c24_38%,#a40009_76%,#4a0004_100%)] shadow-[inset_0_3px_5px_rgba(255,255,255,.55),inset_0_-5px_7px_rgba(0,0,0,.55),0_5px_0_#650008,0_8px_10px_rgba(0,0,0,.55)]" : "border-[3px] border-sky-200 bg-[radial-gradient(circle_at_30%_20%,#8bd8ff_0%,#0878c9_38%,#06447e_76%,#031c3c_100%)] shadow-[inset_0_3px_5px_rgba(255,255,255,.55),inset_0_-5px_7px_rgba(0,0,0,.55),0_5px_0_#032d55,0_8px_10px_rgba(0,0,0,.55)]") : (piece.c === "w" ? "draught-piece-online-white" : "draught-piece-online-black")}`}>
+                      {isAdminOpponent ? (
+                        <>
+                          <span className="absolute inset-[7%] rounded-full border-2 border-white/30 shadow-[inset_0_1px_3px_rgba(255,255,255,.55),0_1px_2px_rgba(0,0,0,.35)]" />
+                          <span className="absolute inset-x-[12%] top-[12%] h-[13%] rounded-full bg-white/45 blur-[2px]" />
+                          {piece.c === "w" ? (
+                            <span className="relative z-[1] -rotate-6 text-center font-serif text-[clamp(5px,1.15vw,9px)] font-black italic leading-none tracking-[-.06em] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,.8)]">Coca-Cola</span>
+                          ) : (
+                            <span className="relative z-[1] flex items-center gap-[2px] rounded-full bg-white/95 px-[3px] py-[2px] shadow-md">
+                              <span className="h-[clamp(6px,1.35vw,11px)] w-[clamp(6px,1.35vw,11px)] rounded-full border border-white bg-[linear-gradient(155deg,#e21b2d_0_43%,#fff_44%_56%,#0878c9_57%_100%)] shadow-sm" />
+                              <span className="text-[clamp(4px,.85vw,7px)] font-black leading-none tracking-tight text-[#06447e]">PEPSI</span>
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="absolute left-[18%] top-[12%] w-[30%] h-[15%] rounded-full bg-white/55 blur-[2px]" />
+                      )}
+                      {piece.k && <span className="absolute inset-0 z-[2] flex items-center justify-center bg-black/10"><span className="flex h-[58%] w-[58%] items-center justify-center rounded-full border border-amber-300/90 bg-gradient-to-br from-amber-100 via-yellow-500 to-amber-900 shadow-[inset_0_1px_3px_rgba(255,255,255,.8),0_2px_4px_rgba(0,0,0,.65)]"><Crown className="h-[72%] w-[72%] text-amber-950 drop-shadow-sm" /></span></span>}
                     </div>
                   )}
                 </button>
