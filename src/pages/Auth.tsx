@@ -117,7 +117,7 @@ const Auth = () => {
             <Button type="button" onClick={() => void resendConfirmation()} disabled={resending} className="w-full">
               {resending ? "Inatuma..." : "Tuma uthibitisho tena"}
             </Button>
-            <Button type="button" variant="outline" onClick={() => setSignupPending(false)} className="w-full">
+            <Button type="button" variant="outline" onClick={() => { setSignupPending(false); setIsLogin(true); }} className="w-full">
               Rudi kuingia
             </Button>
           </div>
