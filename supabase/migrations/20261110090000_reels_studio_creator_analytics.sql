@@ -43,7 +43,8 @@ CREATE POLICY "Creators manage their own reel drafts"
   FOR ALL TO authenticated
   USING ((select auth.uid()) = user_id)
   WITH CHECK ((select auth.uid()) = user_id);
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.reel_drafts TO authenticated;
+REVOKE ALL ON TABLE public.reel_drafts FROM anon, authenticated, PUBLIC;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.reel_drafts TO authenticated;
 
 CREATE TABLE IF NOT EXISTS public.post_analytics_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -88,8 +89,8 @@ CREATE POLICY "Viewers record analytics for posts they can see"
     )
   );
 
+REVOKE ALL ON TABLE public.post_analytics_events FROM anon, authenticated, PUBLIC;
 GRANT SELECT, INSERT ON public.post_analytics_events TO authenticated;
-REVOKE UPDATE, DELETE ON public.post_analytics_events FROM authenticated;
 
 
 -- Draft media must never be served from the public post-media bucket.
