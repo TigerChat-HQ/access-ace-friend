@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useConversations, useMessages } from "@/hooks/useChat";
+import { useChatMessageFeatures } from "@/hooks/useChatMessageFeatures";
 import { useTypingIndicator } from "@/hooks/useTypingIndicator";
 import { useNotifications } from "@/hooks/useNotifications";
 import { StoriesBar } from "@/components/chat/StoriesBar";
@@ -32,6 +33,7 @@ import { dispatchPush } from "@/lib/dispatch-push";
 import { enqueueMessage, getQueuedMessages, removeQueuedMessage, subscribeOutbox, processOutbox, QueuedMessage } from "@/lib/offline-outbox";
 import { useChatTranslation } from "@/hooks/useChatTranslation";
 import { ChatTranslationControls } from "@/components/chat/ChatTranslationControls";
+import { ChatPolls } from "@/components/chat/ChatPolls";
 import { playChatEmojiSound, CHAT_EMOJI_SOUND_KEY } from "@/lib/chat-emoji";
 
 type Story = Tables<"stories"> & { profile?: Tables<"profiles"> };
@@ -79,6 +81,7 @@ const Chats = () => {
   const [storyViewerIndex, setStoryViewerIndex] = useState<number | null>(null);
   const webrtc = useCall();
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [forwardMsg, setForwardMsg] = useState<{ content: string; type: string; mediaUrl?: string } | null>(null);
   const [hiddenChats, setHiddenChats] = useState<Record<string, number>>(() => readHiddenChatMap());
   const [showArchivedChats, setShowArchivedChats] = useState(false);
@@ -111,6 +114,7 @@ const Chats = () => {
 
   const { conversations, loading: convosLoading, refetch: refetchConversations } = useConversations();
   const { messages, deleteMessage } = useMessages(activeChat);
+  const { reactions, pinnedMessages, toggleReaction, togglePin, editMessage } = useChatMessageFeatures(activeChat, user?.id);
   const { typingUsers, notifyTyping } = useTypingIndicator(activeChat);
   useReadReceipts(activeChat, !!activeChat);
   useScreenshotProtection(!!activeChat);
@@ -181,6 +185,13 @@ const Chats = () => {
 
   const handleSend = async (text: string) => {
     if (!activeChat || !user || !text.trim()) return;
+    if (editingMessage) {
+      const { error } = await editMessage(editingMessage.id, text.trim());
+      if (error) toast({ title: "Edit failed", description: error.message, variant: "destructive" });
+      else toast({ title: "Message updated" });
+      setEditingMessage(null);
+      return;
+    }
     const replyId = replyTo?.id;
     setReplyTo(null);
 
@@ -658,6 +669,8 @@ const Chats = () => {
             </div>
 
             <ChatTranslationControls language={translation.language} onChange={translation.setLanguage} loading={translation.loading} error={translation.error} onRetry={translation.retry} />
+            {activeChat && user && <ChatPolls conversationId={activeChat} userId={user.id} />}
+            {pinnedMessages.length > 0 && <div className="flex items-center gap-2 overflow-x-auto border-b border-border/40 bg-primary/5 px-3 py-2">{pinnedMessages.slice(0, 3).map((item) => <button key={item.id} type="button" onClick={() => document.querySelector(`[data-msg-id="${item.message_id}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" })} className="flex min-w-0 max-w-[220px] items-center gap-1.5 rounded-full border border-primary/20 bg-background/70 px-3 py-1.5 text-left text-[11px] hover:bg-primary/10"><span className="shrink-0">📌</span><span className="truncate">{item.content || (item.message_type === "image" ? "Photo" : "Pinned message")}</span></button>)}</div>}
 
             {chatSearchOpen && (
               <div className="flex items-center gap-2 px-4 py-2 border-b border-border/50 bg-card/80">
@@ -677,7 +690,7 @@ const Chats = () => {
                 const isActive = ui.id === activeMatchId;
                 return (
                   <div key={ui.id} data-msg-id={ui.id} className={isActive ? "rounded-lg ring-2 ring-primary ring-offset-2 ring-offset-background transition-all" : isMatch ? "rounded-lg ring-1 ring-primary/40 transition-all" : ""}>
-                    <MessageBubble message={ui} translatedText={translation.translations[ui.id]} replyMessage={replyToId ? messageMap.get(replyToId) || null : null} onReply={(msg) => setReplyTo(msg)} onForward={(msg) => setForwardMsg({ content: msg.text, type: msg.type, mediaUrl: msg.mediaUrl })} onDelete={handleDeleteMessage} onStatusClick={(storyId) => { const index = storyViewerData.findIndex(item => item.id === storyId); if (index >= 0) setStoryViewerIndex(index); else toast({ title: "Status haipatikani", description: "Huenda muda wake wa saa 24 umeisha." }); }} myBubbleClass={bubbleColorClass(chatPrefs.bubble_color)} />
+                    <MessageBubble message={ui} translatedText={translation.translations[ui.id]} replyMessage={replyToId ? messageMap.get(replyToId) || null : null} onReply={(msg) => setReplyTo(msg)} onForward={(msg) => setForwardMsg({ content: msg.text, type: msg.type, mediaUrl: msg.mediaUrl })} onDelete={handleDeleteMessage} onStatusClick={(storyId) => { const index = storyViewerData.findIndex(item => item.id === storyId); if (index >= 0) setStoryViewerIndex(index); else toast({ title: "Status haipatikani", description: "Huenda muda wake wa saa 24 umeisha." }); }} reactions={reactions[ui.id] || []} isPinned={pinnedMessages.some((item) => item.message_id === ui.id)} onReact={async (emoji) => { const result = await toggleReaction(ui.id, emoji); if (result.error) toast({ title: "Reaction failed", description: result.error.message, variant: "destructive" }); }} onTogglePin={async () => { const result = await togglePin(ui.id); if (result.error) toast({ title: "Pin update failed", description: result.error.message, variant: "destructive" }); }} onEdit={() => setEditingMessage(ui)} isEdited={Boolean((messages.find((item) => item.id === ui.id) as (typeof messages[number] & { is_edited?: boolean }) | undefined)?.is_edited)} myBubbleClass={bubbleColorClass(chatPrefs.bubble_color)} />
                   </div>
                 );
               })}
@@ -701,7 +714,7 @@ const Chats = () => {
                 </button>
               </div>
             )}
-            <MessageInput onSend={handleSend} onSendVoice={handleSendVoice} onSendFile={handleSendFile} onTyping={notifyTyping} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} />
+            <MessageInput onSend={handleSend} onSendVoice={handleSendVoice} onSendFile={handleSendFile} onTyping={notifyTyping} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} editingMessage={editingMessage} onCancelEdit={() => setEditingMessage(null)} />
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-8">
