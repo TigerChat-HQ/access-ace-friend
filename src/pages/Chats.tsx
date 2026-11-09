@@ -535,7 +535,13 @@ const Chats = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto px-4 pb-2 pt-1 scrollbar-thin" role="group" aria-label="Filter chats">\n          {([{ id: "all", label: "All" }, { id: "unread", label: "Unread" }, { id: "groups", label: "Groups" }, { id: "favorites", label: "Favorites" }] as const).map((filter) => (\n            <button key={filter.id} type="button" onClick={() => { setChatFilter(filter.id); setShowArchivedChats(false); }} aria-pressed={chatFilter === filter.id} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${chatFilter === filter.id ? "bg-primary text-primary-foreground shadow-sm" : "bg-surface text-muted-foreground hover:text-foreground hover:bg-surface-hover"}`}>{filter.label}{filter.id === "unread" && conversations.some((item) => item.unreadCount > 0) ? <span className="ml-1.5 opacity-80">•</span> : null}</button>\n          ))}\n        </div>\n\n        <StoriesBar stories={storyBarData} onStoryClick={(index) => setStoryViewerIndex(index)} onAddStory={() => {}} />
+        <div className="flex items-center gap-2 overflow-x-auto px-4 pb-2 pt-1 scrollbar-thin" role="group" aria-label="Filter chats">
+          {([{ id: "all", label: "All" }, { id: "unread", label: "Unread" }, { id: "groups", label: "Groups" }, { id: "favorites", label: "Favorites" }] as const).map((filter) => (
+            <button key={filter.id} type="button" onClick={() => { setChatFilter(filter.id); setShowArchivedChats(false); }} aria-pressed={chatFilter === filter.id} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${chatFilter === filter.id ? "bg-primary text-primary-foreground shadow-sm" : "bg-surface text-muted-foreground hover:text-foreground hover:bg-surface-hover"}`}>{filter.label}{filter.id === "unread" && conversations.some((item) => item.unreadCount > 0) ? <span className="ml-1.5 opacity-80">•</span> : null}</button>
+          ))}
+        </div>
+
+        <StoriesBar stories={storyBarData} onStoryClick={(index) => setStoryViewerIndex(index)} onAddStory={() => {}} />
 
         <div className="flex-1 overflow-y-auto scrollbar-thin">
           {convosLoading ? (
