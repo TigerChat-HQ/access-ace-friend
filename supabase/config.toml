@@ -1,1 +1,4 @@
 project_id = "dngilyoyhmgazhuuaxfh"
+
+[functions.turn-credentials]
+verify_jwt = true
