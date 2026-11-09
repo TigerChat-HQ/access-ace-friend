@@ -1,4 +1,4 @@
-// 20 free-to-use Mixkit preview tracks. Tracks remain hosted by Mixkit under its Stock Music Free License.
+// FreePD music tracks are released under CC0 / public-domain terms.
 export interface FreeTrack {
   id: string;
   title: string;
@@ -6,38 +6,36 @@ export interface FreeTrack {
   url: string;
   duration: number;
   mood: "Happy" | "Sad" | "Love" | "Motivation";
-  kind: "Instrumental" | "Choir / vocal";
-  source: "Mixkit";
+  kind: "Instrumental" | "Whistling / voice";
+  source: "FreePD CC0";
 }
-
-const mixkit = (file: string) => "https://assets.mixkit.co/music/preview/" + file;
 
 export const FREE_TRACKS: FreeTrack[] = [
   // Happy — 5
-  { id: "happy-1", title: "Feeling Happy", artist: "Ahjay Stelino", duration: 148, mood: "Happy", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-feeling-happy-5.mp3") },
-  { id: "happy-2", title: "Happy Home", artist: "Michael Ramir C.", duration: 110, mood: "Happy", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-happy-home-801.mp3") },
-  { id: "happy-3", title: "A Very Happy Christmas", artist: "Michael Ramir C.", duration: 130, mood: "Happy", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-a-very-happy-christmas-897.mp3") },
-  { id: "happy-4", title: "Raising Me Higher", artist: "Ahjay Stelino", duration: 98, mood: "Happy", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-raising-me-higher-34.mp3") },
-  { id: "happy-5", title: "Dance with Me", artist: "Ahjay Stelino", duration: 142, mood: "Happy", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-dance-with-me-3.mp3") },
+  { id: "happy-1", title: "City Sunshine", artist: "FreePD", duration: 180, mood: "Happy", kind: "Instrumental", source: "FreePD CC0", url: "https://en.freepd.cn/api/music/5570626561742f436974792053756e7368696e652e6d7033" },
+  { id: "happy-2", title: "Funshine", artist: "FreePD", duration: 180, mood: "Happy", kind: "Instrumental", source: "FreePD CC0", url: "https://en.freepd.cn/api/music/5570626561742f46756e7368696e652e6d7033" },
+  { id: "happy-3", title: "Happy Whistling Ukulele", artist: "FreePD", duration: 180, mood: "Happy", kind: "Whistling / voice", source: "FreePD CC0", url: "https://en.freepd.cn/api/music/5570626561742f48617070792057686973746c696e6720556b756c656c652e6d7033" },
+  { id: "happy-4", title: "Motions", artist: "FreePD", duration: 180, mood: "Happy", kind: "Instrumental", source: "FreePD CC0", url: "https://en.freepd.cn/api/music/5570626561742f4d6f74696f6e732e6d7033" },
+  { id: "happy-5", title: "Inspiration", artist: "FreePD", duration: 180, mood: "Happy", kind: "Instrumental", source: "FreePD CC0", url: "https://en.freepd.cn/api/music/5570626561742f496e737069726174696f6e2e6d7033" },
 
   // Sad — 5
-  { id: "sad-1", title: "Silent Descent", artist: "Eugenio Mininni", duration: 160, mood: "Sad", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-silent-descent-614.mp3") },
-  { id: "sad-2", title: "Sun and His Daughter", artist: "Eugenio Mininni", duration: 168, mood: "Sad", kind: "Choir / vocal", source: "Mixkit", url: mixkit("mixkit-sun-and-his-daughter-580.mp3") },
-  { id: "sad-3", title: "Sleepy Cat", artist: "Alejandro Magaña", duration: 119, mood: "Sad", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-sleepy-cat-135.mp3") },
-  { id: "sad-4", title: "Life is a Dream", artist: "Mixkit", duration: 99, mood: "Sad", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-life-is-a-dream-837.mp3") },
-  { id: "sad-5", title: "Valley Sunset", artist: "Alejandro Magaña", duration: 134, mood: "Sad", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-valley-sunset-127.mp3") },
+  { id: "sad-1", title: "2017 12 01 in C Major", artist: "FreePD", duration: 180, mood: "Sad", kind: "Instrumental", source: "FreePD CC0", url: "https://en.freepd.cn/api/music/5a6f6e65642f3230313720313220303120696e2043204d616a6f722e6d7033" },
+  { id: "sad-2", title: "2017 12 02 in D Minor", artist: "FreePD", duration: 180, mood: "Sad", kind: "Instrumental", source: "FreePD CC0", url: "https://en.freepd.cn/api/music/5a6f6e65642f3230313720313220303220696e2044204d696e6f722e6d7033" },
+  { id: "sad-3", title: "2017 12 04 in A Minor", artist: "FreePD", duration: 180, mood: "Sad", kind: "Instrumental", source: "FreePD CC0", url: "https://en.freepd.cn/api/music/5a6f6e65642f3230313720313220303420696e2041204d696e6f722e6d7033" },
+  { id: "sad-4", title: "2017 12 05 in Ab Major", artist: "FreePD", duration: 180, mood: "Sad", kind: "Instrumental", source: "FreePD CC0", url: "https://en.freepd.cn/api/music/5a6f6e65642f3230313720313220303520696e204162204d616a6f722e6d7033" },
+  { id: "sad-5", title: "A Turn for the Worse", artist: "FreePD", duration: 180, mood: "Sad", kind: "Instrumental", source: "FreePD CC0", url: "https://en.freepd.cn/api/music/5a6f6e65642f41205475726e20666f722074686520576f7273652e6d7033" },
 
   // Love / Romantic — 5
-  { id: "love-1", title: "Beautiful Dream", artist: "Diego Nava", duration: 97, mood: "Love", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-beautiful-dream-493.mp3") },
-  { id: "love-2", title: "Romantic", artist: "Francisco Alvear", duration: 159, mood: "Love", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-romantic-659.mp3") },
-  { id: "love-3", title: "Love is Eternal", artist: "Ahjay Stelino", duration: 94, mood: "Love", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-love-is-eternal-37.mp3") },
-  { id: "love-4", title: "Serene View", artist: "Arulo", duration: 114, mood: "Love", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-serene-view-443.mp3") },
-  { id: "love-5", title: "Latin Lovers", artist: "Ahjay Stelino", duration: 95, mood: "Love", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-latin-lovers-39.mp3") },
+  { id: "love-1", title: "Lovely Piano Song", artist: "FreePD", duration: 180, mood: "Love", kind: "Instrumental", source: "FreePD CC0", url: "https://en.freepd.cn/api/music/526f6d616e63652f4c6f76656c79205069616e6f20536f6e672e6d7033" },
+  { id: "love-2", title: "Night in Venice", artist: "FreePD", duration: 180, mood: "Love", kind: "Instrumental", source: "FreePD CC0", url: "https://en.freepd.cn/api/music/526f6d616e63652f4e6967687420696e2056656e6963652e6d7033" },
+  { id: "love-3", title: "Landra's Dream", artist: "FreePD", duration: 180, mood: "Love", kind: "Instrumental", source: "FreePD CC0", url: "https://en.freepd.cn/api/music/526f6d616e63652f4c616e647261277320447265616d2e6d7033" },
+  { id: "love-4", title: "Champ de tournesol", artist: "FreePD", duration: 180, mood: "Love", kind: "Instrumental", source: "FreePD CC0", url: "https://en.freepd.cn/api/music/526f6d616e63652f4368616d7020646520746f75726e65736f6c2e6d7033" },
+  { id: "love-5", title: "La Citadelle", artist: "FreePD", duration: 180, mood: "Love", kind: "Instrumental", source: "FreePD CC0", url: "https://en.freepd.cn/api/music/526f6d616e63652f4c61204369746164656c6c652e6d7033" },
 
   // Motivation — 5
-  { id: "motivation-1", title: "Driving Ambition", artist: "Ahjay Stelino", duration: 102, mood: "Motivation", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-driving-ambition-32.mp3") },
-  { id: "motivation-2", title: "Hip Hop 02", artist: "Lily J", duration: 115, mood: "Motivation", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-hip-hop-02-738.mp3") },
-  { id: "motivation-3", title: "Tech House Vibes", artist: "Mixkit", duration: 102, mood: "Motivation", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-tech-house-vibes-130.mp3") },
-  { id: "motivation-4", title: "Deep Urban", artist: "Arulo", duration: 289, mood: "Motivation", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-deep-urban-623.mp3") },
-  { id: "motivation-5", title: "Getting Ready", artist: "Mixkit", duration: 101, mood: "Motivation", kind: "Instrumental", source: "Mixkit", url: mixkit("mixkit-getting-ready-46.mp3") },
+  { id: "motivation-1", title: "Adventure", artist: "FreePD", duration: 180, mood: "Motivation", kind: "Instrumental", source: "FreePD CC0", url: "https://en.freepd.cn/api/music/457069632f416476656e747572652e6d7033" },
+  { id: "motivation-2", title: "Adventures of Flying Jack", artist: "FreePD", duration: 180, mood: "Motivation", kind: "Instrumental", source: "FreePD CC0", url: "https://en.freepd.cn/api/music/457069632f416476656e7475726573206f6620466c79696e67204a61636b2e6d7033" },
+  { id: "motivation-3", title: "Battle Ready", artist: "FreePD", duration: 180, mood: "Motivation", kind: "Instrumental", source: "FreePD CC0", url: "https://en.freepd.cn/api/music/457069632f426174746c652052656164792e6d7033" },
+  { id: "motivation-4", title: "Beyond — Part 2", artist: "FreePD", duration: 180, mood: "Motivation", kind: "Instrumental", source: "FreePD CC0", url: "https://en.freepd.cn/api/music/457069632f4265796f6e64202d207061727420322e6d7033" },
+  { id: "motivation-5", title: "Cornfield Chase", artist: "FreePD", duration: 180, mood: "Motivation", kind: "Instrumental", source: "FreePD CC0", url: "https://en.freepd.cn/api/music/457069632f436f726e6669656c642043686173652e6d7033" },
 ];
