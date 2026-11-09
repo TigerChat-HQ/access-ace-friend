@@ -72,7 +72,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
                 <Forward className="w-3.5 h-3.5" /> Forward
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onTogglePin} className="text-xs gap-2"><Pin className="w-3.5 h-3.5" /> {isPinned ? "Unpin message" : "Pin message"}</DropdownMenuItem>
-              {isMe && message.type === "text" && <DropdownMenuItem onClick={onEdit} className="text-xs gap-2"><Pencil className="w-3.5 h-3.5" /> Edit message</DropdownMenuItem>
+              {isMe && message.type === "text" && <DropdownMenuItem onClick={onEdit} className="text-xs gap-2"><Pencil className="w-3.5 h-3.5" /> Edit message</DropdownMenuItem>}
               {isMe ? (
                 <>
                   <DropdownMenuItem onClick={() => onDelete?.(message.id, "me")} className="text-xs gap-2">
