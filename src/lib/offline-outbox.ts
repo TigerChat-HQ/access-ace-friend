@@ -13,9 +13,20 @@ export interface QueuedMessage {
   createdAt: string;
   status: "pending" | "sending" | "failed";
   retryCount: number;
+  /** Stable database UUID reused for every retry to prevent duplicate messages. */
+  messageId?: string;
+  nextAttemptAt?: string | null;
 }
 
 const STORAGE_KEY = "tigerchats:offline-outbox-queue";
+
+const createMessageId = (): string => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
+    const random = Math.random() * 16 | 0;
+    return (char === "x" ? random : (random & 0x3 | 0x8)).toString(16);
+  });
+};
 const listeners = new Set<() => void>();
 
 export const notifyOutboxListeners = () => {
@@ -40,7 +51,15 @@ export const getQueuedMessages = (conversationId?: string): QueuedMessage[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    const list: QueuedMessage[] = JSON.parse(raw);
+    const parsed: QueuedMessage[] = JSON.parse(raw);
+    // Upgrade older queued entries once, preserving their local queue IDs.
+    let migrated = false;
+    const list = parsed.map((message) => {
+      if (message.messageId) return message;
+      migrated = true;
+      return { ...message, messageId: createMessageId(), nextAttemptAt: null };
+    });
+    if (migrated) localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
     if (!conversationId) return list;
     return list.filter((m) => m.conversationId === conversationId);
   } catch {
@@ -64,9 +83,11 @@ export const enqueueMessage = (
   const queued: QueuedMessage = {
     ...item,
     id: `queued_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    messageId: createMessageId(),
     createdAt: new Date().toISOString(),
     status: "pending",
     retryCount: 0,
+    nextAttemptAt: null,
   };
 
   const list = getQueuedMessages();
@@ -88,7 +109,7 @@ export const removeQueuedMessage = (id: string) => {
 
 let isProcessing = false;
 
-export const processOutbox = async (): Promise<number> => {
+export const processOutbox = async (force = false): Promise<number> => {
   if (typeof navigator !== "undefined" && !navigator.onLine) {
     return 0;
   }
@@ -105,14 +126,17 @@ export const processOutbox = async (): Promise<number> => {
 
     for (const msg of list) {
       if (typeof navigator !== "undefined" && !navigator.onLine) break;
+      if (!force && msg.nextAttemptAt && new Date(msg.nextAttemptAt).getTime() > Date.now()) continue;
 
       msg.status = "sending";
       notifyOutboxListeners();
 
       try {
         const payload: Database["public"]["Tables"]["messages"]["Insert"] = {
+          id: msg.messageId || createMessageId(),
           conversation_id: msg.conversationId,
           sender_id: msg.senderId,
+          created_at: msg.createdAt,
           content: msg.content,
           message_type: msg.messageType,
           reply_to_id: msg.replyToId || null,
@@ -121,25 +145,37 @@ export const processOutbox = async (): Promise<number> => {
           payload.media_url = msg.mediaUrl;
         }
 
-        const { error } = await supabase.from("messages").insert(payload);
+        // Upsert against the stable primary key makes retries idempotent even if
+        // the server committed a message but the client lost the response.
+        const { data, error } = await supabase.from("messages")
+          .upsert(payload, { onConflict: "id", ignoreDuplicates: true })
+          .select("id")
+          .maybeSingle();
 
         if (error) {
           console.warn("Outbox message send failed:", error);
           msg.status = "failed";
           msg.retryCount = (msg.retryCount || 0) + 1;
-          saveQueuedMessages(list);
-          if (!navigator.onLine || error.message?.includes("fetch") || error.message?.includes("network")) {
+          const delayMs = Math.min(5 * 60 * 1000, 2000 * (2 ** Math.min(msg.retryCount, 7)));
+          msg.nextAttemptAt = new Date(Date.now() + delayMs).toISOString();
+          saveQueuedMessages(getQueuedMessages().map((queued) => queued.id === msg.id ? msg : queued));
+          if (!navigator.onLine || /fetch|network|timeout|connection/i.test(error.message || "")) {
             break;
           }
         } else {
           removeQueuedMessage(msg.id);
           sentCount++;
-          void dispatchPush(msg.conversationId);
+          // An empty result means this stable message ID already existed; do not
+          // dispatch a duplicate push notification for an idempotent retry.
+          if (data?.id) void dispatchPush(msg.conversationId);
         }
       } catch (err) {
         console.warn("Outbox processing error:", err);
         msg.status = "failed";
-        saveQueuedMessages(list);
+        msg.retryCount = (msg.retryCount || 0) + 1;
+        const delayMs = Math.min(5 * 60 * 1000, 2000 * (2 ** Math.min(msg.retryCount, 7)));
+        msg.nextAttemptAt = new Date(Date.now() + delayMs).toISOString();
+        saveQueuedMessages(getQueuedMessages().map((queued) => queued.id === msg.id ? msg : queued));
         break;
       }
     }

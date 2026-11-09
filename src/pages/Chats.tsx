@@ -195,61 +195,23 @@ const Chats = () => {
       setEditingMessage(null);
       return;
     }
-    const replyId = replyTo?.id;
+
+    // Queue first for both online and offline sends. The outbox uses one stable
+    // message UUID, so a lost network response cannot create a duplicate.
+    enqueueMessage({
+      conversationId: activeChat,
+      senderId: user.id,
+      content: text.trim(),
+      messageType: "text",
+      replyToId: replyTo?.id || null,
+    });
     setReplyTo(null);
-
-    // If offline, queue immediately
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      enqueueMessage({
-        conversationId: activeChat,
-        senderId: user.id,
-        content: text.trim(),
-        messageType: "text",
-        replyToId: replyId || null,
-      });
-      toast({
-        title: "Ujumbe umehifadhiwa kwenye foleni (Offline)",
-        description: "Utatumwa kiotomatiki mtandao ukirudi.",
-      });
-      return;
-    }
-
-    try {
-      const { error } = await supabase.from("messages").insert({
-        conversation_id: activeChat,
-        sender_id: user.id,
-        content: text.trim(),
-        message_type: "text",
-        reply_to_id: replyId || null,
-      });
-      if (error) {
-        enqueueMessage({
-          conversationId: activeChat,
-          senderId: user.id,
-          content: text.trim(),
-          messageType: "text",
-          replyToId: replyId || null,
-        });
-        toast({
-          title: "Ujumbe umehifadhiwa kwenye foleni",
-          description: "Utatumwa kiotomatiki mtandao ukirudi.",
-        });
-      } else {
-        void dispatchPush(activeChat);
-      }
-    } catch {
-      enqueueMessage({
-        conversationId: activeChat,
-        senderId: user.id,
-        content: text.trim(),
-        messageType: "text",
-        replyToId: replyId || null,
-      });
-      toast({
-        title: "Ujumbe umehifadhiwa kwenye foleni",
-        description: "Utatumwa kiotomatiki mtandao ukirudi.",
-      });
-    }
+    toast({
+      title: typeof navigator !== "undefined" && !navigator.onLine
+        ? "Ujumbe umehifadhiwa (Offline)"
+        : "Ujumbe umewekwa kwenye foleni ya kutumwa",
+      description: "TigerChat itathibitisha utumaji na kujaribu tena mtandao ukirudi.",
+    });
   };
 
   const handleSendVoice = async (blob: Blob, duration: number) => {
@@ -725,7 +687,7 @@ const Chats = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => void processOutbox()}
+                  onClick={() => void processOutbox(true)}
                   className="px-2.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-[11px] font-medium transition-colors ml-2 shrink-0"
                 >
                   Tuma sasa
