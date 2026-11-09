@@ -52,21 +52,83 @@ export function TwoFactorSecurity({ challengeOnly = false, onVerified }: { chall
   </section>;
 }
 
+const OFFLINE_AUTH_GRACE_MS = 24 * 60 * 60 * 1000;
+
 export function TwoFactorGate({ children }: { children: React.ReactNode }) {
   const { session, signOut } = useAuth();
   const [state, setState] = useState<"loading" | "ready" | "challenge" | "error">("loading");
+
   useEffect(() => {
     let active = true;
-    if (!session) { setState("ready"); return; }
-    setState("loading");
-    void supabase.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data, error }) => {
-      if (active) setState(error ? "error" : data?.nextLevel === "aal2" && data.currentLevel !== "aal2" ? "challenge" : "ready");
-    });
-    return () => { active = false; };
-  }, [session?.access_token]);
+    const grantKey = session?.user?.id ? `tigerchats:offline-auth-grant:${session.user.id}` : null;
+
+    const hasRecentOfflineGrant = () => {
+      if (!grantKey) return false;
+      try {
+        const grantedAt = Number(localStorage.getItem(grantKey));
+        const age = Date.now() - grantedAt;
+        return Number.isFinite(grantedAt) && grantedAt > 0 && age >= 0 && age <= OFFLINE_AUTH_GRACE_MS;
+      } catch {
+        return false;
+      }
+    };
+
+    const evaluateAccess = async () => {
+      if (!session) {
+        setState("ready");
+        return;
+      }
+
+      if (!navigator.onLine) {
+        setState(hasRecentOfflineGrant() ? "ready" : "error");
+        return;
+      }
+
+      setState("loading");
+      const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (!active) return;
+
+      if (error) {
+        // navigator.onLine can be true on captive portals or broken networks.
+        // Only reuse a recently verified local grant; never create one on failure.
+        setState(hasRecentOfflineGrant() ? "ready" : "error");
+        return;
+      }
+
+      const needsChallenge = data?.nextLevel === "aal2" && data.currentLevel !== "aal2";
+      if (needsChallenge) {
+        if (grantKey) {
+          try { localStorage.removeItem(grantKey); } catch { /* storage may be unavailable */ }
+        }
+        setState("challenge");
+        return;
+      }
+
+      // Record only that the server accepted the current assurance level.
+      // Passwords, MFA secrets, and access tokens are never copied to this marker.
+      if (grantKey) {
+        try { localStorage.setItem(grantKey, String(Date.now())); } catch { /* offline continuity is optional */ }
+      }
+      setState("ready");
+    };
+
+    void evaluateAccess();
+    const handleOnline = () => { void evaluateAccess(); };
+    window.addEventListener("online", handleOnline);
+    return () => {
+      active = false;
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [session?.access_token, session?.user?.id]);
+
   if (state === "ready") return <>{children}</>;
   return <div className="min-h-screen bg-background flex items-center justify-center p-6"><div className="w-full max-w-sm space-y-4">
-    {state === "challenge" ? <TwoFactorSecurity challengeOnly onVerified={() => setState("ready")} /> : <p>{state === "error" ? "Could not verify account protection. Sign in again." : "Checking account protection…"}</p>}
+    {state === "challenge" ? <TwoFactorSecurity challengeOnly onVerified={() => {
+      if (session?.user?.id) {
+        try { localStorage.setItem("tigerchats:offline-auth-grant:" + session.user.id, String(Date.now())); } catch { /* offline continuity is optional */ }
+      }
+      setState("ready");
+    }} /> : <p>{state === "error" ? "Offline access is unavailable. Connect to the internet and verify your account first." : "Checking account protection…"}</p>}
     <Button variant="ghost" onClick={() => void signOut()}>Sign out</Button>
   </div></div>;
 }

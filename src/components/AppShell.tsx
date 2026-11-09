@@ -10,6 +10,7 @@ import { useUnreadBadges } from "@/hooks/useUnreadBadges";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useUserRole } from "@/hooks/useUserRole";
 import { NotificationBubble } from "@/components/NotificationBubble";
+import { OfflineIndicator } from "@/components/OfflineIndicator";
 
 export const AppShell = () => {
   const { user } = useAuth();
@@ -45,6 +46,7 @@ export const AppShell = () => {
               {[{to:"/tiger-ai", icon:Bot, label:"Tiger AI"}, {to:"/contact",icon:Mail,label:"Contact admin"},{to:"/notifications",icon:Bell,label:"Notifications"},{to:"/settings",icon:Settings,label:"Settings"}].map(({to,icon:Icon,label}) => <Button asChild variant="ghost" key={to} className="justify-start"><NavLink to={to}><Icon className="w-4 h-4 mr-3" />{label}</NavLink></Button>)}
             </aside>
             <div className="flex flex-1 flex-col min-h-0 min-w-0">
+              <OfflineIndicator />
               <main className="flex-1 min-h-0 min-w-0 overflow-hidden">
                 <Outlet />
               </main>
