@@ -23,6 +23,7 @@ type IncomingMessageRow = {
   message_type: string;
   content: string | null;
   conversation_id: string;
+  reply_to_id?: string | null;
 };
 
 type SocialNotificationRow = {
@@ -102,7 +103,8 @@ export const useNotifications = () => {
             .single();
 
           const senderName = profile?.display_name || "Someone";
-          const body =
+          let title = senderName;
+          let body =
             msg.message_type === "voice"
               ? "🎤 Voice message"
               : msg.message_type === "image"
@@ -111,9 +113,20 @@ export const useNotifications = () => {
               ? "📎 File"
               : msg.content || "New message";
 
-          showNotification(senderName, body, {
+          if (msg.reply_to_id) {
+            const { data: parent } = await supabase
+              .from("messages")
+              .select("sender_id")
+              .eq("id", msg.reply_to_id)
+              .eq("conversation_id", msg.conversation_id)
+              .maybeSingle();
+            title = parent?.sender_id === user.id ? `${senderName} replied to your message` : `${senderName} replied in chat`;
+            body = `↪ ${msg.content || body}`;
+          }
+
+          showNotification(title, body, {
             url: `/chats?c=${msg.conversation_id}`,
-            tag: `msg-${msg.conversation_id}`,
+            tag: msg.reply_to_id ? `thread-${msg.reply_to_id}` : `msg-${msg.conversation_id}`,
             kind: "chat",
           });
         }
