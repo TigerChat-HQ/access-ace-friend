@@ -367,7 +367,8 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
           {mediaFile && <Input value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={700} placeholder="Add a caption..." className="bg-surface border-border/50" />}
 
           {!mediaFile && (
-            <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/60 p-3">
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2 rounded-lg border border-border/60 p-3">
               <label className="text-xs text-muted-foreground">Aina ya mwandiko
                 <select value={textFont} onChange={(e) => setTextFont(e.target.value)} className="mt-1 w-full h-9 rounded-md border border-border bg-surface px-2 text-foreground">
                   <option value="sans-serif">Modern</option><option value="serif">Classic</option><option value="monospace">Mono</option><option value="cursive">Handwritten</option>
@@ -376,9 +377,10 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
               <label className="text-xs text-muted-foreground">Ukubwa · {textSize}px
                 <input type="range" min={16} max={40} step={2} value={textSize} onChange={(e) => setTextSize(Number(e.target.value))} className="mt-2 w-full" />
               </label>
-            </div>
-            <div className="flex items-center justify-center gap-2">
-              {BACKGROUNDS.map((color) => <button key={color} type="button" aria-label={`Choose background ${color}`} aria-pressed={backgroundColor === color} onClick={() => setBackgroundColor(color)} className={`w-7 h-7 rounded-full border-2 ${backgroundColor === color ? "border-foreground scale-110" : "border-transparent"}`} style={{ backgroundColor: color }} />)}
+              </div>
+              <div className="flex items-center justify-center gap-2">
+                {BACKGROUNDS.map((color) => <button key={color} type="button" aria-label={`Choose background ${color}`} aria-pressed={backgroundColor === color} onClick={() => setBackgroundColor(color)} className={`w-7 h-7 rounded-full border-2 ${backgroundColor === color ? "border-foreground scale-110" : "border-transparent"}`} style={{ backgroundColor: color }} />)}
+              </div>
             </div>
           )}
 
