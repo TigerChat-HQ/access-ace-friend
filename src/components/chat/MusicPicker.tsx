@@ -23,10 +23,12 @@ export const MusicPicker = ({ trigger, value, onChange, maxClip = MAX_DEFAULT }:
   const [pos, setPos] = useState(0);
   const [moodFilter, setMoodFilter] = useState("All");
   const [audioError, setAudioError] = useState(false);
+  const [trackDuration, setTrackDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     if (!selected) return;
+    setTrackDuration(0);
     setRange([0, Math.min(maxClip, selected.duration)]);
     setPos(0);
     setAudioError(false);
@@ -112,7 +114,7 @@ export const MusicPicker = ({ trigger, value, onChange, maxClip = MAX_DEFAULT }:
               >
                 <div className="min-w-0">
                   <p className="text-sm text-foreground truncate">{t.title}</p>
-                  <p className="text-[10px] text-muted-foreground truncate">{t.artist} · {t.mood} · {t.kind} · {fmt(t.duration)}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{t.artist} · {t.mood} · {t.kind} · {trackDuration && selected?.id === t.id ? fmt(trackDuration) : "Loading duration"}</p>
                 </div>
                 {selected?.id === t.id && <Check className="w-4 h-4 text-primary shrink-0" />}
               </button>
@@ -121,7 +123,7 @@ export const MusicPicker = ({ trigger, value, onChange, maxClip = MAX_DEFAULT }:
 
           {selected && (
             <div className="space-y-3 pt-2 border-t border-border/50">
-              <audio ref={audioRef} src={selected.url} preload="metadata" onError={() => { setAudioError(true); setPlaying(false); }} />
+              <audio ref={audioRef} src={selected.url} preload="metadata" onLoadedMetadata={(event) => { const duration = event.currentTarget.duration; if (Number.isFinite(duration) && duration > 0) { setTrackDuration(duration); setRange([0, Math.min(maxClip, duration)]); } }} onError={() => { setAudioError(true); setPlaying(false); }} />
               <div className="flex items-center gap-3">
                 <button
                   onClick={togglePlay}
@@ -136,7 +138,7 @@ export const MusicPicker = ({ trigger, value, onChange, maxClip = MAX_DEFAULT }:
               </div>
               <Slider
                 min={0}
-                max={selected.duration}
+                max={trackDuration || selected.duration}
                 step={0.5}
                 value={range}
                 onValueChange={(v) => {
