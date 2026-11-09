@@ -78,8 +78,8 @@ export function BoardAppearance({
         <Settings2 className="h-4 w-4 text-primary" /> Draughts settings
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-2 max-h-[75vh] w-[min(90vw,340px)] overflow-y-auto rounded-2xl border border-primary/25 bg-card/95 p-4 shadow-2xl backdrop-blur-2xl ring-1 ring-white/10">
-          <div className="mb-3 flex items-center justify-between">
+        <div className="fixed right-3 top-20 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[100] w-[min(90vw,340px)] overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y rounded-2xl border border-primary/25 bg-card/95 p-4 shadow-2xl backdrop-blur-2xl ring-1 ring-white/10 sm:absolute sm:bottom-auto sm:top-full sm:mt-2 sm:max-h-[min(75vh,640px)]">
+          <div className="sticky top-0 z-10 -mx-1 mb-3 flex items-center justify-between bg-card/95 px-1 py-1 backdrop-blur-xl">
             <div><p className="text-sm font-bold text-foreground">Draughts settings</p><p className="text-[10px] text-muted-foreground">Board & sound controls</p></div>
             <button type="button" onClick={() => setOpen(false)} aria-label="Close draughts settings" className="rounded-lg p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
           </div>
