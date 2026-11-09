@@ -166,6 +166,18 @@ const ResetPassword = () => {
     );
   }
 
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="text-center space-y-4 animate-fade-in">
+          <CheckCircle className="w-16 h-16 text-primary mx-auto" />
+          <h2 className="text-xl font-bold text-foreground">Password imebadilishwa!</h2>
+          <p className="text-sm text-muted-foreground">Unaelekezwa kwenye ukurasa wa kuingia...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!isRecovery) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -174,18 +186,6 @@ const ResetPassword = () => {
           <p className="text-muted-foreground">{linkError || "Kiungo si sahihi au muda wake umeisha."}</p>
           <Button onClick={() => navigate("/forgot-password")} variant="default">Omba kiungo kipya</Button>
           <Button onClick={() => navigate("/auth")} variant="outline">Rudi kuingia</Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (success) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <div className="text-center space-y-4 animate-fade-in">
-          <CheckCircle className="w-16 h-16 text-primary mx-auto" />
-          <h2 className="text-xl font-bold text-foreground">Password imebadilishwa!</h2>
-          <p className="text-sm text-muted-foreground">Unaelekezwa kwenye ukurasa wa kuingia...</p>
         </div>
       </div>
     );
