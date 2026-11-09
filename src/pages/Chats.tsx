@@ -36,7 +36,7 @@ import { playChatEmojiSound, CHAT_EMOJI_SOUND_KEY } from "@/lib/chat-emoji";
 
 type Story = Tables<"stories"> & { profile?: Tables<"profiles"> };
 type MessageMetadata = { read_at?: string | null; is_read?: boolean | null; delivered_at?: string | null; reply_to_id?: string | null };
-type StoryMetadata = Story & { music_url?: string | null; media_type?: string | null; text_overlay?: { text?: string; text_color?: string; text_background?: string; sticker?: string; music_title?: string; music_start?: number; music_end?: number; image_filter?: string } | null; duration?: number | null };
+type StoryMetadata = Story & { music_url?: string | null; media_type?: string | null; text_overlay?: { text?: string; text_color?: string; text_background?: string; text_font?: string; text_size?: number; sticker?: string; music_title?: string; music_start?: number; music_end?: number; image_filter?: string } | null; duration?: number | null };
 
 const HIDDEN_CHATS_STORAGE_KEY = "tigerchats:hidden-chats";
 
