@@ -52,7 +52,8 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: GROQ_MODEL,
         temperature: 0.85,
-        max_completion_tokens: 4096,
+        max_completion_tokens: 8192,
+        reasoning_effort: "low",
         messages: [
           {
             role: "user",
@@ -73,7 +74,8 @@ Deno.serve(async (req) => {
 
     const rawText = payload?.choices?.[0]?.message?.content;
     if (typeof rawText !== "string" || !rawText.trim()) {
-      return reply({ error: "Tiger AI haikurudisha maswali. Jaribu tena." }, 502);
+      console.error("Groq returned empty quiz content", { model: GROQ_MODEL, finish_reason: payload?.choices?.[0]?.finish_reason, message_keys: Object.keys(payload?.choices?.[0]?.message || {}), usage: payload?.usage });
+      return reply({ error: "Groq haikurudisha maandishi ya maswali. Jaribu tena baada ya muda mfupi." }, 502);
     }
     let parsedJson: unknown;
     try {
