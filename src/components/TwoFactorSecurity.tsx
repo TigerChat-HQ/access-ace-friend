@@ -123,7 +123,12 @@ export function TwoFactorGate({ children }: { children: React.ReactNode }) {
 
   if (state === "ready") return <>{children}</>;
   return <div className="min-h-screen bg-background flex items-center justify-center p-6"><div className="w-full max-w-sm space-y-4">
-    {state === "challenge" ? <TwoFactorSecurity challengeOnly onVerified={() => setState("ready")} /> : <p>{state === "error" ? "Offline access is unavailable. Connect to the internet and verify your account first." : "Checking account protection…"}</p>}
+    {state === "challenge" ? <TwoFactorSecurity challengeOnly onVerified={() => {
+      if (session?.user?.id) {
+        try { localStorage.setItem("tigerchats:offline-auth-grant:" + session.user.id, String(Date.now())); } catch { /* offline continuity is optional */ }
+      }
+      setState("ready");
+    }} /> : <p>{state === "error" ? "Offline access is unavailable. Connect to the internet and verify your account first." : "Checking account protection…"}</p>}
     <Button variant="ghost" onClick={() => void signOut()}>Sign out</Button>
   </div></div>;
 }
