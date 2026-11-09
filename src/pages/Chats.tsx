@@ -35,6 +35,7 @@ import { useChatTranslation } from "@/hooks/useChatTranslation";
 import { ChatTranslationControls } from "@/components/chat/ChatTranslationControls";
 import { ChatPolls } from "@/components/chat/ChatPolls";
 import { playChatEmojiSound, CHAT_EMOJI_SOUND_KEY } from "@/lib/chat-emoji";
+import { CallHistoryDialog } from "@/components/chat/CallHistoryDialog";
 
 type Story = Tables<"stories"> & { profile?: Tables<"profiles"> };
 type MessageMetadata = { read_at?: string | null; is_read?: boolean | null; delivered_at?: string | null; reply_to_id?: string | null };
@@ -88,6 +89,7 @@ const Chats = () => {
   const [customizationOpen, setCustomizationOpen] = useState(false);
   const [inviteMembersOpen, setInviteMembersOpen] = useState(false);
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
+  const [callHistoryOpen, setCallHistoryOpen] = useState(false);
 
   const [chatSearchOpen, setChatSearchOpen] = useState(false);
   const [chatSearch, setChatSearch] = useState("");
@@ -511,6 +513,8 @@ const Chats = () => {
 
   return (
     <div className="h-full flex overflow-hidden bg-background">
+      {callHistoryOpen && <CallHistoryDialog onClose={() => setCallHistoryOpen(false)} onOpenConversation={(conversationId) => { setCallHistoryOpen(false); setActiveChat(conversationId); }} />}
+
       {storyViewerIndex !== null && storyViewerData.length > 0 && (
         <StoryViewer stories={storyViewerData} initialIndex={storyViewerIndex} onClose={() => setStoryViewerIndex(null)} onStoryDeleted={(storyId) => setStories(current => current.filter(item => item.id !== storyId))} currentUserId={user?.id} />
       )}
@@ -526,6 +530,7 @@ const Chats = () => {
             <h1 className="text-lg font-bold tracking-tight text-foreground">TIGER<span className="text-primary">CHATS</span></h1>
           </div>
           <div className="flex items-center gap-1">
+            <button type="button" onClick={() => setCallHistoryOpen(true)} className="p-2 rounded-full hover:bg-surface-hover text-muted-foreground" title="Call history" aria-label="Call history"><Phone className="w-4 h-4" /></button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="p-2 rounded-full hover:bg-surface-hover text-muted-foreground" title="Chat list settings" aria-label="Chat list settings"><MoreVertical className="w-4 h-4" /></button>
