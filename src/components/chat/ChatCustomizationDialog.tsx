@@ -4,11 +4,15 @@ import { MoreVertical } from "lucide-react";
 import { ChatPrefs, useChatPreferences } from "@/hooks/useChatPreferences";
 import { cn } from "@/lib/utils";
 
-const WALLPAPERS: { key: string; label: string; bg: string }[] = [
+const WALLPAPERS: { key: string; label: string; bg: string; emoji?: string }[] = [
   { key: "default", label: "Default", bg: "bg-background" },
-  { key: "tiger", label: "Tiger", bg: "bg-gradient-to-br from-black via-orange-900/30 to-black" },
+  { key: "tiger", label: "Tiger", emoji: "🐅", bg: "chat-wallpaper-tiger bg-gradient-to-br from-black via-orange-950/70 to-black" },
   { key: "neon", label: "Neon", bg: "bg-gradient-to-br from-emerald-900/40 via-black to-purple-900/40" },
   { key: "ocean", label: "Ocean", bg: "bg-gradient-to-br from-blue-900/50 to-cyan-900/50" },
+  { key: "black-car", label: "Black Sports Car", emoji: "🏎️", bg: "chat-wallpaper-car bg-gradient-to-br from-black via-zinc-900 to-slate-950" },
+  { key: "black-lion", label: "Black Lion", emoji: "🦁", bg: "chat-wallpaper-lion bg-gradient-to-br from-black via-stone-950 to-amber-950/70" },
+  { key: "black-wolf", label: "Black Wolf", emoji: "🐺", bg: "chat-wallpaper-wolf bg-gradient-to-br from-black via-slate-950 to-blue-950/70" },
+  { key: "black-eagle", label: "Black Eagle", emoji: "🦅", bg: "chat-wallpaper-eagle bg-gradient-to-br from-black via-neutral-950 to-zinc-900" },
   { key: "sunset", label: "Sunset", bg: "bg-gradient-to-br from-orange-700/40 via-pink-700/30 to-purple-900/50" },
   { key: "light", label: "Light", bg: "bg-zinc-100" },
 ];
@@ -69,7 +73,10 @@ export const ChatCustomizationDialog = ({ conversationId, open: controlledOpen, 
                       : "border-border/50"
                   )}
                 >
-                  <span className="text-[11px] font-medium text-foreground/80">{w.label}</span>
+                  <span className="flex h-full flex-col items-center justify-center gap-1 bg-black/10 px-1">
+                    {w.emoji && <span className="text-3xl drop-shadow-[0_3px_5px_rgba(0,0,0,.8)]" aria-hidden="true">{w.emoji}</span>}
+                    <span className="text-center text-[11px] font-semibold text-foreground drop-shadow-[0_1px_3px_rgba(0,0,0,.9)]">{w.label}</span>
+                  </span>
                 </button>
               ))}
             </div>
