@@ -1,21 +1,19 @@
 import { ChatContact } from "@/types/chat";
 import { cn } from "@/lib/utils";
+import { Star } from "lucide-react";
 
 interface ChatListItemProps {
   contact: ChatContact;
   isActive: boolean;
   onClick: () => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
 }
 
-export const ChatListItem = ({ contact, isActive, onClick }: ChatListItemProps) => {
+export const ChatListItem = ({ contact, isActive, onClick, isFavorite = false, onToggleFavorite }: ChatListItemProps) => {
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "w-full flex items-center gap-3 px-4 py-3 transition-all duration-200 hover:bg-surface-hover text-left",
-        isActive && "bg-surface neon-glow"
-      )}
-    >
+    <div className={cn("w-full flex items-center gap-2 px-3 py-3 transition-all duration-200 hover:bg-surface-hover", isActive && "bg-surface neon-glow")}>
+    <button type="button" onClick={onClick} className="flex min-w-0 flex-1 items-center gap-3 text-left">
       <div className="relative">
         <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center text-sm font-semibold text-secondary-foreground">
           {contact.avatar}
@@ -46,5 +44,9 @@ export const ChatListItem = ({ contact, isActive, onClick }: ChatListItemProps) 
         </div>
       </div>
     </button>
+    <button type="button" onClick={(event) => { event.stopPropagation(); onToggleFavorite?.(); }} aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"} aria-pressed={isFavorite} title={isFavorite ? "Remove favorite" : "Add favorite"} className="shrink-0 rounded-full p-2 text-muted-foreground hover:bg-surface-hover hover:text-primary">
+      <Star className={cn("h-4 w-4", isFavorite && "fill-current text-primary")} />
+    </button>
+    </div>
   );
 };
