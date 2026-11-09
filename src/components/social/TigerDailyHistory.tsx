@@ -45,7 +45,7 @@ export const TigerDailyHistory = () => {
       const { data } = await db.from("tiger_ai_daily_posts").select("*").order("date_key", { ascending: false }).limit(1).maybeSingle();
       if (!active) return;
       if (data) {
-        setPost(data as DailyPost);
+        setPost({ ...data, content: data.content as unknown as DailyHistory });
         const [{ count }, { data: mine }] = await Promise.all([
           db.from("tiger_ai_daily_post_likes").select("*", { count: "exact", head: true }).eq("post_id", data.id),
           user ? db.from("tiger_ai_daily_post_likes").select("post_id").eq("post_id", data.id).eq("user_id", user.id).maybeSingle() : Promise.resolve({ data: null }),
