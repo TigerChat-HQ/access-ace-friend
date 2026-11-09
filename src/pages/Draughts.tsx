@@ -544,7 +544,14 @@ const Draughts = () => {
                             src={piece.c === "w" ? "/assets/coca-cola-cap.png" : "/assets/pepsi-cap.png"}
                             alt=""
                             draggable={false}
-                            className="pointer-events-none h-full w-full select-none object-contain"
+                            loading="eager"
+                            decoding="async"
+                            className="pointer-events-none h-full w-full select-none object-contain drop-shadow-[0_3px_3px_rgba(0,0,0,0.65)]"
+                          />
+                          <span
+                            aria-hidden="true"
+                            className="pointer-events-none absolute inset-[5%] rounded-full opacity-80"
+                            style={{ background: "linear-gradient(145deg, rgba(255,255,255,.58) 0%, rgba(255,255,255,.18) 17%, transparent 38%, transparent 72%, rgba(0,0,0,.24) 100%)", mixBlendMode: "screen" }}
                           />
                           {piece.k && (
                             <span className="absolute right-[5%] top-[5%] z-[2] flex h-[30%] w-[30%] items-center justify-center rounded-full border border-amber-200 bg-gradient-to-br from-amber-100 via-yellow-400 to-amber-800 text-amber-950 shadow-md">
