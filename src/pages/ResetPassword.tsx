@@ -7,6 +7,16 @@ import { Lock, Eye, EyeOff, ArrowRight, CheckCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 
+const PASSWORD_RECOVERY_STORAGE_KEY = "tigerchat:password-recovery";
+
+const hasStoredRecoverySession = () => {
+  try {
+    return window.sessionStorage.getItem(PASSWORD_RECOVERY_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+};
+
 const ResetPassword = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -23,38 +33,91 @@ const ResetPassword = () => {
     let active = true;
     const url = new URL(window.location.href);
     const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
-    const hasRecoveryPayload =
+    const tokenHash = url.searchParams.get("token_hash");
+    const tokenType = url.searchParams.get("type");
+    let hasRecoveryPayload =
       hashParams.get("type") === "recovery" ||
       url.searchParams.has("code") ||
-      url.searchParams.has("token_hash");
+      (tokenType === "recovery" && !!tokenHash) ||
+      hasStoredRecoverySession();
 
-    const authError = url.searchParams.get("error_description") || hashParams.get("error_description");
+    const authError =
+      url.searchParams.get("error_description") ||
+      hashParams.get("error_description");
+
     if (authError) {
-      setLinkError(decodeURIComponent(authError.replace(/\+/g, " ")));
+      setLinkError(authError.replace(/\+/g, " "));
       setCheckingLink(false);
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active) return;
-      if (event === "PASSWORD_RECOVERY" || (event === "INITIAL_SESSION" && !!session && hasRecoveryPayload)) {
+
+      if (event === "PASSWORD_RECOVERY") {
+        try {
+          window.sessionStorage.setItem(PASSWORD_RECOVERY_STORAGE_KEY, "true");
+        } catch {
+          // The recovery event remains valid for this mounted page.
+        }
+        setIsRecovery(true);
+        setLinkError("");
+      } else if (
+        event === "INITIAL_SESSION" &&
+        session &&
+        (hasRecoveryPayload || hasStoredRecoverySession())
+      ) {
         setIsRecovery(true);
         setLinkError("");
       }
-      if (event === "SIGNED_OUT") setIsRecovery(false);
+
+      if (event === "SIGNED_OUT") {
+        try {
+          window.sessionStorage.removeItem(PASSWORD_RECOVERY_STORAGE_KEY);
+        } catch {
+          // Ignore unavailable session storage.
+        }
+        setIsRecovery(false);
+      }
     });
 
-    // Supabase may finish exchanging a PKCE recovery code before this page mounts.
-    void supabase.auth.getSession().then(({ data, error }) => {
+    const initializeRecovery = async () => {
+      // Support customized recovery templates that redirect with token_hash.
+      if (tokenType === "recovery" && tokenHash) {
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: "recovery",
+        });
+        if (!active) return;
+        if (error) {
+          setLinkError("Kiungo kimeisha muda wake au tayari kimetumika. Omba kiungo kipya.");
+          setCheckingLink(false);
+          return;
+        }
+
+        hasRecoveryPayload = true;
+        try {
+          window.sessionStorage.setItem(PASSWORD_RECOVERY_STORAGE_KEY, "true");
+        } catch {
+          // The verified session is still available in Supabase auth storage.
+        }
+        window.history.replaceState({}, document.title, "/reset-password");
+      }
+
+      const { data, error } = await supabase.auth.getSession();
       if (!active) return;
+
       if (error) {
         setLinkError(error.message);
-      } else if (data.session && hasRecoveryPayload) {
+      } else if (data.session && (hasRecoveryPayload || hasStoredRecoverySession())) {
         setIsRecovery(true);
-      } else if (!authError && !hasRecoveryPayload) {
+        setLinkError("");
+      } else if (!authError) {
         setLinkError("Kiungo si sahihi au muda wake umeisha. Omba kiungo kipya.");
       }
       setCheckingLink(false);
-    });
+    };
+
+    void initializeRecovery();
 
     return () => {
       active = false;
@@ -77,6 +140,13 @@ const ResetPassword = () => {
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
+
+      try {
+        window.sessionStorage.removeItem(PASSWORD_RECOVERY_STORAGE_KEY);
+      } catch {
+        // Ignore unavailable session storage.
+      }
+      await supabase.auth.signOut({ scope: "local" });
       setSuccess(true);
       toast({ title: "Password imebadilishwa 🔐", description: "Sasa unaweza kuingia kwa password mpya." });
       window.setTimeout(() => navigate("/auth", { replace: true }), 1800);
