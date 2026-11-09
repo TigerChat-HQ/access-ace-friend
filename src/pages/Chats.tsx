@@ -123,6 +123,14 @@ const Chats = () => {
   }, [hiddenChats]);
 
   useEffect(() => {
+    if (typeof window !== "undefined") window.localStorage.setItem(FAVORITE_CHATS_STORAGE_KEY, JSON.stringify(favoriteChats));
+  }, [favoriteChats]);
+
+  const toggleFavoriteChat = (conversationId: string) => {
+    setFavoriteChats((current) => current.includes(conversationId) ? current.filter((id) => id !== conversationId) : [...current, conversationId]);
+  };
+
+  useEffect(() => {
     if (!activeChat || !hiddenChats[activeChat]) return;
     setActiveChat(null);
   }, [activeChat, hiddenChats]);
@@ -415,7 +423,10 @@ const Chats = () => {
   const activeConvo = conversations.find((c) => c.id === activeChat);
   const filteredConversations = conversations.filter((c) => {
     const name = c.otherProfile?.display_name || c.name || "";
-    return name.toLowerCase().includes(search.toLowerCase());
+    const query = search.trim().toLowerCase();
+    const matchesSearch = !query || name.toLowerCase().includes(query) || (c.lastMessage?.content || "").toLowerCase().includes(query);
+    const matchesFilter = chatFilter === "all" || (chatFilter === "unread" && c.unreadCount > 0) || (chatFilter === "groups" && c.type === "group") || (chatFilter === "favorites" && favoriteChats.includes(c.id));
+    return matchesSearch && matchesFilter;
   });
   const visibleConversations = filteredConversations.filter((c) => !hiddenChats[c.id]);
   const hiddenConversations = filteredConversations.filter((c) => !!hiddenChats[c.id]);
