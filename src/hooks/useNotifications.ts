@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { playRingtone } from "@/lib/ringtones";
 import { enablePush } from "@/lib/firebase-push";
+import { getNotificationPreferences } from "@/lib/notification-preferences";
 
 const tryShowSwNotification = async (payload: { title: string; body: string; url: string; tag: string }) => {
   try {
@@ -40,7 +41,15 @@ export const useNotifications = () => {
   }, [user]);
 
   const showNotification = useCallback(
-    async (title: string, body: string, opts?: { url?: string; tag?: string; icon?: string; force?: boolean }) => {
+    async (title: string, body: string, opts?: { url?: string; tag?: string; icon?: string; force?: boolean; kind?: "chat" | "social" }) => {
+      const preferences = getNotificationPreferences(user?.id);
+      if (!preferences.enabled) return;
+      if (opts?.kind === "chat" && !preferences.chat) return;
+      if (opts?.kind === "social" && !preferences.social) return;
+      if (!document.hidden && opts?.kind) {
+        window.dispatchEvent(new CustomEvent("tiger:notification", { detail: { title, body, url: opts.url || "/", tag: opts.tag || "tigerchats", kind: opts.kind } }));
+        if (preferences.vibration && typeof navigator.vibrate === "function") navigator.vibrate(120);
+      }
       if (!("Notification" in window) || Notification.permission !== "granted") return;
       if (!opts?.force && !document.hidden) return;
       const payload = {
@@ -65,7 +74,7 @@ export const useNotifications = () => {
         };
       }
     },
-    []
+    [user]
   );
 
   // Listen for new chat messages
@@ -80,8 +89,11 @@ export const useNotifications = () => {
         async (payload) => {
           const msg = payload.new as unknown as IncomingMessageRow;
           if (msg.sender_id === user.id) return;
-          const stop = playRingtone("incoming_sms");
-          window.setTimeout(stop, 1500);
+          const preferences = getNotificationPreferences(user.id);
+          if (preferences.enabled && preferences.chat && preferences.sound) {
+            const stop = playRingtone("incoming_sms");
+            window.setTimeout(stop, 1500);
+          }
 
           const { data: profile } = await supabase
             .from("profiles")
@@ -102,6 +114,7 @@ export const useNotifications = () => {
           showNotification(senderName, body, {
             url: `/chats?c=${msg.conversation_id}`,
             tag: `msg-${msg.conversation_id}`,
+            kind: "chat",
           });
         }
       )
@@ -141,7 +154,7 @@ export const useNotifications = () => {
               ? `${name} liked your comment`
               : `${name} mentioned you`;
           const url = n.post_id ? `/post/${n.post_id}` : `/u/${n.actor_id}`;
-          showNotification("TIGERCHATS", body, { url, tag: `social-${n.id}` });
+          showNotification("TIGERCHATS", body, { url, tag: `social-${n.id}`, kind: "social" });
         }
       )
       .subscribe();
