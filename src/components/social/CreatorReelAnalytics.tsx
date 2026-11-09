@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { BarChart3, Eye, Users, Clock3, Target } from "lucide-react";
+import { BarChart3, Eye, Users, Clock3, Target, Download } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -41,17 +41,40 @@ export const CreatorReelAnalytics = () => {
     return () => { active = false; };
   }, [user]);
 
+  const daily = useMemo(() => Array.from({ length: 14 }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (13 - index));
+    const key = date.toISOString().slice(0, 10);
+    const rows = events.filter((event) => event.occurred_at.slice(0, 10) === key);
+    return {
+      key,
+      label: date.toLocaleDateString(undefined, { month: "numeric", day: "numeric" }),
+      impressions: rows.filter((event) => event.event_type === "impression").length,
+      plays: rows.filter((event) => event.event_type === "play").length,
+    };
+  }), [events]);
+
+  const exportCsv = () => {
+    const rows = [["date", "impressions", "plays"], ...daily.map((day) => [day.key, String(day.impressions), String(day.plays)])];
+    const csv = rows.map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "tigerchat-reels-analytics.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const metrics = useMemo(() => {
-    const impressions = events.filter((e) => e.event_type === "impression");
-    const plays = events.filter((e) => e.event_type === "play").length;
-    const completions = events.filter((e) => e.event_type === "retention_100").length;
-    const watchSeconds = events
-      .filter((e) => e.event_type === "watch")
-      .reduce((sum, e) => sum + Number(e.watch_seconds || 0), 0);
-    const retention = (type: string) => plays ? Math.round(events.filter((e) => e.event_type === type).length / plays * 100) : 0;
+    const impressions = events.filter((event) => event.event_type === "impression");
+    const plays = events.filter((event) => event.event_type === "play").length;
+    const completions = events.filter((event) => event.event_type === "retention_100").length;
+    const watchSeconds = events.filter((event) => event.event_type === "watch")
+      .reduce((sum, event) => sum + Number(event.watch_seconds || 0), 0);
+    const retention = (type: string) => plays ? Math.round(events.filter((event) => event.event_type === type).length / plays * 100) : 0;
     return {
       impressions: impressions.length,
-      reach: new Set(impressions.map((e) => e.viewer_id)).size,
+      reach: new Set(impressions.map((event) => event.viewer_id)).size,
       watchMinutes: Math.round(watchSeconds / 60),
       completionRate: plays ? Math.round(completions / plays * 100) : 0,
       retention25: retention("retention_25"),
@@ -62,9 +85,14 @@ export const CreatorReelAnalytics = () => {
 
   return (
     <section className="space-y-3 rounded-2xl border border-border/60 bg-card p-4">
-      <div className="flex items-center gap-2">
-        <BarChart3 className="h-4 w-4 text-primary" />
-        <h2 className="font-semibold text-foreground">Reels analytics · last 30 days</h2>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-primary" />
+          <h2 className="font-semibold text-foreground">Reels analytics · last 30 days</h2>
+        </div>
+        <button onClick={exportCsv} disabled={!events.length} className="flex items-center gap-1 rounded-lg bg-secondary px-2.5 py-1.5 text-xs text-secondary-foreground disabled:opacity-40">
+          <Download className="h-3.5 w-3.5" /> CSV
+        </button>
       </div>
       {loading ? (
         <p className="py-5 text-center text-sm text-muted-foreground">Loading video analytics…</p>
@@ -77,6 +105,23 @@ export const CreatorReelAnalytics = () => {
             <Metric icon={<Users className="h-4 w-4" />} label="Unique reach" value={metrics.reach.toLocaleString()} />
             <Metric icon={<Clock3 className="h-4 w-4" />} label="Watch time" value={`${metrics.watchMinutes} min`} />
             <Metric icon={<Target className="h-4 w-4" />} label="Completion rate" value={`${metrics.completionRate}%`} />
+          </div>
+          <div className="rounded-xl bg-background/70 p-3">
+            <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
+              <span>Daily activity · 14 days</span><span>Impressions / plays</span>
+            </div>
+            <div className="flex h-24 items-end gap-1">
+              {daily.map((day) => {
+                const max = Math.max(1, ...daily.map((item) => Math.max(item.impressions, item.plays)));
+                return (
+                  <div key={day.key} title={`${day.key}: ${day.impressions} impressions, ${day.plays} plays`} className="flex h-full min-w-0 flex-1 items-end justify-center gap-0.5">
+                    <div className="w-1/2 rounded-t bg-primary/80" style={{ height: `${day.impressions / max * 100}%` }} />
+                    <div className="w-1/2 rounded-t bg-sky-500/70" style={{ height: `${day.plays / max * 100}%` }} />
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-2 flex justify-between text-[10px] text-muted-foreground"><span>{daily[0]?.label}</span><span>{daily[daily.length - 1]?.label}</span></div>
           </div>
           <div>
             <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground"><span>Audience retention</span><span>Share of plays reaching each point</span></div>
