@@ -44,21 +44,30 @@ const insertSignal = async (data: SignalInsert) => {
   if (error) throw error;
 };
 
-const ICE_SERVERS: RTCConfiguration = {
-  iceServers: [
-    { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun2.l.google.com:19302"] },
-    { urls: ["stun:stun.cloudflare.com:3478"] },
-    {
-      urls: ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443"],
-      username: "openrelayproject",
-      credential: "openrelayproject",
-    },
-  ],
-  iceCandidatePoolSize: 2,
+const STUN_SERVERS: RTCIceServer[] = [
+  { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+  { urls: "stun:stun.cloudflare.com:3478" },
+];
+
+const getCallIceServers = async (): Promise<RTCIceServer[]> => {
+  const { data, error } = await supabase.functions.invoke("turn-credentials", { body: {} });
+  if (error) {
+    console.error("TURN credential request failed:", error.message);
+    throw new Error("Secure call relay is not configured. Please try again later.");
+  }
+  const turnServers = Array.isArray(data?.iceServers) ? data.iceServers as RTCIceServer[] : [];
+  const hasAuthenticatedTurn = turnServers.some((server) =>
+    Boolean(server.username && server.credential) &&
+    (Array.isArray(server.urls) ? server.urls : [server.urls]).some((url) => typeof url === "string" && /^(turn|turns):/i.test(url))
+  );
+  if (!hasAuthenticatedTurn) {
+    throw new Error("Secure call relay credentials are unavailable. Please try again later.");
+  }
+  return [...STUN_SERVERS, ...turnServers];
 };
 
 const RING_TIMEOUT_MS = 45000;
-const RECENT_CALL_WINDOW_MS = 15000;
+const RECENT_CALL_WINDOW_MS = 60000;
 
 export interface CallInfo {
   callId: string;
@@ -102,6 +111,8 @@ export const useWebRTC = () => {
   const facingRef = useRef<"user" | "environment">("user");
 
   const getSignalKey = useCallback((signal: CallSignal, fallbackCallId?: string) => {
+    // Each ICE candidate is a distinct signal; deduplicating by callId drops all but the first.
+    if (signal.signal_type === "ice-candidate") return signal.id;
     const callId = signal?.signal_data?.callId || signal?.callId || fallbackCallId || signal?.id;
     return callId ? `${signal?.signal_type ?? "signal"}:${callId}` : null;
   }, []);
@@ -186,8 +197,8 @@ export const useWebRTC = () => {
     });
   };
 
-  const createPeerConnection = useCallback((info: CallInfo) => {
-    const pc = new RTCPeerConnection(ICE_SERVERS);
+  const createPeerConnection = useCallback((info: CallInfo, iceServers: RTCIceServer[]) => {
+    const pc = new RTCPeerConnection({ iceServers, iceCandidatePoolSize: 2 });
     pcRef.current = pc;
 
     pc.onicecandidate = (event) => {
@@ -280,11 +291,12 @@ export const useWebRTC = () => {
     localIceQueue.current = [];
     signalReadyCallId.current = null;
     try {
+      const iceServers = await getCallIceServers();
       const stream = await getMedia(callType === "video");
       if (callIdRef.current !== info.callId) { stream.getTracks().forEach((track) => track.stop()); return; }
       localStreamRef.current = stream;
       setLocalStream(stream);
-      const pc = createPeerConnection(info);
+      const pc = createPeerConnection(info, iceServers);
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
@@ -312,11 +324,12 @@ export const useWebRTC = () => {
     localIceQueue.current = [];
     signalReadyCallId.current = null;
     try {
+      const iceServers = await getCallIceServers();
       const stream = await getMedia(info.callType === "video");
       if (callIdRef.current !== info.callId) { stream.getTracks().forEach((track) => track.stop()); return; }
       localStreamRef.current = stream;
       setLocalStream(stream);
-      const pc = createPeerConnection(info);
+      const pc = createPeerConnection(info, iceServers);
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
       await pc.setRemoteDescription(offer);
       await flushRemoteIce();
