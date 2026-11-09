@@ -335,8 +335,8 @@ const Draughts = () => {
               >
                 <Users className="w-7 h-7 text-primary" />
                 <div className="text-left">
-                  <p className="font-bold text-foreground">Play vs Player</p>
-                  <p className="text-xs text-muted-foreground">Realtime online matches</p>
+                  <p className="font-bold text-foreground">Play Online vs Player</p>
+                  <p className="text-xs text-muted-foreground">Requires internet · Realtime matches</p>
                 </div>
               </button>
             </>
