@@ -24,6 +24,8 @@ export const MusicPicker = ({ trigger, value, onChange, maxClip = MAX_DEFAULT }:
   const [moodFilter, setMoodFilter] = useState("All");
   const [audioError, setAudioError] = useState(false);
   const [trackDuration, setTrackDuration] = useState(0);
+  const [checkingAll, setCheckingAll] = useState(false);
+  const [trackChecks, setTrackChecks] = useState<Record<string, "ok" | "failed">>({});
   const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
@@ -62,6 +64,38 @@ export const MusicPicker = ({ trigger, value, onChange, maxClip = MAX_DEFAULT }:
     }
   };
 
+
+  const checkAllTracks = async () => {
+    if (checkingAll) return;
+    setCheckingAll(true);
+    setTrackChecks({});
+    const results = await Promise.all(FREE_TRACKS.map(track => new Promise<"ok" | "failed">(resolve => {
+      const probe = new Audio();
+      let settled = false;
+      const finish = (result: "ok" | "failed") => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        probe.onloadedmetadata = null;
+        probe.onerror = null;
+        probe.pause();
+        probe.removeAttribute("src");
+        probe.load();
+        resolve(result);
+      };
+      const timeout = window.setTimeout(() => finish("failed"), 12000);
+      probe.preload = "metadata";
+      probe.onloadedmetadata = () => finish(Number.isFinite(probe.duration) && probe.duration > 0 ? "ok" : "failed");
+      probe.onerror = () => finish("failed");
+      probe.src = track.url;
+      probe.load();
+    })));
+    const next: Record<string, "ok" | "failed"> = {};
+    FREE_TRACKS.forEach((track, index) => { next[track.id] = results[index]; });
+    setTrackChecks(next);
+    setCheckingAll(false);
+  };
+
   const confirm = () => {
     if (!selected) return;
     onChange({ url: selected.url, title: `${selected.title} — ${selected.artist}`, start: range[0], end: range[1] });
@@ -98,6 +132,10 @@ export const MusicPicker = ({ trigger, value, onChange, maxClip = MAX_DEFAULT }:
         </DialogHeader>
 
         <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">{Object.keys(trackChecks).length ? Object.values(trackChecks).filter(value => value === "ok").length + "/20 playable" : "20 free tracks"}</p>
+            <Button type="button" size="sm" variant="outline" disabled={checkingAll} onClick={() => void checkAllTracks()}>{checkingAll ? "Checking 20 tracks…" : "Test all 20 tracks"}</Button>
+          </div>
           <div className="flex flex-wrap gap-1">
             {["All", "Happy", "Sad", "Love", "Motivation"].map((mood) => (
               <button key={mood} type="button" onClick={() => setMoodFilter(mood)} className={`rounded-full px-3 py-1 text-xs ${moodFilter === mood ? "bg-primary text-primary-foreground" : "bg-surface text-muted-foreground"}`}>{mood === "Love" ? "Love / Romantic" : mood}</button>
@@ -114,7 +152,7 @@ export const MusicPicker = ({ trigger, value, onChange, maxClip = MAX_DEFAULT }:
               >
                 <div className="min-w-0">
                   <p className="text-sm text-foreground truncate">{t.title}</p>
-                  <p className="text-[10px] text-muted-foreground truncate">{t.artist} · {t.mood} · {t.kind}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{t.artist} · {t.mood} · {t.kind}{trackChecks[t.id] ? (trackChecks[t.id] === "ok" ? " · ✓ playable" : " · ✕ unavailable") : ""}</p>
                 </div>
                 {selected?.id === t.id && <Check className="w-4 h-4 text-primary shrink-0" />}
               </button>
