@@ -28,6 +28,9 @@ import android.view.animation.DecelerateInterpolator
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -316,17 +319,45 @@ class TigerChatOverlayService : Service() {
             settings.databaseEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
             webChromeClient = WebChromeClient()
+            isFocusable = true
+            isFocusableInTouchMode = true
+            webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView, url: String) {
+                    super.onPageFinished(view, url)
+                    val encodedPath = org.json.JSONObject.quote(safeChatPath(chatPath))
+                    view.evaluateJavascript(
+                        "if (window.location.pathname + window.location.search !== $encodedPath) { history.replaceState({}, '', $encodedPath); window.dispatchEvent(new PopStateEvent('popstate')); }",
+                        null,
+                    )
+                }
+            }
             addJavascriptInterface(object {
                 @JavascriptInterface
                 fun dismissChatNotification() { mainHandler.post { stopSelf() } }
             }, "TigerNative")
             setBackgroundColor(Color.rgb(12, 18, 17))
-            loadUrl("https://tigerchat-hq.onrender.com" + safeChatPath(chatPath))
+            loadUrl("https://tigerchat-hq.onrender.com/")
         }
         chatWebView = web
         panel.addView(header, LinearLayout.LayoutParams(-1, dp(52)))
         panel.addView(web, LinearLayout.LayoutParams(-1, 0, 1f))
+        ViewCompat.setOnApplyWindowInsetsListener(panel) { _, insets ->
+            val imeBottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val screenHeight = screenSize().second
+            val availableHeight = (screenHeight - bars.top - bars.bottom - dp(16) - imeBottom).coerceAtLeast(dp(240))
+            val targetHeight = if (imeBottom > 0) minOf(dp(panelHeight), availableHeight)
+                else safePanelDimensions(dp(panelWidth), dp(panelHeight)).second
+            val params = overlayView?.layoutParams as? WindowManager.LayoutParams
+            if (params != null && params.height != targetHeight) {
+                params.height = targetHeight
+                params.y = params.y.coerceAtMost((screenHeight - targetHeight - dp(8)).coerceAtLeast(dp(8)))
+                try { windowManager.updateViewLayout(overlayView, params) } catch (_: Exception) { }
+            }
+            insets
+        }
         attachView(panel, expandedLayoutParams())
+        web.requestFocus()
     }
 
     private fun updateExpandedHeader() {
