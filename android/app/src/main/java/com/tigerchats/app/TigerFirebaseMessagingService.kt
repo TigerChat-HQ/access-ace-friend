@@ -78,6 +78,25 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
         return CHANNEL_MESSAGES
     }
 
+    private fun quickReplyAction(path: String): NotificationCompat.Action {
+        val replyIntent = Intent(this, TigerQuickReplyReceiver::class.java)
+            .putExtra(TigerQuickReplyReceiver.EXTRA_PATH, path)
+        val replyPendingIntent = PendingIntent.getBroadcast(
+            this,
+            path.hashCode() xor 0x51A7,
+            replyIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+        )
+        val remoteInput = RemoteInput.Builder(TigerQuickReplyReceiver.KEY_TEXT_REPLY)
+            .setLabel("Reply to message")
+            .build()
+        return NotificationCompat.Action.Builder(android.R.drawable.ic_menu_send, "Reply", replyPendingIntent)
+            .addRemoteInput(remoteInput)
+            .setAllowGeneratedReplies(true)
+            .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
+            .build()
+    }
+
     private fun showChatBubble(title: String, body: String, path: String, conversationId: String) {
         val shortcutId = "chat_" + conversationId
         val target = Intent(this, BubbleActivity::class.java).putExtra("path", path)
@@ -113,6 +132,7 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
             .setShortcutId(shortcutId)
             .setBubbleMetadata(bubble)
             .setContentIntent(bubbleIntent)
+            .addAction(quickReplyAction(path))
             .setAutoCancel(true)
             .setOnlyAlertOnce(true)
             .build()
@@ -122,25 +142,7 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
     private fun showStandardNotification(title: String, body: String, path: String) {
         val intent = Intent(this, MainActivity::class.java).putExtra("path", path).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         val pending = PendingIntent.getActivity(this, path.hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val replyIntent = Intent(this, TigerQuickReplyReceiver::class.java)
-            .putExtra(TigerQuickReplyReceiver.EXTRA_PATH, path)
-        val replyPendingIntent = PendingIntent.getBroadcast(
-            this,
-            path.hashCode() xor 0x51A7,
-            replyIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
-        )
-        val remoteInput = RemoteInput.Builder(TigerQuickReplyReceiver.KEY_TEXT_REPLY)
-            .setLabel("Reply to message")
-            .build()
-        val replyAction = NotificationCompat.Action.Builder(
-            android.R.drawable.ic_menu_send,
-            "Reply",
-            replyPendingIntent,
-        ).addRemoteInput(remoteInput)
-            .setAllowGeneratedReplies(true)
-            .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
-            .build()
+        val replyAction = quickReplyAction(path)
         val notification = NotificationCompat.Builder(this, ensureChannels())
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
