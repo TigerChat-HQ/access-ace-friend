@@ -68,7 +68,7 @@ const Settings = () => {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [dataSaver, setDataSaver] = useState(() => { try { return localStorage.getItem("tigerchats:data-saver") === "true"; } catch { return false; } });
   const updateDataSaver = (enabled: boolean) => { setDataSaver(enabled); try { localStorage.setItem("tigerchats:data-saver", String(enabled)); } catch { /* storage may be unavailable */ } };
-  const [notifications, setNotifications] = useState(() => isNativeAndroid ? (window.TigerNative?.areNotificationsEnabled?.() ?? false) : user ? isPushEnabled(user.id) : false);
+  const [notifications, setNotifications] = useState(() => isNativeAndroid ? (window.TigerNative?.areNotificationsEnabled?.() ?? false) : user ? isPushEnabled(user.id) : false);\n  const [backgroundChatBubble, setBackgroundChatBubble] = useState(() => window.TigerNative?.isChatOverlayEnabled?.() ?? false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -100,7 +100,7 @@ const Settings = () => {
     };
   }, [user?.id, isNativeAndroid]);
 
-  const updateNotificationPreference = (patch: Partial<NotificationPreferences>) => {
+  const updateBackgroundChatBubble = (enabled: boolean) => {\n    if (!isNativeAndroid || !window.TigerNative?.setChatOverlayEnabled) {\n      toast({ title: "Android APK inahitajika", description: "Bubble ya juu ya apps nyingine inapatikana kwenye APK ya Android.", variant: "destructive" });\n      return;\n    }\n    window.TigerNative.setChatOverlayEnabled(enabled);\n    setBackgroundChatBubble(enabled);\n    if (enabled) toast({ title: "Background chat bubble imewashwa", description: "Ruhusu Display over other apps kwenye ukurasa wa Android utakaofunguka." });\n  };\n\n  const updateNotificationPreference = (patch: Partial<NotificationPreferences>) => {
     setNotificationPrefs(saveNotificationPreferences(user?.id, patch));
   };
 
@@ -389,7 +389,7 @@ const Settings = () => {
               <SettingToggle label="Notifications enabled" description="Master switch for app notifications on this device" value={notificationPrefs.enabled} onChange={(v) => updateNotificationPreference({ enabled: v })} icon={<Bell className="h-5 w-5" />} />
               <SettingToggle label="Chat notifications" description="New direct and group messages" value={notificationPrefs.chat} onChange={(v) => updateNotificationPreference({ chat: v })} icon={<Mail className="h-5 w-5" />} />
               <SettingToggle label="Social notifications" description="Likes, comments, replies and new followers" value={notificationPrefs.social} onChange={(v) => updateNotificationPreference({ social: v })} icon={<User className="h-5 w-5" />} />
-              <SettingToggle label="Floating chat bubble" description="Show a tappable message bubble while TIGERCHATS is open" value={notificationPrefs.floatingBubble} onChange={(v) => updateNotificationPreference({ floatingBubble: v })} icon={<MessageCircle className="h-5 w-5" />} />
+              <SettingToggle label="Floating chat bubble" description="Show a round chat bubble while TIGERCHATS is open; tap it to expand quick chat." value={notificationPrefs.floatingBubble} onChange={(v) => updateNotificationPreference({ floatingBubble: v })} icon={<MessageCircle className="h-5 w-5" />} />\n              {isNativeAndroid && <SettingToggle label="Background chat bubble (over other apps)" description="Keep a movable chat bubble available after leaving TIGERCHATS. Android will ask you to allow Display over other apps; an ongoing notification keeps the service visible." value={backgroundChatBubble} onChange={updateBackgroundChatBubble} icon={<Smartphone className="h-5 w-5" />} />}
               <SettingToggle label="Notification sound" description="Play the selected incoming message ringtone" value={notificationPrefs.sound} onChange={(v) => updateNotificationPreference({ sound: v })} icon={<Volume2 className="h-5 w-5" />} />
               <SettingToggle label="Vibration" description="Short vibration for incoming foreground notifications when supported" value={notificationPrefs.vibration} onChange={(v) => updateNotificationPreference({ vibration: v })} icon={<Smartphone className="h-5 w-5" />} />
             </div>
