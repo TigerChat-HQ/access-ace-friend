@@ -89,7 +89,7 @@ jobs:
           echo "ANDROID_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
           echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
       - name: Assemble signed release APK
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.ANDROID_KEYSTORE_BASE64 != ''
+        if: steps.signing.outputs.configured == 'true'
         run: gradle -p android :app:assembleRelease -PtigerVersionCode="$TIGER_VERSION_CODE" -PtigerVersionName="$TIGER_VERSION_NAME"
       - name: Assemble debug APK
         if: steps.signing.outputs.configured != 'true'
