@@ -327,11 +327,11 @@ class TigerChatOverlayService : Service() {
         val params = overlayView?.layoutParams as? WindowManager.LayoutParams ?: return@OnTouchListener false
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                view.setTag(R.id.panel_drag_origin, intArrayOf(event.rawX.toInt(), event.rawY.toInt(), params.x, params.y))
+                view.setTag(intArrayOf(event.rawX.toInt(), event.rawY.toInt(), params.x, params.y))
                 true
             }
             MotionEvent.ACTION_MOVE -> {
-                val origin = view.getTag(R.id.panel_drag_origin) as? IntArray ?: return@OnTouchListener false
+                val origin = view.getTag() as? IntArray ?: return@OnTouchListener false
                 params.x = (origin[2] - (event.rawX.toInt() - origin[0])).coerceAtLeast(0)
                 params.y = (origin[3] + (event.rawY.toInt() - origin[1])).coerceAtLeast(0)
                 windowManager.updateViewLayout(overlayView, params)
