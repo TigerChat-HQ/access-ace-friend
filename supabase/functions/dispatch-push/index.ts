@@ -102,10 +102,11 @@ Deno.serve(async (req) => {
 
     const { data: profile } = await caller
       .from("profiles")
-      .select("display_name,username")
+      .select("display_name,username,avatar_url")
       .eq("user_id", user.id)
       .maybeSingle();
     const senderName = profile?.display_name || profile?.username || "Someone";
+    const senderAvatar = profile?.avatar_url || "";
 
     let recipients: string[] = [];
     let title = "TIGERCHATS";
@@ -216,7 +217,7 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             message: {
               token: device.token,
-              data: { title, body, kind, path, tag },
+              data: { title, body, kind, path, tag, avatar_url: senderAvatar },
               android: {
                 priority: kind === "call" ? "HIGH" : "NORMAL",
                 ttl: kind === "call" ? "45s" : "300s",
