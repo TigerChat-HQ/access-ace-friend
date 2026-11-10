@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebView
@@ -14,6 +15,9 @@ import android.webkit.WebViewClient
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
 
@@ -23,6 +27,8 @@ open class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Keep the WebView below the Android status bar/notch and above the navigation bar.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         requestNotificationPermission()
         webView = WebView(this)
         webView.settings.javaScriptEnabled = true
@@ -44,6 +50,14 @@ open class MainActivity : Activity() {
         webView.webChromeClient = WebChromeClient()
         webView.addJavascriptInterface(NativeBridge(), "TigerNative")
         setContentView(webView)
+        ViewCompat.setOnApplyWindowInsetsListener(webView) { view, windowInsets ->
+            val safeInsets = windowInsets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            view.setPadding(safeInsets.left, safeInsets.top, safeInsets.right, safeInsets.bottom)
+            WindowInsetsCompat.CONSUMED
+        }
+        ViewCompat.requestApplyInsets(webView)
         webView.loadUrl(targetUrl(intent?.getStringExtra("path")))
         warmFirebaseToken()
     }
@@ -64,6 +78,15 @@ open class MainActivity : Activity() {
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 7301)
+        }
+    }
+
+    private fun syncChatOverlayService() {
+        val enabled = getSharedPreferences("tiger_overlay", MODE_PRIVATE).getBoolean("enabled", false)
+        if (enabled && Settings.canDrawOverlays(this)) {
+            ContextCompat.startForegroundService(this, Intent(this, TigerChatOverlayService::class.java))
+        } else if (enabled) {
+            getSharedPreferences("tiger_overlay", MODE_PRIVATE).edit().putBoolean("enabled", false).apply()
         }
     }
 
@@ -101,6 +124,7 @@ open class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         warmFirebaseToken()
+        syncChatOverlayService()
     }
 
     private fun publishTokenToWeb(token: String) {
@@ -137,6 +161,29 @@ open class MainActivity : Activity() {
                 val settingsIntent = Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                     .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
                 startActivity(settingsIntent)
+            }
+        }
+
+        @JavascriptInterface
+        fun isChatOverlayEnabled(): Boolean =
+            getSharedPreferences("tiger_overlay", MODE_PRIVATE).getBoolean("enabled", false)
+
+        @JavascriptInterface
+        fun setChatOverlayEnabled(enabled: Boolean) {
+            runOnUiThread {
+                val prefs = getSharedPreferences("tiger_overlay", MODE_PRIVATE)
+                if (!enabled) {
+                    prefs.edit().putBoolean("enabled", false).apply()
+                    stopService(Intent(this@MainActivity, TigerChatOverlayService::class.java))
+                    return@runOnUiThread
+                }
+                prefs.edit().putBoolean("enabled", true).apply()
+                if (!Settings.canDrawOverlays(this@MainActivity)) {
+                    val permissionIntent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+                    startActivity(permissionIntent)
+                } else {
+                    ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, TigerChatOverlayService::class.java))
+                }
             }
         }
     }

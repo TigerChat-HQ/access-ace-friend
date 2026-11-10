@@ -1,17 +1,17 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { MessageCircle, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { MessageCircle, X, Minus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getNotificationPreferences } from "@/lib/notification-preferences";
 
 type BubbleNotice = { title: string; body: string; url: string; tag: string; kind: "chat" | "social" };
 
 export const NotificationBubble = () => {
-  const navigate = useNavigate();
   const { user } = useAuth();
+  const location = useLocation();
   const [notice, setNotice] = useState<BubbleNotice | null>(null);
   const [enabled, setEnabled] = useState(() => getNotificationPreferences(user?.id).floatingBubble);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     const update = () => setEnabled(getNotificationPreferences(user?.id).floatingBubble);
@@ -28,38 +28,56 @@ export const NotificationBubble = () => {
     };
   }, [user?.id]);
 
-  useEffect(() => {
-    if (!notice) return;
-    const timer = window.setTimeout(() => setNotice(null), 9000);
-    return () => window.clearTimeout(timer);
-  }, [notice]);
+  const chatFrameUrl = useMemo(() => {
+    const url = new URL(notice?.url || "/chats", window.location.origin);
+    if (url.origin !== window.location.origin) return "/chats?bubble=1";
+    url.searchParams.set("bubble", "1");
+    return url.pathname + url.search + url.hash;
+  }, [notice?.url]);
 
-  if (!enabled || !notice) return null;
+  if (!enabled || !user || location.search.includes("bubble=1")) return null;
+
   return (
-    <div className="fixed z-[100] bottom-20 right-3 sm:bottom-5 sm:right-5 w-[min(21rem,calc(100vw-1.5rem))] animate-fade-in">
-      <div className="rounded-2xl border border-primary/30 bg-card/95 p-3 shadow-2xl backdrop-blur-xl">
-        <div className="flex items-start gap-3">
-          <button
-            type="button"
-            onClick={() => { navigate(notice.url); setNotice(null); }}
-            className="flex min-w-0 flex-1 items-center gap-3 text-left"
-            aria-label="Open new message"
-          >
-            <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-              <MessageCircle className="h-5 w-5" />
-              <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-card bg-primary" />
+    <div className="fixed z-[120] bottom-[calc(5.25rem+env(safe-area-inset-bottom))] right-3 sm:bottom-5 sm:right-5">
+      {expanded && (
+        <section
+          aria-label="TIGERCHATS floating chat"
+          className="absolute bottom-[4.25rem] right-0 flex h-[min(72dvh,620px)] w-[min(22rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border border-primary/40 bg-background shadow-2xl animate-fade-in"
+        >
+          <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary">
+              <MessageCircle className="h-4 w-4" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-foreground">{notice.title}</span>
-              <span className="mt-0.5 block line-clamp-2 text-xs text-muted-foreground">{notice.body}</span>
-              <span className="mt-1 block text-[10px] font-semibold text-primary">Gusa kufungua mazungumzo</span>
+              <span className="block text-sm font-semibold text-foreground">TIGERCHATS</span>
+              <span className="block text-[10px] text-muted-foreground">{notice ? "Ujumbe mpya" : "Chat ya haraka"}</span>
             </span>
-          </button>
-          <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setNotice(null)} aria-label="Dismiss notification">
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+            <button type="button" onClick={() => setExpanded(false)} className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted" aria-label="Minimize chat">
+              <Minus className="h-4 w-4" />
+            </button>
+            <button type="button" onClick={() => { setExpanded(false); setNotice(null); }} className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted" aria-label="Close chat">
+              <X className="h-4 w-4" />
+            </button>
+          </header>
+          <iframe
+            key={chatFrameUrl}
+            title="TIGERCHATS quick chat"
+            src={chatFrameUrl}
+            className="min-h-0 w-full flex-1 border-0 bg-background"
+            allow="camera; microphone; clipboard-read; clipboard-write"
+          />
+        </section>
+      )}
+      <button
+        type="button"
+        onClick={() => { setExpanded((value) => !value); setNotice(null); }}
+        aria-label={expanded ? "Minimize floating chat" : "Open floating chat"}
+        aria-expanded={expanded}
+        className="relative flex h-14 w-14 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-[0_8px_26px_hsl(var(--primary)/.42)] transition-transform hover:scale-105 active:scale-95"
+      >
+        <MessageCircle className="h-6 w-6" />
+        {notice && !expanded && <span className="absolute -right-0.5 -top-0.5 h-4 w-4 rounded-full border-2 border-background bg-destructive" />}
+      </button>
     </div>
   );
 };
