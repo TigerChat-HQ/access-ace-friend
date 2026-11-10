@@ -110,6 +110,9 @@ class TigerChatOverlayService : Service() {
 
     private fun showCollapsedBubble() {
         expanded = false
+        chatWebView?.stopLoading()
+        chatWebView?.destroy()
+        chatWebView = null
         val bubble = TextView(this).apply {
             text = "T"
             textSize = 23f
