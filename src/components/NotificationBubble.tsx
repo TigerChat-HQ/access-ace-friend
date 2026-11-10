@@ -106,10 +106,26 @@ export const NotificationBubble = () => {
   }, [user?.id]);
 
   useEffect(() => {
-    const onResize = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
+    const visualViewport = window.visualViewport;
+    const onResize = () => {
+      const visibleHeight = visualViewport?.height && visualViewport.height > 0
+        ? visualViewport.height
+        : window.innerHeight;
+      setViewport({ width: window.innerWidth, height: visibleHeight });
+      setDragPoint((point) => point ? clampPoint(point, bubbleSize, window.innerWidth, visibleHeight) : null);
+    };
+    onResize();
     window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
+    window.addEventListener("orientationchange", onResize);
+    visualViewport?.addEventListener("resize", onResize);
+    visualViewport?.addEventListener("scroll", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+      visualViewport?.removeEventListener("resize", onResize);
+      visualViewport?.removeEventListener("scroll", onResize);
+    };
+  }, [bubbleSize]);
 
   useEffect(() => {
     if (!preferences.floatingBubble) {
@@ -218,7 +234,9 @@ export const NotificationBubble = () => {
   const panelStyle: CSSProperties = {
     ...(preferences.floatingBubblePosition.side === "left" ? { left: 0 } : { right: 0 }),
     ...(openAbove ? { bottom: `calc(100% + ${edgeGap}px)` } : { top: `calc(100% + ${edgeGap}px)` }),
+    height: `${panelMaxHeight}px`,
     maxHeight: `${panelMaxHeight}px`,
+    minHeight: "160px",
   };
   const iconSize = Math.round(bubbleSize * 0.42);
 
