@@ -27,7 +27,7 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
         val kind = data["kind"] ?: "message"
         val conversationId = Regex("[?&]c=([^&]+)").find(path)?.groupValues?.getOrNull(1)
         showStandardNotification(title, body, path)
-        if (kind == "message" && getSharedPreferences("tiger_overlay", Context.MODE_PRIVATE).getBoolean("enabled", false)) {
+        if ((kind == "message" || kind == "call") && getSharedPreferences("tiger_overlay", Context.MODE_PRIVATE).getBoolean("enabled", false)) {
             val overlay = Intent(this, TigerChatOverlayService::class.java)
                 .setAction(TigerChatOverlayService.ACTION_SHOW_NOTIFICATION)
                 .putExtra(TigerChatOverlayService.EXTRA_TITLE, title)
