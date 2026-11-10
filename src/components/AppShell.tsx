@@ -47,10 +47,10 @@ export const AppShell = () => {
     const editableSelector = "input, textarea, select, [contenteditable='true'], [role='textbox']";
 
     const reveal = (doc: Document) => {
-      const active = doc.activeElement;
-      if (!(active instanceof HTMLElement) || !active.matches(editableSelector)) return;
       const view = doc.defaultView;
       if (!view) return;
+      const active = doc.activeElement;
+      if (!(active instanceof view.HTMLElement) || !active.matches(editableSelector)) return;
       const vv = view.visualViewport;
       const top = vv?.offsetTop ?? 0;
       const bottom = top + (vv?.height ?? view.innerHeight);
@@ -102,13 +102,20 @@ export const AppShell = () => {
       });
     };
 
+    const attachedDocuments = new WeakSet<Document>();
+    const attachedFrames = new WeakSet<HTMLIFrameElement>();
+    const onFocusOut = () => window.setTimeout(update, 80);
     const attachDocument = (doc: Document) => {
+      if (attachedDocuments.has(doc)) return;
+      attachedDocuments.add(doc);
       doc.addEventListener("focusin", update, true);
       doc.addEventListener("input", update, true);
-      doc.addEventListener("focusout", () => window.setTimeout(update, 80), true);
+      doc.addEventListener("focusout", onFocusOut, true);
     };
     const attachFrames = () => {
       document.querySelectorAll("iframe").forEach((frameElement) => {
+        if (attachedFrames.has(frameElement)) return;
+        attachedFrames.add(frameElement);
         frameElement.addEventListener("load", () => {
           try {
             if (frameElement.contentDocument) attachDocument(frameElement.contentDocument);
@@ -140,6 +147,17 @@ export const AppShell = () => {
       observer?.disconnect();
       document.removeEventListener("focusin", update, true);
       document.removeEventListener("input", update, true);
+      document.removeEventListener("focusout", onFocusOut, true);
+      document.querySelectorAll("iframe").forEach((frameElement) => {
+        try {
+          const child = frameElement.contentDocument;
+          child?.removeEventListener("focusin", update, true);
+          child?.removeEventListener("input", update, true);
+          child?.removeEventListener("focusout", onFocusOut, true);
+        } catch {
+          // Cross-origin frames are intentionally not accessed.
+        }
+      });
       window.removeEventListener("resize", update);
       window.removeEventListener("orientationchange", update);
       viewport?.removeEventListener("resize", update);
