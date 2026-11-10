@@ -63,7 +63,7 @@ open class MainActivity : Activity() {
             val imeInsets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
             safeAreaTopDp = safeInsets.top / resources.displayMetrics.density
             view.setPadding(safeInsets.left, 0, safeInsets.right, maxOf(safeInsets.bottom, imeInsets.bottom))
-            applySafeAreaTop(view)
+            applySafeAreaTop(webView)
             WindowInsetsCompat.CONSUMED
         }
         ViewCompat.requestApplyInsets(webView)
