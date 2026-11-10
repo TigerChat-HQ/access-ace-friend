@@ -26,10 +26,15 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
         val path = data["path"] ?: "/chats"
         val kind = data["kind"] ?: "message"
         val conversationId = Regex("[?&]c=([^&]+)").find(path)?.groupValues?.getOrNull(1)
-        if (kind == "message" && conversationId != null && Build.VERSION.SDK_INT >= 30) {
-            showChatBubble(title, body, path, conversationId)
-        } else {
-            showStandardNotification(title, body, path)
+        showStandardNotification(title, body, path)
+        if (kind == "message" && getSharedPreferences("tiger_overlay", Context.MODE_PRIVATE).getBoolean("enabled", false)) {
+            val overlay = Intent(this, TigerChatOverlayService::class.java)
+                .setAction(TigerChatOverlayService.ACTION_SHOW_NOTIFICATION)
+                .putExtra(TigerChatOverlayService.EXTRA_TITLE, title)
+                .putExtra(TigerChatOverlayService.EXTRA_BODY, body)
+                .putExtra(TigerChatOverlayService.EXTRA_PATH, path)
+                .putExtra(TigerChatOverlayService.EXTRA_AVATAR, data["avatar_url"] ?: "")
+            androidx.core.content.ContextCompat.startForegroundService(this, overlay)
         }
     }
 
