@@ -32,11 +32,12 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
       - name: Configure Firebase Android app
-        if: ${{ secrets.TIGERCHAT_ANDROID_GOOGLE_SERVICES_JSON != '' }}
         env:
           FIREBASE_ANDROID_CONFIG: ${{ secrets.TIGERCHAT_ANDROID_GOOGLE_SERVICES_JSON }}
         run: |
-          printf '%s' "$FIREBASE_ANDROID_CONFIG" > android/app/google-services.json
+          if [ -n "$FIREBASE_ANDROID_CONFIG" ]; then
+            printf '%s' "$FIREBASE_ANDROID_CONFIG" > android/app/google-services.json
+          fi
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
