@@ -489,16 +489,16 @@ const Chats = () => {
       )}
 
       <div className={`${showSidebar ? "flex" : "hidden"} md:flex flex-col w-full md:w-[380px] lg:w-[420px] border-r border-border/50 bg-card/50`}>
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
-          <div className="flex items-center gap-2.5">
-            <img src={tigerLogo} alt="TIGERCHATS" className="w-9 h-9" width={512} height={512} />
-            <h1 className="text-lg font-bold tracking-tight text-foreground">TIGER<span className="text-primary">CHATS</span></h1>
+        <div className="tiger-page-header chat-list-page-header justify-between gap-1 px-3">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <img src={tigerLogo} alt="TIGERCHATS" className="h-7 w-7 shrink-0" width={512} height={512} />
+            <h1 className="truncate text-sm font-bold tracking-tight text-foreground">TIGER<span className="text-primary">CHATS</span></h1>
           </div>
-          <div className="flex items-center gap-1">
-            <button type="button" onClick={() => setCallHistoryOpen(true)} className="p-2 rounded-full hover:bg-surface-hover text-muted-foreground" title="Call history" aria-label="Call history"><Phone className="w-4 h-4" /></button>
+          <div className="tiger-chat-list-actions flex shrink-0 items-center gap-0">
+            <button type="button" onClick={() => setCallHistoryOpen(true)} className="tiger-header-action-compact hover:bg-surface-hover hover:text-primary" title="Call history" aria-label="Call history"><Phone className="w-4 h-4" /></button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="p-2 rounded-full hover:bg-surface-hover text-muted-foreground" title="Chat list settings" aria-label="Chat list settings"><MoreVertical className="w-4 h-4" /></button>
+                <button className="tiger-header-action-compact hover:bg-surface-hover hover:text-primary" title="Chat list settings" aria-label="Chat list settings"><MoreVertical className="w-4 h-4" /></button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => setShowArchivedChats((value) => !value)}>

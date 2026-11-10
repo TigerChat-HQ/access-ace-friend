@@ -36,7 +36,7 @@ const ForgotPassword = () => {
 
   if (sent) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="tiger-app-safe-area min-h-screen flex items-center justify-center bg-background p-4">
         <div className="w-full max-w-md space-y-6 animate-fade-in text-center">
           <CheckCircle className="w-16 h-16 text-primary mx-auto" />
           <h2 className="text-xl font-bold text-foreground">Angalia email yako</h2>
@@ -52,7 +52,7 @@ const ForgotPassword = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="tiger-app-safe-area min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-8 animate-fade-in">
         <div className="text-center space-y-4">
           <img src={tigerLogo} alt="TIGERCHATS" className="w-20 h-20 mx-auto" width={512} height={512} />

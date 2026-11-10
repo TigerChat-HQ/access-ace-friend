@@ -35,7 +35,7 @@ const PublicDraughts = lazy(() => import("./pages/PublicDraughts"));
 import { HelmetProvider } from "react-helmet-async";
 import { TwoFactorGate } from "@/components/TwoFactorSecurity";
 const queryClient = new QueryClient();
-const Spinner = () => <div className="min-h-screen flex items-center justify-center bg-background"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+const Spinner = () => <div className="tiger-app-safe-area min-h-screen flex items-center justify-center bg-background"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   if (loading) return <Spinner />;
