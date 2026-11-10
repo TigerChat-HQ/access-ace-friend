@@ -119,7 +119,10 @@ open class MainActivity : Activity() {
 
         @JavascriptInterface
         fun refreshFcmToken() {
-            runOnUiThread { warmFirebaseToken() }
+            runOnUiThread {
+                getSharedPreferences("tiger_native", MODE_PRIVATE).edit().remove("fcm_token").apply()
+                warmFirebaseToken()
+            }
         }
 
         @JavascriptInterface
