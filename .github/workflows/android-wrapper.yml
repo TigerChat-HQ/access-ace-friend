@@ -47,6 +47,10 @@ jobs:
           if [ -n "$FIREBASE_ANDROID_CONFIG" ]; then
             printf '%s' "$FIREBASE_ANDROID_CONFIG" > android/app/google-services.json
           fi
+      - name: Copy official web logo into Android app resources
+        run: |
+          mkdir -p android/app/src/main/res/drawable-nodpi
+          cp src/assets/tigerchats-logo.png android/app/src/main/res/drawable-nodpi/tigerchats_logo.png
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
