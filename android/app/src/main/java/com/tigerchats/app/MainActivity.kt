@@ -125,7 +125,6 @@ open class MainActivity : Activity() {
             if (view.paddingBottom != keyboardPadding) {
                 view.setPadding(0, 0, 0, keyboardPadding)
             }
-            view.clipToPadding = true
             safeAreaTopDp = safeInsets.top / resources.displayMetrics.density
             applySafeAreaTop(webView)
             // Preserve insets so WebView and the page can also observe viewport changes.
