@@ -33,6 +33,19 @@ describe("Firebase device notifications", () => {
     expect(mocks.upsert).not.toHaveBeenCalled();
   });
 
+  it("accepts standard Firebase environment variable names and an explicit sender ID", async () => {
+    for (const key of ["WEB_API_KEY", "PROJECT_ID", "APP_ID", "VAPID_KEY"]) {
+      vi.stubEnv(`VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_${key === "WEB_API_KEY" ? "WEB_API_KEY" : key}`, "");
+    }
+    vi.stubEnv("VITE_FIREBASE_API_KEY", "fallback-web-key");
+    vi.stubEnv("VITE_FIREBASE_PROJECT_ID", "fallback-project");
+    vi.stubEnv("VITE_FIREBASE_APP_ID", "app-id-without-sender");
+    vi.stubEnv("VITE_FIREBASE_MESSAGING_SENDER_ID", "123456");
+    vi.stubEnv("VITE_FIREBASE_VAPID_KEY", "fallback-vapid");
+    expect(await enablePush("user-a")).toContain("enabled");
+    expect(navigator.serviceWorker.register).toHaveBeenCalledWith(expect.stringContaining("messagingSenderId=123456"));
+  });
+
   it("stores the registration privately for the current user", async () => {
     expect(await enablePush("user-a")).toContain("enabled");
     expect(mocks.upsert).toHaveBeenCalledWith({ user_id: "user-a", token: "device-token" }, { onConflict: "user_id,token" });
