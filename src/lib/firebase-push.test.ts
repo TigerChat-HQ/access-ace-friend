@@ -28,7 +28,8 @@ describe("Firebase device notifications", () => {
 
   it("requires web push configuration before asking permission", async () => {
     vi.stubEnv("VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_VAPID_KEY", "");
-    expect(await enablePush("user-a")).toContain("Include web push");
+    const message = await enablePush("user-a");
+    expect(message).toContain("Firebase Web Push VAPID key");
     expect(mocks.permission).not.toHaveBeenCalled();
     expect(mocks.upsert).not.toHaveBeenCalled();
   });
