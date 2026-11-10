@@ -5,7 +5,7 @@ import { Download, RefreshCw, Smartphone } from "lucide-react";
 
 declare global {
   interface Window {
-    TigerNative?: { getAppVersion?: () => string };
+    TigerNative?: { getFcmToken?: () => string; getAppVersion?: () => string };
   }
 }
 
