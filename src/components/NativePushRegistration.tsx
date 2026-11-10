@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 declare global {
   interface Window {
-    TigerNative?: { getFcmToken?: () => string; getAppVersion?: () => string };
+    TigerNative?: { getFcmToken?: () => string; getAppVersion?: () => string; areNotificationsEnabled?: () => boolean; openNotificationSettings?: () => void };
   }
 }
 
