@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";\nimport { useLocation } from "react-router-dom";
 import { MessageCircle, X, Minus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getNotificationPreferences } from "@/lib/notification-preferences";
@@ -6,7 +6,7 @@ import { getNotificationPreferences } from "@/lib/notification-preferences";
 type BubbleNotice = { title: string; body: string; url: string; tag: string; kind: "chat" | "social" };
 
 export const NotificationBubble = () => {
-  const { user } = useAuth();
+  const { user } = useAuth();\n  const location = useLocation();
   const [notice, setNotice] = useState<BubbleNotice | null>(null);
   const [enabled, setEnabled] = useState(() => getNotificationPreferences(user?.id).floatingBubble);
   const [expanded, setExpanded] = useState(false);
@@ -33,7 +33,7 @@ export const NotificationBubble = () => {
     return url.pathname + url.search + url.hash;
   }, [notice?.url]);
 
-  if (!enabled || !user) return null;
+  if (!enabled || !user || location.search.includes("bubble=1")) return null;
 
   return (
     <div className="fixed z-[120] bottom-[calc(5.25rem+env(safe-area-inset-bottom))] right-3 sm:bottom-5 sm:right-5">
