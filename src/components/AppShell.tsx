@@ -101,13 +101,29 @@ export const AppShell = () => {
       });
     };
 
+    const revealTimers = new Set<number>();
+    const scheduleReveal = () => {
+      [60, 180, 360].forEach((delay) => {
+        const timer = window.setTimeout(() => {
+          revealTimers.delete(timer);
+          update();
+        }, delay);
+        revealTimers.add(timer);
+      });
+    };
+    const onFocusIn = () => {
+      update();
+      // Android keyboards animate after focus; reveal again after the visual viewport settles.
+      scheduleReveal();
+    };
+
     const attachedDocuments = new WeakSet<Document>();
     const attachedFrames = new WeakSet<HTMLIFrameElement>();
     const onFocusOut = () => window.setTimeout(update, 80);
     const attachDocument = (doc: Document) => {
       if (attachedDocuments.has(doc)) return;
       attachedDocuments.add(doc);
-      doc.addEventListener("focusin", update, true);
+      doc.addEventListener("focusin", onFocusIn, true);
       doc.addEventListener("input", update, true);
       doc.addEventListener("focusout", onFocusOut, true);
     };
@@ -143,14 +159,16 @@ export const AppShell = () => {
 
     return () => {
       window.cancelAnimationFrame(frame);
+      revealTimers.forEach((timer) => window.clearTimeout(timer));
+      revealTimers.clear();
       observer?.disconnect();
-      document.removeEventListener("focusin", update, true);
+      document.removeEventListener("focusin", onFocusIn, true);
       document.removeEventListener("input", update, true);
       document.removeEventListener("focusout", onFocusOut, true);
       document.querySelectorAll("iframe").forEach((frameElement) => {
         try {
           const child = frameElement.contentDocument;
-          child?.removeEventListener("focusin", update, true);
+          child?.removeEventListener("focusin", onFocusIn, true);
           child?.removeEventListener("input", update, true);
           child?.removeEventListener("focusout", onFocusOut, true);
         } catch {

@@ -114,13 +114,20 @@ open class MainActivity : Activity() {
         }
         webView.addJavascriptInterface(NativeBridge(), "TigerNative")
         setContentView(webView)
-        ViewCompat.setOnApplyWindowInsetsListener(webView) { _, windowInsets ->
+        ViewCompat.setOnApplyWindowInsetsListener(webView) { view, windowInsets ->
             val safeInsets = windowInsets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
             )
+            val imeBottom = windowInsets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            // With edge-to-edge enabled, explicitly reserve the IME area inside WebView.
+            // This keeps the embedded page's visual viewport above the Android keyboard.
+            val keyboardPadding = (imeBottom - safeInsets.bottom).coerceAtLeast(0)
+            if (view.paddingBottom != keyboardPadding) {
+                view.setPadding(0, 0, 0, keyboardPadding)
+            }
             safeAreaTopDp = safeInsets.top / resources.displayMetrics.density
             applySafeAreaTop(webView)
-            // Do not consume IME/system insets: WebView needs them for keyboard/viewport updates.
+            // Preserve insets so WebView and the page can also observe viewport changes.
             windowInsets
         }
         ViewCompat.requestApplyInsets(webView)
