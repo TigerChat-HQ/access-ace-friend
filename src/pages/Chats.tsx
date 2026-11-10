@@ -111,6 +111,7 @@ const Chats = () => {
     return () => { unsubscribe(); };
   }, [activeChat]);
 
+  const deliveredNativeReplyRef = useRef<string | null>(null);
   const lastEmojiSoundMessageRef = useRef<string | null>(null);
   const lastEmojiSoundConversationRef = useRef<string | null>(activeChat);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -219,10 +220,20 @@ const Chats = () => {
 
   useEffect(() => {
     const deliver = (detail: { text?: string; conversationId?: string } | undefined) => {
-      if (!detail?.text?.trim() || !detail.conversationId || detail.conversationId !== activeChat) return;
-      void handleSend(detail.text);
+      if (!user?.id || !detail?.text?.trim() || !detail.conversationId || detail.conversationId !== activeChat) return;
+      const deliveryKey = `${detail.conversationId}:${detail.text}`;
+      if (deliveredNativeReplyRef.current === deliveryKey) return;
+      deliveredNativeReplyRef.current = deliveryKey;
       const nativeWindow = window as Window & { __tigerQuickReply?: { text?: string; conversationId?: string } };
-      nativeWindow.__tigerQuickReply = undefined;
+      void handleSend(detail.text).then(() => {
+        if (
+          nativeWindow.__tigerQuickReply?.conversationId === detail.conversationId &&
+          nativeWindow.__tigerQuickReply?.text === detail.text
+        ) nativeWindow.__tigerQuickReply = undefined;
+        deliveredNativeReplyRef.current = null;
+      }).catch(() => {
+        deliveredNativeReplyRef.current = null;
+      });
     };
     const nativeWindow = window as Window & { __tigerQuickReply?: { text?: string; conversationId?: string } };
     deliver(nativeWindow.__tigerQuickReply);
@@ -231,7 +242,7 @@ const Chats = () => {
     };
     window.addEventListener("tiger:native-quick-reply", onQuickReply);
     return () => window.removeEventListener("tiger:native-quick-reply", onQuickReply);
-  }, [activeChat, handleSend]);
+  }, [activeChat, handleSend, user?.id]);
 
   const handleSendVoice = async (blob: Blob, duration: number) => {
     if (!activeChat || !user) return;
