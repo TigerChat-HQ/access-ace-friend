@@ -41,68 +41,126 @@ export const AppShell = () => {
 
   useEffect(() => {
     const root = document.documentElement;
-    const visualViewport = window.visualViewport;
-    let revealFrame = 0;
+    const viewport = window.visualViewport;
+    let frame = 0;
+    const editableSelector = "input, textarea, select, [contenteditable='true'], [role='textbox']";
 
-    const updateVisibleHeight = () => {
-      const height = visualViewport?.height && visualViewport.height > 0
-        ? visualViewport.height
-        : window.innerHeight;
-      const offsetTop = visualViewport?.offsetTop ?? 0;
-      const keyboardOpen = window.innerHeight - height - offsetTop > 120;
+    const reveal = (doc: Document) => {
+      const view = doc.defaultView;
+      if (!view) return;
+      const active = doc.activeElement;
+      if (!(active instanceof view.HTMLElement) || !active.matches(editableSelector)) return;
+      const vv = view.visualViewport;
+      const top = vv?.offsetTop ?? 0;
+      const bottom = top + (vv?.height ?? view.innerHeight);
+      const rect = active.getBoundingClientRect();
+      if (rect.bottom > bottom - 20 || rect.top < top + 12) {
+        active.scrollIntoView({ behavior: "auto", block: "center", inline: "nearest" });
+      }
+      let parent = active.parentElement;
+      while (parent && parent !== doc.body) {
+        const style = view.getComputedStyle(parent);
+        if (/(auto|scroll)/.test(style.overflowY) && parent.scrollHeight > parent.clientHeight + 2) {
+          const bounds = parent.getBoundingClientRect();
+          if (bounds.bottom > bottom - 12) parent.scrollTop += bounds.bottom - bottom + 24;
+          if (bounds.top < top + 8) parent.scrollTop -= top - bounds.top + 16;
+          break;
+        }
+        parent = parent.parentElement;
+      }
+      // If the editor is inside a same-origin iframe, reveal the iframe in the app too.
+      if (doc !== document) {
+        const frameElement = doc.defaultView?.frameElement;
+        if (frameElement instanceof HTMLElement) {
+          frameElement.scrollIntoView({ behavior: "auto", block: "center", inline: "nearest" });
+        }
+      }
+    };
+
+    const update = () => {
+      const height = viewport?.height && viewport.height > 0 ? viewport.height : window.innerHeight;
+      const offsetTop = viewport?.offsetTop ?? 0;
+      const inset = Math.max(0, window.innerHeight - height - offsetTop);
+      const keyboardOpen = inset > 100;
       root.style.setProperty("--tiger-viewport-height", `${Math.round(height)}px`);
       root.style.setProperty("--tiger-visual-offset-top", `${Math.round(offsetTop)}px`);
-      root.style.setProperty("--tiger-keyboard-inset", `${Math.max(0, Math.round(window.innerHeight - height - offsetTop))}px`);
+      root.style.setProperty("--tiger-keyboard-inset", `${Math.round(inset)}px`);
       root.classList.toggle("tiger-keyboard-open", keyboardOpen);
 
-      if (document.activeElement instanceof HTMLElement && document.activeElement.matches("input, textarea, [contenteditable='true'], [role='textbox']")) {
-        window.cancelAnimationFrame(revealFrame);
-        revealFrame = window.requestAnimationFrame(() => {
-          const active = document.activeElement;
-          if (!(active instanceof HTMLElement)) return;
-          const visibleTop = visualViewport?.offsetTop ?? 0;
-          const visibleBottom = visibleTop + (visualViewport?.height ?? window.innerHeight);
-          const rect = active.getBoundingClientRect();
-          if (rect.bottom > visibleBottom - 16 || rect.top < visibleTop + 8) {
-            active.scrollIntoView({ behavior: "auto", block: "nearest", inline: "nearest" });
-          }
-          // Keep the nearest independently scrolling sandbox/panel aligned too.
-          let parent = active.parentElement;
-          while (parent && parent !== document.body) {
-            const style = window.getComputedStyle(parent);
-            if (/(auto|scroll)/.test(style.overflowY) && parent.scrollHeight > parent.clientHeight + 2) {
-              const parentRect = parent.getBoundingClientRect();
-              if (parentRect.bottom > visibleBottom) parent.scrollTop += parentRect.bottom - visibleBottom + 16;
-              if (parentRect.top < visibleTop) parent.scrollTop -= visibleTop - parentRect.top + 8;
-              break;
-            }
-            parent = parent.parentElement;
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        reveal(document);
+        document.querySelectorAll("iframe").forEach((frameElement) => {
+          try {
+            const child = frameElement.contentDocument;
+            if (child) reveal(child);
+          } catch {
+            // Cross-origin frames must manage their own focus/scroll behavior.
           }
         });
-      }
+      });
     };
 
-    const onFocusIn = (event: FocusEvent) => {
-      const target = event.target;
-      if (target instanceof HTMLElement && target.matches("input, textarea, [contenteditable='true'], [role='textbox']")) {
-        window.setTimeout(updateVisibleHeight, 50);
-        window.setTimeout(updateVisibleHeight, 250);
-      }
+    const attachedDocuments = new WeakSet<Document>();
+    const attachedFrames = new WeakSet<HTMLIFrameElement>();
+    const onFocusOut = () => window.setTimeout(update, 80);
+    const attachDocument = (doc: Document) => {
+      if (attachedDocuments.has(doc)) return;
+      attachedDocuments.add(doc);
+      doc.addEventListener("focusin", update, true);
+      doc.addEventListener("input", update, true);
+      doc.addEventListener("focusout", onFocusOut, true);
     };
-    document.addEventListener("focusin", onFocusIn, true);
-    updateVisibleHeight();
-    window.addEventListener("resize", updateVisibleHeight);
-    window.addEventListener("orientationchange", updateVisibleHeight);
-    visualViewport?.addEventListener("resize", updateVisibleHeight);
-    visualViewport?.addEventListener("scroll", updateVisibleHeight);
+    const attachFrames = () => {
+      document.querySelectorAll("iframe").forEach((frameElement) => {
+        if (attachedFrames.has(frameElement)) return;
+        attachedFrames.add(frameElement);
+        frameElement.addEventListener("load", () => {
+          try {
+            if (frameElement.contentDocument) attachDocument(frameElement.contentDocument);
+          } catch {
+            // Cross-origin frames are intentionally not accessed.
+          }
+          update();
+        });
+        try {
+          if (frameElement.contentDocument) attachDocument(frameElement.contentDocument);
+        } catch {
+          // Cross-origin frames are intentionally not accessed.
+        }
+      });
+    };
+
+    attachDocument(document);
+    attachFrames();
+    const observer = new MutationObserver(attachFrames);
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("orientationchange", update);
+    viewport?.addEventListener("resize", update);
+    viewport?.addEventListener("scroll", update);
 
     return () => {
-      window.cancelAnimationFrame(revealFrame);
-      document.removeEventListener("focusin", onFocusIn, true);
-      window.removeEventListener("resize", updateVisibleHeight);
-      window.removeEventListener("orientationchange", updateVisibleHeight);
-      visualViewport?.removeEventListener("resize", updateVisibleHeight);
-      visualViewport?.removeEventListener("scroll", updateVisibleHeight);
+      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+      document.removeEventListener("focusin", update, true);
+      document.removeEventListener("input", update, true);
+      document.removeEventListener("focusout", onFocusOut, true);
+      document.querySelectorAll("iframe").forEach((frameElement) => {
+        try {
+          const child = frameElement.contentDocument;
+          child?.removeEventListener("focusin", update, true);
+          child?.removeEventListener("input", update, true);
+          child?.removeEventListener("focusout", onFocusOut, true);
+        } catch {
+          // Cross-origin frames are intentionally not accessed.
+        }
+      });
+      window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+      viewport?.removeEventListener("resize", update);
+      viewport?.removeEventListener("scroll", update);
       root.classList.remove("tiger-keyboard-open");
       root.style.removeProperty("--tiger-viewport-height");
       root.style.removeProperty("--tiger-visual-offset-top");

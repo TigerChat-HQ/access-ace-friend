@@ -13,6 +13,7 @@ import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.view.WindowManager
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -37,6 +38,7 @@ open class MainActivity : Activity() {
         // Let WebView receive system-bar and IME insets itself. Consuming them here
         // prevents its visual viewport from resizing when the keyboard opens.
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         requestNotificationPermission()
         webView = WebView(this)
         webView.settings.javaScriptEnabled = true
