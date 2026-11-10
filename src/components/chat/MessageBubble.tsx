@@ -105,6 +105,8 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
       )}
 
       <div
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
         className={cn(
           "min-w-0 max-w-[78%] rounded-[1.35rem] text-[14.5px] leading-relaxed shadow-sm transition-transform active:scale-[0.98] [overflow-wrap:anywhere]",
           isImage && !message.text ? "p-1" : "px-4 py-2.5",
