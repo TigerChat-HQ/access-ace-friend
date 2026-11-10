@@ -26,15 +26,33 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
         val path = data["path"] ?: "/chats"
         val kind = data["kind"] ?: "message"
         val conversationId = Regex("[?&]c=([^&]+)").find(path)?.groupValues?.getOrNull(1)
-        showStandardNotification(title, body, path)
-        if ((kind == "message" || kind == "call") && getSharedPreferences("tiger_overlay", Context.MODE_PRIVATE).getBoolean("enabled", false)) {
+        val overlayEnabled = getSharedPreferences("tiger_overlay", Context.MODE_PRIVATE)
+            .getBoolean("enabled", false) &&
+            (Build.VERSION.SDK_INT < 23 || android.provider.Settings.canDrawOverlays(this))
+        val useCustomOverlay = (kind == "message" || kind == "call") && overlayEnabled
+        val canUseSystemBubble = kind == "message" && conversationId != null &&
+            Build.VERSION.SDK_INT >= 30 && !useCustomOverlay
+
+        if (useCustomOverlay) {
             val overlay = Intent(this, TigerChatOverlayService::class.java)
                 .setAction(TigerChatOverlayService.ACTION_SHOW_NOTIFICATION)
                 .putExtra(TigerChatOverlayService.EXTRA_TITLE, title)
                 .putExtra(TigerChatOverlayService.EXTRA_BODY, body)
                 .putExtra(TigerChatOverlayService.EXTRA_PATH, path)
                 .putExtra(TigerChatOverlayService.EXTRA_AVATAR, data["avatar_url"] ?: "")
-            androidx.core.content.ContextCompat.startForegroundService(this, overlay)
+            try {
+                androidx.core.content.ContextCompat.startForegroundService(this, overlay)
+            } catch (_: Exception) {
+                showStandardNotification(title, body, path)
+            }
+        } else if (canUseSystemBubble) {
+            try {
+                showChatBubble(title, body, path, conversationId!!)
+            } catch (_: Exception) {
+                showStandardNotification(title, body, path)
+            }
+        } else {
+            showStandardNotification(title, body, path)
         }
     }
 
