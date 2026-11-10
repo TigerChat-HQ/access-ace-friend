@@ -8,6 +8,71 @@ const schema = z.object({
   callId: z.string().uuid().optional(),
 });
 
+type ServiceAccount = {
+  project_id: string;
+  client_email: string;
+  private_key: string;
+  token_uri?: string;
+};
+
+let cachedAccessToken = "";
+let cachedTokenExpiresAt = 0;
+
+const base64Url = (value: Uint8Array | string) => {
+  const bytes = typeof value === "string" ? new TextEncoder().encode(value) : value;
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+};
+
+async function getFcmAccessToken(account: ServiceAccount): Promise<string> {
+  if (cachedAccessToken && Date.now() < cachedTokenExpiresAt - 60_000) return cachedAccessToken;
+
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const header = base64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const claims = base64Url(JSON.stringify({
+    iss: account.client_email,
+    scope: "https://www.googleapis.com/auth/firebase.messaging",
+    aud: account.token_uri || "https://oauth2.googleapis.com/token",
+    iat: issuedAt,
+    exp: issuedAt + 3600,
+  }));
+  const unsigned = header + "." + claims;
+  const pemBegin = ["-----", "BEGIN", " ", "PRIVATE", " KEY", "-----"].join("");
+  const pemEnd = ["-----", "END", " ", "PRIVATE", " KEY", "-----"].join("");
+  const pem = account.private_key.split(pemBegin).join("").split(pemEnd).join("").replace(/\s/g, "");
+  const keyBytes = Uint8Array.from(atob(pem), (char) => char.charCodeAt(0));
+  const signingKey = await crypto.subtle.importKey(
+    "pkcs8",
+    keyBytes,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = new Uint8Array(await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    signingKey,
+    new TextEncoder().encode(unsigned),
+  ));
+  const assertion = unsigned + "." + base64Url(signature);
+  const tokenResponse = await fetch(account.token_uri || "https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion,
+    }),
+  });
+  const tokenBody = await tokenResponse.json();
+  if (!tokenResponse.ok || typeof tokenBody.access_token !== "string") {
+    console.error("Google OAuth token exchange failed", tokenResponse.status, tokenBody.error || "unknown_error");
+    throw new Error("Firebase authentication failed");
+  }
+  cachedAccessToken = tokenBody.access_token;
+  cachedTokenExpiresAt = Date.now() + Number(tokenBody.expires_in || 3600) * 1000;
+  return cachedAccessToken;
+}
+
 Deno.serve(async (req) => {
   const reply = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), {
@@ -123,49 +188,62 @@ Deno.serve(async (req) => {
     if (deviceError) throw deviceError;
     if (!devices?.length) return reply({ sent: 0, reason: "Recipients have no registered push devices" });
 
-    const gatewayKey = Deno.env.get("LOVABLE_API_KEY");
-    const firebaseConnection = Deno.env.get("FIREBASE_MESSAGING_API_KEY");
-    if (!gatewayKey || !firebaseConnection) {
-      return reply({ error: "Firebase messaging connection is not configured in Supabase secrets" }, 503);
+    const serviceAccountJson = Deno.env.get("FCM_SERVICE_ACCOUNT_JSON");
+    if (!serviceAccountJson) return reply({ error: "Firebase service account is not configured in Supabase secrets" }, 503);
+
+    let account: ServiceAccount;
+    try {
+      account = JSON.parse(serviceAccountJson);
+    } catch {
+      return reply({ error: "Firebase service account secret is not valid JSON" }, 503);
+    }
+    if (!account.project_id || !account.client_email || !account.private_key) {
+      return reply({ error: "Firebase service account secret is missing required fields" }, 503);
     }
 
+    const accessToken = await getFcmAccessToken(account);
     let sent = 0;
+    let failed = 0;
     for (const device of devices) {
       const response = await fetch(
-        "https://connector-gateway.lovable.dev/firebase_messaging/v1/projects/_/messages:send",
+        `https://fcm.googleapis.com/v1/projects/${encodeURIComponent(account.project_id)}/messages:send`,
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${gatewayKey}`,
-            "X-Connection-Api-Key": firebaseConnection,
+            Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
             message: {
               token: device.token,
               data: { title, body, kind, path, tag },
-              webpush: { headers: { Urgency: kind === "call" ? "high" : "normal", TTL: kind === "call" ? "45" : "300" } },
+              android: {
+                priority: kind === "call" ? "HIGH" : "NORMAL",
+                ttl: kind === "call" ? "45s" : "300s",
+              },
             },
           }),
         },
       );
       if (!response.ok) {
         const details = await response.text();
-        console.error("Firebase push failed", response.status, details);
-        if (response.status === 404 && details.includes("UNREGISTERED")) {
+        console.error("Firebase push failed", response.status, details.slice(0, 1000));
+        if (details.includes("UNREGISTERED")) {
           await admin.from("device_push_tokens").delete().eq("id", device.id);
           continue;
         }
-        return reply({ error: "Notification provider failed", status: response.status }, 502);
+        failed++;
+        continue;
       }
       sent++;
     }
 
     return reply({
       sent,
+      failed,
       recipientDevices: devices.length,
       notificationType: kind === "message" && title === "Chat thread reply" ? "thread_reply" : kind,
-    });
+    }, failed > 0 && sent === 0 ? 502 : 200);
   } catch (error) {
     console.error("dispatch-push error", error);
     return reply({ error: error instanceof Error ? error.message : "Notification failed" }, 500);
