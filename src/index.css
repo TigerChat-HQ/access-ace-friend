@@ -366,3 +366,26 @@ body {
 .chat-wallpaper-wolf::before { content: "🐺"; }
 .chat-wallpaper-eagle::before { content: "🦅"; }
 .chat-wallpaper-tiger::before { content: "🐅"; }
+
+
+@layer components {
+  .tiger-page-header {
+    @apply flex min-h-14 shrink-0 items-center gap-3 border-b border-border/50 px-4 py-2;
+  }
+  .tiger-header-action {
+    @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors;
+  }
+  .tiger-header-action-compact {
+    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors sm:h-10 sm:w-10;
+  }
+  .tiger-chat-composer {
+    @apply shrink-0;
+    padding: 0.75rem;
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  }
+}
+
+#root {
+  height: var(--tiger-viewport-height, 100dvh);
+  min-height: 0;
+}

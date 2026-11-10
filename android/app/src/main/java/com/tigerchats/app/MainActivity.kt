@@ -54,7 +54,8 @@ open class MainActivity : Activity() {
             val safeInsets = windowInsets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
             )
-            view.setPadding(safeInsets.left, safeInsets.top, safeInsets.right, safeInsets.bottom)
+            val imeInsets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
+            view.setPadding(safeInsets.left, safeInsets.top, safeInsets.right, maxOf(safeInsets.bottom, imeInsets.bottom))
             WindowInsetsCompat.CONSUMED
         }
         ViewCompat.requestApplyInsets(webView)

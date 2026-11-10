@@ -5,6 +5,7 @@ import { ArrowLeft, Send, Loader2, Megaphone, Image as ImageIcon, Sparkles } fro
 import { useToast } from "@/hooks/use-toast";
 import tigerLogo from "@/assets/tiger-reaction.png";
 import TigerFeedbackDialog from "@/components/TigerFeedbackDialog";
+import { useKeyboardAwareInput } from "@/hooks/useKeyboardAwareInput";
 
 interface Msg {
   role: "user" | "assistant";
@@ -39,6 +40,7 @@ const TigerAI = () => {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackPrefill, setFeedbackPrefill] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useKeyboardAwareInput<HTMLInputElement>();
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -207,9 +209,9 @@ const TigerAI = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-background">
-      <header className="flex items-center gap-3 px-4 py-3 border-b border-border/50 bg-card/80 backdrop-blur-md sticky top-0 z-10">
-        <button onClick={() => navigate(-1)} className="p-1 hover:bg-surface-hover rounded-full">
+    <div className="flex h-full min-h-0 flex-col bg-background">
+      <header className="tiger-page-header sticky top-0 z-10 bg-card/80 backdrop-blur-md">
+        <button onClick={() => navigate(-1)} className="tiger-header-action hover:bg-surface-hover" aria-label="Back">
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </button>
         <img src={tigerLogo} alt="" className="w-9 h-9" />
@@ -219,13 +221,13 @@ const TigerAI = () => {
         </div>
         <button
           onClick={() => { setFeedbackPrefill(input); setFeedbackOpen(true); }}
-          className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-full bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 transition-colors"
+          className="flex min-h-10 items-center gap-1.5 rounded-full border border-primary/30 bg-primary/15 px-2.5 py-1.5 text-[11px] text-primary transition-colors hover:bg-primary/25"
         >
           <Megaphone className="w-3.5 h-3.5" /> Send to admin
         </button>
       </header>
 
-      <div className="flex-1 overflow-y-auto scrollbar-thin px-3 py-4 space-y-3">
+      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin px-3 py-4 space-y-3">
         {messages.map((m, i) => (
           <div
             key={i}
@@ -267,7 +269,7 @@ const TigerAI = () => {
       </div>
 
       {messages.length <= 1 && (
-        <div className="px-3 pb-2 flex flex-wrap gap-2">
+        <div className="shrink-0 px-3 pb-2 flex flex-wrap gap-2">
           {SUGGESTED.map((s) => (
             <button
               key={s}
@@ -289,9 +291,10 @@ const TigerAI = () => {
       <TigerFeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} initialText={feedbackPrefill} />
 
 
-      <div className="p-3 border-t border-border/50 glass">
+      <div className="tiger-chat-composer border-t border-border/50 glass">
         <div className="flex items-center gap-2">
           <input
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send(input)}

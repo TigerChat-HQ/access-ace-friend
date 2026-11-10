@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { VoiceRecorder } from "./VoiceRecorder";
 import { Message } from "@/types/chat";
 import { cn } from "@/lib/utils";
+import { useKeyboardAwareInput } from "@/hooks/useKeyboardAwareInput";
 
 interface MessageInputProps {
   onSend: (text: string) => void;
@@ -31,6 +32,7 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const inputRef = useKeyboardAwareInput<HTMLInputElement>();
   const [contactOpen, setContactOpen] = useState(false);
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
@@ -105,7 +107,7 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
   }
 
   return (
-    <div className="p-3 border-t border-border/50 glass">
+    <div className="tiger-chat-composer border-t border-border/50 glass">
       {editingMessage && (
         <div className="mb-2 flex items-center gap-2 rounded-lg border-l-2 border-amber-500 bg-amber-500/10 p-2">
           <span className="flex-1 text-xs font-medium text-amber-600">Editing message</span>
@@ -164,6 +166,7 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
         </DropdownMenu>
         <input ref={fileRef} type="file" accept="image/*,video/*,audio/*,.vcf,.pdf,.doc,.docx,.zip" onChange={handleFileChange} className="hidden" />
         <input
+          ref={inputRef}
           value={text}
           onChange={handleTextChange}
           onKeyDown={(e) => e.key === "Enter" && handleSend()}

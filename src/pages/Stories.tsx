@@ -67,14 +67,14 @@ const Stories = () => {
         />
       )}
 
-      <header className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-card/80 backdrop-blur-md sticky top-0 z-10">
+      <header className="tiger-page-header sticky top-0 z-10 justify-between bg-card/80 backdrop-blur-md">
         <div className="flex items-center gap-2">
           <img src={tigerLogo} alt="" className="w-7 h-7" />
           <h1 className="text-lg font-bold tracking-tight text-foreground">Stories</h1>
         </div>
         <div className="flex items-center gap-1">
           <StoryUploadDialog onUploaded={load} />
-          <Link to="/settings" className="p-2 text-muted-foreground hover:text-primary">
+          <Link to="/settings" aria-label="Settings" className="tiger-header-action hover:text-primary">
             <SettingsIcon className="w-5 h-5" />
           </Link>
         </div>

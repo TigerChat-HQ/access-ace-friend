@@ -316,7 +316,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <button type="button" className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary cursor-pointer" aria-label="Add status">
+        <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-surface-hover hover:text-primary cursor-pointer" aria-label="Add status">
           <Camera className="w-5 h-5" />
         </button>
       </DialogTrigger>

@@ -477,7 +477,7 @@ const Chats = () => {
   const activeMatchId = matchIds[matchIdx];
 
   return (
-    <div className="h-full flex overflow-hidden bg-background">
+    <div className="flex h-full min-h-0 overflow-hidden bg-background">
       {callHistoryOpen && <CallHistoryDialog onClose={() => setCallHistoryOpen(false)} onOpenConversation={(conversationId) => { setCallHistoryOpen(false); setActiveChat(conversationId); }} />}
 
       {storyViewerIndex !== null && storyViewerData.length > 0 && (
@@ -585,11 +585,11 @@ const Chats = () => {
         </div>
       </div>
 
-      <div className={`${!showSidebar ? "flex" : "hidden"} md:flex flex-1 min-w-0 flex-col`}>
+      <div className={`${!showSidebar ? "flex" : "hidden"} md:flex min-h-0 min-w-0 flex-1 flex-col`}>
         {activeConvo ? (
-          <div className="flex flex-col h-full">
-            <div className="flex items-center gap-3 px-4 py-3 glass border-b border-border/50">
-              <button onClick={() => setActiveChat(null)} className="md:hidden p-1 hover:bg-surface-hover rounded-full transition-colors"><ArrowLeft className="w-5 h-5 text-foreground" /></button>
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="tiger-page-header glass">
+              <button onClick={() => setActiveChat(null)} className="tiger-header-action md:hidden hover:bg-surface-hover hover:text-foreground" aria-label="Back to chats"><ArrowLeft className="w-5 h-5 text-foreground" /></button>
               <div className="relative">
                 <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-sm font-semibold text-secondary-foreground">{activeConvoAvatar}</div>
                 {activeConvo.otherProfile?.is_online && <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background" />}
@@ -601,11 +601,11 @@ const Chats = () => {
                 </p>
               </div>
               <div className="flex items-center gap-1">
-                <button onClick={() => handleStartCall(false)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary" title="Voice call" aria-label="Voice call"><Phone className="w-4 h-4" /></button>
-                <button onClick={() => handleStartCall(true)} className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary" title="Video call" aria-label="Video call"><Video className="w-4 h-4" /></button>
+                <button onClick={() => handleStartCall(false)} className="tiger-header-action hover:bg-surface-hover hover:text-primary" title="Voice call" aria-label="Voice call"><Phone className="w-4 h-4" /></button>
+                <button onClick={() => handleStartCall(true)} className="tiger-header-action hover:bg-surface-hover hover:text-primary" title="Video call" aria-label="Video call"><Video className="w-4 h-4" /></button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="p-2 rounded-full hover:bg-surface-hover transition-colors text-muted-foreground hover:text-primary" title="Chat options" aria-label="Chat options"><MoreVertical className="w-4 h-4" /></button>
+                    <button className="tiger-header-action hover:bg-surface-hover hover:text-primary" title="Chat options" aria-label="Chat options"><MoreVertical className="w-4 h-4" /></button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="min-w-56">
                     <DropdownMenuItem onSelect={() => setChatSearchOpen((o) => !o)}>
@@ -661,7 +661,7 @@ const Chats = () => {
               </div>
             )}
 
-            <div ref={messagesScrollRef} className={`flex-1 min-w-0 overflow-y-auto overflow-x-hidden scrollbar-thin p-4 space-y-1 relative ${wallpaperClass(chatPrefs.wallpaper)} ${fontSizeClass(chatPrefs.font_size)}`}>
+            <div ref={messagesScrollRef} className={`min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin p-4 space-y-1 relative ${wallpaperClass(chatPrefs.wallpaper)} ${fontSizeClass(chatPrefs.font_size)}`}>
               {(!chatPrefs.wallpaper || chatPrefs.wallpaper === "default") && <TigerChatBackground />}
               {allUiMessages.map(({ ui, replyToId }) => {
                 const isMatch = matchSet.has(ui.id);
