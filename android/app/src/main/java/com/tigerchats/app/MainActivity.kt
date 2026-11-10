@@ -26,6 +26,7 @@ open class MainActivity : Activity() {
     protected lateinit var webView: WebView
     private val siteUrl = "https://tigerchat-hq.onrender.com"
     private var safeAreaTopDp = 0f
+    private var pendingPath = "/"
     private var pendingMediaPermissionRequest: PermissionRequest? = null
     private var pendingMediaAndroidPermissions: Array<String> = emptyArray()
 
@@ -55,6 +56,7 @@ open class MainActivity : Activity() {
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
                 applySafeAreaTop(view)
+                applyPendingPath(view)
                 deliverPendingQuickReply(view)
             }
         }
@@ -116,7 +118,8 @@ open class MainActivity : Activity() {
             windowInsets
         }
         ViewCompat.requestApplyInsets(webView)
-        webView.loadUrl(targetUrl(intent?.getStringExtra("path")))
+        pendingPath = safePath(intent?.getStringExtra("path"))
+        webView.loadUrl(siteUrl + "/")
         warmFirebaseToken()
     }
 
@@ -174,9 +177,15 @@ open class MainActivity : Activity() {
         intent?.removeExtra(EXTRA_QUICK_REPLY)
     }
 
-    private fun targetUrl(path: String?): String {
-        val safePath = path?.takeIf { it.startsWith("/") && !it.startsWith("//") } ?: "/"
-        return siteUrl + safePath
+    private fun safePath(path: String?): String =
+        path?.takeIf { it.startsWith("/") && !it.startsWith("//") } ?: "/"
+
+    private fun applyPendingPath(view: WebView) {
+        val encodedPath = org.json.JSONObject.quote(pendingPath)
+        view.evaluateJavascript(
+            "if (window.location.pathname + window.location.search !== $encodedPath) { history.replaceState({}, '', $encodedPath); window.dispatchEvent(new PopStateEvent('popstate')); }",
+            null,
+        )
     }
 
     private fun applySafeAreaTop(view: WebView) {
