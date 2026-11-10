@@ -7,10 +7,19 @@ on:
       - "android/**"
       - "src/components/NativePushRegistration.tsx"
       - "src/components/AppShell.tsx"
+      - "src/pages/Auth.tsx"
+      - ".github/workflows/android-wrapper.yml"
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - "src/components/NativePushRegistration.tsx"
+      - "src/components/AppShell.tsx"
+      - "src/pages/Auth.tsx"
       - ".github/workflows/android-wrapper.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   android-debug-build:
@@ -43,9 +52,21 @@ jobs:
           gradle-version: "8.9"
       - name: Assemble debug APK
         run: gradle -p android :app:assembleDebug
-      - name: Upload debug APK
+      - name: Name APK for download
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/TigerChats.apk
+      - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: tigerchats-android-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/debug/TigerChats.apk
           if-no-files-found: error
+      - name: Publish latest Android APK
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-latest
+          name: TIGERCHATS Android latest
+          body: "Latest automatically built TIGERCHATS Android installer."
+          files: android/app/build/outputs/apk/debug/TigerChats.apk
+          make_latest: false
+          fail_on_unmatched_files: true
