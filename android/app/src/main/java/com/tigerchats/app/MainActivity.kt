@@ -27,6 +27,8 @@ open class MainActivity : Activity() {
     private val siteUrl = "https://tigerchat-hq.onrender.com"
     private var safeAreaTopDp = 0f
     private var pendingPath = "/"
+    private var pendingQuickReply: String? = null
+    private var pageLoaded = false
     private var pendingMediaPermissionRequest: PermissionRequest? = null
     private var pendingMediaAndroidPermissions: Array<String> = emptyArray()
 
@@ -55,6 +57,8 @@ open class MainActivity : Activity() {
 
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
+                if (Uri.parse(url).host != Uri.parse(siteUrl).host) return
+                pageLoaded = true
                 applySafeAreaTop(view)
                 applyPendingPath(view)
                 deliverPendingQuickReply(view)
@@ -119,6 +123,7 @@ open class MainActivity : Activity() {
         }
         ViewCompat.requestApplyInsets(webView)
         pendingPath = safePath(intent?.getStringExtra("path"))
+        pendingQuickReply = intent?.getStringExtra(EXTRA_QUICK_REPLY)
         webView.loadUrl(siteUrl + "/")
         warmFirebaseToken()
     }
@@ -166,14 +171,17 @@ open class MainActivity : Activity() {
     }
 
     private fun deliverPendingQuickReply(view: WebView) {
-        val reply = intent?.getStringExtra(EXTRA_QUICK_REPLY)?.takeIf { it.isNotBlank() } ?: return
-        val path = intent?.getStringExtra("path").orEmpty()
-        val conversationId = Regex("[?&]c=([0-9a-fA-F-]{36})").find(path)?.groupValues?.getOrNull(1) ?: return
-        val payload = org.json.JSONObject().put("text", reply).put("conversationId", conversationId)
+        val reply = pendingQuickReply?.takeIf { it.isNotBlank() } ?: return
+        val conversationId = Regex("[?&]c=([0-9a-fA-F-]{36})")
+            .find(pendingPath)?.groupValues?.getOrNull(1) ?: return
+        val payload = org.json.JSONObject()
+            .put("text", reply)
+            .put("conversationId", conversationId)
         view.evaluateJavascript(
             "window.__tigerQuickReply = $payload; window.dispatchEvent(new CustomEvent('tiger:native-quick-reply',{detail:$payload}));",
             null,
         )
+        pendingQuickReply = null
         intent?.removeExtra(EXTRA_QUICK_REPLY)
     }
 
@@ -183,9 +191,26 @@ open class MainActivity : Activity() {
     private fun applyPendingPath(view: WebView) {
         val encodedPath = org.json.JSONObject.quote(pendingPath)
         view.evaluateJavascript(
-            "if (window.location.pathname + window.location.search !== $encodedPath) { history.replaceState({}, '', $encodedPath); window.dispatchEvent(new PopStateEvent('popstate')); }",
+            "window.__tigerPendingNativePath = $encodedPath; window.dispatchEvent(new CustomEvent('tiger:native-navigate',{detail:$encodedPath}));",
             null,
         )
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingPath = safePath(intent.getStringExtra("path") ?: pendingPath)
+        intent.getStringExtra(EXTRA_QUICK_REPLY)?.takeIf { it.isNotBlank() }?.let {
+            pendingQuickReply = it
+        }
+        if (!::webView.isInitialized) return
+        if (pageLoaded) {
+            applySafeAreaTop(webView)
+            applyPendingPath(webView)
+            deliverPendingQuickReply(webView)
+        } else {
+            webView.loadUrl(siteUrl + "/")
+        }
     }
 
     private fun applySafeAreaTop(view: WebView) {

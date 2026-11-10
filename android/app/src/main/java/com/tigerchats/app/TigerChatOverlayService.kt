@@ -328,7 +328,7 @@ class TigerChatOverlayService : Service() {
                     super.onPageFinished(view, url)
                     val encodedPath = org.json.JSONObject.quote(safeChatPath(chatPath))
                     view.evaluateJavascript(
-                        "if (window.location.pathname + window.location.search !== $encodedPath) { history.replaceState({}, '', $encodedPath); window.dispatchEvent(new PopStateEvent('popstate')); }",
+                        "window.__tigerPendingNativePath = $encodedPath; window.dispatchEvent(new CustomEvent('tiger:native-navigate',{detail:$encodedPath}));",
                         null,
                     )
                 }
@@ -359,6 +359,8 @@ class TigerChatOverlayService : Service() {
             insets
         }
         attachView(panel, expandedLayoutParams())
+        ViewCompat.requestApplyInsets(panel)
+        ViewCompat.requestApplyInsets(web)
         web.requestFocus()
     }
 
