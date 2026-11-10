@@ -19,6 +19,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.widget.FrameLayout
@@ -279,6 +280,10 @@ class TigerChatOverlayService : Service() {
             settings.databaseEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
             webChromeClient = WebChromeClient()
+            addJavascriptInterface(object {
+                @JavascriptInterface
+                fun dismissChatNotification() { mainHandler.post { stopSelf() } }
+            }, "TigerNative")
             setBackgroundColor(Color.rgb(12, 18, 17))
             loadUrl("https://tigerchat-hq.onrender.com" + safeChatPath(chatPath))
         }
