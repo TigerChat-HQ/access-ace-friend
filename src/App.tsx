@@ -10,6 +10,7 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import { AppShell } from "@/components/AppShell";
 const Feed = lazy(() => import("./pages/Feed"));
 const Reels = lazy(() => import("./pages/Reels"));
+const ReelsStudio = lazy(() => import("./pages/ReelsStudio"));
 const ProfessionalDashboard = lazy(() => import("./pages/ProfessionalDashboard"));
 const Search = lazy(() => import("./pages/Search"));
 const Create = lazy(() => import("./pages/Create"));
@@ -51,7 +52,7 @@ const App = () => <HelmetProvider><QueryClientProvider client={queryClient}><The
   <Route path="/auth" element={<AuthRoute><Auth /></AuthRoute>} />
   <Route path="/forgot-password" element={<ForgotPassword />} /><Route path="/reset-password" element={<ResetPassword />} /><Route path="/install" element={<Install />} /><Route path="/tanzanian-draft-game" element={<PublicDraughts />} /><Route path="/contact" element={<Contact />} />
   <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
-    <Route path="/" element={<Feed />} /><Route path="/reels" element={<Reels />} /><Route path="/creator" element={<ProfessionalDashboard />} /><Route path="/search" element={<Search />} /><Route path="/create" element={<Create />} /><Route path="/chats" element={<Chats />} /><Route path="/groups" element={<Groups />} />
+    <Route path="/" element={<Feed />} /><Route path="/reels" element={<Reels />} /><Route path="/reels/studio" element={<ReelsStudio />} /><Route path="/creator" element={<ProfessionalDashboard />} /><Route path="/search" element={<Search />} /><Route path="/create" element={<Create />} /><Route path="/chats" element={<Chats />} /><Route path="/groups" element={<Groups />} />
     <Route path="/stories" element={<Navigate to="/" replace />} /><Route path="/u/:userId" element={<Profile />} /><Route path="/profile/:userId" element={<Profile />} /><Route path="/@:userId" element={<Profile />} /><Route path="/post/:postId" element={<PostDetail />} /><Route path="/admin" element={<Admin />} /><Route path="/notifications" element={<Notifications />} /><Route path="/settings" element={<Settings />} /><Route path="/tiger-ai" element={<TigerAI />} /><Route path="/game" element={<Game />} /><Route path="/draughts" element={<Draughts />} /><Route path="/draughts/tournaments" element={<DraughtsTournaments />} />
   </Route><Route path="*" element={<NotFound />} />
 </Routes></Suspense></BrowserRouter></TwoFactorGate></TooltipProvider></AuthProvider></LanguageProvider></ThemeProvider></QueryClientProvider></HelmetProvider>;
