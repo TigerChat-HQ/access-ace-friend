@@ -33,6 +33,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
+import androidx.core.app.RemoteInput
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
@@ -122,11 +123,31 @@ class TigerChatOverlayService : Service() {
             this, 7102, Intent(this, TigerChatOverlayService::class.java).setAction(ACTION_DISMISS),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val replyIntent = Intent(this, TigerQuickReplyReceiver::class.java)
+            .putExtra(TigerQuickReplyReceiver.EXTRA_PATH, safeChatPath(chatPath))
+        val replyPendingIntent = PendingIntent.getBroadcast(
+            this,
+            chatPath.hashCode() xor 0x51A7,
+            replyIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+        )
+        val replyInput = RemoteInput.Builder(TigerQuickReplyReceiver.KEY_TEXT_REPLY)
+            .setLabel("Reply to message")
+            .build()
+        val replyAction = NotificationCompat.Action.Builder(
+            android.R.drawable.ic_menu_send,
+            "Reply",
+            replyPendingIntent,
+        ).addRemoteInput(replyInput)
+            .setAllowGeneratedReplies(true)
+            .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
+            .build()
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(senderTitle)
             .setContentText(senderBody)
             .setContentIntent(openApp)
+            .addAction(replyAction)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Dismiss bubble", dismiss)
             .setOngoing(false)
             .setAutoCancel(true)
