@@ -3,6 +3,7 @@ package com.tigerchats.app
 import android.Manifest
 import android.app.Activity
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.webkit.JavascriptInterface
@@ -26,7 +27,18 @@ open class MainActivity : Activity() {
         webView.settings.domStorageEnabled = true
         webView.settings.databaseEnabled = true
         webView.settings.mediaPlaybackRequiresUserGesture = false
-        webView.webViewClient = WebViewClient()
+        webView.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest): Boolean {
+                val uri = request.url
+                if (uri.scheme == "https" && uri.host == "tigerchat-hq.onrender.com") return false
+                return try {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri.toString())))
+                    true
+                } catch (_: Exception) {
+                    true
+                }
+            }
+        }
         webView.webChromeClient = WebChromeClient()
         webView.addJavascriptInterface(NativeBridge(), "TigerNative")
         setContentView(webView)
