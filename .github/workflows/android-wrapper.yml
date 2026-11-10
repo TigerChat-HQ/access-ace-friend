@@ -6,23 +6,15 @@ on:
     branches: [main]
     paths:
       - "android/**"
-      - "src/components/NativePushRegistration.tsx"
-      - "src/components/AppShell.tsx"
-      - "src/components/AndroidUpdateChecker.tsx"
-      - "src/pages/Auth.tsx"
-      - "src/pages/Settings.tsx"
-      - "src/pages/Draughts.tsx"
+      - "src/**"
+      - "supabase/migrations/**"
       - ".github/workflows/android-wrapper.yml"
   push:
     branches: [main]
     paths:
       - "android/**"
-      - "src/components/NativePushRegistration.tsx"
-      - "src/components/AppShell.tsx"
-      - "src/components/AndroidUpdateChecker.tsx"
-      - "src/pages/Auth.tsx"
-      - "src/pages/Settings.tsx"
-      - "src/pages/Draughts.tsx"
+      - "src/**"
+      - "supabase/migrations/**"
       - ".github/workflows/android-wrapper.yml"
 
 permissions:
