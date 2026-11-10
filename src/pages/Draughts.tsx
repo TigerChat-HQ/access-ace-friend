@@ -58,13 +58,18 @@ const Draughts = () => {
 
   // Load joinable matches
   const loadOpen = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("draft_matches")
       .select("*")
       .eq("status", "waiting")
       .eq("vs_ai", false)
       .order("created_at", { ascending: false })
       .limit(20);
+    if (error) {
+      setOpenMatches([]);
+      toast({ title: "Could not load online matches", description: error.message, variant: "destructive" });
+      return;
+    }
     setOpenMatches((data as unknown as MatchRow[] | null) ?? []);
   };
 
@@ -544,20 +549,25 @@ const Draughts = () => {
                 >
                   {dest && <span className={`absolute z-0 rounded-full bg-primary/70 shadow-[0_0_12px_hsl(var(--primary)/0.8)] animate-pulse ${piece ? "inset-0 opacity-35 rounded-none" : "w-3 h-3 sm:w-4 sm:h-4"}`} />}
                   {piece && (
-                    <div className={`relative z-[1] "w-[90%]" aspect-square transition-transform duration-150 ${sel ? "scale-110 -translate-y-1" : ""}`}>
+                    <div className={`relative z-[1] h-[90%] w-[90%] aspect-square transition-transform duration-150 ${sel ? "scale-110 -translate-y-1" : ""}`}>
                       {showBrandedPieces ? (
                         <>
+                          <div
+                            aria-hidden="true"
+                            className={`absolute inset-[5%] rounded-full border shadow-[inset_0_3px_5px_rgba(255,255,255,.35),0_3px_5px_rgba(0,0,0,.55)] ${piece.c === "w" ? "border-zinc-300 bg-gradient-to-br from-white via-zinc-200 to-zinc-500" : "border-sky-950 bg-gradient-to-br from-sky-500 via-blue-700 to-blue-950"}`}
+                          />
                           <img
                             src={piece.c === "w" ? "/assets/coca-cola-cap.png" : "/assets/pepsi-cap.png"}
                             alt=""
                             draggable={false}
                             loading="eager"
                             decoding="async"
-                            className="pointer-events-none h-full w-full select-none object-contain drop-shadow-[0_3px_3px_rgba(0,0,0,0.65)]"
+                            onError={(event) => { event.currentTarget.style.display = "none"; }}
+                            className="pointer-events-none relative z-[1] h-full w-full select-none object-contain drop-shadow-[0_3px_3px_rgba(0,0,0,0.65)]"
                           />
                           <span
                             aria-hidden="true"
-                            className="pointer-events-none absolute inset-[5%] rounded-full opacity-80"
+                            className="pointer-events-none absolute inset-[5%] z-[2] rounded-full opacity-80"
                             style={{ background: "linear-gradient(145deg, rgba(255,255,255,.58) 0%, rgba(255,255,255,.18) 17%, transparent 38%, transparent 72%, rgba(0,0,0,.24) 100%)", mixBlendMode: "screen" }}
                           />
                           {piece.k && (
