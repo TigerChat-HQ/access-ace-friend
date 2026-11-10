@@ -5,6 +5,9 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -15,10 +18,13 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.util.DisplayMetrics
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.WindowManager
+import android.view.animation.DecelerateInterpolator
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebView
@@ -33,11 +39,14 @@ import kotlin.concurrent.thread
 import kotlin.math.abs
 
 class TigerChatOverlayService : Service() {
+    private data class SafeBounds(val left: Int, val top: Int, val right: Int, val bottom: Int)
+
     private lateinit var windowManager: WindowManager
     private var overlayView: View? = null
     private var chatWebView: WebView? = null
     private var expanded = false
     private var avatarView: ImageView? = null
+    private var expandedTitleView: TextView? = null
     private var senderTitle = "TIGERCHATS"
     private var senderBody = "Ujumbe mpya"
     private var chatPath = "/chats"
@@ -79,7 +88,6 @@ class TigerChatOverlayService : Service() {
                 } else {
                     showCollapsedBubble()
                 }
-                loadAvatar()
                 return START_STICKY
             }
             else -> {
@@ -105,7 +113,9 @@ class TigerChatOverlayService : Service() {
 
     private fun buildNotification(): Notification {
         val openApp = PendingIntent.getActivity(
-            this, 7101, Intent(this, MainActivity::class.java),
+            this, chatPath.hashCode(), Intent(this, MainActivity::class.java)
+                .putExtra("path", safeChatPath(chatPath))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val dismiss = PendingIntent.getService(
@@ -125,21 +135,25 @@ class TigerChatOverlayService : Service() {
     }
 
     private fun bubbleLayoutParams(): WindowManager.LayoutParams {
-        val screen = resources.displayMetrics
+        val size = dp(prefs.getInt("bubble_size", 58))
+        val bounds = safeBounds(size, size)
         return WindowManager.LayoutParams(
-            dp(prefs.getInt("bubble_size", 58)), dp(prefs.getInt("bubble_size", 58)),
+            size, size,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = prefs.getInt("bubble_x", dp(12)).coerceIn(0, (screen.widthPixels - dp(58)).coerceAtLeast(0))
-            y = prefs.getInt("bubble_y", dp(250)).coerceIn(0, (screen.heightPixels - dp(58)).coerceAtLeast(0))
+            x = prefs.getInt("bubble_x", bounds.right).coerceIn(bounds.left, bounds.right)
+            y = prefs.getInt("bubble_y", bounds.top + dp(120)).coerceIn(bounds.top, bounds.bottom)
         }
     }
 
     private fun showCollapsedBubble() {
+        val previousPanel = if (expanded) overlayView?.layoutParams as? WindowManager.LayoutParams else null
+        previousPanel?.let(::saveCollapsedPositionFromPanel)
         expanded = false
+        expandedTitleView = null
         chatWebView?.stopLoading()
         chatWebView?.destroy()
         chatWebView = null
@@ -183,17 +197,20 @@ class TigerChatOverlayService : Service() {
                     MotionEvent.ACTION_MOVE -> {
                         val dx = (event.rawX - startX).toInt()
                         val dy = (event.rawY - startY).toInt()
-                        if (abs(dx) > dp(4) || abs(dy) > dp(4)) dragged = true
-                        val maxX = (resources.displayMetrics.widthPixels - view.width).coerceAtLeast(0)
-                        val maxY = (resources.displayMetrics.heightPixels - view.height).coerceAtLeast(0)
-                        params.x = (originX + dx).coerceIn(0, maxX)
-                        params.y = (originY + dy).coerceIn(0, maxY)
-                        prefs.edit().putInt("bubble_x", params.x).putInt("bubble_y", params.y).apply()
+                        val slop = ViewConfiguration.get(this@TigerChatOverlayService).scaledTouchSlop
+                        if (abs(dx) > slop || abs(dy) > slop) dragged = true
+                        val bounds = safeBounds(params.width, params.height)
+                        params.x = (originX + dx).coerceIn(bounds.left, bounds.right)
+                        params.y = (originY + dy).coerceIn(bounds.top, bounds.bottom)
                         windowManager.updateViewLayout(view, params)
                         return true
                     }
                     MotionEvent.ACTION_UP -> {
-                        if (!dragged) showExpandedChat()
+                        if (dragged) snapToNearestEdge(view, params, isPanel = false) else showExpandedChat()
+                        return true
+                    }
+                    MotionEvent.ACTION_CANCEL -> {
+                        if (dragged) snapToNearestEdge(view, params, isPanel = false)
                         return true
                     }
                 }
@@ -201,7 +218,7 @@ class TigerChatOverlayService : Service() {
             }
         })
         attachView(frame, bubbleLayoutParams())
-        if (avatarUrl.isNotBlank()) loadAvatar()
+        loadAvatar()
     }
 
     private fun loadAvatar() {
@@ -244,9 +261,7 @@ class TigerChatOverlayService : Service() {
             clipToOutline = true
             elevation = dp(14).toFloat()
         }
-        val header = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+        val header = BubbleHeaderView().apply {
             setPadding(dp(8), dp(6), dp(6), dp(6))
             setBackgroundColor(Color.rgb(0, 95, 63))
         }
@@ -257,8 +272,8 @@ class TigerChatOverlayService : Service() {
             setTypeface(null, android.graphics.Typeface.BOLD)
             layoutParams = LinearLayout.LayoutParams(0, dp(44), 1f)
             gravity = Gravity.CENTER_VERTICAL
-            setOnTouchListener(dragPanelTouch())
         }
+        expandedTitleView = title
         fun control(label: String, action: () -> Unit): TextView = TextView(this).apply {
             text = label
             textSize = 16f
@@ -294,7 +309,7 @@ class TigerChatOverlayService : Service() {
     }
 
     private fun updateExpandedHeader() {
-        // Keep the current chat open; the next notification updates the bubble's sender/avatar.
+        expandedTitleView?.text = senderTitle.take(18)
     }
 
     private fun safeChatPath(path: String): String =
@@ -304,42 +319,176 @@ class TigerChatOverlayService : Service() {
         panelWidth = width
         panelHeight = height
         val params = overlayView?.layoutParams as? WindowManager.LayoutParams ?: return
-        params.width = dp(width)
-        params.height = dp(height)
+        val dimensions = safePanelDimensions(dp(width), dp(height))
+        params.width = dimensions.first
+        params.height = dimensions.second
+        clampToSafeBounds(params)
         windowManager.updateViewLayout(overlayView, params)
+        savePanelPosition(params)
     }
 
-    private fun expandedLayoutParams(): WindowManager.LayoutParams =
-        WindowManager.LayoutParams(
-            dp(panelWidth), dp(panelHeight),
+    private fun expandedLayoutParams(): WindowManager.LayoutParams {
+        val dimensions = safePanelDimensions(dp(panelWidth), dp(panelHeight))
+        val bounds = safeBounds(dimensions.first, dimensions.second)
+        val screenWidth = screenSize().first
+        val bubbleSize = dp(prefs.getInt("bubble_size", 58))
+        val bubbleX = prefs.getInt("bubble_x", bounds.right)
+        val defaultX = if (bubbleX + bubbleSize / 2 < screenWidth / 2) bounds.left else bounds.right
+        val bubbleY = prefs.getInt("bubble_y", bounds.top + dp(120))
+        return WindowManager.LayoutParams(
+            dimensions.first, dimensions.second,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.END
-            x = prefs.getInt("panel_x", dp(10))
-            y = prefs.getInt("panel_y", dp(90))
+            gravity = Gravity.TOP or Gravity.START
+            x = prefs.getInt("panel_x", defaultX).coerceIn(bounds.left, bounds.right)
+            y = prefs.getInt("panel_y", bubbleY).coerceIn(bounds.top, bounds.bottom)
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         }
+    }
 
-    private fun dragPanelTouch() = View.OnTouchListener {
-        view, event ->
-        val params = overlayView?.layoutParams as? WindowManager.LayoutParams ?: return@OnTouchListener false
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> {
-                view.setTag(intArrayOf(event.rawX.toInt(), event.rawY.toInt(), params.x, params.y))
-                true
-            }
-            MotionEvent.ACTION_MOVE -> {
-                val origin = view.getTag() as? IntArray ?: return@OnTouchListener false
-                params.x = (origin[2] - (event.rawX.toInt() - origin[0])).coerceAtLeast(0)
-                params.y = (origin[3] + (event.rawY.toInt() - origin[1])).coerceAtLeast(0)
-                windowManager.updateViewLayout(overlayView, params)
-                true
-            }
-            MotionEvent.ACTION_UP -> true
-            else -> true
+    private inner class BubbleHeaderView : LinearLayout(this@TigerChatOverlayService) {
+        private var startRawX = 0f
+        private var startRawY = 0f
+        private var startPanelX = 0
+        private var startPanelY = 0
+        private var dragging = false
+
+        init {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            isClickable = true
         }
+
+        override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    startRawX = event.rawX
+                    startRawY = event.rawY
+                    val params = overlayView?.layoutParams as? WindowManager.LayoutParams
+                    startPanelX = params?.x ?: 0
+                    startPanelY = params?.y ?: 0
+                    dragging = false
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val slop = ViewConfiguration.get(this@TigerChatOverlayService).scaledTouchSlop
+                    if (!dragging && (abs(event.rawX - startRawX) > slop || abs(event.rawY - startRawY) > slop)) {
+                        dragging = true
+                        return true
+                    }
+                }
+            }
+            return false
+        }
+
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            val panel = overlayView ?: return false
+            val params = panel.layoutParams as? WindowManager.LayoutParams ?: return false
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> return true
+                MotionEvent.ACTION_MOVE -> {
+                    if (dragging) {
+                        val bounds = safeBounds(params.width, params.height)
+                        params.x = (startPanelX + (event.rawX - startRawX).toInt()).coerceIn(bounds.left, bounds.right)
+                        params.y = (startPanelY + (event.rawY - startRawY).toInt()).coerceIn(bounds.top, bounds.bottom)
+                        try { windowManager.updateViewLayout(panel, params) } catch (_: Exception) { }
+                    }
+                    return true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (dragging) snapToNearestEdge(panel, params, isPanel = true)
+                    else savePanelPosition(params)
+                    dragging = false
+                    return true
+                }
+            }
+            return true
+        }
+    }
+
+    private fun saveCollapsedPositionFromPanel(panel: WindowManager.LayoutParams) {
+        val size = dp(prefs.getInt("bubble_size", 58))
+        val bounds = safeBounds(size, size)
+        val screenWidth = screenSize().first
+        val dockX = if (panel.x + panel.width / 2 < screenWidth / 2) bounds.left else bounds.right
+        val y = panel.y.coerceIn(bounds.top, bounds.bottom)
+        prefs.edit().putInt("bubble_x", dockX).putInt("bubble_y", y).apply()
+    }
+
+    private fun snapToNearestEdge(view: View, params: WindowManager.LayoutParams, isPanel: Boolean) {
+        val bounds = safeBounds(params.width, params.height)
+        val screenWidth = screenSize().first
+        val dockX = if (params.x + params.width / 2 < screenWidth / 2) bounds.left else bounds.right
+        ValueAnimator.ofInt(params.x, dockX).apply {
+            duration = 180L
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { animator ->
+                params.x = (animator.animatedValue as Int).coerceIn(bounds.left, bounds.right)
+                try {
+                    if (view.parent != null) windowManager.updateViewLayout(view, params)
+                } catch (_: Exception) { }
+            }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    if (isPanel) savePanelPosition(params) else saveBubblePosition(params)
+                }
+            })
+            start()
+        }
+    }
+
+    private fun savePanelPosition(params: WindowManager.LayoutParams) {
+        prefs.edit().putInt("panel_x", params.x).putInt("panel_y", params.y).apply()
+    }
+
+    private fun saveBubblePosition(params: WindowManager.LayoutParams) {
+        prefs.edit().putInt("bubble_x", params.x).putInt("bubble_y", params.y).apply()
+    }
+
+    private fun clampToSafeBounds(params: WindowManager.LayoutParams) {
+        val bounds = safeBounds(params.width, params.height)
+        params.x = params.x.coerceIn(bounds.left, bounds.right)
+        params.y = params.y.coerceIn(bounds.top, bounds.bottom)
+    }
+
+    private fun safePanelDimensions(width: Int, height: Int): Pair<Int, Int> {
+        val screen = screenSize()
+        val margin = dp(8)
+        val top = systemBarHeight("status_bar_height", dp(24)) + margin
+        val bottom = systemBarHeight("navigation_bar_height", dp(24)) + margin
+        return (width.coerceAtMost((screen.first - margin * 2).coerceAtLeast(dp(1)))) to
+            (height.coerceAtMost((screen.second - top - bottom).coerceAtLeast(dp(1))))
+    }
+
+    private fun safeBounds(width: Int, height: Int): SafeBounds {
+        val screen = screenSize()
+        val margin = dp(8)
+        val topInset = systemBarHeight("status_bar_height", dp(24)) + margin
+        val bottomInset = systemBarHeight("navigation_bar_height", dp(24)) + margin
+        val top = topInset.coerceAtMost((screen.second - height).coerceAtLeast(0))
+        return SafeBounds(
+            left = margin.coerceAtMost((screen.first - width).coerceAtLeast(0)),
+            top = top,
+            right = (screen.first - width - margin).coerceAtLeast(margin),
+            bottom = (screen.second - height - bottomInset).coerceAtLeast(top)
+        )
+    }
+
+    @Suppress("DEPRECATION")
+    private fun screenSize(): Pair<Int, Int> {
+        if (Build.VERSION.SDK_INT >= 30) {
+            val bounds = windowManager.maximumWindowMetrics.bounds
+            return bounds.width() to bounds.height()
+        }
+        val metrics = DisplayMetrics()
+        windowManager.defaultDisplay.getRealMetrics(metrics)
+        return metrics.widthPixels to metrics.heightPixels
+    }
+
+    private fun systemBarHeight(name: String, fallback: Int): Int {
+        val resourceId = resources.getIdentifier(name, "dimen", "android")
+        return if (resourceId > 0) resources.getDimensionPixelSize(resourceId) else fallback
     }
 
     private fun attachView(view: View, params: WindowManager.LayoutParams) {
@@ -357,6 +506,7 @@ class TigerChatOverlayService : Service() {
         chatWebView?.destroy()
         chatWebView = null
         avatarView = null
+        expandedTitleView = null
         super.onDestroy()
     }
 
