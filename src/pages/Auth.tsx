@@ -165,7 +165,16 @@ const Auth = () => {
           </form>
         )}
 
-        <a\n          href="https://github.com/TigerChat-HQ/access-ace-friend/releases/download/android-latest/TigerChats.apk"\n          className="flex w-full items-center justify-center gap-3 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-primary/20"\n        >\n          <Smartphone className="h-5 w-5 text-primary" />\n          <span>Sakinisha TIGERCHATS Android</span>\n          <Download className="h-4 w-4 text-primary" />\n        </a>\n        <p className="text-center text-xs text-muted-foreground">Pakua APK na uisakinishe kwenye simu yako. Ruhusu &quot;Install unknown apps&quot; ikiwa Android itaomba.</p>\n        <p className="text-center text-xs text-muted-foreground">🔐 Akaunti zinalindwa. Usimpe mtu password au msimbo wako wa uthibitisho.</p>
+        <a
+          href="https://github.com/TigerChat-HQ/access-ace-friend/releases/download/android-latest/TigerChats.apk"
+          className="flex w-full items-center justify-center gap-3 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-primary/20"
+        >
+          <Smartphone className="h-5 w-5 text-primary" />
+          <span>Sakinisha TIGERCHATS Android</span>
+          <Download className="h-4 w-4 text-primary" />
+        </a>
+        <p className="text-center text-xs text-muted-foreground">Pakua APK na uisakinishe kwenye simu yako. Ruhusu &quot;Install unknown apps&quot; ikiwa Android itaomba.</p>
+        <p className="text-center text-xs text-muted-foreground">🔐 Akaunti zinalindwa. Usimpe mtu password au msimbo wako wa uthibitisho.</p>
       </div>
     </div>
   );
