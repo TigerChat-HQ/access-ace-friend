@@ -48,7 +48,9 @@ export const useNotifications = () => {
       if (opts?.kind === "chat" && !preferences.chat) return;
       if (opts?.kind === "social" && !preferences.social) return;
       if (!document.hidden && opts?.kind) {
-        window.dispatchEvent(new CustomEvent("tiger:notification", { detail: { title, body, url: opts.url || "/", tag: opts.tag || "tigerchats", kind: opts.kind } }));
+        window.dispatchEvent(new CustomEvent("tiger:notification", { detail: { title, body, url: opts.url || "/", tag: opts.tag || "tigerchats", kind: opts.kind, icon: opts.icon || "" } }));
+        const native = (window as Window & { TigerNative?: { showChatNotification?: (title: string, body: string, path: string, avatarUrl: string) => void } }).TigerNative;
+        native?.showChatNotification?.(title, body, opts.url || "/", opts.icon || "");
         if (preferences.vibration && typeof navigator.vibrate === "function") navigator.vibrate(120);
       }
       if (!("Notification" in window) || Notification.permission !== "granted") return;
@@ -98,7 +100,7 @@ export const useNotifications = () => {
 
           const { data: profile } = await supabase
             .from("profiles")
-            .select("display_name")
+            .select("display_name,avatar_url")
             .eq("user_id", msg.sender_id)
             .single();
 
@@ -128,6 +130,7 @@ export const useNotifications = () => {
             url: `/chats?c=${msg.conversation_id}`,
             tag: msg.reply_to_id ? `thread-${msg.reply_to_id}` : `msg-${msg.conversation_id}`,
             kind: "chat",
+            icon: profile?.avatar_url || undefined,
           });
         }
       )
@@ -150,7 +153,7 @@ export const useNotifications = () => {
           const n = payload.new as unknown as SocialNotificationRow;
           const { data: actor } = await supabase
             .from("profiles")
-            .select("display_name, username")
+            .select("display_name, username, avatar_url")
             .eq("user_id", n.actor_id)
             .single();
           const name = actor?.display_name || actor?.username || "Someone";
@@ -167,7 +170,7 @@ export const useNotifications = () => {
               ? `${name} liked your comment`
               : `${name} mentioned you`;
           const url = n.post_id ? `/post/${n.post_id}` : `/u/${n.actor_id}`;
-          showNotification("TIGERCHATS", body, { url, tag: `social-${n.id}`, kind: "social" });
+          showNotification("TIGERCHATS", body, { url, tag: `social-${n.id}`, kind: "social", icon: actor?.avatar_url || undefined });
         }
       )
       .subscribe();
