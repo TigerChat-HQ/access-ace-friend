@@ -88,8 +88,6 @@ export const AppShell = () => {
       root.classList.toggle("tiger-keyboard-open", keyboardOpen);
 
       window.cancelAnimationFrame(frame);
-      revealTimers.forEach((timer) => window.clearTimeout(timer));
-      revealTimers.clear();
       frame = window.requestAnimationFrame(() => {
         reveal(document);
         document.querySelectorAll("iframe").forEach((frameElement) => {
@@ -161,6 +159,8 @@ export const AppShell = () => {
 
     return () => {
       window.cancelAnimationFrame(frame);
+      revealTimers.forEach((timer) => window.clearTimeout(timer));
+      revealTimers.clear();
       observer?.disconnect();
       document.removeEventListener("focusin", onFocusIn, true);
       document.removeEventListener("input", update, true);
