@@ -16,7 +16,8 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useAppLock, isWebAuthnSupported } from "@/hooks/useAppLock";
 import tigerLogo from "@/assets/tigerchats-logo.png";
-import { TwoFactorSecurity } from "@/components/TwoFactorSecurity";\nimport { AndroidUpdateChecker } from "@/components/AndroidUpdateChecker";
+import { TwoFactorSecurity } from "@/components/TwoFactorSecurity";
+import { AndroidUpdateChecker } from "@/components/AndroidUpdateChecker";
 import { disablePush, enablePush, isPushEnabled } from "@/lib/firebase-push";
 import { ringtoneOptions, getStoredRingtone, setStoredRingtone, playRingtone, type RingtoneId } from "@/lib/ringtones";
 import { getNotificationPreferences, saveNotificationPreferences, type NotificationPreferences } from "@/lib/notification-preferences";
