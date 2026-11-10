@@ -76,7 +76,7 @@ open class MainActivity : Activity() {
                 return
             }
             prefs.edit().putString("fcm_status", "Requesting Firebase Messaging token").apply()
-            FirebaseMessaging.getInstance(app).token
+            FirebaseMessaging.getInstance().token
                 .addOnSuccessListener { token ->
                     if (token.isBlank()) {
                         prefs.edit().putString("fcm_status", "Firebase returned an empty token").apply()
