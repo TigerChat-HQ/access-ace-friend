@@ -522,7 +522,9 @@ const Settings = () => {
               </Button>
             </div>
 
-            <AndroidUpdateChecker />\n\n            {settingSections.map((section) => (
+            <AndroidUpdateChecker />
+
+            {settingSections.map((section) => (
               <button key={section.id} onClick={() => setActiveSection(section.id)} className="w-full flex items-center gap-4 p-4 glass rounded-xl hover:bg-surface-hover transition-colors text-left">
                 <div className="w-10 h-10 rounded-full bg-surface flex items-center justify-center">
                   <section.icon className="w-5 h-5 text-primary" />
