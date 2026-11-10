@@ -2,6 +2,7 @@ package com.tigerchats.app
 
 import android.Manifest
 import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -46,7 +47,7 @@ open class MainActivity : Activity() {
         warmFirebaseToken()
     }
 
-    override fun onNewIntent(intent: android.content.Intent) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         webView.loadUrl(targetUrl(intent.getStringExtra("path")))
@@ -89,6 +90,7 @@ open class MainActivity : Activity() {
         fun getFcmToken(): String = getSharedPreferences("tiger_native", MODE_PRIVATE).getString("fcm_token", "") ?: ""
     }
 
+    @Deprecated("Deprecated in Android API")
     override fun onBackPressed() {
         if (::webView.isInitialized && webView.canGoBack()) webView.goBack() else super.onBackPressed()
     }
