@@ -17,7 +17,7 @@ const firebaseConfig = () => {
     import.meta.env.VITE_FIREBASE_VAPID_KEY;
   const messagingSenderId = import.meta.env.VITE_LOVABLE_CONNECTOR_FIREBASE_MESSAGING_SENDER_ID ||
     import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ||
-    appId?.match(/^\\d+:(\\d+):/)?.[1] || "";
+    appId?.match(/^\d+:(\d+):/)?.[1] || "";
 
   return {
     config: { apiKey, projectId, appId, messagingSenderId },
