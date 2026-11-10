@@ -43,7 +43,6 @@ export const AppShell = () => {
     const root = document.documentElement;
     const viewport = window.visualViewport;
     let frame = 0;
-    let observer: MutationObserver | undefined;
     const editableSelector = "input, textarea, select, [contenteditable='true'], [role='textbox']";
 
     const reveal = (doc: Document) => {
@@ -134,7 +133,7 @@ export const AppShell = () => {
 
     attachDocument(document);
     attachFrames();
-    observer = new MutationObserver(attachFrames);
+    const observer = new MutationObserver(attachFrames);
     observer.observe(document.documentElement, { childList: true, subtree: true });
     update();
     window.addEventListener("resize", update);
