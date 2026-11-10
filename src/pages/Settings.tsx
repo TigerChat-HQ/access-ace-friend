@@ -346,22 +346,43 @@ const Settings = () => {
           <div className="space-y-4 animate-fade-in">
             <Button variant="outline" disabled={pushBusy} onClick={async () => {
               if (!user) return;
-              if (isNativeAndroid && window.TigerNative?.openNotificationSettings) {
-                if (!window.TigerNative.getFcmToken?.()) {
-                  setPushMessage("Native Firebase token is not available yet. Check that the Android Firebase app configuration is included in this APK.");
-                }
-                window.TigerNative.openNotificationSettings();
-                return;
-              }
               setPushBusy(true);
+              setPushMessage("");
               try {
+                if (isNativeAndroid && window.TigerNative) {
+                  window.TigerNative.refreshFcmToken?.();
+                  const tokenReady = await new Promise<boolean>((resolve) => {
+                    const startedAt = Date.now();
+                    const checkToken = () => {
+                      if (window.TigerNative?.getFcmToken?.()) {
+                        resolve(true);
+                        return true;
+                      }
+                      if (Date.now() - startedAt >= 15000) {
+                        resolve(false);
+                        return true;
+                      }
+                      return false;
+                    };
+                    if (checkToken()) return;
+                    const timer = window.setInterval(() => {
+                      if (checkToken()) window.clearInterval(timer);
+                    }, 500);
+                  });
+                  const status = window.TigerNative.getFcmStatus?.() || "No Firebase diagnostic was returned.";
+                  setPushMessage(tokenReady
+                    ? "Firebase token is ready. Android notification settings are opening; allow notifications there."
+                    : status);
+                  window.TigerNative.openNotificationSettings?.();
+                  return;
+                }
                 const message = notifications ? (await disablePush(user.id), "Background notifications disabled on this device.") : await enablePush(user.id);
                 setNotifications(isPushEnabled(user.id));
                 setPushMessage(message);
               } catch (error) {
                 toast({ title: "Notifications unavailable", description: error instanceof Error ? error.message : "Please try again", variant: "destructive" });
               } finally { setPushBusy(false); }
-            }}><Bell className="mr-2 h-4 w-4" />{pushBusy ? "Please wait…" : isNativeAndroid ? "Manage Android notification settings" : notifications ? "Disable background notifications" : "Enable background notifications"}</Button>
+            }}><Bell className="mr-2 h-4 w-4" />{pushBusy ? "Checking Firebase…" : isNativeAndroid ? "Refresh token & notification settings" : notifications ? "Disable background notifications" : "Enable background notifications"}</Button>
             {pushMessage && <p role="status" className="text-sm text-muted-foreground">{pushMessage}</p>}
             {pushMessage.includes("own tab") && <Button variant="link" asChild><a href={window.location.href} target="_blank" rel="noopener noreferrer">Open in new tab</a></Button>}
             <div className="w-full min-w-0 rounded-2xl border border-primary/20 bg-primary/5 px-3 py-1">

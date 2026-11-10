@@ -68,10 +68,33 @@ open class MainActivity : Activity() {
     }
 
     private fun warmFirebaseToken() {
-        if (FirebaseApp.initializeApp(this) == null) return
-        FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
-            getSharedPreferences("tiger_native", MODE_PRIVATE).edit().putString("fcm_token", token).apply()
-            publishTokenToWeb(token)
+        val prefs = getSharedPreferences("tiger_native", MODE_PRIVATE)
+        try {
+            val app = FirebaseApp.initializeApp(this)
+            if (app == null) {
+                prefs.edit().putString("fcm_status", "Firebase initialization failed: default app is missing").apply()
+                return
+            }
+            prefs.edit().putString("fcm_status", "Requesting Firebase Messaging token").apply()
+            FirebaseMessaging.getInstance().token
+                .addOnSuccessListener { token ->
+                    if (token.isBlank()) {
+                        prefs.edit().putString("fcm_status", "Firebase returned an empty token").apply()
+                        return@addOnSuccessListener
+                    }
+                    prefs.edit()
+                        .putString("fcm_token", token)
+                        .putString("fcm_status", "ready")
+                        .apply()
+                    publishTokenToWeb(token)
+                }
+                .addOnFailureListener { error ->
+                    val detail = error.message?.take(180) ?: error.javaClass.simpleName
+                    prefs.edit().putString("fcm_status", "Token request failed: $detail").apply()
+                }
+        } catch (error: Exception) {
+            val detail = error.message?.take(180) ?: error.javaClass.simpleName
+            prefs.edit().putString("fcm_status", "Firebase setup failed: $detail").apply()
         }
     }
 
@@ -89,6 +112,18 @@ open class MainActivity : Activity() {
     inner class NativeBridge {
         @JavascriptInterface
         fun getFcmToken(): String = getSharedPreferences("tiger_native", MODE_PRIVATE).getString("fcm_token", "") ?: ""
+
+        @JavascriptInterface
+        fun getFcmStatus(): String = getSharedPreferences("tiger_native", MODE_PRIVATE)
+            .getString("fcm_status", "Firebase token has not been requested yet") ?: "Firebase status unavailable"
+
+        @JavascriptInterface
+        fun refreshFcmToken() {
+            runOnUiThread {
+                getSharedPreferences("tiger_native", MODE_PRIVATE).edit().remove("fcm_token").apply()
+                warmFirebaseToken()
+            }
+        }
 
         @JavascriptInterface
         fun getAppVersion(): String = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "0.0.0" } catch (_: Exception) { "0.0.0" }
