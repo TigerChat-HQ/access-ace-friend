@@ -11,6 +11,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { useUserRole } from "@/hooks/useUserRole";
 import { NotificationBubble } from "@/components/NotificationBubble";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
+import { NativePushRegistration } from "@/components/NativePushRegistration";
 
 export const AppShell = () => {
   const { user } = useAuth();
@@ -31,6 +32,7 @@ export const AppShell = () => {
     <AppLockGate><CallProvider><AnnouncementGate>
       <div className="h-[100dvh] flex bg-background">
         <NotificationBubble />
+        <NativePushRegistration />
         <aside className="hidden lg:flex w-56 shrink-0 flex-col border-r border-border bg-card p-4 gap-2">
           <div className="flex items-center gap-2 py-4 mb-4 font-bold"><img src={logo} alt="" className="w-9 h-9" />TIGERCHATS</div>
           {items.map(({to, icon: Icon, label}) => <Button key={label} asChild variant={location.pathname === to ? "secondary" : "ghost"} className="justify-start"><NavLink to={to} end={to === "/"}><Icon className="w-4 h-4 mr-3" />{label}</NavLink></Button>)}
