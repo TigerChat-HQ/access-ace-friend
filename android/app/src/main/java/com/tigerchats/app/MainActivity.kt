@@ -82,10 +82,10 @@ open class MainActivity : Activity() {
     }
 
     private fun syncChatOverlayService() {
+        // The notification bubble is created only when a new notification arrives.
+        // Do not start an idle floating bubble just because the app resumed.
         val enabled = getSharedPreferences("tiger_overlay", MODE_PRIVATE).getBoolean("enabled", false)
-        if (enabled && Settings.canDrawOverlays(this)) {
-            ContextCompat.startForegroundService(this, Intent(this, TigerChatOverlayService::class.java))
-        } else if (enabled) {
+        if (enabled && Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this)) {
             getSharedPreferences("tiger_overlay", MODE_PRIVATE).edit().putBoolean("enabled", false).apply()
         }
     }
@@ -172,19 +172,36 @@ open class MainActivity : Activity() {
         fun setChatOverlayEnabled(enabled: Boolean) {
             runOnUiThread {
                 val prefs = getSharedPreferences("tiger_overlay", MODE_PRIVATE)
+                prefs.edit().putBoolean("enabled", enabled).apply()
                 if (!enabled) {
-                    prefs.edit().putBoolean("enabled", false).apply()
                     stopService(Intent(this@MainActivity, TigerChatOverlayService::class.java))
                     return@runOnUiThread
                 }
-                prefs.edit().putBoolean("enabled", true).apply()
                 if (!Settings.canDrawOverlays(this@MainActivity)) {
                     val permissionIntent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
                     startActivity(permissionIntent)
-                } else {
-                    ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, TigerChatOverlayService::class.java))
                 }
             }
+        }
+
+        @JavascriptInterface
+        fun dismissChatNotification() {
+            runOnUiThread {
+                stopService(Intent(this@MainActivity, TigerChatOverlayService::class.java))
+            }
+        }
+
+        @JavascriptInterface
+        fun showChatNotification(title: String, body: String, path: String, avatarUrl: String) {
+            if (!getSharedPreferences("tiger_overlay", MODE_PRIVATE).getBoolean("enabled", false)) return
+            if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this@MainActivity)) return
+            val intent = Intent(this@MainActivity, TigerChatOverlayService::class.java)
+                .setAction(TigerChatOverlayService.ACTION_SHOW_NOTIFICATION)
+                .putExtra(TigerChatOverlayService.EXTRA_TITLE, title)
+                .putExtra(TigerChatOverlayService.EXTRA_BODY, body)
+                .putExtra(TigerChatOverlayService.EXTRA_PATH, path)
+                .putExtra(TigerChatOverlayService.EXTRA_AVATAR, avatarUrl)
+            ContextCompat.startForegroundService(this@MainActivity, intent)
         }
     }
 

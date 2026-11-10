@@ -23,9 +23,9 @@ export const CallProvider = ({ children }: { children: ReactNode }) => {
           localStream={webrtc.localStream}
           localVideoRef={webrtc.localVideoRef}
           remoteVideoRef={webrtc.remoteVideoRef}
-          onAccept={webrtc.acceptIncomingCall}
-          onReject={webrtc.rejectCall}
-          onEnd={webrtc.endCall}
+          onAccept={() => { webrtc.acceptIncomingCall(); window.TigerNative?.dismissChatNotification?.(); }}
+          onReject={() => { webrtc.rejectCall(); window.TigerNative?.dismissChatNotification?.(); }}
+          onEnd={() => { webrtc.endCall(); window.TigerNative?.dismissChatNotification?.(); }}
           onToggleMute={webrtc.toggleMute}
           onToggleVideo={webrtc.toggleVideo}
           onSwitchCamera={webrtc.switchCamera}
