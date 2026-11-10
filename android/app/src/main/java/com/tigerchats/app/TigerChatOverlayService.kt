@@ -55,6 +55,7 @@ class TigerChatOverlayService : Service() {
     private var senderBody = "Ujumbe mpya"
     private var chatPath = "/chats"
     private var avatarUrl = ""
+    private var notificationKind = "message"
     private var panelWidth = 340
     private var panelHeight = 560
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -86,6 +87,7 @@ class TigerChatOverlayService : Service() {
                 senderBody = intent.getStringExtra(EXTRA_BODY) ?: "Ujumbe mpya"
                 chatPath = intent.getStringExtra(EXTRA_PATH) ?: "/chats"
                 avatarUrl = intent.getStringExtra(EXTRA_AVATAR) ?: ""
+                notificationKind = intent.getStringExtra(EXTRA_KIND) ?: "message"
                 startForeground(NOTIFICATION_ID, buildNotification())
                 if (expanded) {
                     updateExpandedHeader()
@@ -145,17 +147,17 @@ class TigerChatOverlayService : Service() {
             .setAllowGeneratedReplies(true)
             .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
             .build()
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(senderTitle)
             .setContentText(senderBody)
             .setContentIntent(openApp)
-            .addAction(replyAction)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Dismiss bubble", dismiss)
             .setOngoing(false)
             .setAutoCancel(true)
-            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-            .build()
+            .setCategory(if (notificationKind == "call") NotificationCompat.CATEGORY_CALL else NotificationCompat.CATEGORY_MESSAGE)
+        if (notificationKind == "message") builder.addAction(replyAction)
+        return builder.build()
     }
 
     private fun bubbleLayoutParams(): WindowManager.LayoutParams {
@@ -572,6 +574,7 @@ class TigerChatOverlayService : Service() {
         const val EXTRA_BODY = "notification_body"
         const val EXTRA_PATH = "notification_path"
         const val EXTRA_AVATAR = "notification_avatar"
+        const val EXTRA_KIND = "notification_kind"
         private const val CHANNEL_ID = "tiger_chat_overlay"
         private const val NOTIFICATION_ID = 7310
     }
