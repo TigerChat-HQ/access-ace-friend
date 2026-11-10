@@ -185,6 +185,13 @@ open class MainActivity : Activity() {
         }
 
         @JavascriptInterface
+        fun dismissChatNotification() {
+            runOnUiThread {
+                stopService(Intent(this@MainActivity, TigerChatOverlayService::class.java))
+            }
+        }
+
+        @JavascriptInterface
         fun showChatNotification(title: String, body: String, path: String, avatarUrl: String) {
             if (!getSharedPreferences("tiger_overlay", MODE_PRIVATE).getBoolean("enabled", false)) return
             if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this@MainActivity)) return
