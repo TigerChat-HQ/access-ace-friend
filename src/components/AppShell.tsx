@@ -40,27 +40,73 @@ export const AppShell = () => {
   }, [navigate]);
 
   useEffect(() => {
+    const root = document.documentElement;
+    const visualViewport = window.visualViewport;
+    let revealFrame = 0;
+
     const updateVisibleHeight = () => {
-      const visualHeight = window.visualViewport?.height;
-      const height = Number.isFinite(visualHeight) && visualHeight && visualHeight > 0
-        ? visualHeight
+      const height = visualViewport?.height && visualViewport.height > 0
+        ? visualViewport.height
         : window.innerHeight;
-      document.documentElement.style.setProperty("--tiger-viewport-height", `${Math.round(height)}px`);
+      const offsetTop = visualViewport?.offsetTop ?? 0;
+      const keyboardOpen = window.innerHeight - height - offsetTop > 120;
+      root.style.setProperty("--tiger-viewport-height", `${Math.round(height)}px`);
+      root.style.setProperty("--tiger-visual-offset-top", `${Math.round(offsetTop)}px`);
+      root.style.setProperty("--tiger-keyboard-inset", `${Math.max(0, Math.round(window.innerHeight - height - offsetTop))}px`);
+      root.classList.toggle("tiger-keyboard-open", keyboardOpen);
+
+      if (document.activeElement instanceof HTMLElement && document.activeElement.matches("input, textarea, [contenteditable='true'], [role='textbox']")) {
+        window.cancelAnimationFrame(revealFrame);
+        revealFrame = window.requestAnimationFrame(() => {
+          const active = document.activeElement;
+          if (!(active instanceof HTMLElement)) return;
+          const visibleTop = visualViewport?.offsetTop ?? 0;
+          const visibleBottom = visibleTop + (visualViewport?.height ?? window.innerHeight);
+          const rect = active.getBoundingClientRect();
+          if (rect.bottom > visibleBottom - 16 || rect.top < visibleTop + 8) {
+            active.scrollIntoView({ behavior: "auto", block: "nearest", inline: "nearest" });
+          }
+          // Keep the nearest independently scrolling sandbox/panel aligned too.
+          let parent = active.parentElement;
+          while (parent && parent !== document.body) {
+            const style = window.getComputedStyle(parent);
+            if (/(auto|scroll)/.test(style.overflowY) && parent.scrollHeight > parent.clientHeight + 2) {
+              const parentRect = parent.getBoundingClientRect();
+              if (parentRect.bottom > visibleBottom) parent.scrollTop += parentRect.bottom - visibleBottom + 16;
+              if (parentRect.top < visibleTop) parent.scrollTop -= visibleTop - parentRect.top + 8;
+              break;
+            }
+            parent = parent.parentElement;
+          }
+        });
+      }
     };
 
+    const onFocusIn = (event: FocusEvent) => {
+      const target = event.target;
+      if (target instanceof HTMLElement && target.matches("input, textarea, [contenteditable='true'], [role='textbox']")) {
+        window.setTimeout(updateVisibleHeight, 50);
+        window.setTimeout(updateVisibleHeight, 250);
+      }
+    };
+    document.addEventListener("focusin", onFocusIn, true);
     updateVisibleHeight();
-    const visualViewport = window.visualViewport;
     window.addEventListener("resize", updateVisibleHeight);
     window.addEventListener("orientationchange", updateVisibleHeight);
     visualViewport?.addEventListener("resize", updateVisibleHeight);
     visualViewport?.addEventListener("scroll", updateVisibleHeight);
 
     return () => {
+      window.cancelAnimationFrame(revealFrame);
+      document.removeEventListener("focusin", onFocusIn, true);
       window.removeEventListener("resize", updateVisibleHeight);
       window.removeEventListener("orientationchange", updateVisibleHeight);
       visualViewport?.removeEventListener("resize", updateVisibleHeight);
       visualViewport?.removeEventListener("scroll", updateVisibleHeight);
-      document.documentElement.style.removeProperty("--tiger-viewport-height");
+      root.classList.remove("tiger-keyboard-open");
+      root.style.removeProperty("--tiger-viewport-height");
+      root.style.removeProperty("--tiger-visual-offset-top");
+      root.style.removeProperty("--tiger-keyboard-inset");
     };
   }, []);
 
