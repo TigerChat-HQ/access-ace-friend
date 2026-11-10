@@ -57,7 +57,19 @@ open class MainActivity : Activity() {
         if (FirebaseApp.initializeApp(this) == null) return
         FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
             getSharedPreferences("tiger_native", MODE_PRIVATE).edit().putString("fcm_token", token).apply()
+            publishTokenToWeb(token)
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        warmFirebaseToken()
+    }
+
+    private fun publishTokenToWeb(token: String) {
+        if (!::webView.isInitialized) return
+        val encoded = org.json.JSONObject.quote(token)
+        webView.post { webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('tiger:native-fcm-token',{detail:$encoded}))", null) }
     }
 
     inner class NativeBridge {
