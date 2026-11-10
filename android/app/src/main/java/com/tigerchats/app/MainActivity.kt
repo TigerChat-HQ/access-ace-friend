@@ -55,6 +55,7 @@ open class MainActivity : Activity() {
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
                 applySafeAreaTop(view)
+                deliverPendingQuickReply(view)
             }
         }
         webView.webChromeClient = object : WebChromeClient() {
@@ -159,6 +160,18 @@ open class MainActivity : Activity() {
             pendingMediaPermissionRequest = null
             pendingMediaAndroidPermissions = emptyArray()
         }
+    }
+
+    private fun deliverPendingQuickReply(view: WebView) {
+        val reply = intent?.getStringExtra(EXTRA_QUICK_REPLY)?.takeIf { it.isNotBlank() } ?: return
+        val path = intent?.getStringExtra("path").orEmpty()
+        val conversationId = Regex("[?&]c=([0-9a-fA-F-]{36})").find(path)?.groupValues?.getOrNull(1) ?: return
+        val payload = org.json.JSONObject().put("text", reply).put("conversationId", conversationId)
+        view.evaluateJavascript(
+            "window.__tigerQuickReply = $payload; window.dispatchEvent(new CustomEvent('tiger:native-quick-reply',{detail:$payload}));",
+            null,
+        )
+        intent?.removeExtra(EXTRA_QUICK_REPLY)
     }
 
     private fun targetUrl(path: String?): String {
@@ -316,6 +329,7 @@ open class MainActivity : Activity() {
     }
 
     companion object {
+        const val EXTRA_QUICK_REPLY = "tiger_quick_reply"
         private const val MEDIA_PERMISSION_REQUEST_CODE = 7302
     }
 }
