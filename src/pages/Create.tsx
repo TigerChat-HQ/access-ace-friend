@@ -39,16 +39,16 @@ const Create = () => {
   const [renderedVideo, setRenderedVideo] = useState<File | null>(null);
   const [renderedPreview, setRenderedPreview] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const previewRequestRef = useRef(0);
   const isImage = file?.type.startsWith("image/");
   const isVideo = file?.type.startsWith("video/");
   const hasVideoEdits = trimStart > 0 || trimEnd < videoDuration || originalVolume !== 100 || Boolean(musicFile);
 
   const clearRenderedPreview = () => {
+    previewRequestRef.current += 1;
+    setPreviewLoading(false);
     setRenderedVideo(null);
-    setRenderedPreview((current) => {
-      if (current) URL.revokeObjectURL(current);
-      return null;
-    });
+    setRenderedPreview(null);
   };
 
   const onFile = (f: File | null) => {
@@ -75,6 +75,11 @@ const Create = () => {
   }, [preview]);
 
   useEffect(() => {
+    if (!renderedPreview) return;
+    return () => URL.revokeObjectURL(renderedPreview);
+  }, [renderedPreview]);
+
+  useEffect(() => {
     if (!preview || !isVideo) return;
     const probe = document.createElement("video");
     probe.preload = "metadata";
@@ -90,6 +95,7 @@ const Create = () => {
   const handlePreviewVideo = async () => {
     if (!file || !isVideo) return;
     clearRenderedPreview();
+    const requestId = ++previewRequestRef.current;
     setPreviewLoading(true);
     try {
       const output = hasVideoEdits
@@ -101,16 +107,19 @@ const Create = () => {
             musicVolume: musicVolume / 100,
           })
         : file;
+      if (requestId !== previewRequestRef.current) return;
       setRenderedVideo(output);
       setRenderedPreview(URL.createObjectURL(output));
     } catch (error) {
-      toast({
-        title: "Could not prepare video preview",
-        description: error instanceof Error ? error.message : "Please try another video or browser.",
-        variant: "destructive",
-      });
+      if (requestId === previewRequestRef.current) {
+        toast({
+          title: "Could not prepare video preview",
+          description: error instanceof Error ? error.message : "Please try another video or browser.",
+          variant: "destructive",
+        });
+      }
     } finally {
-      setPreviewLoading(false);
+      if (requestId === previewRequestRef.current) setPreviewLoading(false);
     }
   };
 
