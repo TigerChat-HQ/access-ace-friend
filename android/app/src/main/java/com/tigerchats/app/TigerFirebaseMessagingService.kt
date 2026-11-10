@@ -9,7 +9,7 @@ import android.content.pm.ShortcutInfo
 import android.graphics.drawable.Icon
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import androidx.core.app.Person
+import android.app.Person
 import androidx.core.graphics.drawable.IconCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
