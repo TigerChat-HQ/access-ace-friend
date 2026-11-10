@@ -36,16 +36,43 @@ const Create = () => {
   const [originalVolume, setOriginalVolume] = useState(100);
   const [musicVolume, setMusicVolume] = useState(35);
   const [musicFile, setMusicFile] = useState<File | null>(null);
+  const [renderedVideo, setRenderedVideo] = useState<File | null>(null);
+  const [renderedPreview, setRenderedPreview] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const isImage = file?.type.startsWith("image/");
   const isVideo = file?.type.startsWith("video/");
+  const hasVideoEdits = trimStart > 0 || trimEnd < videoDuration || originalVolume !== 100 || Boolean(musicFile);
+
+  const clearRenderedPreview = () => {
+    setRenderedVideo(null);
+    setRenderedPreview((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return null;
+    });
+  };
 
   const onFile = (f: File | null) => {
+    clearRenderedPreview();
     setFile(f);
     setFilter("none");
     setOverlay("");
+    setVideoDuration(0);
+    setTrimStart(0);
+    setTrimEnd(0);
+    setOriginalVolume(100);
+    setMusicVolume(35);
+    setMusicFile(null);
     if (f) setPreview(URL.createObjectURL(f));
-    else setPreview(null);
+    else {
+      setPreview(null);
+      if (fileRef.current) fileRef.current.value = "";
+    }
   };
+
+  useEffect(() => {
+    if (!preview) return;
+    return () => URL.revokeObjectURL(preview);
+  }, [preview]);
 
   useEffect(() => {
     if (!preview || !isVideo) return;
@@ -59,6 +86,33 @@ const Create = () => {
     };
     return () => { probe.src = ""; };
   }, [preview, isVideo]);
+
+  const handlePreviewVideo = async () => {
+    if (!file || !isVideo) return;
+    clearRenderedPreview();
+    setPreviewLoading(true);
+    try {
+      const output = hasVideoEdits
+        ? await renderVideoEdit(file, {
+            start: trimStart,
+            end: trimEnd || videoDuration,
+            originalVolume: originalVolume / 100,
+            musicFile,
+            musicVolume: musicVolume / 100,
+          })
+        : file;
+      setRenderedVideo(output);
+      setRenderedPreview(URL.createObjectURL(output));
+    } catch (error) {
+      toast({
+        title: "Could not prepare video preview",
+        description: error instanceof Error ? error.message : "Please try another video or browser.",
+        variant: "destructive",
+      });
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
 
   const renderEditedImage = async (src: File): Promise<File> => {
     if (filter === "none" && !overlay.trim()) return src;
@@ -98,6 +152,14 @@ const Create = () => {
 
   const submit = async () => {
     if (!user) return;
+    if (isVideo && !renderedVideo) {
+      toast({
+        title: "Preview your video first",
+        description: "Create and review the final video preview before sharing.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!caption.trim() && !file) {
       toast({ title: "Empty post", description: "Add a caption or media.", variant: "destructive" });
       return;
@@ -107,16 +169,11 @@ const Create = () => {
       let mediaUrl: string | null = null;
       let mediaType: "text" | "image" | "video" = "text";
       if (file) {
-        let upload = isImage ? await renderEditedImage(file) : file;
-        if (isVideo && (trimStart > 0 || trimEnd < videoDuration || originalVolume !== 100 || musicFile)) {
-          upload = await renderVideoEdit(file, {
-            start: trimStart,
-            end: trimEnd || videoDuration,
-            originalVolume: originalVolume / 100,
-            musicFile,
-            musicVolume: musicVolume / 100,
-          });
-        }
+        const upload = isImage
+          ? await renderEditedImage(file)
+          : isVideo
+            ? renderedVideo!
+            : file;
         const ext = isImage ? "jpg" : upload.name.split(".").pop();
         const path = `${user.id}/${Date.now()}.${ext}`;
         const { error: upErr } = await supabase.storage.from("post-media").upload(path, upload);
@@ -158,7 +215,7 @@ const Create = () => {
         <h1 className="text-base font-semibold text-foreground">New Post</h1>
         <button
           onClick={submit}
-          disabled={loading}
+          disabled={loading || previewLoading || (isVideo && !renderedVideo)}
           className="text-primary font-semibold text-sm disabled:opacity-50 flex items-center gap-1.5"
         >
           {loading && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -202,22 +259,45 @@ const Create = () => {
             <h2 className="text-sm font-semibold text-foreground">Video & audio editor</h2>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Trim start · {trimStart.toFixed(1)}s</label>
-              <input aria-label="Video trim start" type="range" min={0} max={Math.max(0, videoDuration - 0.2)} step={0.1} value={trimStart} onChange={(e) => { const value = Number(e.target.value); setTrimStart(Math.min(value, trimEnd - 0.2)); }} className="w-full" />
+              <input aria-label="Video trim start" type="range" min={0} max={Math.max(0, videoDuration - 0.2)} step={0.1} value={trimStart} onChange={(e) => { clearRenderedPreview(); const value = Number(e.target.value); setTrimStart(Math.min(value, trimEnd - 0.2)); }} className="w-full" />
               <label className="text-xs text-muted-foreground">Trim end · {trimEnd.toFixed(1)}s / {videoDuration.toFixed(1)}s</label>
-              <input aria-label="Video trim end" type="range" min={Math.min(videoDuration, trimStart + 0.2)} max={videoDuration || 0.2} step={0.1} value={trimEnd} onChange={(e) => setTrimEnd(Number(e.target.value))} className="w-full" />
+              <input aria-label="Video trim end" type="range" min={Math.min(videoDuration, trimStart + 0.2)} max={videoDuration || 0.2} step={0.1} value={trimEnd} onChange={(e) => { clearRenderedPreview(); setTrimEnd(Number(e.target.value)); }} className="w-full" />
             </div>
             <label className="block text-xs text-muted-foreground">Original video volume · {originalVolume}%
-              <input type="range" min={0} max={100} value={originalVolume} onChange={(e) => setOriginalVolume(Number(e.target.value))} className="w-full" />
+              <input type="range" min={0} max={100} value={originalVolume} onChange={(e) => { clearRenderedPreview(); setOriginalVolume(Number(e.target.value)); }} className="w-full" />
             </label>
-            <button type="button" onClick={() => setOriginalVolume(0)} className="text-xs text-primary underline">Remove original video sound</button>
+            <button type="button" onClick={() => { clearRenderedPreview(); setOriginalVolume(0); }} className="text-xs text-primary underline">Remove original video sound</button>
             <label className="block text-xs text-muted-foreground">Background music
-              <input type="file" accept="audio/*" onChange={(e) => setMusicFile(e.target.files?.[0] || null)} className="mt-1 block w-full text-xs" />
+              <input type="file" accept="audio/*" onChange={(e) => { clearRenderedPreview(); setMusicFile(e.target.files?.[0] || null); }} className="mt-1 block w-full text-xs" />
             </label>
-            {musicFile && <div className="flex items-center justify-between gap-2 text-xs"><span className="truncate">{musicFile.name}</span><button type="button" onClick={() => setMusicFile(null)} className="text-destructive">Remove</button></div>}
+            {musicFile && <div className="flex items-center justify-between gap-2 text-xs"><span className="truncate">{musicFile.name}</span><button type="button" onClick={() => { clearRenderedPreview(); setMusicFile(null); }} className="text-destructive">Remove</button></div>}
             {musicFile && <label className="block text-xs text-muted-foreground">Music volume · {musicVolume}%
-              <input type="range" min={0} max={100} value={musicVolume} onChange={(e) => setMusicVolume(Number(e.target.value))} className="w-full" />
+              <input type="range" min={0} max={100} value={musicVolume} onChange={(e) => { clearRenderedPreview(); setMusicVolume(Number(e.target.value)); }} className="w-full" />
             </label>}
-            <p className="text-[11px] text-muted-foreground">Mabadiliko ya trim na mixing hutumika kwenye video inayopakiwa. Export inahitaji browser inayounga mkono MediaRecorder na video capture.</p>
+            <button
+              type="button"
+              onClick={handlePreviewVideo}
+              disabled={previewLoading || loading || videoDuration <= 0}
+              className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              {previewLoading ? "Preparing preview..." : renderedVideo ? "Refresh final preview" : "Preview edited video"}
+            </button>
+            <p className="text-[11px] text-muted-foreground">
+              Hakiki video ya mwisho kabla ya kushare. Ukibadilisha trim au sauti, tengeneza preview mpya.
+            </p>
+            {renderedPreview && (
+              <div className="space-y-2 rounded-lg bg-muted/50 p-2">
+                <p className="text-xs font-semibold text-foreground">Final video preview</p>
+                <video
+                  key={renderedPreview}
+                  src={renderedPreview}
+                  controls
+                  playsInline
+                  className="w-full max-h-[400px] rounded-lg bg-black"
+                />
+                <p className="text-[11px] text-muted-foreground">Hii ndiyo video itakayopakiwa kwenye post yako.</p>
+              </div>
+            )}
           </section>
         )}
 
