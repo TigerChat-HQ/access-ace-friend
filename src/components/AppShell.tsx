@@ -19,7 +19,7 @@ export const AppShell = () => {
   const { unreadMessages, unreadNotifications } = useUnreadBadges();
   const { isAdmin, loading: roleLoading } = useUserRole();
   useNotifications();
-  const hideBar = location.pathname.startsWith("/chats") && location.search.includes("c=");
+  const hideBar = location.pathname.startsWith("/chats") && (location.search.includes("c=") || location.search.includes("bubble=1"));
   const items = [
     { to: "/", icon: Home, label: "Home", badge: 0 },
     { to: "/chats", icon: MessageCircle, label: "Chats", badge: unreadMessages },
