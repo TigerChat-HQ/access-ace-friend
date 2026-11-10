@@ -16,6 +16,8 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
 
@@ -26,7 +28,7 @@ open class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Keep the WebView below the Android status bar/notch and above the navigation bar.
-        WindowCompat.setDecorFitsSystemWindows(window, true)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         requestNotificationPermission()
         webView = WebView(this)
         webView.settings.javaScriptEnabled = true
@@ -48,6 +50,14 @@ open class MainActivity : Activity() {
         webView.webChromeClient = WebChromeClient()
         webView.addJavascriptInterface(NativeBridge(), "TigerNative")
         setContentView(webView)
+        ViewCompat.setOnApplyWindowInsetsListener(webView) { view, windowInsets ->
+            val safeInsets = windowInsets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            view.setPadding(safeInsets.left, safeInsets.top, safeInsets.right, safeInsets.bottom)
+            WindowInsetsCompat.CONSUMED
+        }
+        ViewCompat.requestApplyInsets(webView)
         webView.loadUrl(targetUrl(intent?.getStringExtra("path")))
         warmFirebaseToken()
     }
@@ -75,6 +85,8 @@ open class MainActivity : Activity() {
         val enabled = getSharedPreferences("tiger_overlay", MODE_PRIVATE).getBoolean("enabled", false)
         if (enabled && Settings.canDrawOverlays(this)) {
             ContextCompat.startForegroundService(this, Intent(this, TigerChatOverlayService::class.java))
+        } else if (enabled) {
+            getSharedPreferences("tiger_overlay", MODE_PRIVATE).edit().putBoolean("enabled", false).apply()
         }
     }
 
