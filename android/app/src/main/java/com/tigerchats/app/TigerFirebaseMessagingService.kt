@@ -41,10 +41,11 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
                 .putExtra(TigerChatOverlayService.EXTRA_BODY, body)
                 .putExtra(TigerChatOverlayService.EXTRA_PATH, path)
                 .putExtra(TigerChatOverlayService.EXTRA_AVATAR, data["avatar_url"] ?: "")
+                .putExtra(TigerChatOverlayService.EXTRA_KIND, kind)
             try {
                 androidx.core.content.ContextCompat.startForegroundService(this, overlay)
             } catch (_: Exception) {
-                showStandardNotification(title, body, path)
+                showStandardNotification(title, body, path, allowReply = kind == "message")
             }
         } else if (canUseSystemBubble) {
             try {
@@ -139,7 +140,7 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
         getSystemService(NotificationManager::class.java).notify(requestCode, notification)
     }
 
-    private fun showStandardNotification(title: String, body: String, path: String) {
+    private fun showStandardNotification(title: String, body: String, path: String, allowReply: Boolean = true) {
         val intent = Intent(this, MainActivity::class.java).putExtra("path", path).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         val pending = PendingIntent.getActivity(this, path.hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val replyAction = quickReplyAction(path)
@@ -148,7 +149,7 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
             .setContentTitle(title)
             .setContentText(body)
             .setContentIntent(pending)
-            .addAction(replyAction)
+            .apply { if (allowReply) addAction(replyAction) }
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
