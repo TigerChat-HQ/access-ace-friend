@@ -62,13 +62,30 @@ jobs:
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
           fi
-      - name: Configure Firebase Android app
+      - name: Configure and validate Firebase Android app
         env:
           FIREBASE_ANDROID_CONFIG: ${{ secrets.TIGERCHAT_ANDROID_GOOGLE_SERVICES_JSON }}
         run: |
-          if [ -n "$FIREBASE_ANDROID_CONFIG" ]; then
-            printf '%s' "$FIREBASE_ANDROID_CONFIG" > android/app/google-services.json
+          if [ -z "$FIREBASE_ANDROID_CONFIG" ]; then
+            echo "::error::Missing GitHub Actions secret TIGERCHAT_ANDROID_GOOGLE_SERVICES_JSON."
+            exit 1
           fi
+
+          printf '%s' "$FIREBASE_ANDROID_CONFIG" > android/app/google-services.json
+
+          if ! jq -e --arg package "com.tigerchats.app" '
+            .project_info.project_id == "tigerchat-39e19"
+            and any(.client[]?;
+              .client_info.android_client_info.package_name == $package
+              and (.client_info.mobilesdk_app_id | type == "string" and length > 0)
+              and any(.api_key[]?; .current_key | type == "string" and length > 0)
+            )
+          ' android/app/google-services.json >/dev/null; then
+            echo "::error::Firebase JSON is invalid or does not contain the expected TigerChats Android app (project tigerchat-39e19, package com.tigerchats.app)."
+            exit 1
+          fi
+
+          echo "Firebase configuration validated for com.tigerchats.app."
       - name: Copy official web logo into Android app resources
         run: |
           mkdir -p android/app/src/main/res/drawable-nodpi
