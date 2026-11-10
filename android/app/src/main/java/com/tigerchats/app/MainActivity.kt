@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebView
@@ -14,6 +15,7 @@ import android.webkit.WebViewClient
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
 
@@ -23,6 +25,8 @@ open class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Keep the WebView below the Android status bar/notch and above the navigation bar.
+        WindowCompat.setDecorFitsSystemWindows(window, true)
         requestNotificationPermission()
         webView = WebView(this)
         webView.settings.javaScriptEnabled = true
@@ -67,6 +71,13 @@ open class MainActivity : Activity() {
         }
     }
 
+    private fun syncChatOverlayService() {
+        val enabled = getSharedPreferences("tiger_overlay", MODE_PRIVATE).getBoolean("enabled", false)
+        if (enabled && Settings.canDrawOverlays(this)) {
+            ContextCompat.startForegroundService(this, Intent(this, TigerChatOverlayService::class.java))
+        }
+    }
+
     private fun warmFirebaseToken() {
         val prefs = getSharedPreferences("tiger_native", MODE_PRIVATE)
         try {
@@ -101,6 +112,7 @@ open class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         warmFirebaseToken()
+        syncChatOverlayService()
     }
 
     private fun publishTokenToWeb(token: String) {
@@ -137,6 +149,29 @@ open class MainActivity : Activity() {
                 val settingsIntent = Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                     .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
                 startActivity(settingsIntent)
+            }
+        }
+
+        @JavascriptInterface
+        fun isChatOverlayEnabled(): Boolean =
+            getSharedPreferences("tiger_overlay", MODE_PRIVATE).getBoolean("enabled", false)
+
+        @JavascriptInterface
+        fun setChatOverlayEnabled(enabled: Boolean) {
+            runOnUiThread {
+                val prefs = getSharedPreferences("tiger_overlay", MODE_PRIVATE)
+                if (!enabled) {
+                    prefs.edit().putBoolean("enabled", false).apply()
+                    stopService(Intent(this@MainActivity, TigerChatOverlayService::class.java))
+                    return@runOnUiThread
+                }
+                prefs.edit().putBoolean("enabled", true).apply()
+                if (!Settings.canDrawOverlays(this@MainActivity)) {
+                    val permissionIntent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+                    startActivity(permissionIntent)
+                } else {
+                    ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, TigerChatOverlayService::class.java))
+                }
             }
         }
     }
