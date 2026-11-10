@@ -10,6 +10,7 @@ on:
       - "src/components/AndroidUpdateChecker.tsx"
       - "src/pages/Auth.tsx"
       - "src/pages/Settings.tsx"
+      - "src/pages/Draughts.tsx"
       - ".github/workflows/android-wrapper.yml"
   push:
     branches: [main]
