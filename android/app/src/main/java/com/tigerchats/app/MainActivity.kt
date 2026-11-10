@@ -88,6 +88,9 @@ open class MainActivity : Activity() {
     inner class NativeBridge {
         @JavascriptInterface
         fun getFcmToken(): String = getSharedPreferences("tiger_native", MODE_PRIVATE).getString("fcm_token", "") ?: ""
+
+        @JavascriptInterface
+        fun getAppVersion(): String = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "0.0.0" } catch (_: Exception) { "0.0.0" }
     }
 
     @Deprecated("Deprecated in Android API")
