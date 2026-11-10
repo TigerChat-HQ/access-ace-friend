@@ -67,7 +67,7 @@ export const AppShell = () => {
           <div className="my-3 border-t border-border" />
           {[{ to: "/tiger-ai", icon: Bot, label: "Tiger AI" }, { to: "/contact", icon: Mail, label: "Contact admin" }, { to: "/notifications", icon: Bell, label: "Notifications" }, { to: "/settings", icon: Settings, label: "Settings" }].map(({ to, icon: Icon, label }) => <Button asChild variant="ghost" key={to} className="justify-start"><NavLink to={to}><Icon className="mr-3 h-4 w-4" />{label}</NavLink></Button>)}
         </aside>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="tiger-app-safe-area flex min-h-0 min-w-0 flex-1 flex-col">
           <OfflineIndicator />
           <main className="min-h-0 min-w-0 flex-1 overflow-hidden"><Outlet /></main>
           {!hideBar && <nav aria-label="Main navigation" className="flex shrink-0 items-center border-t border-border/50 bg-card/80 px-1 pt-1 backdrop-blur-md pb-[calc(0.375rem+env(safe-area-inset-bottom,0px))] lg:hidden">

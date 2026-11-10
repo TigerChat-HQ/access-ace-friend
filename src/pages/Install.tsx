@@ -40,7 +40,7 @@ const Install = () => {
 
   if (isInstalled) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="tiger-app-safe-area min-h-screen flex items-center justify-center bg-background p-4">
         <div className="text-center space-y-4 animate-fade-in">
           <CheckCircle className="w-16 h-16 text-primary mx-auto" />
           <h2 className="text-xl font-bold text-foreground">Already Installed!</h2>
@@ -52,7 +52,7 @@ const Install = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="tiger-app-safe-area min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-8 animate-fade-in text-center">
         <img src={tigerLogo} alt="TIGERCHATS" className="w-24 h-24 mx-auto" width={512} height={512} />
         <div>

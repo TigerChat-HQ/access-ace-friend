@@ -24,10 +24,11 @@ import com.google.firebase.messaging.FirebaseMessaging
 open class MainActivity : Activity() {
     protected lateinit var webView: WebView
     private val siteUrl = "https://tigerchat-hq.onrender.com"
+    private var safeAreaTopDp = 0f
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Keep the WebView below the Android status bar/notch and above the navigation bar.
+        // Expose the Android status-bar/notch inset to the web app; keep native IME/navigation insets on the WebView.
         WindowCompat.setDecorFitsSystemWindows(window, false)
         requestNotificationPermission()
         webView = WebView(this)
@@ -46,6 +47,11 @@ open class MainActivity : Activity() {
                     true
                 }
             }
+
+            override fun onPageFinished(view: WebView, url: String) {
+                super.onPageFinished(view, url)
+                applySafeAreaTop(view)
+            }
         }
         webView.webChromeClient = WebChromeClient()
         webView.addJavascriptInterface(NativeBridge(), "TigerNative")
@@ -55,7 +61,9 @@ open class MainActivity : Activity() {
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
             )
             val imeInsets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
-            view.setPadding(safeInsets.left, safeInsets.top, safeInsets.right, maxOf(safeInsets.bottom, imeInsets.bottom))
+            safeAreaTopDp = safeInsets.top / resources.displayMetrics.density
+            view.setPadding(safeInsets.left, 0, safeInsets.right, maxOf(safeInsets.bottom, imeInsets.bottom))
+            applySafeAreaTop(view)
             WindowInsetsCompat.CONSUMED
         }
         ViewCompat.requestApplyInsets(webView)
@@ -72,6 +80,13 @@ open class MainActivity : Activity() {
     private fun targetUrl(path: String?): String {
         val safePath = path?.takeIf { it.startsWith("/") && !it.startsWith("//") } ?: "/"
         return siteUrl + safePath
+    }
+
+    private fun applySafeAreaTop(view: WebView) {
+        view.evaluateJavascript(
+            "document.documentElement.style.setProperty('--tiger-safe-area-top', '${safeAreaTopDp}px')",
+            null,
+        )
     }
 
     private fun requestNotificationPermission() {
@@ -124,6 +139,7 @@ open class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        if (::webView.isInitialized) ViewCompat.requestApplyInsets(webView)
         warmFirebaseToken()
         syncChatOverlayService()
     }

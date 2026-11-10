@@ -33,7 +33,7 @@ export default function PublicDraughts() {
       setThinking(false);
     }, 250);
   };
-  return <div className="min-h-screen bg-background text-foreground">
+  return <div className="tiger-app-safe-area min-h-screen bg-background text-foreground">
     <Helmet><title>Tanzanian Draft Game — Play Draughts | TIGERCHATS</title><meta name="description" content="Play Tanzanian Draft Game with flying kings against Tiger AI. Sign in for online player-versus-player draughts and invite friends with a match code." /><link rel="canonical" href="https://access-ace-friend.lovable.app/tanzanian-draft-game" /><meta property="og:title" content="Tanzanian Draft Game | TIGERCHATS" /><meta property="og:url" content="https://access-ace-friend.lovable.app/tanzanian-draft-game" /></Helmet>
     <header className="border-b border-border px-5 py-3 flex justify-between items-center max-w-6xl mx-auto"><Link to="/" className="flex gap-2 items-center font-bold"><img src={logo} alt="" className="w-9 h-9" />TIGERCHATS</Link><Button asChild variant="ghost"><Link to="/contact"><Mail className="w-4 h-4 mr-2" />Contact</Link></Button></header>
     <main className="max-w-5xl mx-auto px-5 py-8"><h1 className="text-3xl font-bold">Tanzanian Draft Game</h1><div className="grid md:grid-cols-[1fr_320px] gap-8 mt-6 items-start">

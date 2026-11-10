@@ -369,8 +369,21 @@ body {
 
 
 @layer components {
+  .tiger-app-safe-area {
+    padding-top: var(--tiger-safe-area-top, env(safe-area-inset-top, 0px));
+  }
   .tiger-page-header {
     @apply flex min-h-14 shrink-0 items-center gap-3 border-b border-border/50 px-4 py-2;
+  }
+  .tiger-chat-list-actions > button {
+    width: 2rem;
+    height: 2rem;
+    flex: 0 0 2rem;
+    padding: 0;
+  }
+  .tiger-chat-list-actions > button svg {
+    width: 1rem;
+    height: 1rem;
   }
   .tiger-header-action {
     @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors;

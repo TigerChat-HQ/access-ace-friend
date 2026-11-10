@@ -160,7 +160,7 @@ const ResetPassword = () => {
 
   if (checkingLink) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="tiger-app-safe-area min-h-screen flex items-center justify-center bg-background p-4">
         <p className="text-muted-foreground">Inathibitisha kiungo cha password...</p>
       </div>
     );
@@ -168,7 +168,7 @@ const ResetPassword = () => {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="tiger-app-safe-area min-h-screen flex items-center justify-center bg-background p-4">
         <div className="text-center space-y-4 animate-fade-in">
           <CheckCircle className="w-16 h-16 text-primary mx-auto" />
           <h2 className="text-xl font-bold text-foreground">Password imebadilishwa!</h2>
@@ -180,7 +180,7 @@ const ResetPassword = () => {
 
   if (!isRecovery) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="tiger-app-safe-area min-h-screen flex items-center justify-center bg-background p-4">
         <div className="text-center space-y-4 max-w-md">
           <img src={tigerLogo} alt="TIGERCHATS" className="w-16 h-16 mx-auto" width={512} height={512} />
           <p className="text-muted-foreground">{linkError || "Kiungo si sahihi au muda wake umeisha."}</p>
@@ -192,7 +192,7 @@ const ResetPassword = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="tiger-app-safe-area min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-8 animate-fade-in">
         <div className="text-center space-y-4">
           <img src={tigerLogo} alt="TIGERCHATS" className="w-20 h-20 mx-auto" width={512} height={512} />

@@ -41,9 +41,9 @@ const Feed = () => {
 
   return (
     <div className="h-full flex flex-col bg-background">
-      <header className="tiger-page-header sticky top-0 z-10 justify-between bg-card/80 backdrop-blur-md">
-        <div className="flex items-center gap-1 sm:gap-2"><img src={tigerLogo} alt="" className="h-6 w-6 sm:h-7 sm:w-7" /><h1 className="text-base font-bold tracking-tight text-foreground sm:text-lg">TIGER<span className="text-primary">CHATS</span></h1></div>
-        <div className="flex items-center gap-0 sm:gap-1">
+      <header className="tiger-page-header feed-page-header sticky top-0 z-10 justify-between gap-2 bg-card/80 px-3 backdrop-blur-md">
+        <div className="flex min-w-0 items-center gap-1"><img src={tigerLogo} alt="" className="h-6 w-6 shrink-0 sm:h-7 sm:w-7" /><h1 className="min-w-0 truncate text-sm font-bold tracking-tight text-foreground sm:text-lg">TIGER<span className="text-primary">CHATS</span></h1></div>
+        <div className="flex shrink-0 items-center gap-0 sm:gap-1">
           <Link to="/search" aria-label="Search" className="tiger-header-action-compact hover:text-primary"><Search className="w-5 h-5" /></Link>
           <Link to="/reels" aria-label="Tiger Reels" className="tiger-header-action-compact hover:text-primary"><Clapperboard className="w-5 h-5" /></Link>
           <Link to="/creator" aria-label="Professional dashboard" className="tiger-header-action-compact hover:text-primary"><BarChart3 className="w-5 h-5" /></Link>

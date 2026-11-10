@@ -48,7 +48,7 @@ export default function Contact() {
     } catch (e) { setError(e instanceof Error ? e.message : "Could not send your message. Try again."); }
     finally { setSending(false); }
   };
-  return <div className="h-full overflow-y-auto bg-background text-foreground">
+  return <div className="tiger-app-safe-area h-full overflow-y-auto bg-background text-foreground">
     <Helmet><title>Contact admin | TIGERCHATS</title><meta name="description" content="Contact the TIGERCHATS team about Tanzanian Draft Game, your account, or feedback." /><link rel="canonical" href="https://access-ace-friend.lovable.app/contact" /></Helmet>
     <header className="border-b border-border px-5 py-4 flex items-center justify-between gap-4">
       <Button asChild variant="ghost" size="icon"><Link to={user ? "/settings" : "/tanzanian-draft-game"} aria-label="Go back"><ArrowLeft className="w-5 h-5" /></Link></Button>
