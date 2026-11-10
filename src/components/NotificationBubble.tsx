@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";\nimport { useLocation } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { MessageCircle, X, Minus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getNotificationPreferences } from "@/lib/notification-preferences";
@@ -6,7 +7,8 @@ import { getNotificationPreferences } from "@/lib/notification-preferences";
 type BubbleNotice = { title: string; body: string; url: string; tag: string; kind: "chat" | "social" };
 
 export const NotificationBubble = () => {
-  const { user } = useAuth();\n  const location = useLocation();
+  const { user } = useAuth();
+  const location = useLocation();
   const [notice, setNotice] = useState<BubbleNotice | null>(null);
   const [enabled, setEnabled] = useState(() => getNotificationPreferences(user?.id).floatingBubble);
   const [expanded, setExpanded] = useState(false);
