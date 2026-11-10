@@ -92,12 +92,18 @@ const Settings = () => {
   useEffect(() => {
     setNotificationPrefs(getNotificationPreferences(user?.id));
     const refreshPushState = () => setNotifications(isNativeAndroid ? (window.TigerNative?.areNotificationsEnabled?.() ?? false) : user ? isPushEnabled(user.id) : false);
+    const refreshOverlayState = () => setBackgroundChatBubble(window.TigerNative?.isChatOverlayEnabled?.() ?? false);
     refreshPushState();
+    refreshOverlayState();
     window.addEventListener("focus", refreshPushState);
+    window.addEventListener("focus", refreshOverlayState);
     document.addEventListener("visibilitychange", refreshPushState);
+    document.addEventListener("visibilitychange", refreshOverlayState);
     return () => {
       window.removeEventListener("focus", refreshPushState);
+      window.removeEventListener("focus", refreshOverlayState);
       document.removeEventListener("visibilitychange", refreshPushState);
+      document.removeEventListener("visibilitychange", refreshOverlayState);
     };
   }, [user?.id, isNativeAndroid]);
 
