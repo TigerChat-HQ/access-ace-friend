@@ -566,8 +566,8 @@ const Settings = () => {
   return (
     <div className="h-full overflow-y-auto bg-background">
       <div className="max-w-lg mx-auto">
-        <div className="flex min-w-0 items-center gap-3 px-4 py-4 border-b border-border/50 glass sticky top-0 z-10">
-          <button onClick={() => activeSection ? setActiveSection(null) : navigate("/")} className="p-1 hover:bg-surface-hover rounded-full transition-colors">
+        <div className="tiger-page-header glass sticky top-0 z-10">
+          <button onClick={() => activeSection ? setActiveSection(null) : navigate("/")} className="tiger-header-action hover:bg-surface-hover hover:text-foreground" aria-label="Back">
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
           <h1 className="min-w-0 truncate text-lg font-bold text-foreground">

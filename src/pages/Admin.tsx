@@ -154,9 +154,9 @@ const Admin = () => {
   });
 
   return (
-    <div className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-background">
-      <header className="flex items-center gap-3 px-4 py-3 border-b border-border/50 sticky top-0 z-20 bg-background/95 backdrop-blur">
-        <button onClick={() => selectedSection === "home" ? navigate(-1) : setSelectedSection("home")} className="text-foreground" aria-label="Back to Admin Panel">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
+      <header className="tiger-page-header sticky top-0 z-20 bg-background/95 backdrop-blur">
+        <button onClick={() => selectedSection === "home" ? navigate(-1) : setSelectedSection("home")} className="tiger-header-action hover:bg-surface-hover hover:text-foreground" aria-label="Back to Admin Panel">
           {selectedSection === "home" ? <ArrowLeft className="w-5 h-5" /> : <BackArrow className="w-5 h-5" />}
         </button>
         <div className="min-w-0">

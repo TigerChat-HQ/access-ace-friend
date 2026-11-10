@@ -41,15 +41,15 @@ const Feed = () => {
 
   return (
     <div className="h-full flex flex-col bg-background">
-      <header className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-card/80 backdrop-blur-md sticky top-0 z-10">
-        <div className="flex items-center gap-2"><img src={tigerLogo} alt="" className="w-7 h-7" /><h1 className="text-lg font-bold tracking-tight text-foreground">TIGER<span className="text-primary">CHATS</span></h1></div>
-        <div className="flex items-center gap-1">
-          <Link to="/search" aria-label="Search" className="p-2 text-muted-foreground hover:text-primary"><Search className="w-5 h-5" /></Link>
-          <Link to="/reels" aria-label="Tiger Reels" className="p-2 text-muted-foreground hover:text-primary"><Clapperboard className="w-5 h-5" /></Link>
-          <Link to="/creator" aria-label="Professional dashboard" className="p-2 text-muted-foreground hover:text-primary"><BarChart3 className="w-5 h-5" /></Link>
-          <Link to="/create" aria-label="Create post" className="p-2 text-muted-foreground hover:text-primary"><PlusSquare className="w-5 h-5" /></Link>
-          <Link to="/notifications" aria-label="Notifications" className="p-2 text-muted-foreground hover:text-primary"><Bell className="w-5 h-5" /></Link>
-          <Link to="/settings" aria-label="Settings" className="p-2 text-muted-foreground hover:text-primary"><SettingsIcon className="w-5 h-5" /></Link>
+      <header className="tiger-page-header sticky top-0 z-10 justify-between bg-card/80 backdrop-blur-md">
+        <div className="flex items-center gap-1 sm:gap-2"><img src={tigerLogo} alt="" className="h-6 w-6 sm:h-7 sm:w-7" /><h1 className="text-base font-bold tracking-tight text-foreground sm:text-lg">TIGER<span className="text-primary">CHATS</span></h1></div>
+        <div className="flex items-center gap-0 sm:gap-1">
+          <Link to="/search" aria-label="Search" className="tiger-header-action-compact hover:text-primary"><Search className="w-5 h-5" /></Link>
+          <Link to="/reels" aria-label="Tiger Reels" className="tiger-header-action-compact hover:text-primary"><Clapperboard className="w-5 h-5" /></Link>
+          <Link to="/creator" aria-label="Professional dashboard" className="tiger-header-action-compact hover:text-primary"><BarChart3 className="w-5 h-5" /></Link>
+          <Link to="/create" aria-label="Create post" className="tiger-header-action-compact hover:text-primary"><PlusSquare className="w-5 h-5" /></Link>
+          <Link to="/notifications" aria-label="Notifications" className="tiger-header-action-compact hover:text-primary"><Bell className="w-5 h-5" /></Link>
+          <Link to="/settings" aria-label="Settings" className="tiger-header-action-compact hover:text-primary"><SettingsIcon className="w-5 h-5" /></Link>
         </div>
       </header>
       <div className="flex border-b border-border/50 bg-card/50">

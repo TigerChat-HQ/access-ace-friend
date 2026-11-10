@@ -12,10 +12,10 @@ interface ChatViewProps {
 
 export const ChatView = ({ contact, messages, onBack, onSend }: ChatViewProps) => {
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-h-0 flex-col">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 glass border-b border-border/50">
-        <button onClick={onBack} className="md:hidden p-1 hover:bg-surface-hover rounded-full transition-colors">
+      <div className="tiger-page-header glass">
+        <button onClick={onBack} className="tiger-header-action md:hidden hover:bg-surface-hover hover:text-foreground" aria-label="Back to chats">
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </button>
         <div className="relative">
@@ -52,7 +52,7 @@ export const ChatView = ({ contact, messages, onBack, onSend }: ChatViewProps) =
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-1">
+      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin p-4 space-y-1">
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} />
         ))}

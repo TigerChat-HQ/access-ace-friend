@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { dispatchPush } from "@/lib/dispatch-push";
+import { useKeyboardAwareInput } from "@/hooks/useKeyboardAwareInput";
 
 interface StoryData {
   id: string;
@@ -55,6 +56,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId, onS
   const [viewsOpen, setViewsOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const replyInputRef = useKeyboardAwareInput<HTMLInputElement>();
   const story = stories[currentIndex];
   const isOwner = currentUserId && story?.userId === currentUserId;
 
@@ -306,7 +308,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId, onS
   if (!story) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex items-center justify-center select-none no-select">
+    <div className="fixed left-0 top-0 z-50 flex items-center justify-center bg-black select-none no-select" style={{ height: "var(--tiger-viewport-height, 100dvh)", right: 0 }}>
       <audio ref={audioRef} loop muted={muted} />
 
       <div className="absolute top-0 left-0 right-0 flex gap-1 p-2 z-10">
@@ -456,7 +458,7 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId, onS
           </div>
           {!isOwner && currentUserId && (
             <form onSubmit={(event) => { event.preventDefault(); void sendComment(); }} className="flex items-center gap-2">
-              <input value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} maxLength={1000} placeholder="Reply to status..." className="min-w-0 flex-1 rounded-full bg-muted px-3 py-2 text-sm outline-none" />
+              <input ref={replyInputRef} value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} maxLength={1000} placeholder="Reply to status..." className="min-w-0 flex-1 rounded-full bg-muted px-3 py-2 text-sm outline-none" />
               <Button size="icon" type="submit" disabled={!commentDraft.trim() || commentLoading} aria-label="Send reply"><Send className="w-4 h-4" /></Button>
             </form>
           )}

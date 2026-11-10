@@ -178,8 +178,8 @@ const Profile = () => {
 
   return (
     <div className="h-full flex flex-col bg-background">
-      <header className="flex items-center justify-between px-4 py-3 border-b border-border/50">
-        <button onClick={() => navigate(-1)} className="text-foreground">
+      <header className="tiger-page-header justify-between">
+        <button onClick={() => navigate(-1)} className="tiger-header-action hover:bg-surface-hover hover:text-foreground" aria-label="Back">
           <ArrowLeft className="w-5 h-5" />
         </button>
         <h1 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
@@ -188,17 +188,17 @@ const Profile = () => {
         </h1>
         <div className="flex items-center gap-1">
           {isMe && isAdmin && (
-            <button onClick={() => navigate("/admin")} className="p-2 text-muted-foreground hover:text-primary" title="Developer Panel">
+            <button onClick={() => navigate("/admin")} className="tiger-header-action hover:text-primary" title="Developer Panel" aria-label="Admin panel">
               <Shield className="w-5 h-5" />
             </button>
           )}
           {isMe ? (
-            <button onClick={() => navigate("/settings")} className="p-2 text-muted-foreground hover:text-foreground">
+            <button onClick={() => navigate("/settings")} className="tiger-header-action hover:text-foreground" aria-label="Settings">
               <Settings className="w-5 h-5" />
             </button>
           ) : (
             <DropdownMenu>
-              <DropdownMenuTrigger className="p-2 text-muted-foreground hover:text-foreground">
+              <DropdownMenuTrigger className="tiger-header-action hover:text-foreground" aria-label="More profile actions">
                 <MoreVertical className="w-5 h-5" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
