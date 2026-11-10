@@ -11,6 +11,7 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.firebase.FirebaseApp
@@ -91,6 +92,18 @@ open class MainActivity : Activity() {
 
         @JavascriptInterface
         fun getAppVersion(): String = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "0.0.0" } catch (_: Exception) { "0.0.0" }
+
+        @JavascriptInterface
+        fun areNotificationsEnabled(): Boolean = NotificationManagerCompat.from(this@MainActivity).areNotificationsEnabled()
+
+        @JavascriptInterface
+        fun openNotificationSettings() {
+            runOnUiThread {
+                val settingsIntent = Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
+                startActivity(settingsIntent)
+            }
+        }
     }
 
     @Deprecated("Deprecated in Android API")

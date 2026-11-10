@@ -60,6 +60,7 @@ const Settings = () => {
   const { language, setLanguage, t } = useLanguage();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const isNativeAndroid = typeof window !== "undefined" && typeof window.TigerNative?.getFcmToken === "function";
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -67,7 +68,7 @@ const Settings = () => {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [dataSaver, setDataSaver] = useState(() => { try { return localStorage.getItem("tigerchats:data-saver") === "true"; } catch { return false; } });
   const updateDataSaver = (enabled: boolean) => { setDataSaver(enabled); try { localStorage.setItem("tigerchats:data-saver", String(enabled)); } catch { /* storage may be unavailable */ } };
-  const [notifications, setNotifications] = useState(() => user ? isPushEnabled(user.id) : false);
+  const [notifications, setNotifications] = useState(() => isNativeAndroid ? (window.TigerNative?.areNotificationsEnabled?.() ?? false) : user ? isPushEnabled(user.id) : false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -89,8 +90,15 @@ const Settings = () => {
 
   useEffect(() => {
     setNotificationPrefs(getNotificationPreferences(user?.id));
-    setNotifications(user ? isPushEnabled(user.id) : false);
-  }, [user?.id]);
+    const refreshPushState = () => setNotifications(isNativeAndroid ? (window.TigerNative?.areNotificationsEnabled?.() ?? false) : user ? isPushEnabled(user.id) : false);
+    refreshPushState();
+    window.addEventListener("focus", refreshPushState);
+    document.addEventListener("visibilitychange", refreshPushState);
+    return () => {
+      window.removeEventListener("focus", refreshPushState);
+      document.removeEventListener("visibilitychange", refreshPushState);
+    };
+  }, [user?.id, isNativeAndroid]);
 
   const updateNotificationPreference = (patch: Partial<NotificationPreferences>) => {
     setNotificationPrefs(saveNotificationPreferences(user?.id, patch));
@@ -338,6 +346,13 @@ const Settings = () => {
           <div className="space-y-4 animate-fade-in">
             <Button variant="outline" disabled={pushBusy} onClick={async () => {
               if (!user) return;
+              if (isNativeAndroid && window.TigerNative?.openNotificationSettings) {
+                if (!window.TigerNative.getFcmToken?.()) {
+                  setPushMessage("Native Firebase token is not available yet. Check that the Android Firebase app configuration is included in this APK.");
+                }
+                window.TigerNative.openNotificationSettings();
+                return;
+              }
               setPushBusy(true);
               try {
                 const message = notifications ? (await disablePush(user.id), "Background notifications disabled on this device.") : await enablePush(user.id);
@@ -346,7 +361,7 @@ const Settings = () => {
               } catch (error) {
                 toast({ title: "Notifications unavailable", description: error instanceof Error ? error.message : "Please try again", variant: "destructive" });
               } finally { setPushBusy(false); }
-            }}><Bell className="mr-2 h-4 w-4" />{pushBusy ? "Please wait…" : notifications ? "Disable background notifications" : "Enable background notifications"}</Button>
+            }}><Bell className="mr-2 h-4 w-4" />{pushBusy ? "Please wait…" : isNativeAndroid ? "Manage Android notification settings" : notifications ? "Disable background notifications" : "Enable background notifications"}</Button>
             {pushMessage && <p role="status" className="text-sm text-muted-foreground">{pushMessage}</p>}
             {pushMessage.includes("own tab") && <Button variant="link" asChild><a href={window.location.href} target="_blank" rel="noopener noreferrer">Open in new tab</a></Button>}
             <div className="w-full min-w-0 rounded-2xl border border-primary/20 bg-primary/5 px-3 py-1">
