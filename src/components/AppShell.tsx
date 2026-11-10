@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Outlet, NavLink, useLocation } from "react-router-dom";
+import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Home, MessageCircle, Users, User as UserIcon, Trophy, Mail, Settings, Bot, Bell, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/tigerchats-logo.png";
@@ -17,9 +17,27 @@ import { NativePushRegistration } from "@/components/NativePushRegistration";
 export const AppShell = () => {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const { unreadMessages, unreadNotifications } = useUnreadBadges();
   const { isAdmin, loading: roleLoading } = useUserRole();
   useNotifications();
+
+  useEffect(() => {
+    type NativeNavigationWindow = Window & { __tigerPendingNativePath?: string };
+    const nativeWindow = window as NativeNavigationWindow;
+    const navigateToNativePath = (path: string | undefined) => {
+      if (!path || !path.startsWith("/") || path.startsWith("//")) return;
+      nativeWindow.__tigerPendingNativePath = undefined;
+      const currentPath = window.location.pathname + window.location.search + window.location.hash;
+      if (currentPath !== path) navigate(path, { replace: true });
+    };
+    const onNativeNavigate = (event: Event) => {
+      navigateToNativePath((event as CustomEvent<string>).detail);
+    };
+    window.addEventListener("tiger:native-navigate", onNativeNavigate);
+    navigateToNativePath(nativeWindow.__tigerPendingNativePath);
+    return () => window.removeEventListener("tiger:native-navigate", onNativeNavigate);
+  }, [navigate]);
 
   useEffect(() => {
     const updateVisibleHeight = () => {
