@@ -7,7 +7,9 @@ on:
       - "android/**"
       - "src/components/NativePushRegistration.tsx"
       - "src/components/AppShell.tsx"
+      - "src/components/AndroidUpdateChecker.tsx"
       - "src/pages/Auth.tsx"
+      - "src/pages/Settings.tsx"
       - ".github/workflows/android-wrapper.yml"
   push:
     branches: [main]
@@ -15,7 +17,9 @@ on:
       - "android/**"
       - "src/components/NativePushRegistration.tsx"
       - "src/components/AppShell.tsx"
+      - "src/components/AndroidUpdateChecker.tsx"
       - "src/pages/Auth.tsx"
+      - "src/pages/Settings.tsx"
       - ".github/workflows/android-wrapper.yml"
 
 permissions:
@@ -26,6 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
+      TIGER_VERSION_CODE: ${{ github.run_number }}
+      TIGER_VERSION_NAME: 1.0.${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,6 +46,20 @@ jobs:
           test -n "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+      - name: Check Android signing configuration
+        id: signing
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Configure Firebase Android app
         env:
           FIREBASE_ANDROID_CONFIG: ${{ secrets.TIGERCHAT_ANDROID_GOOGLE_SERVICES_JSON }}
@@ -54,23 +74,48 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+      - name: Configure stable Android release signing
+        if: steps.signing.outputs.configured == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD"
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/tigerchats-release.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/tigerchats-release.jks" >> "$GITHUB_ENV"
+          echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+      - name: Assemble signed release APK
+        if: steps.signing.outputs.configured == 'true'
+        run: gradle -p android :app:assembleRelease -PtigerVersionCode="$TIGER_VERSION_CODE" -PtigerVersionName="$TIGER_VERSION_NAME"
       - name: Assemble debug APK
-        run: gradle -p android :app:assembleDebug
+        if: steps.signing.outputs.configured != 'true'
+        run: gradle -p android :app:assembleDebug -PtigerVersionCode="$TIGER_VERSION_CODE" -PtigerVersionName="$TIGER_VERSION_NAME"
       - name: Name APK for download
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/TigerChats.apk
-      - name: Upload debug APK artifact
+        run: |
+          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/TigerChats.apk
+            echo "APK_PATH=android/app/build/outputs/apk/release/TigerChats.apk" >> "$GITHUB_ENV"
+          else
+            cp android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/TigerChats.apk
+            echo "APK_PATH=android/app/build/outputs/apk/debug/TigerChats.apk" >> "$GITHUB_ENV"
+          fi
+      - name: Upload Android APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tigerchats-android-debug
-          path: android/app/build/outputs/apk/debug/TigerChats.apk
+          name: tigerchats-android-${{ env.TIGER_VERSION_NAME }}
+          path: ${{ env.APK_PATH }}
           if-no-files-found: error
       - name: Publish latest Android APK
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.signing.outputs.configured == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: android-latest
-          name: TIGERCHATS Android latest
-          body: "Latest automatically built TIGERCHATS Android installer."
-          files: android/app/build/outputs/apk/debug/TigerChats.apk
+          name: TIGERCHATS Android v${{ env.TIGER_VERSION_NAME }}
+          body: "Latest automatically built TIGERCHATS Android installer. Version: ${{ env.TIGER_VERSION_NAME }}. Signed release is used when the Android signing secrets are configured."
+          files: ${{ env.APK_PATH }}
           make_latest: false
           fail_on_unmatched_files: true

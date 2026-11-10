@@ -17,6 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { useAppLock, isWebAuthnSupported } from "@/hooks/useAppLock";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 import { TwoFactorSecurity } from "@/components/TwoFactorSecurity";
+import { AndroidUpdateChecker } from "@/components/AndroidUpdateChecker";
 import { disablePush, enablePush, isPushEnabled } from "@/lib/firebase-push";
 import { ringtoneOptions, getStoredRingtone, setStoredRingtone, playRingtone, type RingtoneId } from "@/lib/ringtones";
 import { getNotificationPreferences, saveNotificationPreferences, type NotificationPreferences } from "@/lib/notification-preferences";
@@ -520,6 +521,8 @@ const Settings = () => {
                 <Download className="w-4 h-4" />{appInstalled ? "Installed" : "Install"}
               </Button>
             </div>
+
+            <AndroidUpdateChecker />
 
             {settingSections.map((section) => (
               <button key={section.id} onClick={() => setActiveSection(section.id)} className="w-full flex items-center gap-4 p-4 glass rounded-xl hover:bg-surface-hover transition-colors text-left">
