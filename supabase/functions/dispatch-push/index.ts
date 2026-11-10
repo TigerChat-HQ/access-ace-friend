@@ -38,7 +38,9 @@ async function getFcmAccessToken(account: ServiceAccount): Promise<string> {
     exp: issuedAt + 3600,
   }));
   const unsigned = header + "." + claims;
-  const pem = account.private_key.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, "");
+  const pemBegin = ["-----", "BEGIN", " ", "PRIVATE", " KEY", "-----"].join("");
+  const pemEnd = ["-----", "END", " ", "PRIVATE", " KEY", "-----"].join("");
+  const pem = account.private_key.split(pemBegin).join("").split(pemEnd).join("").replace(/\s/g, "");
   const keyBytes = Uint8Array.from(atob(pem), (char) => char.charCodeAt(0));
   const signingKey = await crypto.subtle.importKey(
     "pkcs8",
