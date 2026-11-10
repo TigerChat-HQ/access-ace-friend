@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, BarChart3, Eye, Heart, MessageCircle, PlusSquare, TrendingUp, Users } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { CreatorReelAnalytics } from "@/components/social/CreatorReelAnalytics";
 import { supabase } from "@/integrations/supabase/client";
 
 interface CreatorPost {
@@ -86,6 +87,7 @@ const ProfessionalDashboard = () => {
           <p className="mt-1 text-sm text-muted-foreground">Track how people respond to your posts and discover what resonates.</p>
         </section>
 
+        <CreatorReelAnalytics />
         {error && <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>}
         {loading ? (
           <div className="py-16 text-center text-sm text-muted-foreground">Loading creator insights…</div>
