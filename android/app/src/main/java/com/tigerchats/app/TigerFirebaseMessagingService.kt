@@ -60,7 +60,7 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
         val requestCode = conversationId.hashCode()
         val bubbleIntent = PendingIntent.getActivity(this, requestCode, target, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
         val icon = Icon.createWithResource(this, R.drawable.ic_app)
-        val person = Person.Builder().setName(title).setIcon(IconCompat.createWithResource(this, R.drawable.ic_app)).build()
+        val person = Person.Builder().setName(title).setIcon(icon).build()
 
         if (Build.VERSION.SDK_INT >= 30) {
             val shortcut = ShortcutInfo.Builder(this, shortcutId)
