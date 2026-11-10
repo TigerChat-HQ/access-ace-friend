@@ -79,10 +79,10 @@ jobs:
           fi
 
           echo "Firebase configuration validated for com.tigerchats.app."
-      - name: Copy official web logo into Android app resources
+      - name: Copy Chrome PWA icon into Android launcher resources
         run: |
           mkdir -p android/app/src/main/res/drawable-nodpi
-          cp src/assets/tigerchats-logo.png android/app/src/main/res/drawable-nodpi/tigerchats_logo.png
+          cp public/pwa-icon-512.png android/app/src/main/res/drawable-nodpi/tigerchats_logo.png
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
