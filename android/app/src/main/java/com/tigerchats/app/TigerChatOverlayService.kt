@@ -28,11 +28,15 @@ import android.view.animation.DecelerateInterpolator
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
+import androidx.core.app.RemoteInput
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
@@ -51,6 +55,7 @@ class TigerChatOverlayService : Service() {
     private var senderBody = "Ujumbe mpya"
     private var chatPath = "/chats"
     private var avatarUrl = ""
+    private var notificationKind = "message"
     private var panelWidth = 340
     private var panelHeight = 560
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -82,6 +87,7 @@ class TigerChatOverlayService : Service() {
                 senderBody = intent.getStringExtra(EXTRA_BODY) ?: "Ujumbe mpya"
                 chatPath = intent.getStringExtra(EXTRA_PATH) ?: "/chats"
                 avatarUrl = intent.getStringExtra(EXTRA_AVATAR) ?: ""
+                notificationKind = intent.getStringExtra(EXTRA_KIND) ?: "message"
                 startForeground(NOTIFICATION_ID, buildNotification())
                 if (expanded) {
                     updateExpandedHeader()
@@ -122,7 +128,26 @@ class TigerChatOverlayService : Service() {
             this, 7102, Intent(this, TigerChatOverlayService::class.java).setAction(ACTION_DISMISS),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val replyIntent = Intent(this, TigerQuickReplyReceiver::class.java)
+            .putExtra(TigerQuickReplyReceiver.EXTRA_PATH, safeChatPath(chatPath))
+        val replyPendingIntent = PendingIntent.getBroadcast(
+            this,
+            chatPath.hashCode() xor 0x51A7,
+            replyIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+        )
+        val replyInput = RemoteInput.Builder(TigerQuickReplyReceiver.KEY_TEXT_REPLY)
+            .setLabel("Reply to message")
+            .build()
+        val replyAction = NotificationCompat.Action.Builder(
+            android.R.drawable.ic_menu_send,
+            "Reply",
+            replyPendingIntent,
+        ).addRemoteInput(replyInput)
+            .setAllowGeneratedReplies(true)
+            .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
+            .build()
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(senderTitle)
             .setContentText(senderBody)
@@ -130,8 +155,9 @@ class TigerChatOverlayService : Service() {
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Dismiss bubble", dismiss)
             .setOngoing(false)
             .setAutoCancel(true)
-            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-            .build()
+            .setCategory(if (notificationKind == "call") NotificationCompat.CATEGORY_CALL else NotificationCompat.CATEGORY_MESSAGE)
+        if (notificationKind == "message") builder.addAction(replyAction)
+        return builder.build()
     }
 
     private fun bubbleLayoutParams(): WindowManager.LayoutParams {
@@ -295,17 +321,45 @@ class TigerChatOverlayService : Service() {
             settings.databaseEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
             webChromeClient = WebChromeClient()
+            isFocusable = true
+            isFocusableInTouchMode = true
+            webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView, url: String) {
+                    super.onPageFinished(view, url)
+                    val encodedPath = org.json.JSONObject.quote(safeChatPath(chatPath))
+                    view.evaluateJavascript(
+                        "if (window.location.pathname + window.location.search !== $encodedPath) { history.replaceState({}, '', $encodedPath); window.dispatchEvent(new PopStateEvent('popstate')); }",
+                        null,
+                    )
+                }
+            }
             addJavascriptInterface(object {
                 @JavascriptInterface
                 fun dismissChatNotification() { mainHandler.post { stopSelf() } }
             }, "TigerNative")
             setBackgroundColor(Color.rgb(12, 18, 17))
-            loadUrl("https://tigerchat-hq.onrender.com" + safeChatPath(chatPath))
+            loadUrl("https://tigerchat-hq.onrender.com/")
         }
         chatWebView = web
         panel.addView(header, LinearLayout.LayoutParams(-1, dp(52)))
         panel.addView(web, LinearLayout.LayoutParams(-1, 0, 1f))
+        ViewCompat.setOnApplyWindowInsetsListener(panel) { _, insets ->
+            val imeBottom = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val screenHeight = screenSize().second
+            val availableHeight = (screenHeight - bars.top - bars.bottom - dp(16) - imeBottom).coerceAtLeast(dp(240))
+            val targetHeight = if (imeBottom > 0) minOf(dp(panelHeight), availableHeight)
+                else safePanelDimensions(dp(panelWidth), dp(panelHeight)).second
+            val params = overlayView?.layoutParams as? WindowManager.LayoutParams
+            if (params != null && params.height != targetHeight) {
+                params.height = targetHeight
+                params.y = params.y.coerceAtMost((screenHeight - targetHeight - dp(8)).coerceAtLeast(dp(8)))
+                try { windowManager.updateViewLayout(overlayView, params) } catch (_: Exception) { }
+            }
+            insets
+        }
         attachView(panel, expandedLayoutParams())
+        web.requestFocus()
     }
 
     private fun updateExpandedHeader() {
@@ -520,6 +574,7 @@ class TigerChatOverlayService : Service() {
         const val EXTRA_BODY = "notification_body"
         const val EXTRA_PATH = "notification_path"
         const val EXTRA_AVATAR = "notification_avatar"
+        const val EXTRA_KIND = "notification_kind"
         private const val CHANNEL_ID = "tiger_chat_overlay"
         private const val NOTIFICATION_ID = 7310
     }

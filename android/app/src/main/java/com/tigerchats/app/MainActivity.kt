@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.webkit.JavascriptInterface
+import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -25,10 +26,14 @@ open class MainActivity : Activity() {
     protected lateinit var webView: WebView
     private val siteUrl = "https://tigerchat-hq.onrender.com"
     private var safeAreaTopDp = 0f
+    private var pendingPath = "/"
+    private var pendingMediaPermissionRequest: PermissionRequest? = null
+    private var pendingMediaAndroidPermissions: Array<String> = emptyArray()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Expose the Android status-bar/notch inset to the web app; keep native IME/navigation insets on the WebView.
+        // Let WebView receive system-bar and IME insets itself. Consuming them here
+        // prevents its visual viewport from resizing when the keyboard opens.
         WindowCompat.setDecorFitsSystemWindows(window, false)
         requestNotificationPermission()
         webView = WebView(this)
@@ -51,35 +56,136 @@ open class MainActivity : Activity() {
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
                 applySafeAreaTop(view)
+                applyPendingPath(view)
+                deliverPendingQuickReply(view)
             }
         }
-        webView.webChromeClient = WebChromeClient()
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onPermissionRequest(request: PermissionRequest) {
+                runOnUiThread {
+                    val origin = request.origin
+                    if (origin.scheme != "https" || origin.host != "tigerchat-hq.onrender.com") {
+                        request.deny()
+                        return@runOnUiThread
+                    }
+
+                    val requested = request.resources.toSet()
+                    val androidPermissions = buildList {
+                        if (PermissionRequest.RESOURCE_AUDIO_CAPTURE in requested) add(Manifest.permission.RECORD_AUDIO)
+                        if (PermissionRequest.RESOURCE_VIDEO_CAPTURE in requested) add(Manifest.permission.CAMERA)
+                    }.toTypedArray()
+                    if (androidPermissions.isEmpty()) {
+                        request.deny()
+                        return@runOnUiThread
+                    }
+
+                    pendingMediaPermissionRequest?.let { previous ->
+                        try { previous.deny() } catch (_: Exception) { }
+                    }
+                    pendingMediaPermissionRequest = request
+                    pendingMediaAndroidPermissions = androidPermissions
+                    val missing = androidPermissions.filter {
+                        ContextCompat.checkSelfPermission(this@MainActivity, it) != PackageManager.PERMISSION_GRANTED
+                    }
+                    if (missing.isEmpty()) {
+                        grantWebMediaPermission(request, requested)
+                    } else {
+                        ActivityCompat.requestPermissions(
+                            this@MainActivity,
+                            missing.toTypedArray(),
+                            MEDIA_PERMISSION_REQUEST_CODE,
+                        )
+                    }
+                }
+            }
+
+            override fun onPermissionRequestCanceled(request: PermissionRequest) {
+                if (pendingMediaPermissionRequest === request) {
+                    pendingMediaPermissionRequest = null
+                    pendingMediaAndroidPermissions = emptyArray()
+                }
+            }
+        }
         webView.addJavascriptInterface(NativeBridge(), "TigerNative")
         setContentView(webView)
-        ViewCompat.setOnApplyWindowInsetsListener(webView) { view, windowInsets ->
+        ViewCompat.setOnApplyWindowInsetsListener(webView) { _, windowInsets ->
             val safeInsets = windowInsets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
             )
-            val imeInsets = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
             safeAreaTopDp = safeInsets.top / resources.displayMetrics.density
-            view.setPadding(safeInsets.left, 0, safeInsets.right, maxOf(safeInsets.bottom, imeInsets.bottom))
             applySafeAreaTop(webView)
-            WindowInsetsCompat.CONSUMED
+            // Do not consume IME/system insets: WebView needs them for keyboard/viewport updates.
+            windowInsets
         }
         ViewCompat.requestApplyInsets(webView)
-        webView.loadUrl(targetUrl(intent?.getStringExtra("path")))
+        pendingPath = safePath(intent?.getStringExtra("path"))
+        webView.loadUrl(siteUrl + "/")
         warmFirebaseToken()
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        webView.loadUrl(targetUrl(intent.getStringExtra("path")))
+    private fun grantWebMediaPermission(request: PermissionRequest, requested: Set<String>) {
+        val allowed = request.resources.filter { resource ->
+            when (resource) {
+                PermissionRequest.RESOURCE_AUDIO_CAPTURE ->
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+                PermissionRequest.RESOURCE_VIDEO_CAPTURE ->
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                else -> false
+            }
+        }.toTypedArray()
+        try {
+            if (allowed.isNotEmpty()) request.grant(allowed) else request.deny()
+        } catch (_: Exception) {
+            // The WebView may have navigated away while the Android permission dialog was open.
+        } finally {
+            if (pendingMediaPermissionRequest === request) {
+                pendingMediaPermissionRequest = null
+                pendingMediaAndroidPermissions = emptyArray()
+            }
+        }
     }
 
-    private fun targetUrl(path: String?): String {
-        val safePath = path?.takeIf { it.startsWith("/") && !it.startsWith("//") } ?: "/"
-        return siteUrl + safePath
+    @Deprecated("Deprecated in Android API")
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != MEDIA_PERMISSION_REQUEST_CODE) return
+        val request = pendingMediaPermissionRequest ?: return
+        val allGranted = pendingMediaAndroidPermissions.all {
+            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+        }
+        if (allGranted) grantWebMediaPermission(request, request.resources.toSet())
+        else {
+            try { request.deny() } catch (_: Exception) { }
+            pendingMediaPermissionRequest = null
+            pendingMediaAndroidPermissions = emptyArray()
+        }
+    }
+
+    private fun deliverPendingQuickReply(view: WebView) {
+        val reply = intent?.getStringExtra(EXTRA_QUICK_REPLY)?.takeIf { it.isNotBlank() } ?: return
+        val path = intent?.getStringExtra("path").orEmpty()
+        val conversationId = Regex("[?&]c=([0-9a-fA-F-]{36})").find(path)?.groupValues?.getOrNull(1) ?: return
+        val payload = org.json.JSONObject().put("text", reply).put("conversationId", conversationId)
+        view.evaluateJavascript(
+            "window.__tigerQuickReply = $payload; window.dispatchEvent(new CustomEvent('tiger:native-quick-reply',{detail:$payload}));",
+            null,
+        )
+        intent?.removeExtra(EXTRA_QUICK_REPLY)
+    }
+
+    private fun safePath(path: String?): String =
+        path?.takeIf { it.startsWith("/") && !it.startsWith("//") } ?: "/"
+
+    private fun applyPendingPath(view: WebView) {
+        val encodedPath = org.json.JSONObject.quote(pendingPath)
+        view.evaluateJavascript(
+            "if (window.location.pathname + window.location.search !== $encodedPath) { history.replaceState({}, '', $encodedPath); window.dispatchEvent(new PopStateEvent('popstate')); }",
+            null,
+        )
     }
 
     private fun applySafeAreaTop(view: WebView) {
@@ -98,8 +204,6 @@ open class MainActivity : Activity() {
     }
 
     private fun syncChatOverlayService() {
-        // The notification bubble is created only when a new notification arrives.
-        // Do not start an idle floating bubble just because the app resumed.
         val enabled = getSharedPreferences("tiger_overlay", MODE_PRIVATE).getBoolean("enabled", false)
         if (enabled && Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this)) {
             getSharedPreferences("tiger_overlay", MODE_PRIVATE).edit().putBoolean("enabled", false).apply()
@@ -142,6 +246,12 @@ open class MainActivity : Activity() {
         if (::webView.isInitialized) ViewCompat.requestApplyInsets(webView)
         warmFirebaseToken()
         syncChatOverlayService()
+    }
+
+    override fun onDestroy() {
+        pendingMediaPermissionRequest?.let { try { it.deny() } catch (_: Exception) { } }
+        pendingMediaPermissionRequest = null
+        super.onDestroy()
     }
 
     private fun publishTokenToWeb(token: String) {
@@ -225,5 +335,10 @@ open class MainActivity : Activity() {
     @Deprecated("Deprecated in Android API")
     override fun onBackPressed() {
         if (::webView.isInitialized && webView.canGoBack()) webView.goBack() else super.onBackPressed()
+    }
+
+    companion object {
+        const val EXTRA_QUICK_REPLY = "tiger_quick_reply"
+        private const val MEDIA_PERMISSION_REQUEST_CODE = 7302
     }
 }

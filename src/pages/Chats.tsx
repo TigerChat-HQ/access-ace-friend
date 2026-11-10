@@ -217,6 +217,22 @@ const Chats = () => {
     });
   };
 
+  useEffect(() => {
+    const deliver = (detail: { text?: string; conversationId?: string } | undefined) => {
+      if (!detail?.text?.trim() || !detail.conversationId || detail.conversationId !== activeChat) return;
+      void handleSend(detail.text);
+      const nativeWindow = window as Window & { __tigerQuickReply?: { text?: string; conversationId?: string } };
+      nativeWindow.__tigerQuickReply = undefined;
+    };
+    const nativeWindow = window as Window & { __tigerQuickReply?: { text?: string; conversationId?: string } };
+    deliver(nativeWindow.__tigerQuickReply);
+    const onQuickReply = (event: Event) => {
+      deliver((event as CustomEvent<{ text?: string; conversationId?: string }>).detail);
+    };
+    window.addEventListener("tiger:native-quick-reply", onQuickReply);
+    return () => window.removeEventListener("tiger:native-quick-reply", onQuickReply);
+  }, [activeChat, handleSend]);
+
   const handleSendVoice = async (blob: Blob, duration: number) => {
     if (!activeChat || !user) return;
     const filePath = `${user.id}/${Date.now()}.webm`;
