@@ -4,7 +4,7 @@ import { MessageCircle, X, Minus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getNotificationPreferences } from "@/lib/notification-preferences";
 
-type BubbleNotice = { title: string; body: string; url: string; tag: string; kind: "chat" | "social" };
+type BubbleNotice = { title: string; body: string; url: string; tag: string; kind: "chat" | "social"; icon?: string };
 
 export const NotificationBubble = () => {
   const { user } = useAuth();
@@ -17,7 +17,7 @@ export const NotificationBubble = () => {
     const update = () => setEnabled(getNotificationPreferences(user?.id).floatingBubble);
     const onNotice = (event: Event) => {
       const detail = (event as CustomEvent<BubbleNotice>).detail;
-      if (!detail || detail.kind !== "chat" || !getNotificationPreferences(user?.id).floatingBubble) return;
+      if (!detail || (detail.kind !== "chat" && detail.kind !== "social") || !getNotificationPreferences(user?.id).floatingBubble) return;
       setNotice(detail);
     };
     window.addEventListener("tiger:notification-preferences-changed", update);
@@ -75,7 +75,7 @@ export const NotificationBubble = () => {
         aria-expanded={expanded}
         className="relative flex h-14 w-14 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-[0_8px_26px_hsl(var(--primary)/.42)] transition-transform hover:scale-105 active:scale-95"
       >
-        <MessageCircle className="h-6 w-6" />
+        {notice?.icon ? <img src={notice.icon} alt="" className="h-full w-full rounded-full object-cover" /> : <MessageCircle className="h-6 w-6" />}
         {notice && !expanded && <span className="absolute -right-0.5 -top-0.5 h-4 w-4 rounded-full border-2 border-background bg-destructive" />}
       </button>
     </div>
