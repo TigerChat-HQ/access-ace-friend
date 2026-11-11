@@ -5,12 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Bug, RefreshCw, Loader2, Send, Database, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Bug, RefreshCw, Loader2, Send, Database, CheckCircle2, AlertTriangle, Copy } from "lucide-react";
 
 type Diagnostic = {
   id: string; source: string; severity: string; category: string; title: string;
   message: string | null; route: string | null; component_name: string | null;
   action_label: string | null; suggestion: string | null; status: string; created_at: string;
+  stack?: string | null; metadata?: Record<string, unknown> | null;
 };
 const EXPECTED_TABLES = [
   "profiles","conversations","conversation_members","messages","stories","story_views",
@@ -60,45 +61,7 @@ export const AdminDiagnostics = () => {
     if (error) console.error("Could not save diagnostic event:", error.message);
   }, []);
 
-  useEffect(() => {
-    void load();
-    let lastAction = "";
-    let lastActionAt = 0;
-    const onClick = (event: MouseEvent) => {
-      const target = event.target as HTMLElement | null;
-      const control = target?.closest("button,a,[role='button'],input[type='submit']") as HTMLElement | null;
-      if (!control) return;
-      lastAction = (control.getAttribute("aria-label") || control.getAttribute("title") || control.innerText || control.textContent || control.tagName).trim().slice(0,160);
-      lastActionAt = Date.now();
-    };
-    const onError = (event: ErrorEvent) => {
-      void record({
-        source: "browser", severity: "high", category: "javascript",
-        title: event.message || "Uncaught browser error", message: event.message || "Unknown JavaScript error",
-        route: window.location.pathname, action_label: Date.now() - lastActionAt < 10000 ? lastAction : null,
-        stack: event.error?.stack?.slice(0,8000) ?? null,
-        metadata: { filename: event.filename, line: event.lineno, column: event.colno }
-      });
-    };
-    const onRejection = (event: PromiseRejectionEvent) => {
-      const reason = event.reason;
-      void record({
-        source: "browser", severity: "high", category: "promise",
-        title: "Unhandled promise rejection",
-        message: reason instanceof Error ? reason.message : String(reason ?? "Unknown rejection"),
-        route: window.location.pathname, action_label: Date.now() - lastActionAt < 10000 ? lastAction : null,
-        stack: reason instanceof Error ? reason.stack?.slice(0,8000) : null
-      });
-    };
-    document.addEventListener("click", onClick, true);
-    window.addEventListener("error", onError);
-    window.addEventListener("unhandledrejection", onRejection);
-    return () => {
-      document.removeEventListener("click", onClick, true);
-      window.removeEventListener("error", onError);
-      window.removeEventListener("unhandledrejection", onRejection);
-    };
-  }, [load, record]);
+  useEffect(() => { void load(); }, [load]);
 
   const runSchemaCheck = async () => {
     setChecking(true);
@@ -150,6 +113,30 @@ export const AdminDiagnostics = () => {
     else await load();
   };
 
+  const copyAllErrors = async () => {
+    const payload = items.map((item, index) => [
+      `ERROR #${index + 1}`,
+      `Title: ${item.title}`,
+      `Severity: ${item.severity} | Category: ${item.category} | Source: ${item.source}`,
+      `Status: ${item.status}`,
+      `Date: ${new Date(item.created_at).toISOString()}`,
+      `Route: ${item.route || "unknown"}`,
+      `Component: ${item.component_name || "unknown"}`,
+      `Action: ${item.action_label || "unknown"}`,
+      `Message: ${item.message || "none"}`,
+      `Suggestion: ${item.suggestion || "none"}`,
+      `Stack: ${item.stack || "not available"}`,
+      `Metadata: ${JSON.stringify(item.metadata || {})}`,
+    ].join("\\n")).join("\\n\\n----------------------------------------\\n\\n");
+    const output = `TigerChat Diagnostics export | ${items.length} records\\nExported: ${new Date().toISOString()}\\n\\n${payload}`;
+    try {
+      await navigator.clipboard.writeText(output);
+      toast({ title: "All diagnostics copied", description: `${items.length} records copied. Paste them into ChatGPT.` });
+    } catch {
+      toast({ title: "Copy failed", description: "Allow clipboard access and try again.", variant: "destructive" });
+    }
+  };
+
   const visible = statusFilter === "all" ? items : items.filter(x => x.status === statusFilter);
   const missingCount = schemaResults.filter(x => x.status === "missing").length;
   return <section className="space-y-3">
@@ -178,7 +165,7 @@ export const AdminDiagnostics = () => {
       <Button size="sm" onClick={() => void submitSuggestion()} disabled={!title.trim()}><Send className="mr-1 h-3.5 w-3.5"/>Save report</Button>
     </div>
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <h4 className="text-sm font-semibold">Issue log ({visible.length})</h4>
+      <div className="flex flex-wrap items-center gap-2"><h4 className="text-sm font-semibold">Issue log ({visible.length})</h4><Button size="sm" variant="outline" onClick={() => void copyAllErrors()} disabled={items.length === 0}><Copy className="mr-1 h-3.5 w-3.5"/>Copy all errors ({items.length})</Button></div>
       <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="rounded-md border border-border bg-background px-2 py-1 text-xs"><option value="all">All statuses</option><option value="new">New</option><option value="investigating">Investigating</option><option value="fixed">Fixed</option><option value="ignored">Ignored</option></select>
     </div>
     {visible.map(item=><article key={item.id} className="rounded-lg border border-border bg-card p-3 space-y-2">
@@ -191,6 +178,6 @@ export const AdminDiagnostics = () => {
       <div className="flex flex-wrap gap-1">{["new","investigating","fixed","ignored"].filter(s=>s!==item.status).map(s=><Button key={s} size="sm" variant="outline" onClick={()=>void updateStatus(item.id,s)}>{s}</Button>)}</div>
     </article>)}
     {visible.length===0 && <p className="text-xs text-muted-foreground">{loading?"Loading diagnostics…":"No issues recorded for this filter."}</p>}
-    <p className="text-[11px] text-muted-foreground flex items-start gap-1"><AlertTriangle className="h-3.5 w-3.5 shrink-0"/>Automatic capture covers uncaught browser errors and unhandled promise rejections. Button clicks are attached as context when an error follows; silent failures and caught API errors need explicit reporting in their feature handlers.</p>
+    <p className="text-[11px] text-muted-foreground flex items-start gap-1"><AlertTriangle className="h-3.5 w-3.5 shrink-0"/>Global browser errors, rejected promises, and explicitly reported feature/API failures are collected across the app. Copy all errors exports the loaded diagnostics, including stack traces and safe metadata.</p>
   </section>;
 };
