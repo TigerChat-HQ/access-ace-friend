@@ -389,38 +389,6 @@ const Settings = () => {
               <SettingToggle label="Notifications enabled" description="Master switch for app notifications on this device" value={notificationPrefs.enabled} onChange={(v) => updateNotificationPreference({ enabled: v })} icon={<Bell className="h-5 w-5" />} />
               <SettingToggle label="Chat notifications" description="New direct and group messages" value={notificationPrefs.chat} onChange={(v) => updateNotificationPreference({ chat: v })} icon={<Mail className="h-5 w-5" />} />
               <SettingToggle label="Social notifications" description="Likes, comments, replies and new followers" value={notificationPrefs.social} onChange={(v) => updateNotificationPreference({ social: v })} icon={<User className="h-5 w-5" />} />
-              <SettingToggle label="Floating chat bubble" description="Show a movable quick-chat bubble while TIGERCHATS is open. Turn this off to hide it." value={notificationPrefs.floatingBubble} onChange={(v) => updateNotificationPreference({ floatingBubble: v })} icon={<MessageCircle className="h-5 w-5" />} />
-              {notificationPrefs.floatingBubble && (
-                <div className="ml-12 space-y-3 border-l border-border pb-3 pl-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="min-w-0 space-y-1.5">
-                      <label htmlFor="floating-bubble-size" className="text-xs font-medium text-foreground">Bubble size</label>
-                      <select id="floating-bubble-size" value={notificationPrefs.floatingBubbleSize} onChange={(e) => updateNotificationPreference({ floatingBubbleSize: e.target.value as NotificationPreferences["floatingBubbleSize"] })} className="w-full min-w-0 rounded-lg border border-border bg-background px-2.5 py-2 text-sm text-foreground">
-                        <option value="small">Compact (44 px)</option>
-                        <option value="medium">Standard (52 px)</option>
-                        <option value="large">Large (60 px)</option>
-                      </select>
-                    </div>
-                    <div className="min-w-0 space-y-1.5">
-                      <label htmlFor="floating-bubble-side" className="text-xs font-medium text-foreground">Preferred side</label>
-                      <select id="floating-bubble-side" value={notificationPrefs.floatingBubblePosition.side} onChange={(e) => updateNotificationPreference({ floatingBubblePosition: { ...notificationPrefs.floatingBubblePosition, side: e.target.value as NotificationPreferences["floatingBubblePosition"]["side"] } })} className="w-full min-w-0 rounded-lg border border-border bg-background px-2.5 py-2 text-sm text-foreground">
-                        <option value="right">Right</option>
-                        <option value="left">Left</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="min-w-0 flex-1 text-xs leading-5 text-muted-foreground">Drag the bubble to move it vertically or dock it on either side.</p>
-                    <Button type="button" variant="outline" size="sm" onClick={() => {
-                      updateNotificationPreference({ floatingBubblePosition: { side: "right", verticalOffset: 1 } });
-                      toast({ title: "Chat bubble position reset" });
-                    }}>
-                      <RotateCcw className="mr-1.5 h-3.5 w-3.5" />Reset position
-                    </Button>
-                  </div>
-                </div>
-              )}
-              {isNativeAndroid && <SettingToggle label="Background chat bubble (over other apps)" description="Keep a movable chat bubble available after leaving TIGERCHATS. Android will ask you to allow Display over other apps; an ongoing notification keeps the service visible." value={backgroundChatBubble} onChange={updateBackgroundChatBubble} icon={<Smartphone className="h-5 w-5" />} />}
               <SettingToggle label="Notification sound" description="Play the selected incoming message ringtone" value={notificationPrefs.sound} onChange={(v) => updateNotificationPreference({ sound: v })} icon={<Volume2 className="h-5 w-5" />} />
               <SettingToggle label="Vibration" description="Short vibration for incoming foreground notifications when supported" value={notificationPrefs.vibration} onChange={(v) => updateNotificationPreference({ vibration: v })} icon={<Smartphone className="h-5 w-5" />} />
             </div>
