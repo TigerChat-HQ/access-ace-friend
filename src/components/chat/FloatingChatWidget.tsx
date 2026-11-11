@@ -6,11 +6,16 @@ type BubblePosition = { left: number; top: number };
 
 const BUBBLE_SIZE = 56;
 const EDGE_GAP = 8;
-const POSITION_KEY = "tigerchat-floating-bubble-position";\nconst PREFS_KEY = "tigerchat-floating-bubble-prefs";\ntype BubblePrefs = { size: "small" | "normal" | "large"; color: "primary" | "blue" | "purple" | "orange"; snap: boolean };\nconst DEFAULT_PREFS: BubblePrefs = { size: "normal", color: "primary", snap: true };\nconst bubbleSizes = { small: 48, normal: 56, large: 66 };\nconst bubbleColors = { primary: "bg-primary", blue: "bg-blue-600", purple: "bg-purple-600", orange: "bg-orange-600" };
+const POSITION_KEY = "tigerchat-floating-bubble-position";
+const PREFS_KEY = "tigerchat-floating-bubble-prefs";
+type BubblePrefs = { size: "small" | "normal" | "large"; color: "primary" | "blue" | "purple" | "orange"; snap: boolean };
+const DEFAULT_PREFS: BubblePrefs = { size: "normal", color: "primary", snap: true };
+const bubbleSizes = { small: 48, normal: 56, large: 66 };
+const bubbleColors = { primary: "bg-primary", blue: "bg-blue-600", purple: "bg-purple-600", orange: "bg-orange-600" };
 
-const clampPosition = (position: BubblePosition): BubblePosition => ({
-  left: Math.max(EDGE_GAP, Math.min(position.left, window.innerWidth - BUBBLE_SIZE - EDGE_GAP)),
-  top: Math.max(EDGE_GAP, Math.min(position.top, window.innerHeight - BUBBLE_SIZE - EDGE_GAP)),
+const clampPosition = (position: BubblePosition, size = BUBBLE_SIZE): BubblePosition => ({
+  left: Math.max(EDGE_GAP, Math.min(position.left, window.innerWidth - size - EDGE_GAP)),
+  top: Math.max(EDGE_GAP, Math.min(position.top, window.innerHeight - size - EDGE_GAP)),
 });
 
 /**
@@ -19,7 +24,10 @@ const clampPosition = (position: BubblePosition): BubblePosition => ({
  */
 export const FloatingChatWidget = () => {
   const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState<BubblePosition | null>(null);\n  const [prefs, setPrefs] = useState<BubblePrefs>(() => { try { return { ...DEFAULT_PREFS, ...JSON.parse(window.localStorage.getItem(PREFS_KEY) || "{}") }; } catch { return DEFAULT_PREFS; } });\n  const [showBubbleSettings, setShowBubbleSettings] = useState(false);\n  const bubbleSize = bubbleSizes[prefs.size];
+  const [position, setPosition] = useState<BubblePosition | null>(null);
+  const [prefs, setPrefs] = useState<BubblePrefs>(() => { try { return { ...DEFAULT_PREFS, ...JSON.parse(window.localStorage.getItem(PREFS_KEY) || "{}") }; } catch { return DEFAULT_PREFS; } });
+  const [showBubbleSettings, setShowBubbleSettings] = useState(false);
+  const bubbleSize = bubbleSizes[prefs.size];
   const dragRef = useRef<{ pointerId: number; startX: number; startY: number; left: number; top: number; moved: boolean } | null>(null);
   const draggedClickRef = useRef(false);
   const location = useLocation();
@@ -32,7 +40,7 @@ export const FloatingChatWidget = () => {
       if (saved) {
         const parsed = JSON.parse(saved) as BubblePosition;
         if (Number.isFinite(parsed.left) && Number.isFinite(parsed.top)) {
-          setPosition(clampPosition(parsed));
+          setPosition(clampPosition(parsed, bubbleSize));
         }
       }
     } catch {
@@ -40,7 +48,7 @@ export const FloatingChatWidget = () => {
     }
 
     const keepOnScreen = () => {
-      setPosition((current) => (current ? clampPosition(current) : current));
+      setPosition((current) => (current ? clampPosition(current, bubbleSize) : current));
     };
     window.addEventListener("resize", keepOnScreen);
     return () => window.removeEventListener("resize", keepOnScreen);
@@ -55,7 +63,9 @@ export const FloatingChatWidget = () => {
     }
   }, [position]);
 
-  useEffect(() => { try { window.localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* storage may be unavailable */ } }, [prefs]);\n\n  // The embedded chat route hides this launcher to prevent recursive iframes.
+  useEffect(() => { try { window.localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* storage may be unavailable */ } }, [prefs]);
+
+  // The embedded chat route hides this launcher to prevent recursive iframes.
   if (location.search.includes("bubble=1")) return null;
 
   const openFullChat = () => {
@@ -85,7 +95,7 @@ export const FloatingChatWidget = () => {
     const deltaY = event.clientY - drag.startY;
     if (!drag.moved && Math.abs(deltaX) + Math.abs(deltaY) < 5) return;
     drag.moved = true;
-    setPosition(clampPosition({ left: drag.left + deltaX, top: drag.top + deltaY }));
+    setPosition(clampPosition({ left: drag.left + deltaX, top: drag.top + deltaY }, bubbleSize));
   };
 
   const finishDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -163,12 +173,7 @@ export const FloatingChatWidget = () => {
         aria-expanded={open}
         title="Drag to move"
         className={`fixed z-[101] flex touch-none select-none items-center justify-center rounded-full border border-primary-foreground/20 ${bubbleColors[prefs.color]} text-white shadow-[0_8px_30px_hsl(var(--primary)/0.4)] transition-transform duration-200 hover:scale-105 active:scale-95`}
-        style={position
-          ? { left: position.left, top: position.top }
-          : {
-              right: "max(16px, env(safe-area-inset-right, 0px))",
-              bottom: "calc(18px + env(safe-area-inset-bottom, 0px))",
-            }}
+        style={{ width: bubbleSize, height: bubbleSize, ...(position ? { left: position.left, top: position.top } : { right: "max(16px, env(safe-area-inset-right, 0px))", bottom: "calc(18px + env(safe-area-inset-bottom, 0px))" }) }}
       >
         {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
         {!open && <span className="absolute right-0 top-0 h-3 w-3 rounded-full border-2 border-background bg-emerald-400" />}
