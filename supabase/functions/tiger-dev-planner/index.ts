@@ -276,7 +276,10 @@ Deno.serve(async (req) => {
         const plan = JSON.parse(ai.choices?.[0]?.message?.content || "{}");
         const title = String(plan.title || diagnostic.title).slice(0, 200);
         const summary = String(plan.summary || diagnostic.message || "Automatically triaged runtime diagnostic.").slice(0, 2000);
-        const risk = plan.risk === "high" || !Array.isArray(plan.areas) || plan.areas.length === 0 ? "high" : "medium";
+        const protectedText = [diagnostic.title, diagnostic.message, plan.title, plan.summary, ...(Array.isArray(plan.areas) ? plan.areas : [])].filter(Boolean).join(" ");
+        const risk = plan.risk === "high" || PROTECTED.test(protectedText) || !Array.isArray(plan.areas) || plan.areas.length === 0
+          ? "high"
+          : plan.risk === "low" ? "low" : plan.risk === "medium" ? "medium" : "high";
         const category = ["bug","feature","ux","performance","security"].includes(plan.category) ? plan.category : "bug";
         const { data: task, error: taskError } = await sb.from("dev_tasks").insert({
           title, summary, category, priority: ["low","medium","high","critical"].includes(plan.priority) ? plan.priority : diagnostic.severity,
@@ -287,19 +290,39 @@ Deno.serve(async (req) => {
         if (taskError || !task) throw new Error(taskError?.message || "Could not create Tiger AI repair task");
         await sb.from("app_diagnostics").update({ ai_task_id: task.id, ai_status: risk === "high" ? "needs_review" : "processing" }).eq("id", diagnostic.id);
         await sb.from("dev_audit_log").insert({ task_id: task.id, actor: "tiger_ai", action: "diagnostic_auto_triaged", details: { title, diagnostic_id: diagnostic.id, risk } });
-        if (risk === "high") {
-          await sb.from("admin_diagnostic_notifications").insert({ diagnostic_id: diagnostic.id, task_id: task.id, notification_type: "new_error", title: "Tiger AI inahitaji ukaguzi wa admin", message: "Kosa limechambuliwa lakini limewekewa ulinzi kwa sababu lina hatari au halina chanzo salama cha code kilichothibitishwa.", is_read: false });
-          return json({ ok: true, task_id: task.id, needs_review: true });
-        }
         try {
           const pr = await createCodeChange(task);
+          if (risk !== "high") {
+            const autoMergeLabel = risk === "low" ? "tiger-ai-auto-merge-low" : "tiger-ai-auto-merge-medium";
+            // Only low/medium fixes receive the explicit label consumed by the trusted auto-merge workflow.
+            try {
+              await githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/labels`, Deno.env.get("GITHUB_TOKEN"), {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: autoMergeLabel, color: risk === "low" ? "0e8a16" : "1d76db", description: `Tiger AI approved automation for ${risk}-risk fixes only` }),
+              });
+            } catch (labelError) {
+              const message = labelError instanceof Error ? labelError.message : "";
+              if (!message.includes("[422]") && !message.includes("already_exists")) throw labelError;
+            }
+            await githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/issues/${pr.number}/labels`, Deno.env.get("GITHUB_TOKEN"), {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ labels: [autoMergeLabel] }),
+            });
+          }
           const nextPlan = { ...(task.plan || {}), pr };
           const { error: saveError } = await sb.from("dev_tasks").update({ plan: nextPlan, status: "in_progress", updated_at: new Date().toISOString() }).eq("id", task.id);
           if (saveError) throw new Error(saveError.message);
           await sb.from("app_diagnostics").update({ ai_status: "pr_open" }).eq("id", diagnostic.id);
-          await sb.from("dev_audit_log").insert({ task_id: task.id, actor: "tiger_ai", action: "diagnostic_repair_pr_created", details: { title, diagnostic_id: diagnostic.id, url: pr.url, number: pr.number, files: pr.files } });
-          await sb.from("admin_diagnostic_notifications").insert({ diagnostic_id: diagnostic.id, task_id: task.id, notification_type: "repair_ready", title: "Tiger AI imeandaa marekebisho", message: "PR imefunguliwa. Kagua code na CI; tumia kitufe cha uthibitisho baada ya ukaguzi kufaulu.", pr_url: pr.url, is_read: false });
-          return json({ ok: true, task_id: task.id, pr });
+          await sb.from("dev_audit_log").insert({ task_id: task.id, actor: "tiger_ai", action: "diagnostic_repair_pr_created", details: { title, diagnostic_id: diagnostic.id, url: pr.url, number: pr.number, files: pr.files, risk } });
+          await sb.from("admin_diagnostic_notifications").insert({
+            diagnostic_id: diagnostic.id, task_id: task.id, notification_type: "repair_ready",
+            title: risk === "high" ? "Tiger AI imeandaa PR ya hatari kubwa — idhini yako inahitajika" : "Tiger AI imeandaa marekebisho",
+            message: risk === "high"
+              ? "PR hii ni high risk. Tiger AI haitaiunganisha main; Admin lazima akague code na CI kisha aunganishe mwenyewe."
+              : `PR ya ${risk} risk imefunguliwa. Tiger AI itaiunganisha main baada ya CI zote zinazohitajika kupita.`,
+            pr_url: pr.url, is_read: false
+          });
+          return json({ ok: true, task_id: task.id, pr, needs_review: risk === "high", auto_merge_eligible: risk !== "high" });
         } catch (error) {
           const message = error instanceof Error ? error.message : "AI code drafting failed";
           await sb.from("app_diagnostics").update({ ai_status: "failed" }).eq("id", diagnostic.id);

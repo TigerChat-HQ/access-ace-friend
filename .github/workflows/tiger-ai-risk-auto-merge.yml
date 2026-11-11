@@ -1,0 +1,85 @@
+name: Tiger AI risk-gated auto merge
+
+on:
+  check_suite:
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to evaluate
+        required: true
+        type: number
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+concurrency:
+  group: tiger-ai-auto-merge-${{ github.event.check_suite.head_sha || inputs.pr_number }}
+  cancel-in-progress: false
+
+jobs:
+  auto-merge:
+    if: github.event_name == 'workflow_dispatch' || github.event.check_suite.conclusion != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate and merge only eligible Tiger AI PRs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const event = context.eventName === 'check_suite' ? context.payload.check_suite : null;
+            const sha = event?.head_sha;
+            const candidates = context.eventName === 'workflow_dispatch'
+              ? [{ number: Number(context.payload.inputs.pr_number) }]
+              : (event?.pull_requests || []).filter(p => p.base?.ref === 'main');
+
+            for (const candidate of candidates) {
+              const number = candidate.number;
+              const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: number });
+              if (pr.state !== 'open' || pr.draft || pr.base.ref !== 'main') continue;
+              if (sha && pr.head.sha !== sha) continue;
+
+              // Require the dedicated service identity and its reserved branch/body marker.
+              // A manually applied label on an ordinary contributor PR must never authorize a merge.
+              if (pr.user?.login !== 'TigerChat-HQ' || !pr.head.ref.startsWith('tiger-ai/task-') ||
+                  !String(pr.body || '').includes('## Tiger AI proposed fix')) {
+                core.warning(`PR #${number}: missing Tiger AI provenance; refusing auto-merge.`);
+                continue;
+              }
+
+              const labels = (pr.labels || []).map(label => label.name);
+              const eligible = labels.includes('tiger-ai-auto-merge-low') || labels.includes('tiger-ai-auto-merge-medium');
+              if (!eligible) {
+                core.info(`PR #${number}: no low/medium Tiger AI auto-merge label; human approval remains required.`);
+                continue;
+              }
+
+              // Only the exact AI repair labels qualify; protected paths and high-risk triage never receive them.
+              const { data: checks } = await github.rest.checks.listForRef({ owner, repo, ref: pr.head.sha, per_page: 100 });
+              const runs = checks.check_runs || [];
+              const requiredNames = ['quality', 'tests', 'security'];
+              const completedNames = new Set(runs.filter(r => r.status === 'completed' && r.conclusion === 'success').map(r => r.name));
+              const missing = requiredNames.filter(name => !completedNames.has(name));
+              const pending = runs.filter(r => r.status !== 'completed');
+              const failed = runs.filter(r => r.status === 'completed' && r.conclusion !== 'success');
+              if (runs.length === 0 || missing.length || pending.length || failed.length) {
+                core.info(`PR #${number}: checks not safe to merge. Missing: ${missing.join(', ') || 'none'}; pending: ${pending.length}; failed: ${failed.length}.`);
+                continue;
+              }
+
+              // Re-fetch PR immediately before merge and pin merge to the tested SHA.
+              const { data: latest } = await github.rest.pulls.get({ owner, repo, pull_number: number });
+              if (latest.head.sha !== pr.head.sha || latest.state !== 'open' || latest.draft) {
+                core.warning(`PR #${number}: head/state changed after checks; refusing merge.`);
+                continue;
+              }
+              const result = await github.rest.pulls.merge({
+                owner, repo, pull_number: number, sha: pr.head.sha, merge_method: 'squash',
+                commit_title: `Tiger AI: ${pr.title}`,
+                commit_message: 'Automatically merged after low/medium risk classification and all required checks passed.'
+              });
+              if (!result.data.merged) throw new Error(`GitHub refused to merge PR #${number}`);
+              core.notice(`Merged eligible Tiger AI PR #${number} (${pr.head.sha}) to main.`);
