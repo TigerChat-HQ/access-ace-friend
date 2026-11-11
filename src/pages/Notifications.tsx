@@ -6,7 +6,7 @@ import { useNotificationsFeed, AppNotification } from "@/hooks/useNotificationsF
 const iconFor = (type: AppNotification["type"]) => {
   if (type === "like" || type === "comment_like") return <Heart className="w-4 h-4 text-primary fill-primary" />;
   if (type === "comment" || type === "reply") return <MessageCircle className="w-4 h-4 text-primary" />;
-  if (type === "follow") return <UserPlus className="w-4 h-4 text-primary" />;
+  if (type === "follow" || type === "collaboration_invite" || type === "collaboration_accepted") return <UserPlus className="w-4 h-4 text-primary" />;
   if (type === "report_reply") return <ShieldCheck className="w-4 h-4 text-primary" />;
   return <Bell className="w-4 h-4 text-primary" />;
 };
@@ -18,6 +18,8 @@ const textFor = (n: AppNotification) => {
   if (n.type === "reply") return `${name} replied to your comment`;
   if (n.type === "comment_like") return `${name} liked your comment`;
   if (n.type === "follow") return `${name} started following you`;
+  if (n.type === "collaboration_invite") return `${name} invited you to collaborate on a post`;
+  if (n.type === "collaboration_accepted") return `${name} accepted your post collaboration invitation`;
   if (n.type === "report_reply") return `An admin replied to your message or report`;
   return `${name} mentioned you`;
 };
