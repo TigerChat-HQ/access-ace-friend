@@ -205,24 +205,27 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
           {post.post_audio_url && <div className="absolute bottom-3 left-3 right-3 flex items-center gap-2 rounded-xl bg-black/70 p-2 text-white backdrop-blur"><span className="min-w-0 flex-1 truncate text-xs">{post.post_audio_title || "Post soundtrack"}</span><audio src={post.post_audio_url} controls className="h-8 max-w-[55%]" /></div>}
         </div>
       )}
-      {post.media_url && post.media_type === "video" && (
-        isReel && user ? (
-          <ReelAnalyticsVideo
-            postId={post.id}
-            creatorId={post.user_id}
-            viewerId={user.id}
-            src={post.media_url}
-            coverUrl={reelPost.reel_cover_url}
-            audioUrl={reelPost.reel_audio_url}
-            audioStart={Number(reelPost.reel_audio_start_seconds || 0)}
-            trimStart={Number(reelPost.reel_trim_start_seconds || 0)}
-            trimEnd={reelPost.reel_trim_end_seconds === null || reelPost.reel_trim_end_seconds === undefined ? null : Number(reelPost.reel_trim_end_seconds)}
-            captions={reelPost.reel_captions}
-            className="relative w-full bg-black"
-          />
-        ) : (
-          <video src={post.media_url} poster={post.post_cover_url || reelPost.reel_cover_url || undefined} controls playsInline onDoubleClick={() => { if (!liked) void handleLike(); }} className="w-full max-h-[600px] bg-black" />
-        )
+      {post.media_url && activeMedia?.type === "video" && (
+        <div className="relative" onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }} onTouchEnd={(event) => { if (touchStartX.current === null || mediaItems.length < 2) return; const delta = event.changedTouches[0].clientX - touchStartX.current; if (Math.abs(delta) > 45) setCarouselIndex((index) => (index + (delta < 0 ? 1 : -1) + mediaItems.length) % mediaItems.length); touchStartX.current = null; }}>
+          {isReel && user && carouselIndex === 0 ? (
+            <ReelAnalyticsVideo
+              postId={post.id}
+              creatorId={post.user_id}
+              viewerId={user.id}
+              src={activeMedia.url}
+              coverUrl={reelPost.reel_cover_url}
+              audioUrl={reelPost.reel_audio_url}
+              audioStart={Number(reelPost.reel_audio_start_seconds || 0)}
+              trimStart={Number(reelPost.reel_trim_start_seconds || 0)}
+              trimEnd={reelPost.reel_trim_end_seconds === null || reelPost.reel_trim_end_seconds === undefined ? null : Number(reelPost.reel_trim_end_seconds)}
+              captions={reelPost.reel_captions}
+              className="relative w-full bg-black"
+            />
+          ) : (
+            <video src={activeMedia.url} poster={carouselIndex === 0 ? post.post_cover_url || reelPost.reel_cover_url || undefined : undefined} controls playsInline onDoubleClick={() => { if (!liked) void handleLike(); }} className="w-full max-h-[600px] bg-black" />
+          )}
+          {mediaItems.length > 1 && <><button type="button" aria-label="Previous media" onClick={() => setCarouselIndex((index) => (index - 1 + mediaItems.length) % mediaItems.length)} className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/60 px-3 py-2 text-white">‹</button><button type="button" aria-label="Next media" onClick={() => setCarouselIndex((index) => (index + 1) % mediaItems.length)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/60 px-3 py-2 text-white">›</button><span className="absolute right-3 top-3 rounded-full bg-black/65 px-2 py-1 text-[10px] text-white">{carouselIndex + 1}/{mediaItems.length}</span></>}
+        </div>
       )}
 
       <div className="flex items-center gap-4 px-4 py-2.5">
