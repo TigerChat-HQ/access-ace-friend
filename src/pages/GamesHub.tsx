@@ -4,6 +4,7 @@ import { ArrowLeft, Trophy, Coins, Medal, Swords, Gamepad2, Radio, Users, Chevro
 const games = [
   { title: "Draughts Arena", subtitle: "Classic strategy · AI · PvP", tag: "LIVE", path: "/draughts", art: "from-emerald-950 via-emerald-900 to-slate-950", icon: "♟", accent: "text-emerald-300" },
   { title: "4D Pool Arena", subtitle: "8-Ball · 9-Ball · Practice", tag: "PLAYABLE PREVIEW", path: "/pool", art: "from-blue-950 via-indigo-950 to-slate-950", icon: "🎱", accent: "text-sky-300" },
+  { title: "Tiger Quiz Arena", subtitle: "Knowledge · Timed rounds · Trophies", tag: "QUIZ", path: "/game", art: "from-amber-950 via-orange-950 to-slate-950", icon: "🧠", accent: "text-amber-300" },
 ];
 
 export default function GamesHub() {
