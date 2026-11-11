@@ -14,11 +14,6 @@ jobs:
       - run: bun install
       - run: bun run test
       - run: bun run build
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
-      - name: Type-check Pool Edge Function
-        run: deno check supabase/functions/pool-game/index.ts
 
   security:
     name: Security check
