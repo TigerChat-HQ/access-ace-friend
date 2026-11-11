@@ -4,7 +4,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Board, initialBoard } from "@/lib/draughts";
+import { initialBoard, type Board } from "@/lib/draughts";
 
 type ReplayMove = { revision: number; move: { from: number; to: number; captures?: number[]; promote?: boolean }; board: Board; created_at: string };
 
