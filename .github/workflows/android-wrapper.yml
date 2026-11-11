@@ -25,8 +25,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
-      TIGER_VERSION_CODE: ${{ github.run_number }}
-      TIGER_VERSION_NAME: 1.0.${{ github.run_number }}
+      # Clean-install baseline: users must uninstall older app versions before installing v1.
+      TIGER_VERSION_CODE: 1
+      TIGER_VERSION_NAME: 1.0.0
     steps:
       - uses: actions/checkout@v4
         with:
