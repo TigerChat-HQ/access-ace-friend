@@ -169,6 +169,10 @@ export const useNotifications = () => {
               ? `${name} replied to your comment`
               : n.type === "comment_like"
               ? `${name} liked your comment`
+              : n.type === "collaboration_invite"
+              ? `${name} invited you to collaborate on a post`
+              : n.type === "collaboration_accepted"
+              ? `${name} accepted your post collaboration invitation`
               : `${name} mentioned you`;
           const url = n.post_id ? `/post/${n.post_id}` : `/u/${n.actor_id}`;
           showNotification("TIGERCHATS", body, { url, tag: `social-${n.id}`, kind: "social", icon: actor?.avatar_url || undefined });
