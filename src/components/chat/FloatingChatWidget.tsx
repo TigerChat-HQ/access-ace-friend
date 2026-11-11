@@ -77,6 +77,13 @@ export const FloatingChatWidget = ({ unreadMessages = 0 }: { unreadMessages?: nu
         if (!isEnabled) setOpen(false);
         setPrefs({ ...DEFAULT_PREFS, ...JSON.parse(window.localStorage.getItem(PREFS_KEY) || "{}") });
         setLauncherHidden(window.localStorage.getItem(HIDDEN_KEY) === "true");
+        const savedPosition = window.localStorage.getItem(POSITION_KEY);
+        if (savedPosition) {
+          const parsed = JSON.parse(savedPosition) as BubblePosition;
+          if (Number.isFinite(parsed.left) && Number.isFinite(parsed.top)) setPosition(clampPosition(parsed, bubbleSize));
+        } else {
+          setPosition(null);
+        }
       } catch { /* ignore unavailable storage */ }
     };
     window.addEventListener(BUBBLE_SETTINGS_EVENT, sync);
