@@ -193,11 +193,43 @@ export const useWebRTC = () => {
   }, [sendSignal, finish]);
 
   const getMedia = async (video: boolean) => {
-    if (!navigator.mediaDevices?.getUserMedia) throw new Error("Calls require a supported browser and a secure HTTPS connection.");
-    return navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      video: video ? { facingMode: facingRef.current, width: { ideal: 1280 }, height: { ideal: 720 } } : false,
-    });
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error("Simu/WebView hii haitoi huduma ya microphone na camera. Hakikisha unatumia toleo jipya la TigerChats.");
+    }
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        video: video ? { facingMode: facingRef.current, width: { ideal: 1280 }, height: { ideal: 720 } } : false,
+      });
+    } catch (error) {
+      // Some Android WebView camera drivers reject optional processing/size constraints.
+      // Retry once with browser defaults; permission denials are not retried.
+      const name = error instanceof DOMException ? error.name : "";
+      if (name === "OverconstrainedError" || name === "ConstraintNotSatisfiedError") {
+        return navigator.mediaDevices.getUserMedia({ audio: true, video: video ? true : false });
+      }
+      throw error;
+    }
+  };
+
+  const describeMediaError = (error: unknown, video: boolean) => {
+    const name = error instanceof DOMException ? error.name : "";
+    if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+      return video
+        ? "TigerChat haijapewa ruhusa ya kutumia camera na microphone ndani ya WebView. Fungua App permissions, ruhusu vyote, kisha jaribu tena."
+        : "TigerChat haijapewa ruhusa ya kutumia microphone ndani ya WebView. Ruhusu Microphone kisha jaribu tena.";
+    }
+    if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+      return video ? "Camera au microphone haikupatikana. Hakikisha havitumiki na app nyingine." : "Microphone haikupatikana. Hakikisha haijatumika na app nyingine.";
+    }
+    if (name === "NotReadableError" || name === "TrackStartError") {
+      return "Camera au microphone inatumika na app nyingine au Android imeshindwa kuifungua. Funga app nyingine inayotumia kifaa kisha jaribu tena.";
+    }
+    if (name === "OverconstrainedError" || name === "ConstraintNotSatisfiedError") {
+      return "Mipangilio ya camera ya simu hii haiendani na ombi la call.";
+    }
+    if (name === "SecurityError") return "Call inahitaji ukurasa salama wa HTTPS.";
+    return error instanceof Error ? `Call imeshindwa: ${error.message}` : "Call imeshindwa. Kagua mtandao na ruhusa za kifaa.";
   };
 
   const createPeerConnection = useCallback((info: CallInfo, iceServers: RTCIceServer[]) => {
@@ -308,7 +340,7 @@ export const useWebRTC = () => {
       ringTimerRef.current = setTimeout(() => { if (statusRef.current === "outgoing") void endCall(); }, RING_TIMEOUT_MS);
     } catch (error) {
       console.error("Failed to start call:", error);
-      alert(error instanceof DOMException ? `Allow microphone${callType === "video" ? " and camera" : ""} access to make calls.` : "The call could not be sent. Check HTTPS, permissions, and your connection.");
+      alert(describeMediaError(error, callType === "video"));
       cleanupMedia();
       callIdRef.current = null;
       callRef.current = null;
@@ -343,7 +375,7 @@ export const useWebRTC = () => {
       ringTimerRef.current = setTimeout(() => { if (statusRef.current === "connecting") void endCall(); }, RING_TIMEOUT_MS);
     } catch (error) {
       console.error("Failed to accept call:", error);
-      alert("Allow microphone/camera access and check your connection to answer the call.");
+      alert(describeMediaError(error, info.callType === "video"));
       try { await sendSignal(info, "reject", {}, "ended"); }
       finally { finish(); }
     }
