@@ -36,6 +36,16 @@ const Create = () => {
   const [aspectRatio, setAspectRatio] = useState("original");
   const [sticker, setSticker] = useState("");
   const [musicFile, setMusicFile] = useState<File | null>(null);
+  const [audience, setAudience] = useState<"public" | "followers" | "private">("public");
+  const [allowComments, setAllowComments] = useState(true);
+  const [locationName, setLocationName] = useState("");
+  const [altText, setAltText] = useState("");
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [tagQuery, setTagQuery] = useState("");
+  const [tagResults, setTagResults] = useState<{ user_id: string; username: string | null; display_name: string | null }[]>([]);
+  const [taggedUsers, setTaggedUsers] = useState<{ user_id: string; username: string | null; display_name: string | null }[]>([]);
+  const [drafts, setDrafts] = useState<{ id: string; caption: string; updated_at: string; media_paths: string[]; editor_state: import("@/integrations/supabase/types").Json }[]>([]);
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [videoDuration, setVideoDuration] = useState(0);
   const [trimStart, setTrimStart] = useState(0);
@@ -105,6 +115,102 @@ const Create = () => {
     };
     return () => { probe.src = ""; };
   }, [preview, isVideo]);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("post_drafts").select("id,caption,updated_at,media_paths,editor_state").eq("user_id", user.id).order("updated_at", { ascending: false }).limit(10)
+      .then(({ data }) => setDrafts(data || []));
+  }, [user]);
+
+  const searchPeople = async (value: string) => {
+    setTagQuery(value);
+    if (!value.trim()) { setTagResults([]); return; }
+    const term = value.trim().replace(/^@/, "");
+    const { data } = await supabase.from("profiles").select("user_id,username,display_name")
+      .or("username.ilike.%"+term+"%,display_name.ilike.%"+term+"%").limit(8);
+    setTagResults((data || []).filter((person) => person.user_id !== user?.id && !taggedUsers.some((tag) => tag.user_id === person.user_id)));
+  };
+
+  const addTaggedUser = (person: { user_id: string; username: string | null; display_name: string | null }) => {
+    setTaggedUsers((current) => [...current, person]);
+    setTagQuery("");
+    setTagResults([]);
+  };
+
+  const saveDraft = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const mediaPaths: string[] = [];
+      if (file) {
+        const path = user.id + "/" + crypto.randomUUID() + "-" + file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+        const { error } = await supabase.storage.from("post-drafts").upload(path, file);
+        if (error) throw error;
+        mediaPaths.push(path);
+      }
+      let musicPath: string | null = null;
+      if (musicFile) {
+        musicPath = user.id + "/" + crypto.randomUUID() + "-audio-" + musicFile.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+        const { error } = await supabase.storage.from("post-drafts").upload(musicPath, musicFile);
+        if (error) throw error;
+        mediaPaths.push(musicPath);
+      }
+      const editorState = {
+        filter, overlay, rotation, brightness, contrast, saturation, aspectRatio, sticker,
+        audience, allowComments, locationName, altText, scheduledAt,
+        taggedUsers, mediaType: isVideo ? "video" : isImage ? "image" : "text", musicPath,
+      };
+      const { error } = await supabase.from("post_drafts").insert({ user_id: user.id, caption, editor_state: editorState, media_paths: mediaPaths });
+      if (error) throw error;
+      const { data } = await supabase.from("post_drafts").select("id,caption,updated_at,media_paths,editor_state").eq("user_id", user.id).order("updated_at", { ascending: false }).limit(10);
+      setDrafts(data || []);
+      toast({ title: "Draft saved", description: "Your post and private media are saved safely." });
+    } catch (error) {
+      toast({ title: "Could not save draft", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    } finally { setLoading(false); }
+  };
+
+  const restoreDraft = async (draft: typeof drafts[number]) => {
+    try {
+      const state = draft.editor_state as Record<string, unknown>;
+      setCaption(draft.caption);
+      setFilter(typeof state.filter === "string" ? state.filter : "none");
+      setOverlay(typeof state.overlay === "string" ? state.overlay : "");
+      setRotation(Number(state.rotation || 0));
+      setBrightness(Number(state.brightness || 100));
+      setContrast(Number(state.contrast || 100));
+      setSaturation(Number(state.saturation || 100));
+      setAspectRatio(typeof state.aspectRatio === "string" ? state.aspectRatio : "original");
+      setSticker(typeof state.sticker === "string" ? state.sticker : "");
+      setAudience(state.audience === "followers" || state.audience === "private" ? state.audience : "public");
+      setAllowComments(state.allowComments !== false);
+      setLocationName(typeof state.locationName === "string" ? state.locationName : "");
+      setAltText(typeof state.altText === "string" ? state.altText : "");
+      setScheduledAt(typeof state.scheduledAt === "string" ? state.scheduledAt : "");
+      setTaggedUsers(Array.isArray(state.taggedUsers) ? state.taggedUsers as typeof taggedUsers : []);
+      const mediaPath = draft.media_paths.find((path) => !path.includes("-audio-"));
+      if (mediaPath) {
+        const { data, error } = await supabase.storage.from("post-drafts").createSignedUrl(mediaPath, 300);
+        if (error) throw error;
+        const response = await fetch(data.signedUrl);
+        const blob = await response.blob();
+        const restored = new File([blob], mediaPath.split("/").pop() || "draft-media", { type: blob.type });
+        onFile(restored);
+      } else onFile(null);
+      const musicPath = typeof state.musicPath === "string" ? state.musicPath : null;
+      if (musicPath) {
+        const { data, error } = await supabase.storage.from("post-drafts").createSignedUrl(musicPath, 300);
+        if (error) throw error;
+        const response = await fetch(data.signedUrl);
+        const blob = await response.blob();
+        setMusicFile(new File([blob], musicPath.split("/").pop() || "draft-audio", { type: blob.type }));
+      } else setMusicFile(null);
+      setActiveDraftId(draft.id);
+      toast({ title: "Draft restored" });
+    } catch (error) {
+      toast({ title: "Could not restore draft", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    }
+  };
 
   const handlePreviewVideo = async () => {
     if (!file || !isVideo) return;
@@ -237,11 +343,19 @@ const Create = () => {
         media_url: mediaUrl,
         media_type: mediaType,
         hashtags: extractHashtags(caption),
-        reel_audio_url: publishedMusicUrl,
-        reel_audio_title: musicFile?.name || null,
+        post_audio_url: publishedMusicUrl,
+        post_audio_title: musicFile?.name || null,
+        audience,
+        allow_comments: allowComments,
+        location_name: locationName.trim() || null,
+        tagged_user_ids: taggedUsers.map((person) => person.user_id),
+        alt_text: altText.trim() || null,
+        is_draft: false,
+        scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
       });
       if (error) throw error;
-      toast({ title: "Posted! 🎉" });
+      if (activeDraftId) await supabase.from("post_drafts").delete().eq("id", activeDraftId);
+      toast({ title: scheduledAt ? "Post scheduled" : "Posted! 🎉" });
       navigate("/");
     } catch (error) {
       toast({
@@ -274,6 +388,7 @@ const Create = () => {
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {drafts.length > 0 && <section className="rounded-xl border border-border p-3 space-y-2"><div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Saved post drafts</h2><span className="text-xs text-muted-foreground">{drafts.length}</span></div><div className="flex gap-2 overflow-x-auto">{drafts.map((draft) => <button key={draft.id} type="button" onClick={() => restoreDraft(draft)} className={cn("shrink-0 max-w-48 rounded-lg border px-3 py-2 text-left", activeDraftId === draft.id ? "border-primary bg-primary/10" : "border-border")}><span className="block truncate text-xs font-medium">{draft.caption || "Untitled post"}</span><span className="block text-[10px] text-muted-foreground">{new Date(draft.updated_at).toLocaleDateString()}</span></button>)}</div></section>}
         {preview && (
           <div className="relative rounded-xl overflow-hidden bg-muted">
             {isVideo ? (
@@ -393,6 +508,23 @@ const Create = () => {
 
         {isImage && <section className="space-y-2 rounded-xl border border-border p-3"><h2 className="flex items-center gap-2 text-sm font-semibold"><Music2 className="h-4 w-4 text-primary" /> Background music</h2><input type="file" accept="audio/*" onChange={(event) => setMusicFile(event.target.files?.[0] || null)} className="block w-full text-xs" />{musicFile && <div className="flex items-center justify-between gap-2 text-xs"><span className="truncate">{musicFile.name}</span><button type="button" onClick={() => setMusicFile(null)} className="text-destructive">Remove</button></div>}<p className="text-[11px] text-muted-foreground">Music is attached to the published photo post.</p></section>}
 
+        <section className="space-y-3 rounded-xl border border-border p-3">
+          <h2 className="text-sm font-semibold">Post details</h2>
+          <label className="block space-y-1 text-xs text-muted-foreground">Who can see this post?
+            <select value={audience} onChange={(event) => setAudience(event.target.value as typeof audience)} className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground"><option value="public">Public</option><option value="followers">Followers</option><option value="private">Only me</option></select>
+          </label>
+          <label className="flex items-center justify-between text-sm"><span>Allow comments</span><input type="checkbox" checked={allowComments} onChange={(event) => setAllowComments(event.target.checked)} /></label>
+          <label className="block space-y-1 text-xs text-muted-foreground">Add location
+            <input value={locationName} onChange={(event) => setLocationName(event.target.value)} placeholder="City, place or venue" className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground" maxLength={120} />
+          </label>
+          <div className="space-y-1"><label className="text-xs text-muted-foreground">Tag people by username</label><input value={tagQuery} onChange={(event) => searchPeople(event.target.value)} placeholder="@username" className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground" />{tagResults.length > 0 && <div className="rounded-lg border border-border divide-y divide-border">{tagResults.map((person) => <button key={person.user_id} type="button" onClick={() => addTaggedUser(person)} className="block w-full px-3 py-2 text-left text-sm hover:bg-surface-hover">{person.display_name || person.username || "User"} <span className="text-xs text-muted-foreground">@{person.username}</span></button>)}</div>}{taggedUsers.length > 0 && <div className="flex flex-wrap gap-1">{taggedUsers.map((person) => <button key={person.user_id} type="button" onClick={() => setTaggedUsers((current) => current.filter((tag) => tag.user_id !== person.user_id))} className="rounded-full bg-primary/10 px-2 py-1 text-xs text-primary">@{person.username || person.display_name} ×</button>)}</div>}</div>
+          {isImage && <label className="block space-y-1 text-xs text-muted-foreground">Image description (accessibility)
+            <input value={altText} onChange={(event) => setAltText(event.target.value)} placeholder="Describe what is in the image" className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground" maxLength={500} />
+          </label>}
+          <label className="block space-y-1 text-xs text-muted-foreground">Schedule post (optional)
+            <input type="datetime-local" value={scheduledAt} min={new Date(Date.now() + 60000).toISOString().slice(0,16)} onChange={(event) => setScheduledAt(event.target.value)} className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground" />
+          </label>
+        </section>
         <textarea
           value={caption}
           onChange={(e) => setCaption(e.target.value)}
@@ -410,6 +542,7 @@ const Create = () => {
           className="hidden"
         />
         <div className="flex gap-2">
+          <button type="button" onClick={saveDraft} disabled={loading} className="flex-1 rounded-xl border border-border py-3 text-sm font-medium text-foreground disabled:opacity-50">Save draft</button>
           <button
             onClick={() => fileRef.current?.click()}
             className="flex-1 flex items-center justify-center gap-2 bg-surface hover:bg-surface-hover py-3 rounded-xl text-sm text-foreground"
