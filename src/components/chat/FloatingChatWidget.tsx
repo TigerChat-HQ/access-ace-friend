@@ -72,7 +72,9 @@ export const FloatingChatWidget = ({ unreadMessages = 0 }: { unreadMessages?: nu
   useEffect(() => {
     const sync = () => {
       try {
-        setEnabled(window.localStorage.getItem(ENABLED_KEY) !== "false");
+        const isEnabled = window.localStorage.getItem(ENABLED_KEY) !== "false";
+        setEnabled(isEnabled);
+        if (!isEnabled) setOpen(false);
         setPrefs({ ...DEFAULT_PREFS, ...JSON.parse(window.localStorage.getItem(PREFS_KEY) || "{}") });
         setLauncherHidden(window.localStorage.getItem(HIDDEN_KEY) === "true");
       } catch { /* ignore unavailable storage */ }
