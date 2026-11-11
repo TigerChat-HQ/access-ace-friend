@@ -72,9 +72,13 @@ export async function reportDiagnostic(input: DiagnosticInput) {
     if (insertError) {
       console.warn("Diagnostics report could not be saved:", insertError.message);
     } else if (inserted?.id && inserted.ai_status === "queued") {
-      void supabase.functions.invoke("tiger-dev-planner", {
+      // Supabase Functions returns invocation failures in { error }, not always as a rejected Promise.
+      const { data: aiResult, error: automationError } = await supabase.functions.invoke("tiger-dev-planner", {
         body: { action: "process_diagnostic", diagnostic_id: inserted.id },
-      }).catch((automationError) => console.warn("Tiger AI diagnostics handoff failed:", automationError));
+      });
+      if (automationError || aiResult?.error || aiResult?.ok === false) {
+        console.warn("Tiger AI diagnostics handoff failed:", automationError?.message || aiResult?.error || "Unknown Edge Function response");
+      }
     }
   } catch (reportError) {
     console.warn("Diagnostics reporter failed:", reportError);
