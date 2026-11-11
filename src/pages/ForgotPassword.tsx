@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getAuthRedirectUrl } from "@/lib/authRedirect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -21,7 +22,7 @@ const ForgotPassword = () => {
 
     setLoading(true);
     try {
-      const redirectTo = new URL("/reset-password", window.location.origin).toString();
+      const redirectTo = getAuthRedirectUrl("/reset-password");
       const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, { redirectTo });
       if (error) throw error;
       setEmail(normalizedEmail);
