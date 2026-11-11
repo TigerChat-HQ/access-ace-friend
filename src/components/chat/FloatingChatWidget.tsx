@@ -185,7 +185,7 @@ export const FloatingChatWidget = ({ unreadMessages = 0 }: { unreadMessages?: nu
         </section>
       )}
 
-      {enabled && !launcherHidden ? <button
+      {!enabled ? null : !launcherHidden ? <button
         type="button"
         onPointerDown={startDrag}
         onPointerMove={moveDrag}
