@@ -103,6 +103,37 @@ export function installGlobalDiagnostics() {
       metadata: { filename: event.filename, line: event.lineno, column: event.colno },
     });
   });
+  if (navigator.mediaDevices?.getUserMedia) {
+    const mediaDevices = navigator.mediaDevices;
+    const originalGetUserMedia = mediaDevices.getUserMedia.bind(mediaDevices);
+    mediaDevices.getUserMedia = async (constraints?: MediaStreamConstraints) => {
+      try {
+        return await originalGetUserMedia(constraints);
+      } catch (error) {
+        const mediaKind = constraints?.video ? "camera" : constraints?.audio ? "microphone" : "media";
+        const errorName = error instanceof DOMException ? error.name : "UnknownError";
+        void reportDiagnostic({
+          source: "media_capture",
+          severity: errorName === "NotAllowedError" || errorName === "SecurityError" ? "high" : "medium",
+          category: mediaKind === "camera" ? "camera_permission" : mediaKind === "microphone" ? "microphone_permission" : "media_capture",
+          title: `${mediaKind} capture failed: ${errorName}`,
+          message: error instanceof Error ? error.message : String(error),
+          component: "MediaDevices.getUserMedia",
+          action: Date.now() - lastActionAt < 10000 ? lastAction : undefined,
+          suggestion: "Check Android runtime permission, WebView PermissionRequest handling, secure context, device availability and whether capture was requested from the main Activity WebView.",
+          metadata: {
+            errorName,
+            audioRequested: Boolean(constraints?.audio),
+            videoRequested: Boolean(constraints?.video),
+            secureContext: window.isSecureContext,
+            mediaDevicesAvailable: Boolean(navigator.mediaDevices),
+            userAgent: navigator.userAgent,
+          },
+        });
+        throw error;
+      }
+    };
+  }
   window.addEventListener("unhandledrejection", (event) => {
     void reportDiagnostic({
       source: "browser", severity: "high", category: "promise",
