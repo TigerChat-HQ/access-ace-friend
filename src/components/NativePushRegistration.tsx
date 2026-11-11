@@ -11,6 +11,7 @@ declare global {
       getAppVersion?: () => string;
       areNotificationsEnabled?: () => boolean;
       openNotificationSettings?: () => void;
+      openMessageBubbleSettings?: () => void;
     };
   }
 }
