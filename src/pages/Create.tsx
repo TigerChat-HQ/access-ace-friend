@@ -184,9 +184,15 @@ const Create = () => {
         taggedUsers, mediaType: isVideo ? "video" : isImage ? "image" : "text", musicPath, primaryMediaPath, extraImagePaths, coverPath,
         textColor, textScale, textPosition, trimStart, trimEnd, originalVolume, musicVolume,
       };
-      const { error } = await supabase.from("post_drafts").insert({ user_id: user.id, caption, editor_state: editorState, media_paths: mediaPaths });
-      if (error) throw error;
-      const { data } = await supabase.from("post_drafts").select("id,caption,updated_at,media_paths,editor_state").eq("user_id", user.id).order("updated_at", { ascending: false }).limit(10);
+      const draftPayload = { user_id: user.id, caption, editor_state: editorState, media_paths: mediaPaths };
+      const saveResult = activeDraftId
+        ? await supabase.from("post_drafts").update(draftPayload).eq("id", activeDraftId).eq("user_id", user.id).select("id").maybeSingle()
+        : await supabase.from("post_drafts").insert(draftPayload).select("id").single();
+      if (saveResult.error) throw saveResult.error;
+      if (!saveResult.data?.id) throw new Error("The draft was not saved. Refresh your drafts and try again.");
+      setActiveDraftId(saveResult.data.id);
+      const { data, error: refreshError } = await supabase.from("post_drafts").select("id,caption,updated_at,media_paths,editor_state").eq("user_id", user.id).order("updated_at", { ascending: false }).limit(10);
+      if (refreshError) throw refreshError;
       setDrafts(data || []);
       toast({ title: "Draft saved", description: "Your post and private media are saved safely." });
     } catch (error) {
