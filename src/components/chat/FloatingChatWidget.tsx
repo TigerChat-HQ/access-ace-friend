@@ -103,6 +103,11 @@ export const FloatingChatWidget = () => {
   const finishDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (dragRef.current?.pointerId !== event.pointerId) return;
     draggedClickRef.current = Boolean(dragRef.current.moved);
+    if (dragRef.current.moved && prefs.snap) {
+      const current = position ?? { left: dragRef.current.left, top: dragRef.current.top };
+      const leftEdge = current.left + bubbleSize / 2 < window.innerWidth / 2;
+      setPosition(clampPosition({ left: leftEdge ? EDGE_GAP : window.innerWidth - bubbleSize - EDGE_GAP, top: current.top }, bubbleSize));
+    }
     dragRef.current = null;
   };
 
@@ -165,7 +170,7 @@ export const FloatingChatWidget = () => {
         </section>
       )}
 
-      <button
+      {!launcherHidden ? <button
         type="button"
         onPointerDown={startDrag}
         onPointerMove={moveDrag}
@@ -181,7 +186,7 @@ export const FloatingChatWidget = () => {
       >
         {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
         {!open && <span className="absolute right-0 top-0 h-3 w-3 rounded-full border-2 border-background bg-emerald-400" />}
-      </button>
+      </button> : <button type="button" onClick={() => setLauncherHidden(false)} className="fixed bottom-4 right-4 z-[101] rounded-full border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground shadow-lg">Restore TigerChat bubble</button>}
     </>
   );
 };
