@@ -11,6 +11,9 @@ import { MusicPicker } from "./MusicPicker";
 
 interface StoryUploadDialogProps {
   onUploaded: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
 }
 
 const db = supabase as unknown as SupabaseClient;
@@ -18,10 +21,12 @@ const MAX_VIDEO_SECONDS = 120;
 const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
 const BACKGROUNDS = ["#6D28D9", "#0F766E", "#BE123C", "#1D4ED8", "#B45309", "#111827"];
 
-export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
+export const StoryUploadDialog = ({ onUploaded, open, onOpenChange, hideTrigger = false }: StoryUploadDialogProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const dialogOpen = open ?? internalOpen;
+  const setDialogOpen = onOpenChange ?? setInternalOpen;
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaType, setMediaType] = useState<"image" | "video">("image");
   const [music, setMusic] = useState<{ url: string; title: string; start: number; end: number } | null>(null);
@@ -68,7 +73,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
 
 
   useEffect(() => {
-    if (!open || !user) return;
+    if (!dialogOpen || !user) return;
     let active = true;
     const loadContacts = async () => {
       const [outgoingResult, incomingResult] = await Promise.all([supabase.from("follows").select("following_id").eq("follower_id", user.id), supabase.from("follows").select("follower_id").eq("following_id", user.id)]);
@@ -80,7 +85,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
     };
     void loadContacts();
     return () => { active = false; };
-  }, [open, user?.id]);
+  }, [dialogOpen, user?.id]);
   const startDrawing = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (!drawMode) return;
     const canvas = canvasRef.current; const ctx = canvas?.getContext("2d"); if (!canvas || !ctx) return;
@@ -279,7 +284,7 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
       }
 
       toast({ title: "Status posted successfully" });
-      setOpen(false);
+      setDialogOpen(false);
       setMediaFile(null);
       setMusic(null);
       clearLocalMusic();
@@ -314,12 +319,12 @@ export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      {!hideTrigger && <DialogTrigger asChild>
         <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-surface-hover hover:text-primary cursor-pointer" aria-label="Add status">
           <Camera className="w-5 h-5" />
         </button>
-      </DialogTrigger>
+      </DialogTrigger>}
       <DialogContent className="bg-card border-border/50 max-w-sm max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle className="text-foreground">Create Status</DialogTitle></DialogHeader>
         <div className="space-y-4">
