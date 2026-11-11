@@ -2,6 +2,7 @@ package com.tigerchats.app
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -18,15 +19,12 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
 
 open class MainActivity : Activity() {
     protected lateinit var webView: WebView
     private val siteUrl = "https://tigerchat-hq.onrender.com"
-    private var safeAreaTopDp = 0f
     private var pendingPath = "/"
     private var pendingQuickReply: String? = null
     private var pageLoaded = false
@@ -35,9 +33,10 @@ open class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Let WebView receive system-bar and IME insets itself. Consuming them here
-        // prevents its visual viewport from resizing when the keyboard opens.
-        WindowCompat.setDecorFitsSystemWindows(window, false)
+        // Keep the WebView inside the decor's system-bar bounds and let Android resize
+        // its actual viewport for the IME. Do not also add IME padding to the WebView:
+        // that double-adjusts the viewport and can push the chat composer below the keyboard.
+        WindowCompat.setDecorFitsSystemWindows(window, true)
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         requestNotificationPermission()
         webView = WebView(this)
@@ -61,7 +60,7 @@ open class MainActivity : Activity() {
                 super.onPageFinished(view, url)
                 if (Uri.parse(url).host != Uri.parse(siteUrl).host) return
                 pageLoaded = true
-                applySafeAreaTop(view)
+                applyNativeViewportHeight(view)
                 applyPendingPath(view)
                 deliverPendingQuickReply(view)
             }
@@ -114,23 +113,10 @@ open class MainActivity : Activity() {
         }
         webView.addJavascriptInterface(NativeBridge(), "TigerNative")
         setContentView(webView)
-        ViewCompat.setOnApplyWindowInsetsListener(webView) { view, windowInsets ->
-            val safeInsets = windowInsets.getInsets(
-                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
-            )
-            val imeBottom = windowInsets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-            // With edge-to-edge enabled, explicitly reserve the IME area inside WebView.
-            // This keeps the embedded page's visual viewport above the Android keyboard.
-            val keyboardPadding = (imeBottom - safeInsets.bottom).coerceAtLeast(0)
-            if (view.paddingBottom != keyboardPadding) {
-                view.setPadding(0, 0, 0, keyboardPadding)
-            }
-            safeAreaTopDp = safeInsets.top / resources.displayMetrics.density
-            applySafeAreaTop(webView)
-            // Preserve insets so WebView and the page can also observe viewport changes.
-            windowInsets
+        // Use Android's measured WebView height as the authoritative viewport while the IME resizes the Activity.
+        webView.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+            (view as? WebView)?.let(::applyNativeViewportHeight)
         }
-        ViewCompat.requestApplyInsets(webView)
         pendingPath = safePath(intent?.getStringExtra("path"))
         pendingQuickReply = intent?.getStringExtra(EXTRA_QUICK_REPLY)
         webView.loadUrl(siteUrl + "/")
@@ -176,9 +162,39 @@ open class MainActivity : Activity() {
             try { request.deny() } catch (_: Exception) { }
             pendingMediaPermissionRequest = null
             pendingMediaAndroidPermissions = emptyArray()
+            showMediaPermissionSettingsPrompt()
         }
     }
 
+    private fun showMediaPermissionSettingsPrompt() {
+        if (isFinishing || isDestroyed) return
+        AlertDialog.Builder(this)
+            .setTitle("Camera and microphone permission")
+            .setMessage("TigerChat needs microphone access for voice calls and camera plus microphone access for video calls. Enable the required permissions in Android app settings, then try again.")
+            .setNegativeButton("Not now", null)
+            .setPositiveButton("Open settings") { _, _ ->
+                val settingsIntent = Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:$packageName"),
+                )
+                startActivity(settingsIntent)
+            }
+            .show()
+    }
+
+    private fun applyNativeViewportHeight(view: WebView) {
+        val heightDp = view.height / resources.displayMetrics.density
+        if (heightDp <= 0f) return
+        val height = String.format(java.util.Locale.US, "%.2f", heightDp)
+        view.post {
+            if (!isFinishing && !isDestroyed) {
+                view.evaluateJavascript(
+                    "document.documentElement.style.setProperty('--tiger-viewport-height', '" + height + "px')",
+                    null,
+                )
+            }
+        }
+    }
     private fun deliverPendingQuickReply(view: WebView) {
         val reply = pendingQuickReply?.takeIf { it.isNotBlank() } ?: return
         val conversationId = Regex("[?&]c=([0-9a-fA-F-]{36})")
@@ -214,19 +230,11 @@ open class MainActivity : Activity() {
         }
         if (!::webView.isInitialized) return
         if (pageLoaded) {
-            applySafeAreaTop(webView)
             applyPendingPath(webView)
             deliverPendingQuickReply(webView)
         } else {
             webView.loadUrl(siteUrl + "/")
         }
-    }
-
-    private fun applySafeAreaTop(view: WebView) {
-        view.evaluateJavascript(
-            "document.documentElement.style.setProperty('--tiger-safe-area-top', '${safeAreaTopDp}px')",
-            null,
-        )
     }
 
     private fun requestNotificationPermission() {
@@ -277,7 +285,6 @@ open class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (::webView.isInitialized) ViewCompat.requestApplyInsets(webView)
         warmFirebaseToken()
         syncChatOverlayService()
     }
