@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties, PointerEvent as ReactPointerEvent, SyntheticEvent } from "react";
 import { useLocation } from "react-router-dom";
 import { MessageCircle, Minus, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -227,7 +227,7 @@ export const NotificationBubble = () => {
   // Load the app entry first in the APK, then navigate the already-loaded SPA inside the frame.
   const isNativeApp = Boolean((window as Window & { TigerNative?: unknown }).TigerNative);
   const chatFrameUrl = isNativeApp ? "/" : chatFramePath;
-  const handleChatFrameLoad = (event: React.SyntheticEvent<HTMLIFrameElement>) => {
+  const handleChatFrameLoad = (event: SyntheticEvent<HTMLIFrameElement>) => {
     if (!isNativeApp) return;
     const frameWindow = event.currentTarget.contentWindow;
     if (!frameWindow) return;
