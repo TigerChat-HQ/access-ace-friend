@@ -14,7 +14,7 @@ type DiagnosticInput = {
 };
 
 const recent = new Map<string, number>();
-const safeText = (value: string, max = 8000) => value.replace(/(Bearer\\s+)[^\\s]+/gi, "$1[REDACTED]").replace(/(access_token|refresh_token|password|authorization)(\\s*[:=]\\s*)[^&\\s,]+/gi, "$1$2[REDACTED]").slice(0, max);
+const safeText = (value: string, max = 8000) => value.replace(/(Bearer\s+)[^\s]+/gi, "$1[REDACTED]").replace(/(access_token|refresh_token|password|authorization)(\s*[:=]\s*)[^&\s,]+/gi, "$1$2[REDACTED]").slice(0, max);
 
 export async function reportDiagnostic(input: DiagnosticInput) {
   try {
