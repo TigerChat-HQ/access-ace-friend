@@ -224,3 +224,78 @@ GRANT EXECUTE ON FUNCTION public.join_pool_room(uuid,text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.enqueue_pool_match(text,integer,integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.cancel_pool_match_queue() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.commit_draft_move(uuid,integer,jsonb,text,jsonb,text,text) TO authenticated;
+
+
+-- Server-authoritative Pool gameplay. Only the Edge Function service role can
+-- initialize state or commit a simulated shot; authenticated clients remain read-only.
+CREATE UNIQUE INDEX IF NOT EXISTS pool_events_request_id_idx
+  ON public.pool_match_events(match_id, ((payload->>'request_id')))
+  WHERE payload ? 'request_id';
+
+CREATE OR REPLACE FUNCTION public.pool_initialize_match(p_match_id uuid,p_actor_id uuid,p_state jsonb)
+RETURNS public.pool_matches
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE v_match public.pool_matches%ROWTYPE;
+BEGIN
+  SELECT * INTO v_match FROM public.pool_matches WHERE id=p_match_id FOR UPDATE;
+  IF NOT FOUND OR v_match.status<>'active' OR p_actor_id IS NULL
+     OR p_actor_id NOT IN (v_match.player_one,v_match.player_two) THEN
+    RAISE EXCEPTION 'Active Pool match participant required';
+  END IF;
+  IF v_match.state IS NOT NULL AND v_match.state<>'{}'::jsonb THEN RETURN v_match; END IF;
+  IF jsonb_typeof(p_state->'balls')<>'array' OR p_state->>'mode'<>v_match.mode
+     OR jsonb_array_length(p_state->'balls') NOT BETWEEN 2 AND 16 THEN
+    RAISE EXCEPTION 'Invalid initial Pool state';
+  END IF;
+  UPDATE public.pool_matches SET state=p_state,revision=revision+1,updated_at=now()
+    WHERE id=p_match_id RETURNING * INTO v_match;
+  INSERT INTO public.pool_match_events(match_id,revision,actor_id,event_type,payload)
+    VALUES(v_match.id,v_match.revision,p_actor_id,'turn',jsonb_build_object('event','rack_initialized','engine_version',1));
+  RETURN v_match;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.pool_commit_server_shot(
+  p_match_id uuid,p_actor_id uuid,p_expected_revision integer,p_state jsonb,
+  p_next_turn uuid,p_status text,p_winner_id uuid,p_event_type text,p_event jsonb
+) RETURNS public.pool_matches
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
+DECLARE v_match public.pool_matches%ROWTYPE; v_duplicate public.pool_match_events%ROWTYPE;
+BEGIN
+  SELECT * INTO v_match FROM public.pool_matches WHERE id=p_match_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Pool match not found'; END IF;
+  IF p_event ? 'request_id' THEN
+    SELECT * INTO v_duplicate FROM public.pool_match_events
+      WHERE match_id=p_match_id AND payload->>'request_id'=p_event->>'request_id' LIMIT 1;
+    IF FOUND THEN RETURN v_match; END IF;
+  END IF;
+  IF v_match.status<>'active' OR v_match.player_two IS NULL THEN RAISE EXCEPTION 'Pool match is not active'; END IF;
+  IF p_actor_id IS NULL OR p_actor_id NOT IN (v_match.player_one,v_match.player_two)
+     OR v_match.current_turn IS DISTINCT FROM p_actor_id THEN RAISE EXCEPTION 'Actor is not the current player'; END IF;
+  IF v_match.revision<>p_expected_revision THEN RAISE EXCEPTION 'Pool revision conflict'; END IF;
+  IF p_status NOT IN ('active','finished') OR p_event_type NOT IN ('shot','foul')
+     OR jsonb_typeof(p_state->'balls')<>'array'
+     OR jsonb_array_length(p_state->'balls') NOT BETWEEN 2 AND 16
+     OR p_state->>'mode'<>v_match.mode THEN RAISE EXCEPTION 'Invalid server-computed Pool state'; END IF;
+  IF p_next_turn IS NULL OR p_next_turn NOT IN (v_match.player_one,v_match.player_two) THEN RAISE EXCEPTION 'Invalid next turn'; END IF;
+  IF (p_status='finished' AND (p_winner_id IS NULL OR p_winner_id NOT IN (v_match.player_one,v_match.player_two)))
+     OR (p_status='active' AND p_winner_id IS NOT NULL) THEN RAISE EXCEPTION 'Invalid Pool result'; END IF;
+  UPDATE public.pool_matches SET state=p_state,revision=revision+1,current_turn=p_next_turn,status=p_status,
+    winner_id=p_winner_id,finished_at=CASE WHEN p_status='finished' THEN now() ELSE NULL END,updated_at=now()
+    WHERE id=p_match_id RETURNING * INTO v_match;
+  INSERT INTO public.pool_match_events(match_id,revision,actor_id,event_type,payload)
+    VALUES(v_match.id,v_match.revision,p_actor_id,p_event_type,p_event);
+  RETURN v_match;
+END $$;
+
+REVOKE ALL ON FUNCTION public.pool_initialize_match(uuid,uuid,jsonb) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.pool_commit_server_shot(uuid,uuid,integer,jsonb,uuid,text,uuid,text,jsonb) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.pool_initialize_match(uuid,uuid,jsonb) TO service_role;
+GRANT EXECUTE ON FUNCTION public.pool_commit_server_shot(uuid,uuid,integer,jsonb,uuid,text,uuid,text,jsonb) TO service_role;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname='supabase_realtime')
+     AND NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname='supabase_realtime' AND schemaname='public' AND tablename='pool_matches') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.pool_matches;
+  END IF;
+END $$;
