@@ -29,6 +29,7 @@ Deno.serve(async(req:Request)=>{
    }
    const {data:current,error}=await admin.from("pool_matches").select("*").eq("id",matchId).single();
    if(error)throw error;
+   if(current.status==="finished"){const settled=await admin.rpc("pool_settle_match",{p_match_id:matchId});if(settled.error)console.error("Pool settlement recovery pending",settled.error.message);}
    return reply({match:current,state:current.state});
   }
   if(action!=="shot")return reply({error:"Unsupported action"},400);
@@ -39,7 +40,7 @@ Deno.serve(async(req:Request)=>{
   const requestId=typeof body.requestId==="string"?body.requestId:"";
   const opponent=actor===match.player_one?match.player_two:match.player_one;
   const result=simulatePoolShot(source,actor,opponent,{angle:Number(body.angle),power:Number(body.power),cuePosition:body.cuePosition&&typeof body.cuePosition==="object"?body.cuePosition:undefined,requestId});
-  const event={request_id:requestId,actor_id:actor,angle:Number(body.angle),power:Number(body.power),first_contact:result.firstContact,pocketed:result.pocketed,foul:result.foul,foul_reason:result.foulReason,rails_after_contact:result.railsAfterContact,winner_id:result.winnerId,engine_version:1};
+  const event={request_id:requestId,actor_id:actor,angle:Number(body.angle),power:Number(body.power),first_contact:result.firstContact,pocketed:result.pocketed,foul:result.foul,foul_reason:result.foulReason,rails_after_contact:result.railsAfterContact,winner_id:result.winnerId,engine_version:1,trajectory:result.trajectory};
   const {data:committed,error:commitError}=await admin.rpc("pool_commit_server_shot",{
    p_match_id:matchId,p_actor_id:actor,p_expected_revision:match.revision,p_state:result.state,
    p_next_turn:result.nextTurn,p_status:result.status,p_winner_id:result.winnerId,
@@ -49,7 +50,9 @@ Deno.serve(async(req:Request)=>{
    const {data:latest}=await admin.from("pool_matches").select("*").eq("id",matchId).maybeSingle();
    return reply({error:commitError.message,match:latest,state:latest?.state},409);
   }
-  return reply({match:committed,state:committed.state,result:{foul:result.foul,foulReason:result.foulReason,pocketed:result.pocketed,firstContact:result.firstContact}});
+  let progressionPending=false;
+  if(result.status==="finished"){const settled=await admin.rpc("pool_settle_match",{p_match_id:matchId});progressionPending=!!settled.error;if(settled.error)console.error("Pool settlement pending",settled.error.message);}
+  return reply({match:committed,state:committed.state,result:{foul:result.foul,foulReason:result.foulReason,pocketed:result.pocketed,firstContact:result.firstContact,trajectory:result.trajectory,progressionPending}});
  }catch(error){
   return reply({error:error instanceof Error?error.message:"Unexpected Pool server error"},400);
  }
