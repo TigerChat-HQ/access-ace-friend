@@ -18,7 +18,6 @@ CREATE POLICY "Users view relevant post collaborations" ON public.post_collabora
   FOR SELECT TO authenticated USING (
     inviter_id = (select auth.uid())
     OR invitee_id = (select auth.uid())
-    OR (status = 'accepted' AND EXISTS (SELECT 1 FROM public.posts p WHERE p.id = post_id))
   );
 DROP POLICY IF EXISTS "Post owners invite collaborators" ON public.post_collaborators;
 CREATE POLICY "Post owners invite collaborators" ON public.post_collaborators
