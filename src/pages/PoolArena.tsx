@@ -25,7 +25,7 @@ export default function PoolArena(){
  const nav=useNavigate(); const [balls,setBalls]=useState<Ball[]>(rack); const ballsRef=useRef(balls); const [mode,setMode]=useState<Mode>("eight"); const [power,setPower]=useState(48); const [angle,setAngle]=useState(0); const [moving,setMoving]=useState(false);  const [shots,setShots]=useState(0); const [pocketed,setPocketed]=useState<number[]>([]); const [sound,setSound]=useState(true); const [camera,setCamera]=useState<"top"|"angle">("angle"); const [message,setMessage]=useState("Panga cue direction kisha bonyeza SHOOT."); const [aim,setAim]=useState({x:.22,y:.5}); const [showRules,setShowRules]=useState(false); const [ballInHand,setBallInHand]=useState(false); const [opponent,setOpponent]=useState<"practice"|"ai">("practice"); const [playerTurn,setPlayerTurn]=useState(true); const aiShotRef=useRef(false);
  useEffect(()=>{ballsRef.current=balls;},[balls]);
  const reset=useCallback((nextMode:Mode=mode)=>{const next=rack(nextMode);ballsRef.current=next;setBalls(next);setMoving(false);setShots(0);setPocketed([]);setAngle(0);setBallInHand(false);setPlayerTurn(true);aiShotRef.current=false;setMessage("Meza imeandaliwa. Wewe unaanza.");},[mode]);
- const shoot=(shotAngle=angle,shotPower=power,byAI=false)=>{
+ const shoot=useCallback((shotAngle=angle,shotPower=power,byAI=false)=>{
   if(moving||(ballInHand&&!byAI)||(opponent==="ai"&&!playerTurn&&!byAI))return;
   aiShotRef.current=byAI;
   if(sound)playPoolTone(170);
@@ -33,7 +33,7 @@ export default function PoolArena(){
   const cue=next.find(b=>b.id===0);if(!cue||cue.pocketed)return;
   const speed=shotPower/100*.026;cue.vx=Math.cos(shotAngle)*speed;cue.vy=Math.sin(shotAngle)*speed;
   ballsRef.current=next;setBalls(next);setMoving(true);setShots(s=>s+1);setMessage("Shot inachezwa…");
- };
+ },[moving,ballInHand,opponent,playerTurn,sound,angle,power]);
  useEffect(()=>{
   if(!moving)return;
   let frame=0;let raf=0;let last=performance.now();
@@ -72,7 +72,7 @@ export default function PoolArena(){
    setAngle(shotAngle);setPower(58);setMessage("Tiger AI anapiga…");shoot(shotAngle,58,true);
   },850);
   return()=>window.clearTimeout(timer);
- },[opponent,playerTurn,moving,ballInHand,mode]);
+ },[opponent,playerTurn,moving,ballInHand,mode,shoot]);
  const setAimFromPointer=(event:PointerEvent<HTMLDivElement>|MouseEvent<HTMLDivElement>)=>{const rect=event.currentTarget.getBoundingClientRect();const x=clamp((event.clientX-rect.left)/rect.width,.07,.93),y=clamp((event.clientY-rect.top)/rect.height,.12,.88);const cue=ballsRef.current.find(b=>b.id===0);if(!cue||moving)return;if(ballInHand&&event.type==="click"){const blocked=ballsRef.current.some(b=>b.id!==0&&!b.pocketed&&Math.hypot(b.x-x,b.y-y)<.032);if(blocked){setMessage("Eneo hilo limezibwa. Chagua sehemu tupu ya meza.");return;}const next=ballsRef.current.map(b=>b.id===0?{...b,x,y,vx:0,vy:0,pocketed:false}:b);ballsRef.current=next;setBalls(next);setBallInHand(false);setAim({x,y});setMessage("Cue ball imewekwa. Chagua mwelekeo kisha piga SHOOT.");return;}if(!ballInHand){setAngle(Math.atan2(y-cue.y,x-cue.x));setAim({x,y});}};
  const cue=balls.find(b=>b.id===0);const remaining=balls.filter(b=>b.id!==0&&!b.pocketed).length;
  return <main className="min-h-full overflow-y-auto bg-background pb-24">
