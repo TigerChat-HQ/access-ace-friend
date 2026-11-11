@@ -24,7 +24,7 @@ import { NewGroupDialog } from "@/components/chat/NewGroupDialog";
 import { StoryUploadDialog } from "@/components/chat/StoryUploadDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, EyeOff, Trash2, X, ChevronUp, ChevronDown, Archive, RotateCcw, Palette, UserPlus, Settings, LogOut, Clock } from "lucide-react";
+import { Search, MessageCircle, ArrowLeft, Phone, Video, MoreVertical, EyeOff, Trash2, X, ChevronUp, ChevronDown, Archive, RotateCcw, Palette, UserPlus, Settings, LogOut, Clock, BellOff } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
@@ -123,7 +123,7 @@ const Chats = () => {
   const { typingUsers, notifyTyping } = useTypingIndicator(activeChat);
   useReadReceipts(activeChat, !!activeChat);
   useScreenshotProtection(!!activeChat);
-  const { prefs: chatPrefs } = useChatPreferences(activeChat);
+  const { prefs: chatPrefs, save: saveChatPrefs } = useChatPreferences(activeChat);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -648,7 +648,7 @@ const Chats = () => {
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-sm text-foreground">{activeConvoName}</h3>
                 <p className="text-[11px] text-muted-foreground">
-                  {isTyping ? <span className="text-primary animate-pulse">typing...</span> : isGroup ? <span>Group</span> : activeConvo.otherProfile?.is_online ? <span className="text-primary">online</span> : "last seen recently"}
+                  {isTyping ? <span className="text-primary animate-pulse">typing...</span> : chatPrefs.muted_until && new Date(chatPrefs.muted_until).getTime() > Date.now() ? <span className="inline-flex items-center gap-1"><BellOff className="h-3 w-3"/> Muted</span> : isGroup ? <span>Group</span> : activeConvo.otherProfile?.is_online ? <span className="text-primary">online</span> : "last seen recently"}
                 </p>
               </div>
               <div className="flex items-center gap-1">
@@ -670,6 +670,7 @@ const Chats = () => {
                         <Settings className="w-4 h-4 mr-2" /> Group settings
                       </DropdownMenuItem>
                     </>}
+                    <DropdownMenuItem onSelect={async () => { const muted = Boolean(chatPrefs.muted_until && new Date(chatPrefs.muted_until).getTime() > Date.now()); const result = await saveChatPrefs({ muted_until: muted ? null : new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString() }); if (result?.error) toast({ title: "Could not update mute setting", description: result.error.message, variant: "destructive" }); else toast({ title: muted ? "Conversation unmuted" : "Conversation muted for 8 hours" }); }}><BellOff className="w-4 h-4 mr-2" /> {chatPrefs.muted_until && new Date(chatPrefs.muted_until).getTime() > Date.now() ? "Unmute notifications" : "Mute for 8 hours"}</DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => setCustomizationOpen(true)}>
                       <Palette className="w-4 h-4 mr-2" /> Chat theme
                     </DropdownMenuItem>

@@ -9,11 +9,12 @@ export interface ChatPrefs {
   bubble_color: string | null;
   font_size: "small" | "medium" | "large";
   theme: string;
+  muted_until: string | null;
 }
 
 const db = supabase as unknown as SupabaseClient;
 
-const DEFAULT: ChatPrefs = { wallpaper: null, bubble_color: null, font_size: "medium", theme: "default" };
+const DEFAULT: ChatPrefs = { wallpaper: null, bubble_color: null, font_size: "medium", theme: "default", muted_until: null };
 
 export const useChatPreferences = (conversationId: string | null) => {
   const { user } = useAuth();
@@ -41,10 +42,9 @@ export const useChatPreferences = (conversationId: string | null) => {
   }, [user, conversationId]);
 
   const save = async (next: Partial<ChatPrefs>) => {
-    if (!user || !conversationId) return;
+    if (!user || !conversationId) return { error: new Error("A conversation must be open.") };
     const merged = { ...prefs, ...next };
-    setPrefs(merged);
-    await db.from("chat_preferences").upsert(
+    const { error } = await db.from("chat_preferences").upsert(
       {
         user_id: user.id,
         conversation_id: conversationId,
@@ -53,6 +53,8 @@ export const useChatPreferences = (conversationId: string | null) => {
       },
       { onConflict: "user_id,conversation_id" }
     );
+    if (!error) setPrefs(merged);
+    return { error };
   };
 
   return { prefs, loading, save };

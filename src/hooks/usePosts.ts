@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Supabase generated types do not yet include the pending PR migrations; any casts are isolated to the database boundary. */
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,6 +21,9 @@ export interface FeedPost {
   post_cover_url?: string | null;
   is_draft?: boolean;
   scheduled_at?: string | null;
+  archived_at?: string | null;
+  pinned_at?: string | null;
+  hide_like_count?: boolean;
   media_items?: unknown;
   profile?: {
     user_id: string;
@@ -31,6 +35,7 @@ export interface FeedPost {
   comment_count: number;
   liked_by_me: boolean;
   score?: number;
+  is_collaboration?: boolean;
 }
 
 const getBlockedSet = async (userId: string): Promise<Set<string>> => {
@@ -75,7 +80,7 @@ export const useFeed = (mode: "following" | "discover" = "following") => {
     }
 
     // Filter blocked users (both directions)
-    const visiblePosts = rawPosts.filter((p) => !blocked.has(p.user_id));
+    const visiblePosts = (rawPosts as Array<(typeof rawPosts)[number] & { archived_at?: string | null }>).filter((p) => !blocked.has(p.user_id) && !p.archived_at);
 
     const postIds = visiblePosts.map((p) => p.id);
     const userIds = [...new Set(visiblePosts.map((p) => p.user_id))];
@@ -154,43 +159,54 @@ export const useUserPosts = (userId: string | undefined) => {
   const { user } = useAuth();
 
   const fetch = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) {
+      setPosts([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    const { data } = await supabase
-      .from("posts")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
-    if (!data) {
+    const { data: collaborations } = await supabase.rpc("get_profile_collaboration_post_ids" as any, { _profile_id: userId } as any) as any;
+    const collaborationIds = (collaborations || []).map((row: { post_id: string }) => row.post_id);
+    const [ownedResult, collaborativeResult] = await Promise.all([
+      supabase.from("posts").select("*").eq("user_id", userId),
+      collaborationIds.length ? supabase.from("posts").select("*").in("id", collaborationIds).is("archived_at", null) : Promise.resolve({ data: [] as any[] }),
+    ]);
+    const ownedPosts = ownedResult.data || [];
+    const collaborativePosts = (collaborativeResult.data || []).filter((post: any) => post.user_id !== userId);
+    const byId = new Map<string, any>();
+    [...ownedPosts, ...collaborativePosts].forEach((post: any) => byId.set(post.id, post));
+    const data = [...byId.values()].sort((a: any, b: any) => {
+      const pinA = a.pinned_at ? new Date(a.pinned_at).getTime() : 0;
+      const pinB = b.pinned_at ? new Date(b.pinned_at).getTime() : 0;
+      return pinB - pinA || new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+    if (!data.length) {
       setPosts([]);
       setLoading(false);
       return;
     }
-    const postIds = data.map((p) => p.id);
-    if (postIds.length === 0) {
-      setPosts([]);
-      setLoading(false);
-      return;
-    }
-    const [{ data: likes }, { data: comments }, { data: myLikes }] = await Promise.all([
+    const postIds = data.map((post: any) => post.id);
+    const ownerIds = [...new Set(data.map((post: any) => post.user_id))];
+    const [{ data: profiles }, { data: likes }, { data: comments }, { data: myLikes }] = await Promise.all([
+      supabase.from("profiles").select("user_id, username, display_name, avatar_url").in("user_id", ownerIds),
       supabase.from("post_likes").select("post_id").in("post_id", postIds),
       supabase.from("post_comments").select("post_id").in("post_id", postIds),
       user ? supabase.from("post_likes").select("post_id").in("post_id", postIds).eq("user_id", user.id) : Promise.resolve({ data: [] as { post_id: string }[] }),
     ]);
+    const profileMap = new Map(profiles?.map((profile) => [profile.user_id, profile]) || []);
     const likeCountMap = new Map<string, number>();
-    likes?.forEach((l) => likeCountMap.set(l.post_id, (likeCountMap.get(l.post_id) || 0) + 1));
+    likes?.forEach((like) => likeCountMap.set(like.post_id, (likeCountMap.get(like.post_id) || 0) + 1));
     const commentCountMap = new Map<string, number>();
-    comments?.forEach((c) => commentCountMap.set(c.post_id, (commentCountMap.get(c.post_id) || 0) + 1));
-    const myLikeRows = (myLikes ?? []) as { post_id: string }[];
-    const myLikeSet = new Set(myLikeRows.map((like) => like.post_id));
-    setPosts(
-      data.map((p) => ({
-        ...p,
-        like_count: likeCountMap.get(p.id) || 0,
-        comment_count: commentCountMap.get(p.id) || 0,
-        liked_by_me: myLikeSet.has(p.id),
-      })) as FeedPost[]
-    );
+    comments?.forEach((comment) => commentCountMap.set(comment.post_id, (commentCountMap.get(comment.post_id) || 0) + 1));
+    const likedSet = new Set(((myLikes || []) as { post_id: string }[]).map((like) => like.post_id));
+    setPosts(data.map((post: any) => ({
+      ...post,
+      profile: profileMap.get(post.user_id),
+      like_count: likeCountMap.get(post.id) || 0,
+      comment_count: commentCountMap.get(post.id) || 0,
+      liked_by_me: likedSet.has(post.id),
+      is_collaboration: post.user_id !== userId,
+    })) as FeedPost[]);
     setLoading(false);
   }, [userId, user]);
 

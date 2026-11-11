@@ -6,7 +6,7 @@ export interface AppNotification {
   id: string;
   recipient_id: string;
   actor_id: string;
-  type: "like" | "comment" | "follow" | "mention" | "reply" | "comment_like" | "report_reply";
+  type: "like" | "comment" | "follow" | "mention" | "reply" | "comment_like" | "report_reply" | "collaboration_invite" | "collaboration_accepted";
   post_id: string | null;
   comment_id: string | null;
   report_id?: string | null;

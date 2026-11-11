@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Supabase generated types do not yet include the pending PR migrations; any casts are isolated to the database boundary. */
 import { useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -90,6 +91,9 @@ export const useNotifications = () => {
         async (payload) => {
           const msg = payload.new as unknown as IncomingMessageRow;
           if (msg.sender_id === user.id) return;
+          const { data: chatPreference } = await (supabase as any).from("chat_preferences")
+            .select("muted_until").eq("user_id", user.id).eq("conversation_id", msg.conversation_id).maybeSingle();
+          if (chatPreference?.muted_until && new Date(chatPreference.muted_until).getTime() > Date.now()) return;
           const preferences = getNotificationPreferences(user.id);
           if (preferences.enabled && preferences.chat && preferences.sound) {
             const stop = playRingtone("incoming_sms");
@@ -166,8 +170,12 @@ export const useNotifications = () => {
               ? `${name} replied to your comment`
               : n.type === "comment_like"
               ? `${name} liked your comment`
+              : n.type === "collaboration_invite"
+              ? `${name} invited you to collaborate on a post`
+              : n.type === "collaboration_accepted"
+              ? `${name} accepted your post collaboration invitation`
               : `${name} mentioned you`;
-          const url = n.post_id ? `/post/${n.post_id}` : `/u/${n.actor_id}`;
+          const url = n.type === "collaboration_invite" ? "/collaborations" : n.post_id ? `/post/${n.post_id}` : `/u/${n.actor_id}`;
           showNotification("TIGERCHATS", body, { url, tag: `social-${n.id}`, kind: "social", icon: actor?.avatar_url || undefined });
         }
       )

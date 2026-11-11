@@ -10,8 +10,8 @@ import { ReportDialog } from "@/components/social/ReportDialog";
 import { FollowListDialog } from "@/components/social/FollowListDialog";
 import { DraughtsProfileRank } from "@/components/draughts/DraughtsProfileRank";
 import {
-  ArrowLeft, Settings, Shield, MessageCircle, Grid3x3, LogOut, Pencil, Lock,
-  MoreVertical, Flag, UserX, UserCheck, Trash2, ChevronDown, ChevronUp,
+  ArrowLeft, Settings, Shield, MessageCircle, Grid3x3, LogOut, Pencil, Lock, Bookmark,
+  MoreVertical, Flag, UserX, UserCheck, Trash2, ChevronDown, ChevronUp, Archive, Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -174,7 +174,7 @@ const Profile = () => {
 
   const initials = (profile.display_name || profile.username || "U").slice(0, 2).toUpperCase();
   const isPrivate = !!profile.is_private;
-  const canSeePosts = isMe || !isPrivate || isFollowing;
+  const canSeePosts = isMe || !isPrivate || isFollowing || posts.some((post) => post.is_collaboration);
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -193,9 +193,9 @@ const Profile = () => {
             </button>
           )}
           {isMe ? (
-            <button onClick={() => navigate("/settings")} className="tiger-header-action hover:text-foreground" aria-label="Settings">
+            <><button onClick={() => navigate("/saved")} className="tiger-header-action hover:text-primary" aria-label="Saved posts"><Bookmark className="w-5 h-5" /></button><button onClick={() => navigate("/archive")} className="tiger-header-action hover:text-primary" aria-label="Archived posts"><Archive className="w-5 h-5" /></button><button onClick={() => navigate("/collaborations")} className="tiger-header-action hover:text-primary" aria-label="Post collaborations"><Users className="w-5 h-5" /></button><button onClick={() => navigate("/settings")} className="tiger-header-action hover:text-foreground" aria-label="Settings">
               <Settings className="w-5 h-5" />
-            </button>
+            </button></>
           ) : (
             <DropdownMenu>
               <DropdownMenuTrigger className="tiger-header-action hover:text-foreground" aria-label="More profile actions">
@@ -385,6 +385,8 @@ const Profile = () => {
             <div className="grid grid-cols-3 gap-0.5">
               {posts.map((p) => (
                 <Link key={p.id} to={`/post/${p.id}`} className="aspect-square bg-muted relative overflow-hidden">
+                  {p.pinned_at && <span className="absolute right-1 top-1 z-10 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-semibold text-white">PINNED</span>}
+                  {p.archived_at && isMe && <span className="absolute left-1 top-1 z-10 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-semibold text-white">ARCHIVED</span>}{p.is_collaboration && <span className="absolute left-1 bottom-1 z-10 rounded bg-primary/90 px-1.5 py-0.5 text-[9px] font-semibold text-primary-foreground">COLLAB</span>}
                   {p.media_url && p.media_type === "image" ? (
                     <img src={p.media_url} alt="" className="w-full h-full object-cover" loading="lazy" />
                   ) : p.media_url && p.media_type === "video" ? (
