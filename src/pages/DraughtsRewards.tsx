@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 type Mission = { mission_key: string; title: string; description: string; cadence: "daily" | "weekly"; target: number; reward_coins: number; reward_xp: number; progress?: number; claimed_at?: string | null; period_start?: string };
 type Achievement = { id: string; achievement_key: string; awarded_at: string; catalog?: { title: string; description: string; emoji: string; reward_coins: number } };
 type Stats = { rating_points: number; wins: number; losses: number; draws: number; xp?: number; current_streak?: number; best_streak?: number; user_id: string };
-type RecentMatch = { id: string; vs_ai: boolean; winner: string | null; created_at: string };
+type RecentMatch = { id: string; vs_ai: boolean; winner: string | null; created_at: string };\nconst passLevels = [{ xp:100,coins:50 },{ xp:250,coins:100 },{ xp:450,coins:150 },{ xp:700,coins:200 },{ xp:1000,coins:250 },{ xp:1400,coins:300 },{ xp:1850,coins:400 },{ xp:2350,coins:500 },{ xp:2900,coins:700 },{ xp:3500,coins:1000 }];
 const periodStart = (cadence: "daily" | "weekly") => {
   const now = new Date();
   if (cadence === "daily") return new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Dar_es_Salaam" }).format(now);
@@ -30,7 +30,7 @@ export default function DraughtsRewards() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [ledger, setLedger] = useState<Array<{ id: string; amount: number; reason: string; created_at: string }>>([]);
   const [leaderboard, setLeaderboard] = useState<Stats[]>([]);
-  const [recentMatches, setRecentMatches] = useState<RecentMatch[]>([]);
+  const [recentMatches, setRecentMatches] = useState<RecentMatch[]>([]);\n  const [passClaims, setPassClaims] = useState<number[]>([]);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -44,8 +44,8 @@ export default function DraughtsRewards() {
       const { data: mine } = await supabase.from("draughts_player_stats").select("*").eq("season_id", season.id).eq("user_id", user.id).maybeSingle();
       setStats(mine as unknown as Stats | null);
       const { data: top } = await supabase.from("draughts_player_stats").select("user_id,rating_points,wins,losses,draws,xp,current_streak,best_streak").eq("season_id", season.id).order("rating_points", { ascending: false }).order("wins", { ascending: false }).limit(100);
-      setLeaderboard((top as unknown as Stats[] | null) ?? []);
-    } else { setStats(null); setLeaderboard([]); }
+      setLeaderboard((top as unknown as Stats[] | null) ?? []);\n      const { data: claims } = await supabase.from("draughts_pass_claims" as any).select("level").eq("season_id", season.id).eq("user_id", user.id);\n      setPassClaims(((claims ?? []) as unknown as Array<{ level: number }>).map((item) => item.level));
+    } else { setStats(null); setLeaderboard([]); setPassClaims([]); }
 
     const { data: catalog } = await supabase.from("draughts_mission_catalog" as any).select("*").eq("is_enabled", true).order("cadence");
     const { data: progress } = await supabase.from("draughts_mission_progress" as any).select("*").eq("user_id", user.id);
@@ -74,6 +74,13 @@ export default function DraughtsRewards() {
     const { data, error } = await supabase.rpc("claim_draughts_mission" as any, { p_mission_key: missionKey });
     if (error) { toast({ title: "Reward not claimed", description: error.message, variant: "destructive" }); return; }
     toast({ title: "Reward claimed!", description: `${data?.coins ?? 0} DC · ${data?.xp ?? 0} XP` });
+    await load();
+  };
+
+  const claimPass = async (level: number) => {
+    const { data, error } = await supabase.rpc("claim_draughts_pass_reward" as any, { p_level: level });
+    if (error) { toast({ title: "Season Pass reward not claimed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Season Pass reward claimed", description: `${data?.coins ?? 0} DC` });
     await load();
   };
 
