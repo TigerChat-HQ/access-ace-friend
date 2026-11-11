@@ -22,6 +22,10 @@ type MatchRow = Omit<Tables<"draft_matches">, "board" | "last_move" | "current_t
   draw_offer_by: string | null;
 };
 
+
+const queueRpc = supabase.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
+const queueTable = supabase.from as unknown as (table: string) => { select: (columns: string) => { eq: (column: string, value: string) => { maybeSingle: () => Promise<{ data: { status: string; match_id: string | null } | null; error: { message: string } | null }> } } };
+
 const Draughts = () => {
   const nav = useNavigate();
   const { user } = useAuth();
@@ -227,7 +231,7 @@ const Draughts = () => {
     if (!user || creating || queueSearching) return;
     setQueueSearching(true);
     try {
-      const { data, error } = await supabase.rpc("enqueue_draughts_match", {
+      const { data, error } = await queueRpc("enqueue_draughts_match", {
         p_rating: 1000, p_clock_seconds: 600, p_increment_seconds: 5, p_region: null,
       });
       if (error) throw error;
@@ -260,7 +264,7 @@ const Draughts = () => {
   };
 
   const cancelQueue = async () => {
-    const { error } = await supabase.rpc("cancel_draughts_match_queue");
+    const { error } = await queueRpc("cancel_draughts_match_queue", {});
     if (error) {
       toast({ title: "Could not cancel search", description: error.message, variant: "destructive" });
       return;
@@ -273,7 +277,7 @@ const Draughts = () => {
     if (!queueTicket || !user) return;
     let alive = true;
     const poll = async () => {
-      const { data, error } = await supabase.from("draughts_match_queue")
+      const { data, error } = await queueTable("draughts_match_queue")
         .select("status,match_id").eq("id", queueTicket).maybeSingle();
       if (!alive || error || !data) return;
       if (data.status === "matched" && data.match_id) {
