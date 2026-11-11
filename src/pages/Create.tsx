@@ -26,6 +26,7 @@ const Create = () => {
   const fileRef = useRef<HTMLInputElement>(null);
   const [caption, setCaption] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [extraImageFiles, setExtraImageFiles] = useState<File[]>([]);
   const [preview, setPreview] = useState<string | null>(null);
   const [filter, setFilter] = useState("none");
   const [overlay, setOverlay] = useState("");
@@ -71,6 +72,7 @@ const Create = () => {
   const onFile = (f: File | null) => {
     clearRenderedPreview();
     setFile(f);
+    setExtraImageFiles([]);
     setFilter("none");
     setOverlay("");
     setRotation(0);
@@ -197,6 +199,21 @@ const Create = () => {
         const restored = new File([blob], mediaPath.split("/").pop() || "draft-media", { type: blob.type });
         onFile(restored);
       } else onFile(null);
+      setCaption(draft.caption);
+      setFilter(typeof state.filter === "string" ? state.filter : "none");
+      setOverlay(typeof state.overlay === "string" ? state.overlay : "");
+      setRotation(Number(state.rotation || 0));
+      setBrightness(Number(state.brightness || 100));
+      setContrast(Number(state.contrast || 100));
+      setSaturation(Number(state.saturation || 100));
+      setAspectRatio(typeof state.aspectRatio === "string" ? state.aspectRatio : "original");
+      setSticker(typeof state.sticker === "string" ? state.sticker : "");
+      setAudience(state.audience === "followers" || state.audience === "private" ? state.audience : "public");
+      setAllowComments(state.allowComments !== false);
+      setLocationName(typeof state.locationName === "string" ? state.locationName : "");
+      setAltText(typeof state.altText === "string" ? state.altText : "");
+      setScheduledAt(typeof state.scheduledAt === "string" ? state.scheduledAt : "");
+      setTaggedUsers(Array.isArray(state.taggedUsers) ? state.taggedUsers as typeof taggedUsers : []);
       const musicPath = typeof state.musicPath === "string" ? state.musicPath : null;
       if (musicPath) {
         const { data, error } = await supabase.storage.from("post-drafts").createSignedUrl(musicPath, 300);
@@ -329,6 +346,17 @@ const Create = () => {
         mediaType = isVideo ? "video" : "image";
       }
 
+      const mediaItems: { url: string; type: string; alt_text: string | null }[] = [];
+      if (mediaUrl) mediaItems.push({ url: mediaUrl, type: mediaType, alt_text: altText.trim() || null });
+      for (const [index, extraFile] of extraImageFiles.entries()) {
+        const edited = await renderEditedImage(extraFile);
+        const path = user.id + "/" + Date.now() + "-carousel-" + index + ".jpg";
+        const { error: extraUploadError } = await supabase.storage.from("post-media").upload(path, edited);
+        if (extraUploadError) throw extraUploadError;
+        const url = supabase.storage.from("post-media").getPublicUrl(path).data.publicUrl;
+        mediaItems.push({ url, type: "image", alt_text: altText.trim() || null });
+      }
+
       let publishedMusicUrl: string | null = null;
       if (musicFile && isImage) {
         const musicPath = user.id + "/post-audio/" + Date.now() + "-" + musicFile.name.replace(/[^a-zA-Z0-9._-]/g, "-");
@@ -352,6 +380,7 @@ const Create = () => {
         alt_text: altText.trim() || null,
         is_draft: false,
         scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+        media_items: mediaItems,
       });
       if (error) throw error;
       if (activeDraftId) await supabase.from("post_drafts").delete().eq("id", activeDraftId);
@@ -525,6 +554,8 @@ const Create = () => {
             <input type="datetime-local" value={scheduledAt} min={new Date(Date.now() + 60000).toISOString().slice(0,16)} onChange={(event) => setScheduledAt(event.target.value)} className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground" />
           </label>
         </section>
+        {isImage && <section className="space-y-2 rounded-xl border border-border p-3"><h2 className="text-sm font-semibold">Carousel photos</h2><input type="file" accept="image/*" multiple onChange={(event) => setExtraImageFiles(Array.from(event.target.files || []).slice(0, 9))} className="block w-full text-xs" /><p className="text-[11px] text-muted-foreground">Add up to 9 extra images after the cover photo. Total: {1 + extraImageFiles.length} / 10</p>{extraImageFiles.length > 0 && <button type="button" onClick={() => setExtraImageFiles([])} className="text-xs text-destructive">Remove extra photos</button>}</section>}
+
         <textarea
           value={caption}
           onChange={(e) => setCaption(e.target.value)}
