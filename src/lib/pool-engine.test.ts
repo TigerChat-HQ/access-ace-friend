@@ -36,6 +36,19 @@ describe("authoritative Pool engine", () => {
     expect(result.foul).toBe(true);
     expect(result.state.balls.find(ball => ball.id === 9)?.pocketed).toBe(false);
   });
+  it("keeps 8-ball groups unassigned after a legal break pocket", () => {
+    const state = createInitialPoolState("eight_ball", "p1", "p2");
+    const cue = state.balls.find(ball => ball.id === 0)!;
+    const first = state.balls.find(ball => ball.id === 1)!;
+    cue.x = 0.5; cue.y = 0.3;
+    first.x = 0.5; first.y = 0.13;
+    state.balls = state.balls.map(ball => ball.id === 0 ? cue : ball.id === 1 ? first : { ...ball, pocketed: true });
+    const result = simulatePoolShot(state, "p1", "p2", { angle: -Math.PI / 2, power: 100, requestId: "break-pocket" });
+    expect(result.foul).toBe(false);
+    expect(result.pocketed).toContain(1);
+    expect(result.state.groups.p1).toBeNull();
+    expect(result.state.groups.p2).toBeNull();
+  });
   it("does not assign 8-ball groups on the break", () => {
     const state = createInitialPoolState("eight_ball", "p1", "p2");
     expect(state.groups.p1).toBeNull();

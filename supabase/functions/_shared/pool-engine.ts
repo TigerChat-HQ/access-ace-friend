@@ -64,12 +64,11 @@ export function simulatePoolShot(source:PoolState,actorId:string,opponentId:stri
    ball.x+=ball.vx*dt;ball.y+=ball.vy*dt;
    const hole=POCKETS.find(([px,py])=>Math.hypot(ball.x-px,ball.y-py)<=POCKET_R);
    if(hole){ball.pocketed=true;ball.vx=0;ball.vy=0;if(ball.id===0)scratch=true;else pocketed.push(ball.id);continue;}
-   const corner=(ball.x<.12||ball.x>.88)&&(ball.y<.17||ball.y>.83);
-   const side=Math.abs(ball.x-.5)<.065&&(ball.y<.16||ball.y>.84);
-   if(ball.x<.055&&!corner){ball.x=.055;ball.vx=Math.abs(ball.vx)*.88;totalRails++;if(firstContact!==null)railsAfterContact++;}
-   else if(ball.x>.945&&!corner){ball.x=.945;ball.vx=-Math.abs(ball.vx)*.88;totalRails++;if(firstContact!==null)railsAfterContact++;}
-   if(ball.y<.105&&!side&&!corner){ball.y=.105;ball.vy=Math.abs(ball.vy)*.88;totalRails++;if(firstContact!==null)railsAfterContact++;}
-   else if(ball.y>.895&&!side&&!corner){ball.y=.895;ball.vy=-Math.abs(ball.vy)*.88;totalRails++;if(firstContact!==null)railsAfterContact++;}
+   const pocketMouth=POCKETS.some(([px,py])=>Math.hypot(ball.x-px,ball.y-py)<.072);
+   if(ball.x<.055&&!pocketMouth){ball.x=.055;ball.vx=Math.abs(ball.vx)*.88;totalRails++;if(firstContact!==null)railsAfterContact++;}
+   else if(ball.x>.945&&!pocketMouth){ball.x=.945;ball.vx=-Math.abs(ball.vx)*.88;totalRails++;if(firstContact!==null)railsAfterContact++;}
+   if(ball.y<.105&&!pocketMouth){ball.y=.105;ball.vy=Math.abs(ball.vy)*.88;totalRails++;if(firstContact!==null)railsAfterContact++;}
+   else if(ball.y>.895&&!pocketMouth){ball.y=.895;ball.vy=-Math.abs(ball.vy)*.88;totalRails++;if(firstContact!==null)railsAfterContact++;}
    ball.vx*=friction;ball.vy*=friction;
    if(Math.hypot(ball.vx,ball.vy)<stop){ball.vx=0;ball.vy=0;}else moving=true;
   }
