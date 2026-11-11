@@ -95,7 +95,7 @@ describe("9-ball tournament penalties", () => {
       state = result.state;
       expect(state.foulStreak.p1).toBe(index);
       if (index < 3) expect(result.winnerId).toBeNull();
-      else expect(result.winnerId).toBe("p2");
+      else { expect(result.winnerId).toBe("p2"); expect(result.nextTurn).toBe("p2"); }
     }
   });
 });
