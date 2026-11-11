@@ -217,12 +217,27 @@ export const NotificationBubble = () => {
     }
   };
 
-  const chatFrameUrl = useMemo(() => {
+  const chatFramePath = useMemo(() => {
     const url = new URL(notice?.url || "/chats", window.location.origin);
     if (url.origin !== window.location.origin) return "/chats?bubble=1";
     url.searchParams.set("bubble", "1");
     return url.pathname + url.search + url.hash;
   }, [notice?.url]);
+  // Android WebView servers may not rewrite a direct /chats request to the SPA entry.
+  // Load the app entry first in the APK, then navigate the already-loaded SPA inside the frame.
+  const isNativeApp = Boolean((window as Window & { TigerNative?: unknown }).TigerNative);
+  const chatFrameUrl = isNativeApp ? "/" : chatFramePath;
+  const handleChatFrameLoad = (event: React.SyntheticEvent<HTMLIFrameElement>) => {
+    if (!isNativeApp) return;
+    const frameWindow = event.currentTarget.contentWindow;
+    if (!frameWindow) return;
+    try {
+      frameWindow.history.replaceState(null, "", chatFramePath);
+      frameWindow.dispatchEvent(new PopStateEvent("popstate"));
+    } catch (error) {
+      console.error("Could not open floating chat route in Android WebView:", error);
+    }
+  };
 
   if (!preferences.floatingBubble || !user || location.search.includes("bubble=1")) return null;
 
@@ -271,6 +286,7 @@ export const NotificationBubble = () => {
             key={chatFrameUrl}
             title="TIGERCHATS quick chat"
             src={chatFrameUrl}
+            onLoad={handleChatFrameLoad}
             className="min-h-0 w-full flex-1 border-0 bg-background"
             allow="camera; microphone; clipboard-read; clipboard-write"
           />
