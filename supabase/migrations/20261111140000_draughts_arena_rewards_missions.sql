@@ -203,9 +203,9 @@ BEGIN
    IF v_is_pvp THEN
      FOR v_achievement IN
        SELECT * FROM public.draughts_achievement_catalog WHERE is_enabled AND
-        ((achievement_key='first_win' AND v_result='win' AND v_stats.wins=1) OR
-         (achievement_key='wins_10' AND v_stats.wins=10) OR
-         (achievement_key='wins_50' AND v_stats.wins=50) OR
+        ((achievement_key='first_win' AND v_result='win' AND v_stats.wins=0) OR
+         (achievement_key='wins_10' AND v_result='win' AND v_stats.wins=9) OR
+         (achievement_key='wins_50' AND v_result='win' AND v_stats.wins=49) OR
          (achievement_key='streak_5' AND v_stats.current_streak=5))
      LOOP
        INSERT INTO public.draughts_user_achievements(user_id,achievement_key)
@@ -230,3 +230,74 @@ DROP TRIGGER IF EXISTS draft_match_award_arena_rewards ON public.draft_matches;
 CREATE TRIGGER draft_match_award_arena_rewards AFTER UPDATE OF status,winner ON public.draft_matches
  FOR EACH ROW EXECUTE FUNCTION public.award_draughts_match_rewards();
 REVOKE ALL ON FUNCTION public.award_draughts_match_rewards() FROM PUBLIC, anon, authenticated;
+
+
+-- Seasonal Top 100 coin awards are issued once when a badge is first created.
+ALTER TABLE public.draughts_coin_ledger DROP CONSTRAINT IF EXISTS draughts_coin_ledger_source_type_check;
+ALTER TABLE public.draughts_coin_ledger ADD CONSTRAINT draughts_coin_ledger_source_type_check
+ CHECK (source_type IN ('match','mission','achievement','tournament','streak','admin','season'));
+
+CREATE OR REPLACE FUNCTION public.award_draughts_season_badge_coins()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE v_coins integer; v_balance bigint;
+BEGIN
+ v_coins := CASE WHEN NEW.rank=1 THEN 5000 WHEN NEW.rank BETWEEN 2 AND 3 THEN 3000
+   WHEN NEW.rank BETWEEN 4 AND 10 THEN 1500 WHEN NEW.rank BETWEEN 11 AND 25 THEN 800
+   WHEN NEW.rank BETWEEN 26 AND 100 THEN 400 ELSE 0 END;
+ IF v_coins<=0 THEN RETURN NEW; END IF;
+ INSERT INTO public.draughts_wallets(user_id,balance,lifetime_earned) VALUES(NEW.user_id,0,0)
+  ON CONFLICT(user_id) DO NOTHING;
+ UPDATE public.draughts_wallets SET balance=balance+v_coins,lifetime_earned=lifetime_earned+v_coins,updated_at=now()
+  WHERE user_id=NEW.user_id RETURNING balance INTO v_balance;
+ INSERT INTO public.draughts_coin_ledger(user_id,amount,balance_after,reason,source_type,source_id)
+ VALUES(NEW.user_id,v_coins,v_balance,'Season Top '||NEW.rank||' reward','season',NEW.season_id)
+ ON CONFLICT DO NOTHING;
+ RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS draughts_season_badge_coin_award ON public.draughts_player_badges;
+CREATE TRIGGER draughts_season_badge_coin_award AFTER INSERT ON public.draughts_player_badges
+ FOR EACH ROW EXECUTE FUNCTION public.award_draughts_season_badge_coins();
+REVOKE ALL ON FUNCTION public.award_draughts_season_badge_coins() FROM PUBLIC,anon,authenticated;
+
+-- Tournament placements are paid only after the tournament is formally completed.
+CREATE OR REPLACE FUNCTION public.award_draughts_tournament_coins()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE v_final_round integer; v_runner_up uuid; v_row record; v_balance bigint;
+BEGIN
+ IF OLD.status='completed' OR NEW.status<>'completed' OR NEW.winner_id IS NULL THEN RETURN NEW; END IF;
+ SELECT max(round_number) INTO v_final_round FROM public.draughts_tournament_matches
+  WHERE tournament_id=NEW.id AND status='completed';
+ IF v_final_round IS NULL THEN RETURN NEW; END IF;
+ FOR v_row IN
+   SELECT NEW.winner_id AS user_id,1 AS place,2000 AS coins
+   UNION ALL
+   SELECT CASE WHEN player_one=NEW.winner_id THEN player_two ELSE player_one END,2,1200
+    FROM public.draughts_tournament_matches
+    WHERE tournament_id=NEW.id AND round_number=v_final_round AND status='completed'
+      AND winner_id=NEW.winner_id
+   UNION ALL
+   SELECT CASE WHEN player_one=winner_id THEN player_two ELSE player_one END,3,700
+    FROM public.draughts_tournament_matches
+    WHERE tournament_id=NEW.id AND round_number=v_final_round-1 AND status='completed'
+      AND player_one IS NOT NULL AND player_two IS NOT NULL
+   UNION ALL
+   SELECT CASE WHEN player_one=winner_id THEN player_two ELSE player_one END,4,400
+    FROM public.draughts_tournament_matches
+    WHERE tournament_id=NEW.id AND round_number=v_final_round-2 AND status='completed'
+      AND player_one IS NOT NULL AND player_two IS NOT NULL
+ LOOP
+   IF v_row.user_id IS NULL OR v_row.user_id=NEW.winner_id AND v_row.place<>1 THEN CONTINUE; END IF;
+   INSERT INTO public.draughts_wallets(user_id,balance,lifetime_earned) VALUES(v_row.user_id,0,0)
+    ON CONFLICT(user_id) DO NOTHING;
+   UPDATE public.draughts_wallets SET balance=balance+v_row.coins,lifetime_earned=lifetime_earned+v_row.coins,updated_at=now()
+    WHERE user_id=v_row.user_id RETURNING balance INTO v_balance;
+   INSERT INTO public.draughts_coin_ledger(user_id,amount,balance_after,reason,source_type,source_id)
+    VALUES(v_row.user_id,v_row.coins,v_balance,'Tournament placement #'||v_row.place,'tournament',NEW.id)
+    ON CONFLICT DO NOTHING;
+ END LOOP;
+ RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS draughts_tournament_coin_award ON public.draughts_tournaments;
+CREATE TRIGGER draughts_tournament_coin_award AFTER UPDATE OF status ON public.draughts_tournaments
+ FOR EACH ROW EXECUTE FUNCTION public.award_draughts_tournament_coins();
+REVOKE ALL ON FUNCTION public.award_draughts_tournament_coins() FROM PUBLIC,anon,authenticated;
