@@ -29,8 +29,9 @@ open class MainActivity : Activity() {
     private var pendingQuickReply: String? = null
     private var pendingNativeCallType: String? = null
     private var pageLoaded = false
-    private var pendingMediaPermissionRequest: PermissionRequest? = null
-    private var pendingMediaAndroidPermissions: Array<String> = emptyArray()
+    // Queue overlapping WebView media requests while Android's permission dialog is open.
+    private val pendingMediaPermissionRequests = mutableListOf<PermissionRequest>()
+    private var mediaPermissionDialogOpen = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -97,11 +98,6 @@ open class MainActivity : Activity() {
                         return@runOnUiThread
                     }
 
-                    pendingMediaPermissionRequest?.let { previous ->
-                        try { previous.deny() } catch (_: Exception) { }
-                    }
-                    pendingMediaPermissionRequest = request
-                    pendingMediaAndroidPermissions = androidPermissions
                     val missing = androidPermissions.filter {
                         ContextCompat.checkSelfPermission(this@MainActivity, it) != PackageManager.PERMISSION_GRANTED
                     }
@@ -109,27 +105,24 @@ open class MainActivity : Activity() {
                     if (missing.isEmpty()) {
                         grantWebMediaPermission(request)
                     } else {
-                        try {
-                            ActivityCompat.requestPermissions(
-                                this@MainActivity,
-                                missing.toTypedArray(),
-                                MEDIA_PERMISSION_REQUEST_CODE,
-                            )
-                        } catch (error: Exception) {
-                            android.util.Log.e(TAG, "Could not request Android media permissions", error)
-                            try { request.deny() } catch (_: Exception) { }
-                            pendingMediaPermissionRequest = null
-                            pendingMediaAndroidPermissions = emptyArray()
+                        pendingMediaPermissionRequests.add(request)
+                        if (!mediaPermissionDialogOpen) {
+                            mediaPermissionDialogOpen = true
+                            try {
+                                ActivityCompat.requestPermissions(this@MainActivity, missing.toTypedArray(), MEDIA_PERMISSION_REQUEST_CODE)
+                            } catch (error: Exception) {
+                                android.util.Log.e(TAG, "Could not request Android media permissions", error)
+                                pendingMediaPermissionRequests.forEach { pending -> try { pending.deny() } catch (_: Exception) { } }
+                                pendingMediaPermissionRequests.clear()
+                                mediaPermissionDialogOpen = false
+                            }
                         }
                     }
                 }
             }
 
             override fun onPermissionRequestCanceled(request: PermissionRequest) {
-                if (pendingMediaPermissionRequest === request) {
-                    pendingMediaPermissionRequest = null
-                    pendingMediaAndroidPermissions = emptyArray()
-                }
+                pendingMediaPermissionRequests.remove(request)
             }
         }
         webView.addJavascriptInterface(NativeBridge(), "TigerNative")
@@ -167,10 +160,7 @@ open class MainActivity : Activity() {
             // The WebView may have navigated away while the Android permission dialog was open.
             android.util.Log.w(TAG, "WebView media permission request became stale", error)
         } finally {
-            if (pendingMediaPermissionRequest === request) {
-                pendingMediaPermissionRequest = null
-                pendingMediaAndroidPermissions = emptyArray()
-            }
+            pendingMediaPermissionRequests.remove(request)
         }
     }
 
@@ -182,17 +172,43 @@ open class MainActivity : Activity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != MEDIA_PERMISSION_REQUEST_CODE) return
-        val request = pendingMediaPermissionRequest ?: return
-        val allGranted = pendingMediaAndroidPermissions.all {
-            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+        mediaPermissionDialogOpen = false
+        val requests = pendingMediaPermissionRequests.toList()
+        pendingMediaPermissionRequests.clear()
+        val retryPermissions = linkedSetOf<String>()
+        var denied = false
+        requests.forEach { request ->
+            val required = buildList {
+                if (PermissionRequest.RESOURCE_AUDIO_CAPTURE in request.resources) add(Manifest.permission.RECORD_AUDIO)
+                if (PermissionRequest.RESOURCE_VIDEO_CAPTURE in request.resources) add(Manifest.permission.CAMERA)
+            }
+            val missing = required.filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
+            when {
+                required.isEmpty() -> try { request.deny() } catch (_: Exception) { }
+                missing.isEmpty() -> grantWebMediaPermission(request)
+                missing.any { it !in permissions } -> {
+                    pendingMediaPermissionRequests.add(request)
+                    retryPermissions.addAll(missing.filter { it !in permissions })
+                }
+                else -> {
+                    denied = true
+                    try { request.deny() } catch (_: Exception) { }
+                }
+            }
         }
-        if (allGranted) grantWebMediaPermission(request)
-        else {
-            try { request.deny() } catch (_: Exception) { }
-            pendingMediaPermissionRequest = null
-            pendingMediaAndroidPermissions = emptyArray()
-            showMediaPermissionSettingsPrompt()
+        if (retryPermissions.isNotEmpty()) {
+            mediaPermissionDialogOpen = true
+            try {
+                ActivityCompat.requestPermissions(this, retryPermissions.toTypedArray(), MEDIA_PERMISSION_REQUEST_CODE)
+            } catch (error: Exception) {
+                android.util.Log.e(TAG, "Could not request remaining Android media permissions", error)
+                pendingMediaPermissionRequests.forEach { pending -> try { pending.deny() } catch (_: Exception) { } }
+                pendingMediaPermissionRequests.clear()
+                mediaPermissionDialogOpen = false
+                denied = true
+            }
         }
+        if (denied) showMediaPermissionSettingsPrompt()
     }
 
     private fun showMediaPermissionSettingsPrompt() {
@@ -329,11 +345,9 @@ open class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
-        pendingMediaPermissionRequest?.let { request ->
-            try { request.deny() } catch (_: Exception) { }
-        }
-        pendingMediaPermissionRequest = null
-        pendingMediaAndroidPermissions = emptyArray()
+        pendingMediaPermissionRequests.forEach { request -> try { request.deny() } catch (_: Exception) { } }
+        pendingMediaPermissionRequests.clear()
+        mediaPermissionDialogOpen = false
         if (::webView.isInitialized) {
             webView.stopLoading()
             webView.destroy()
