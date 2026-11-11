@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Flag, UserX } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Flag, UserX, Bookmark } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { FeedPost, toggleLike, deletePost } from "@/hooks/usePosts";
 import { CommentsSheet } from "./CommentsSheet";
 import { ReportDialog } from "./ReportDialog";
@@ -51,6 +52,36 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [saved, setSaved] = useState(false);
+  const [saveBusy, setSaveBusy] = useState(false);
+
+  useEffect(() => {
+    if (!user) { setSaved(false); return; }
+    let active = true;
+    void (supabase.from("post_saves" as any).select("post_id").eq("post_id", post.id).eq("user_id", user.id).maybeSingle() as any)
+      .then(({ data, error }: { data: unknown; error: unknown }) => {
+        if (active && !error) setSaved(Boolean(data));
+      });
+    return () => { active = false; };
+  }, [post.id, user?.id]);
+
+  const handleSave = async () => {
+    if (!user || saveBusy) return;
+    setSaveBusy(true);
+    try {
+      if (saved) {
+        const { error } = await (supabase.from("post_saves" as any).delete().eq("post_id", post.id).eq("user_id", user.id) as any);
+        if (error) throw error;
+        setSaved(false);
+      } else {
+        const { error } = await (supabase.from("post_saves" as any).insert({ post_id: post.id, user_id: user.id }) as any);
+        if (error) throw error;
+        setSaved(true);
+      }
+    } catch (error) {
+      toast({ title: "Could not update saved posts", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    } finally { setSaveBusy(false); }
+  };
   const storedMediaItems = Array.isArray(post.media_items)
     ? post.media_items.filter((item): item is { url: string; type: string; alt_text?: string | null } =>
         typeof item === "object" && item !== null && "url" in item && typeof item.url === "string" && "type" in item && typeof item.type === "string")
@@ -158,7 +189,8 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
           <MessageCircle className="w-6 h-6" />
           <span className="text-sm font-medium">{post.comment_count}</span>
         </button>
-        <button onClick={handleShare} className="text-foreground hover:text-primary transition-colors ml-auto"><Share2 className="w-5 h-5" /></button>
+        <button onClick={handleShare} className="text-foreground hover:text-primary transition-colors ml-auto" aria-label="Share post"><Share2 className="w-5 h-5" /></button>
+        <button onClick={handleSave} disabled={!user || saveBusy} aria-label={saved ? "Remove saved post" : "Save post"} aria-pressed={saved} className="text-foreground hover:text-primary transition-colors disabled:opacity-40"><Bookmark className={`w-5 h-5 ${saved ? "fill-current text-primary" : ""}`} /></button>
       </div>
 
       {post.location_name && <p className="px-4 pb-2 text-xs text-muted-foreground">📍 {post.location_name}</p>}
