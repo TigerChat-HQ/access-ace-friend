@@ -111,13 +111,22 @@ export function simulatePoolShot(source:PoolState,actorId:string,opponentId:stri
  }
  if(!foulReason&&firstContact!==null&&pocketed.length===0&&railsAfterContact===0)foulReason="no_rail_or_pocket";
  if(state.breakPending&&pocketed.length===0&&totalRails<4&&!foulReason)foulReason="illegal_break";
+ if(state.mode==="nine_ball"&&pocketed.includes(9)&&foulReason){
+  const nineBall=state.balls.find(b=>b.id===9);
+  if(nineBall){
+   const candidates=[[.84,.5],[.84,.47],[.84,.53],[.84,.44],[.84,.56],[.8,.5],[.8,.46],[.8,.54],[.76,.5]];
+   const spot=candidates.find(([x,y])=>state.balls.every(b=>b.id===9||b.pocketed||Math.hypot(b.x-x,b.y-y)>R*2.1))??[.9,.5];
+   nineBall.x=spot[0];nineBall.y=spot[1];nineBall.pocketed=false;nineBall.vx=0;nineBall.vy=0;
+  }
+  pocketed.splice(pocketed.indexOf(9),1);
+ }
  const eightPocketed=state.mode==="eight_ball"&&pocketed.includes(8);
  if(eightPocketed&&state.breakPending){
   const eight=state.balls.find(b=>b.id===8);
   if(eight){eight.pocketed=false;eight.x=.5;eight.y=.5;}
   pocketed.splice(pocketed.indexOf(8),1);
  }
- if(!foulReason&&state.mode==="eight_ball"&&!state.groups[actorId]){
+ if(!foulReason&&state.mode==="eight_ball"&&!state.breakPending&&!state.groups[actorId]){
   const firstGroup=pocketed.map(id=>state.balls.find(b=>b.id===id)).find(b=>!!b&&!!ballGroup(b));
   const group=firstGroup?ballGroup(firstGroup):null;
   if(group){state.groups[actorId]=group;state.groups[opponentId]=group==="solids"?"stripes":"solids";}

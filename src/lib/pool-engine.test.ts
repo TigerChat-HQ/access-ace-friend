@@ -26,6 +26,21 @@ describe("authoritative Pool engine", () => {
     expect(result.foulReason).toBe("scratch");
     expect(result.state.ballInHandFor).toBe("p2");
   });
+  it("respot 9-ball when the 9 is pocketed on a foul", () => {
+    const state = createInitialPoolState("nine_ball", "p1", "p2");
+    const cue = state.balls.find(ball => ball.id === 0)!;
+    const nine = state.balls.find(ball => ball.id === 9)!;
+    state.balls = [cue, nine, { ...state.balls.find(ball => ball.id === 1)!, x: 0.52, y: 0.5 }];
+    cue.x = 0.5; cue.y = 0.14; nine.x = 0.5; nine.y = 0.12;
+    const result = simulatePoolShot(state, "p1", "p2", { angle: -Math.PI / 2, power: 100, requestId: "nine-scratch" });
+    expect(result.foul).toBe(true);
+    expect(result.state.balls.find(ball => ball.id === 9)?.pocketed).toBe(false);
+  });
+  it("does not assign 8-ball groups on the break", () => {
+    const state = createInitialPoolState("eight_ball", "p1", "p2");
+    expect(state.groups.p1).toBeNull();
+    expect(state.groups.p2).toBeNull();
+  });
   it("requires valid ball-in-hand placement", () => {
     const state = createInitialPoolState("eight_ball", "p1", "p2");
     state.ballInHandFor = "p1";

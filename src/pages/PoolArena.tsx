@@ -85,7 +85,7 @@ export default function PoolArena(){
   const cue=next.find(b=>b.id===0);if(!cue||cue.pocketed)return;
   const speed=shotPower/100*.026;cue.vx=Math.cos(shotAngle)*speed;cue.vy=Math.sin(shotAngle)*speed;
   ballsRef.current=next;setBalls(next);setMoving(true);setShots(s=>s+1);setMessage("Shot inachezwa…");
- },[moving,ballInHand,opponent,playerTurn,sound,angle,power,onlineRoom?.status,submitOnlineShot]);
+ },[moving,ballInHand,opponent,playerTurn,sound,angle,power,onlineRoom,submitOnlineShot]);
  useEffect(()=>{
   if(!moving||onlineRoom?.status==="active")return;
   let frame=0;let raf=0;let last=performance.now();
