@@ -14,15 +14,15 @@ const signaturePart = (value: string) => value
   .toLowerCase()
   .replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ":uuid")
   .replace(/0x[0-9a-f]+/gi, ":hex")
-  .replace(/\\b[0-9]{4,}\\b/g, ":number")
-  .replace(/([?&](?:token|code|id|session)=)[^&\\s]+/gi, "$1[redacted]")
-  .replace(/\\s+/g, " ")
+  .replace(/\b[0-9]{4,}\b/g, ":number")
+  .replace(/([?&](?:token|code|id|session)=)[^&\s]+/gi, "$1[redacted]")
+  .replace(/\s+/g, " ")
   .trim();
 const diagnosticSignature = async (record: Record<string, unknown>) => {
   const stack = typeof record.stack === "string"
-    ? record.stack.split("\\n").slice(0, 5).map((line) => line.replace(/:\\d+:\\d+/g, ":#:#")).join("\\n")
+    ? record.stack.split("\n").slice(0, 5).map((line) => line.replace(/:\d+:\d+/g, ":#:#")).join("\n")
     : "";
-  const route = typeof record.route === "string" ? record.route.replace(/\\/[0-9a-f-]{8,}/gi, "/:id").replace(/\\/\\d+(?=\\/|$)/g, "/:id") : "";
+  const route = typeof record.route === "string" ? record.route.replace(/\/[0-9a-f-]{8,}/gi, "/:id").replace(/\/\d+(?=\/|$)/g, "/:id") : "";
   const canonical = [
     record.source, record.category, record.title, record.component_name,
     route, record.message, stack,
