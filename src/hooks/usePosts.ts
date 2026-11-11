@@ -158,7 +158,11 @@ export const useUserPosts = (userId: string | undefined) => {
   const { user } = useAuth();
 
   const fetch = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) {
+      setPosts([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const { data: collaborations } = await supabase.rpc("get_profile_collaboration_post_ids" as any, { _profile_id: userId } as any) as any;
     const collaborationIds = (collaborations || []).map((row: { post_id: string }) => row.post_id);
