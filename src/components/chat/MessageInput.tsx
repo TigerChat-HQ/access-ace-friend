@@ -10,7 +10,6 @@ import { toast } from "sonner";
 import { VoiceRecorder } from "./VoiceRecorder";
 import { Message } from "@/types/chat";
 import { cn } from "@/lib/utils";
-import { useKeyboardAwareInput } from "@/hooks/useKeyboardAwareInput";
 
 interface MessageInputProps {
   onSend: (text: string) => void;
@@ -32,7 +31,7 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const inputRef = useKeyboardAwareInput<HTMLInputElement>();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [contactOpen, setContactOpen] = useState(false);
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
