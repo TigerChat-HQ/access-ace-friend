@@ -48,7 +48,8 @@ const Feed = () => {
           <Link to="/reels" aria-label="Tiger Reels" className="tiger-header-action-compact hover:text-primary"><Clapperboard className="w-5 h-5" /></Link>
           <Link to="/creator" aria-label="Professional dashboard" className="tiger-header-action-compact hover:text-primary"><BarChart3 className="w-5 h-5" /></Link>
           <Link to="/create" aria-label="Create post" className="tiger-header-action-compact hover:text-primary"><PlusSquare className="w-5 h-5" /></Link>
-          <Link to="/saved" aria-label="Saved posts" className="tiger-header-action-compact hover:text-primary"><Bookmark className="w-5 h-5" /></Link>\n          <Link to="/notifications" aria-label="Notifications" className="tiger-header-action-compact hover:text-primary"><Bell className="w-5 h-5" /></Link>
+          <Link to="/saved" aria-label="Saved posts" className="tiger-header-action-compact hover:text-primary"><Bookmark className="w-5 h-5" /></Link>
+          <Link to="/notifications" aria-label="Notifications" className="tiger-header-action-compact hover:text-primary"><Bell className="w-5 h-5" /></Link>
           <Link to="/settings" aria-label="Settings" className="tiger-header-action-compact hover:text-primary"><SettingsIcon className="w-5 h-5" /></Link>
         </div>
       </header>
