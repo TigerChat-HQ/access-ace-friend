@@ -64,12 +64,22 @@ export const PostMediaEditorDialog = ({ postId, initialItems, initialAudioUrl, i
         const url = await upload(file);
         updated.push({ url, type: file.type.startsWith("video/") ? "video" : "image", alt_text: null });
       }
+      let audioUrl = initialAudioUrl || null;
+      let audioTitle = initialAudioTitle || null;
+      if (removeAudio) { audioUrl = null; audioTitle = null; }
+      else if (audioFile) { audioUrl = await upload(audioFile); audioTitle = audioFile.name; }
+      let coverUrl = initialCoverUrl || null;
+      if (removeCover) coverUrl = null;
+      else if (coverFile) coverUrl = await upload(coverFile);
       const first = updated[0];
       const { error } = await (supabase as any).from("posts").update({
         media_items: updated,
         media_url: first.url,
         media_type: first.type,
         alt_text: first.alt_text || null,
+        post_audio_url: audioUrl,
+        post_audio_title: audioTitle,
+        post_cover_url: coverUrl,
       }).eq("id", postId).eq("user_id", user.id);
       if (error) throw error;
       toast({ title: "Post media updated" });
