@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Bookmark } from "lucide-react";
+import { ArrowLeft, Bookmark, FolderOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { PostCard } from "@/components/social/PostCard";
@@ -17,7 +17,7 @@ const SavedPosts = () => {
     const { data: saves } = await (supabase.from("post_saves" as any).select("post_id, created_at").eq("user_id", user.id).order("created_at", { ascending: false }) as any);
     const ids = (saves || []).map((row: { post_id: string }) => row.post_id);
     if (!ids.length) { setPosts([]); setLoading(false); return; }
-    const { data } = await supabase.from("posts").select("*").in("id", ids);
+    const { data } = await supabase.from("posts").select("*").in("id", ids).is("archived_at", null);
     const visible = data || [];
     if (!visible.length) { setPosts([]); setLoading(false); return; }
     const postIds = visible.map((post) => post.id);
@@ -43,7 +43,7 @@ const SavedPosts = () => {
   useEffect(() => { void load(); }, [user?.id]);
 
   return <div className="flex h-full flex-col bg-background">
-    <header className="tiger-page-header gap-3"><Link to="/" className="tiger-header-action" aria-label="Back"><ArrowLeft className="h-5 w-5" /></Link><h1 className="text-sm font-semibold">Saved posts</h1></header>
+    <header className="tiger-page-header gap-3"><Link to="/" className="tiger-header-action" aria-label="Back"><ArrowLeft className="h-5 w-5" /></Link><h1 className="flex-1 text-sm font-semibold">Saved posts</h1><Link to="/saved/collections" className="tiger-header-action" aria-label="Saved collections"><FolderOpen className="h-5 w-5" /></Link></header>
     <div className="flex-1 overflow-y-auto">{loading ? <div className="py-20 text-center text-sm text-muted-foreground">Loading saved posts…</div> : posts.length ? posts.map((post) => <PostCard key={post.id} post={post} onChanged={load} />) : <div className="px-6 py-20 text-center"><Bookmark className="mx-auto mb-3 h-10 w-10 text-muted-foreground" /><p className="font-semibold">No saved posts yet</p><p className="mt-1 text-sm text-muted-foreground">Tap the bookmark icon on a post to keep it here.</p></div>}</div>
   </div>;
 };
