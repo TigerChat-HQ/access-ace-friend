@@ -145,7 +145,7 @@ DECLARE v_user uuid; v_result text; v_coins integer; v_balance bigint; v_stats p
  v_season uuid; v_wins integer; v_streak integer; v_achievement record; v_achievement_id uuid;
  v_period date; v_mission record; v_is_pvp boolean;
 BEGIN
- IF OLD.status='finished' OR NEW.status<>'finished' OR NEW.winner NOT IN ('white','black','draw') THEN RETURN NEW; END IF;
+ IF OLD.status='finished' OR NEW.status<>'finished' OR NEW.winner IS NULL OR NEW.winner NOT IN ('white','black','draw') THEN RETURN NEW; END IF;
  IF NEW.player_white IS NULL THEN RETURN NEW; END IF;
  v_is_pvp := NOT NEW.vs_ai AND NEW.player_black IS NOT NULL;
  SELECT id INTO v_season FROM public.draughts_seasons WHERE is_active ORDER BY starts_at DESC LIMIT 1;
@@ -180,6 +180,18 @@ BEGIN
       CASE WHEN v_is_pvp AND v_result='win' THEN draughts_player_stats.current_streak+1 ELSE draughts_player_stats.current_streak END),
     updated_at=now()
    RETURNING * INTO v_stats;
+
+   -- One-time bonuses when a player reaches a 3- or 5-win streak.
+   IF v_is_pvp AND v_result='win' AND v_stats.current_streak IN (3,5) THEN
+     v_coins := CASE v_stats.current_streak WHEN 3 THEN 20 ELSE 50 END;
+     INSERT INTO public.draughts_wallets(user_id,balance,lifetime_earned) VALUES(v_user,0,0)
+       ON CONFLICT(user_id) DO NOTHING;
+     UPDATE public.draughts_wallets SET balance=balance+v_coins,lifetime_earned=lifetime_earned+v_coins,updated_at=now()
+       WHERE user_id=v_user RETURNING balance INTO v_balance;
+     INSERT INTO public.draughts_coin_ledger(user_id,amount,balance_after,reason,source_type,source_id)
+       VALUES(v_user,v_coins,v_balance,'Win streak bonus: '||v_stats.current_streak,'streak',NEW.id)
+       ON CONFLICT DO NOTHING;
+   END IF;
 
    v_period := (now() AT TIME ZONE 'Africa/Dar_es_Salaam')::date;
    FOR v_mission IN SELECT * FROM public.draughts_mission_catalog WHERE is_enabled LOOP
@@ -301,3 +313,43 @@ DROP TRIGGER IF EXISTS draughts_tournament_coin_award ON public.draughts_tournam
 CREATE TRIGGER draughts_tournament_coin_award AFTER UPDATE OF status ON public.draughts_tournaments
  FOR EACH ROW EXECUTE FUNCTION public.award_draughts_tournament_coins();
 REVOKE ALL ON FUNCTION public.award_draughts_tournament_coins() FROM PUBLIC,anon,authenticated;
+
+
+-- Immutable per-move snapshots enable match replay for the two participants.
+CREATE TABLE IF NOT EXISTS public.draughts_match_moves (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ match_id uuid NOT NULL REFERENCES public.draft_matches(id) ON DELETE CASCADE,
+ revision integer NOT NULL CHECK (revision > 0),
+ player_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+ move jsonb NOT NULL,
+ board jsonb NOT NULL,
+ created_at timestamptz NOT NULL DEFAULT now(),
+ UNIQUE(match_id,revision)
+);
+CREATE INDEX IF NOT EXISTS draughts_match_moves_match_revision
+ ON public.draughts_match_moves(match_id,revision);
+ALTER TABLE public.draughts_match_moves ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Match participants can read their Draughts replays" ON public.draughts_match_moves;
+CREATE POLICY "Match participants can read their Draughts replays" ON public.draughts_match_moves
+ FOR SELECT TO authenticated USING (
+  EXISTS (SELECT 1 FROM public.draft_matches m WHERE m.id=match_id
+   AND ((select auth.uid())=m.player_white OR (select auth.uid())=m.player_black))
+ );
+GRANT SELECT ON public.draughts_match_moves TO authenticated;
+REVOKE INSERT,UPDATE,DELETE ON public.draughts_match_moves FROM anon,authenticated;
+
+CREATE OR REPLACE FUNCTION public.capture_draughts_match_move()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE v_player uuid;
+BEGIN
+ IF NEW.revision<=OLD.revision OR NEW.last_move IS NULL THEN RETURN NEW; END IF;
+ v_player := CASE WHEN OLD.current_turn='w' THEN OLD.player_white ELSE OLD.player_black END;
+ INSERT INTO public.draughts_match_moves(match_id,revision,player_id,move,board)
+ VALUES(NEW.id,NEW.revision,v_player,NEW.last_move,NEW.board)
+ ON CONFLICT(match_id,revision) DO NOTHING;
+ RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS draft_match_capture_replay_move ON public.draft_matches;
+CREATE TRIGGER draft_match_capture_replay_move AFTER UPDATE OF revision,last_move,board ON public.draft_matches
+ FOR EACH ROW EXECUTE FUNCTION public.capture_draughts_match_move();
+REVOKE ALL ON FUNCTION public.capture_draughts_match_move() FROM PUBLIC,anon,authenticated;
