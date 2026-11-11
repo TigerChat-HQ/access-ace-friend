@@ -515,6 +515,27 @@ const Draughts = () => {
     if (!accepting) toast({ title: "Draw offered", description: "Your opponent can accept the draw." });
   };
 
+  const rematch = async () => {
+    if (!match || !user || creating) return;
+    setCreating(true);
+    try {
+      const { data, error } = await supabase.rpc("create_draft_match", { p_vs_ai: match.vs_ai });
+      if (error || !data) throw error ?? new Error("Could not create the rematch.");
+      setMatch(data as unknown as MatchRow);
+      setSelected(null);
+      setFlipBoard(null);
+      setMode(match.vs_ai ? "ai" : "pvp");
+      toast({
+        title: match.vs_ai ? "New AI match ready" : "Rematch room created",
+        description: match.vs_ai ? "A fresh game against Tiger AI has started." : "Share the new room code with your previous opponent to play again.",
+      });
+    } catch (error) {
+      toast({ title: "Rematch unavailable", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const shareMatch = async () => {
     if (!match) return;
     const url = `${window.location.origin}/draughts?match=${match.id}`;
@@ -562,9 +583,12 @@ const Draughts = () => {
           </button>
         )}
         {match.status === "finished" && (
-          <Button size="sm" onClick={exitMatch}>
-            <RotateCw className="w-3.5 h-3.5 mr-1" /> New game
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={exitMatch}>Menu</Button>
+            <Button size="sm" onClick={rematch} disabled={creating}>
+              <RotateCw className="w-3.5 h-3.5 mr-1" /> {creating ? "Preparing…" : "Rematch"}
+            </Button>
+          </div>
         )}
       </header>
 
