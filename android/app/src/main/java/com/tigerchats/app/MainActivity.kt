@@ -329,8 +329,15 @@ open class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
-        pendingMediaPermissionRequest?.let { try { it.deny() } catch (_: Exception) { } }
+        pendingMediaPermissionRequest?.let { request ->
+            try { request.deny() } catch (_: Exception) { }
+        }
         pendingMediaPermissionRequest = null
+        pendingMediaAndroidPermissions = emptyArray()
+        if (::webView.isInitialized) {
+            webView.stopLoading()
+            webView.destroy()
+        }
         super.onDestroy()
     }
 
