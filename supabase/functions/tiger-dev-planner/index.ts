@@ -208,7 +208,7 @@ async function createCodeChange(task: Record<string, unknown>) {
       body: `## Tiger AI proposed fix\n\nTask: ${String(task.title ?? "task")}\n\n${String(task.summary ?? "")}\n\nThis is an AI-generated draft. Review every changed line and wait for CI/security checks. It has not been merged or deployed.\n\nFiles: ${safeChanges.map((c) => c.path).join(", ")}`,
     }),
   });
-  return { url: pr.html_url, number: pr.number, files: safeChanges.map((c) => c.path), branch, draft: true };
+  return { url: pr.html_url, number: pr.number, files: safeChanges.map((c) => c.path), branch, draft: false };
 }
 
 
@@ -253,6 +253,9 @@ Deno.serve(async (req) => {
       if (typeof body.diagnostic_id !== "string") return json({ error: "Invalid diagnostic ID" }, 400);
       const { data: diagnostic, error: diagnosticError } = await sb.from("app_diagnostics").select("*").eq("id", body.diagnostic_id).single();
       if (diagnosticError || !diagnostic) return json({ error: "Diagnostic not found" }, 404);
+      const { data: reporterRoles } = await sb.from("user_roles").select("role").eq("user_id", u.user.id);
+      const isAdmin = (reporterRoles || []).some((r) => ["admin", "superior_admin"].includes(r.role));
+      if (diagnostic.reporter_id !== u.user.id && !isAdmin) return json({ error: "You may only process diagnostics you reported." }, 403);
       if (diagnostic.ai_task_id || ["pr_open", "fixed", "ignored"].includes(diagnostic.ai_status)) return json({ ok: true, skipped: "already_processed" });
       await sb.from("app_diagnostics").update({ ai_status: "processing" }).eq("id", diagnostic.id);
       try {
