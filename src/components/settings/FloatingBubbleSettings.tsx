@@ -107,6 +107,7 @@ export const FloatingBubbleSettings = () => {
         <input type="checkbox" checked={prefs.snap} onChange={(e) => updatePrefs({ snap: e.target.checked })} />
         Snap to nearest screen edge after dragging
       </label>
+      {typeof window !== "undefined" && typeof window.TigerNative?.openMessageBubbleSettings === "function" && <button type="button" onClick={() => window.TigerNative?.openMessageBubbleSettings?.()} className="w-full rounded-lg border border-border px-3 py-2 text-left text-xs font-medium text-foreground hover:bg-muted">Manage Android system notification bubbles…</button>}
       <button type="button" onClick={reset} className="rounded-lg border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-muted">Reset bubble settings</button>
     </section>
   );
