@@ -68,7 +68,7 @@ describe("Pool competitive rules and shot replay", () => {
     const state = createInitialPoolState("eight_ball", "p1", "p2");
     const result = simulatePoolShot(state, "p1", "p2", { angle: 0, power: 60, requestId: "replay-1" });
     expect(result.trajectory[0].balls.find(ball => ball.id === 0)?.x).toBeGreaterThan(0.22);
-    expect(result.trajectory.at(-1)?.balls.find(ball => ball.id === 0)?.pocketed).toBe(false);
+    expect(result.trajectory[result.trajectory.length - 1]?.balls.find(ball => ball.id === 0)?.pocketed).toBe(false);
   });
   it("does not allow the 8-ball to be legally pocketed on the break", () => {
     const state = createInitialPoolState("eight_ball", "p1", "p2");
