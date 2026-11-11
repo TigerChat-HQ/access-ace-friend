@@ -386,7 +386,7 @@ const Profile = () => {
               {posts.map((p) => (
                 <Link key={p.id} to={`/post/${p.id}`} className="aspect-square bg-muted relative overflow-hidden">
                   {p.pinned_at && <span className="absolute right-1 top-1 z-10 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-semibold text-white">PINNED</span>}
-                  {p.archived_at && isMe && <span className="absolute left-1 top-1 z-10 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-semibold text-white">ARCHIVED</span>}
+                  {p.archived_at && isMe && <span className="absolute left-1 top-1 z-10 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-semibold text-white">ARCHIVED</span>}{p.is_collaboration && <span className="absolute left-1 bottom-1 z-10 rounded bg-primary/90 px-1.5 py-0.5 text-[9px] font-semibold text-primary-foreground">COLLAB</span>}
                   {p.media_url && p.media_type === "image" ? (
                     <img src={p.media_url} alt="" className="w-full h-full object-cover" loading="lazy" />
                   ) : p.media_url && p.media_type === "video" ? (
