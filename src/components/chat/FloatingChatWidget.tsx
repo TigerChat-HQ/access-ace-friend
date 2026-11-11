@@ -9,6 +9,8 @@ const EDGE_GAP = 8;
 const POSITION_KEY = "tigerchat-floating-bubble-position";
 const PREFS_KEY = "tigerchat-floating-bubble-prefs";
 const HIDDEN_KEY = "tigerchat-floating-bubble-hidden";
+const ENABLED_KEY = "tigerchat-floating-bubble-enabled";
+const BUBBLE_SETTINGS_EVENT = "tigerchat:bubble-settings-changed";
 type BubblePrefs = { size: "small" | "normal" | "large"; color: "primary" | "blue" | "purple" | "orange"; shape: "circle" | "rounded"; opacity: 70 | 85 | 100; snap: boolean };
 const DEFAULT_PREFS: BubblePrefs = { size: "normal", color: "primary", shape: "circle", opacity: 100, snap: true };
 const bubbleSizes = { small: 48, normal: 56, large: 66 };
@@ -25,6 +27,7 @@ const clampPosition = (position: BubblePosition, size = BUBBLE_SIZE): BubblePosi
  */
 export const FloatingChatWidget = ({ unreadMessages = 0 }: { unreadMessages?: number }) => {
   const [open, setOpen] = useState(false);
+  const [enabled, setEnabled] = useState(() => { try { return window.localStorage.getItem(ENABLED_KEY) !== "false"; } catch { return true; } });
   const [position, setPosition] = useState<BubblePosition | null>(null);
   const [prefs, setPrefs] = useState<BubblePrefs>(() => { try { return { ...DEFAULT_PREFS, ...JSON.parse(window.localStorage.getItem(PREFS_KEY) || "{}") }; } catch { return DEFAULT_PREFS; } });
   const [showBubbleSettings, setShowBubbleSettings] = useState(false);
@@ -67,6 +70,18 @@ export const FloatingChatWidget = ({ unreadMessages = 0 }: { unreadMessages?: nu
 
   useEffect(() => { try { window.localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* storage may be unavailable */ } }, [prefs]);
   useEffect(() => { try { window.localStorage.setItem(HIDDEN_KEY, String(launcherHidden)); } catch { /* storage may be unavailable */ } }, [launcherHidden]);
+  useEffect(() => {
+    const sync = () => {
+      try {
+        setEnabled(window.localStorage.getItem(ENABLED_KEY) !== "false");
+        setPrefs({ ...DEFAULT_PREFS, ...JSON.parse(window.localStorage.getItem(PREFS_KEY) || "{}") });
+        setLauncherHidden(window.localStorage.getItem(HIDDEN_KEY) === "true");
+      } catch { /* ignore unavailable storage */ }
+    };
+    window.addEventListener(BUBBLE_SETTINGS_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => { window.removeEventListener(BUBBLE_SETTINGS_EVENT, sync); window.removeEventListener("storage", sync); };
+  }, []);
   useEffect(() => { setPosition((current) => current ? clampPosition(current, bubbleSize) : current); }, [bubbleSize]);
 
   // The embedded chat route hides this launcher to prevent recursive iframes.
@@ -142,7 +157,7 @@ export const FloatingChatWidget = ({ unreadMessages = 0 }: { unreadMessages?: nu
               TigerChat
             </div>
             <div className="flex items-center gap-1">
-              <button type="button" onClick={() => setShowBubbleSettings((value) => !value)} aria-label="Bubble customization" title="Bubble settings" className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><Settings className="h-4 w-4" /></button>
+              <button type="button" onClick={() => navigate("/settings")} aria-label="Bubble settings in General Settings" title="Bubble settings" className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><Settings className="h-4 w-4" /></button>
               <button
                 type="button"
                 onClick={openFullChat}
@@ -162,8 +177,7 @@ export const FloatingChatWidget = ({ unreadMessages = 0 }: { unreadMessages?: nu
               </button>
             </div>
           </header>
-          {showBubbleSettings && <div className="shrink-0 border-b border-border/70 bg-card p-3 text-xs"><div className="mb-2 flex items-center justify-between"><strong>Floating bubble</strong><div className="flex items-center gap-3"><div className="flex items-center gap-3"><button type="button" onClick={() => { setPrefs(DEFAULT_PREFS); setPosition(null); try { window.localStorage.removeItem(POSITION_KEY); } catch { /* storage may be unavailable */ } }} className="text-primary">Reset</button><button type="button" onClick={() => { setLauncherHidden(true); setOpen(false); setShowBubbleSettings(false); }} className="text-destructive">Hide bubble</button></div></div></div><div className="mb-3 flex items-center gap-2"><span className="w-16 text-muted-foreground">Size</span>{(["small", "normal", "large"] as const).map((size) => <button key={size} type="button" onClick={() => setPrefs((p) => ({ ...p, size }))} aria-pressed={prefs.size === size} className={`rounded-lg border px-2 py-1 capitalize ${prefs.size === size ? "border-primary text-primary" : "border-border"}`}>{size}</button>)}</div><div className="mb-3 flex items-center gap-2"><span className="w-16 text-muted-foreground">Color</span>{(Object.keys(bubbleColors) as Array<keyof typeof bubbleColors>).map((color) => <button key={color} type="button" onClick={() => setPrefs((p) => ({ ...p, color }))} aria-label={color} aria-pressed={prefs.color === color} className={`h-6 w-6 rounded-full ${bubbleColors[color]} ${prefs.color === color ? "ring-2 ring-foreground ring-offset-2 ring-offset-card" : ""}`} />)}</div><div className="mb-3 flex flex-wrap items-center gap-2"><span className="w-16 text-muted-foreground">Shape</span>{(["circle", "rounded"] as const).map((shape) => <button key={shape} type="button" onClick={() => setPrefs((p) => ({ ...p, shape }))} aria-pressed={prefs.shape === shape} className={`border px-3 py-1 ${shape === "circle" ? "rounded-full" : "rounded-lg"} ${prefs.shape === shape ? "border-primary text-primary" : "border-border"}`}>{shape}</button>)}<span className="ml-2 text-muted-foreground">Opacity</span>{([100, 85, 70] as const).map((opacity) => <button key={opacity} type="button" onClick={() => setPrefs((p) => ({ ...p, opacity }))} aria-pressed={prefs.opacity === opacity} className={`rounded border px-2 py-1 ${prefs.opacity === opacity ? "border-primary text-primary" : "border-border"}`}>{opacity}%</button>)}</div><label className="flex items-center gap-2"><input type="checkbox" checked={prefs.snap} onChange={(event) => setPrefs((p) => ({ ...p, snap: event.target.checked }))} /> Snap bubble to nearest screen edge after dragging</label>{typeof window.TigerNative?.openMessageBubbleSettings === "function" && <button type="button" onClick={() => window.TigerNative?.openMessageBubbleSettings?.()} className="mt-3 w-full rounded-lg border border-border px-3 py-2 text-left text-xs font-medium hover:bg-muted">Manage Android notification bubbles…</button>}</div>}
-          <iframe
+                    <iframe
             title="TigerChat conversations"
             src="/chats?bubble=1"
             className="min-h-0 w-full flex-1 border-0 bg-background"
@@ -172,7 +186,7 @@ export const FloatingChatWidget = ({ unreadMessages = 0 }: { unreadMessages?: nu
         </section>
       )}
 
-      {!launcherHidden ? <button
+      {enabled && !launcherHidden ? <button
         type="button"
         onPointerDown={startDrag}
         onPointerMove={moveDrag}
