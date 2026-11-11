@@ -13,7 +13,7 @@ import {
   ArrowLeft, Camera, User, Bell, Shield, Palette, LogOut, MessageCircle,
   ChevronRight, Moon, Sun, Globe, Lock, Fingerprint, Mail, Volume2, Smartphone, Download, KeyRound, Copy, Gauge, RotateCcw,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAppLock, isWebAuthnSupported } from "@/hooks/useAppLock";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 import { TwoFactorSecurity } from "@/components/TwoFactorSecurity";
@@ -61,6 +61,7 @@ const Settings = () => {
   const { theme, toggleTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const isNativeAndroid = typeof window !== "undefined" && typeof window.TigerNative?.getFcmToken === "function";
   const [displayName, setDisplayName] = useState("");
@@ -68,6 +69,10 @@ const Settings = () => {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  useEffect(() => {
+    const requestedSection = (location.state as { section?: string } | null)?.section;
+    if (requestedSection === "general") setActiveSection("general");
+  }, [location.state]);
   const [dataSaver, setDataSaver] = useState(() => { try { return localStorage.getItem("tigerchats:data-saver") === "true"; } catch { return false; } });
   const updateDataSaver = (enabled: boolean) => { setDataSaver(enabled); try { localStorage.setItem("tigerchats:data-saver", String(enabled)); } catch { /* storage may be unavailable */ } };
   const [notifications, setNotifications] = useState(() => isNativeAndroid ? (window.TigerNative?.areNotificationsEnabled?.() ?? false) : user ? isPushEnabled(user.id) : false);
