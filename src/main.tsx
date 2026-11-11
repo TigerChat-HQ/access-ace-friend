@@ -2,23 +2,29 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 
-// Register Service Worker for PWA Add to Home Screen & push notifications
+// Register the PWA worker after first paint so installation does not compete
+// with React startup and the first screen becoming interactive.
 if (
   typeof window !== "undefined" &&
   "serviceWorker" in navigator &&
   window.location.protocol.startsWith("http") &&
   !window.frameElement
 ) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker
-      .register("/sw.js")
-      .then((reg) => {
-        // SW registered successfully
-      })
-      .catch((err) => {
-        console.warn("ServiceWorker registration skipped or failed:", err);
-      });
-  });
+  const registerWorker = () => {
+    window.setTimeout(() => {
+      navigator.serviceWorker
+        .register("/sw.js")
+        .catch((err) => {
+          console.warn("ServiceWorker registration skipped or failed:", err);
+        });
+    }, 1200);
+  };
+
+  if (document.readyState === "complete") {
+    registerWorker();
+  } else {
+    window.addEventListener("load", registerWorker, { once: true });
+  }
 }
 
 const root = document.getElementById("root");
