@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Bug, RefreshCw, Loader2, Send, Database, CheckCircle2, AlertTriangle, Copy, Bell, GitPullRequest, Check } from "lucide-react";
+import { Bug, RefreshCw, Loader2, Send, Database, CheckCircle2, AlertTriangle, Copy, Bell, GitPullRequest, Check, Camera, Mic, Download } from "lucide-react";
 
 type AdminDiagnosticNotice = { id: string; diagnostic_id: string | null; task_id: string | null; notification_type: string; title: string; message: string; pr_url: string | null; is_read: boolean; created_at: string };
 type Diagnostic = {
@@ -44,6 +44,9 @@ export const AdminDiagnostics = () => {
   const [suggestion, setSuggestion] = useState("");
   const [statusFilter, setStatusFilter] = useState("active");
   const [schemaResults, setSchemaResults] = useState<{name:string;status:"ok"|"missing"|"error";detail?:string}[]>([]);
+  const [mediaBusy, setMediaBusy] = useState<"camera"|"microphone"|null>(null);
+  const [mediaResults, setMediaResults] = useState<Record<string, string>>({});
+  const [backupBusy, setBackupBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -119,6 +122,61 @@ export const AdminDiagnostics = () => {
     setChecking(false);
     await load();
     toast({ title: "Database check complete", description: `${results.length - missing.length - failures.length} OK · ${missing.length} missing · ${failures.length} access/errors` });
+  };
+
+  const testMediaPermission = async (kind: "camera" | "microphone") => {
+    setMediaBusy(kind);
+    let permissionState = "unsupported";
+    let deviceCount = 0;
+    let outcome = "failed";
+    let detail = "";
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error("MediaDevices.getUserMedia haipatikani kwenye WebView/browser hii.");
+      try {
+        const permission = await navigator.permissions.query({ name: kind } as PermissionDescriptor);
+        permissionState = permission.state;
+      } catch { permissionState = "query_unsupported"; }
+      const stream = await navigator.mediaDevices.getUserMedia(kind === "camera" ? { video: true, audio: false } : { audio: true, video: false });
+      deviceCount = stream.getTracks().length;
+      stream.getTracks().forEach(track => track.stop());
+      outcome = "passed";
+      detail = `${kind} imefunguka na track ${deviceCount}; permission kabla ya test: ${permissionState}`;
+    } catch (error) {
+      const name = error instanceof DOMException ? error.name : "UnknownError";
+      detail = `${name}: ${error instanceof Error ? error.message : String(error)}; permission: ${permissionState}`;
+    }
+    setMediaResults(current => ({ ...current, [kind]: `${outcome.toUpperCase()} — ${detail}` }));
+    await record({
+      source: "media_permission_diagnostics", severity: outcome === "passed" ? "low" : "high",
+      category: kind === "camera" ? "camera_permission" : "microphone_permission",
+      title: `${kind === "camera" ? "Camera" : "Microphone"} permission test ${outcome}`,
+      message: detail, route: window.location.pathname, component: "AdminDiagnostics",
+      suggestion: outcome === "passed" ? "Media capture ilifanya kazi kwenye WebView hii wakati wa test." : "Kagua Android runtime permission, WebView PermissionRequest grant, origin salama, MainActivity na kama floating/overlay WebView inajaribu media capture.",
+      metadata: { permissionState, deviceCount, userAgent: navigator.userAgent, secureContext: window.isSecureContext, mediaDevicesAvailable: Boolean(navigator.mediaDevices), webView: /; wv\)|Android.*Version\//i.test(navigator.userAgent) },
+    });
+    setMediaBusy(null);
+    await load();
+  };
+
+  const exportDiagnosticsBackup = async () => {
+    setBackupBusy(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Ingia kwanza ili kuhifadhi nakala.");
+      const { data, error } = await (supabase as any).from("app_diagnostics").select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      const backup = { format: "tigerchat-diagnostics-backup", version: 1, created_at: new Date().toISOString(), record_count: (data ?? []).length, records: data ?? [] };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `tigerchat-diagnostics-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Diagnostics backup imehifadhiwa", description: `${backup.record_count} records zimepakuliwa kama JSON.` });
+    } catch (error) {
+      toast({ title: "Backup imeshindikana", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    } finally { setBackupBusy(false); }
   };
 
   const submitSuggestion = async () => {
@@ -197,6 +255,22 @@ export const AdminDiagnostics = () => {
       <div className="rounded-lg border border-border bg-card p-3"><p className="text-xs text-muted-foreground">Open issues</p><p className="text-xl font-bold">{items.filter(x=>x.status==="new"||x.status==="investigating").length}</p></div>
     </div>
     <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+    <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+      <h4 className="text-sm font-semibold flex items-center gap-2"><Camera className="h-4 w-4"/> Full Voice & Camera diagnostics</h4>
+      <p className="text-xs text-muted-foreground">Vipimo huanzishwa tu ukibonyeza. Mfumo hukagua permission state na kujaribu kufungua kifaa ndani ya WebView; stream hufungwa mara moja baada ya test.</p>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="outline" onClick={() => void testMediaPermission("microphone")} disabled={mediaBusy !== null}>{mediaBusy === "microphone" ? <Loader2 className="mr-1 h-4 w-4 animate-spin"/> : <Mic className="mr-1 h-4 w-4"/>}Test microphone</Button>
+        <Button size="sm" variant="outline" onClick={() => void testMediaPermission("camera")} disabled={mediaBusy !== null}>{mediaBusy === "camera" ? <Loader2 className="mr-1 h-4 w-4 animate-spin"/> : <Camera className="mr-1 h-4 w-4"/>}Test camera</Button>
+      </div>
+      {Object.entries(mediaResults).map(([kind, result]) => <p key={kind} className="break-words rounded border border-border p-2 text-xs"><strong className="capitalize">{kind}:</strong> {result}</p>)}
+      <p className="text-[11px] text-muted-foreground">Matokeo yanarekodiwa kwenye Diagnostics Center pamoja na Android/WebView context. Jaribu ukiwa ndani ya app kuu; floating chat inaweza kutumia WebView tofauti.</p>
+    </div>
+    <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+      <h4 className="text-sm font-semibold flex items-center gap-2"><Download className="h-4 w-4"/> Diagnostics backup</h4>
+      <p className="text-xs text-muted-foreground">Pakua nakala ya rekodi zote za diagnostics zinazoonekana kwa admin kama JSON ili ziweze kuhifadhiwa nje ya app.</p>
+      <Button size="sm" variant="outline" onClick={() => void exportDiagnosticsBackup()} disabled={backupBusy}>{backupBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin"/> : <Download className="mr-1 h-4 w-4"/>}Download diagnostics backup</Button>
+      <p className="text-[11px] text-muted-foreground">Hii ni backup ya diagnostics pekee, si full database/media backup ya watumiaji. Full database backups na point-in-time recovery husimamiwa kupitia mipangilio ya Supabase project.</p>
+    </div>
       <h4 className="text-sm font-semibold flex items-center gap-2"><Database className="h-4 w-4"/> Database schema check</h4>
       <p className="text-xs text-muted-foreground">Checks the app's registered tables. Permission/RLS failures are reported separately from missing tables.</p>
       <Button size="sm" onClick={() => void runSchemaCheck()} disabled={checking}>{checking ? <Loader2 className="mr-1 h-4 w-4 animate-spin"/> : <Database className="mr-1 h-4 w-4"/>}Scan database tables</Button>
