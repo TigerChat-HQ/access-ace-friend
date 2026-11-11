@@ -121,8 +121,15 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     private fun showMessageNotification(title: String, body: String, path: String, allowReply: Boolean) {
+        val conversationId = conversationShortcutId(path)?.removePrefix("tiger-chat-")
         val openIntent = Intent(this, MainActivity::class.java)
             .putExtra("path", path)
+            .apply {
+                if (conversationId != null) {
+                    action = Intent.ACTION_VIEW
+                    data = Uri.parse("tigerchats://chat?c=$conversationId")
+                }
+            }
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         val contentPendingIntent = PendingIntent.getActivity(
             this,
