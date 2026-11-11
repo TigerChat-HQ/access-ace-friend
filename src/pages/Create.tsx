@@ -144,10 +144,19 @@ const Create = () => {
     setLoading(true);
     try {
       const mediaPaths: string[] = [];
+      let primaryMediaPath: string | null = null;
+      const extraImagePaths: string[] = [];
       if (file) {
-        const path = user.id + "/" + crypto.randomUUID() + "-" + file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-        const { error } = await supabase.storage.from("post-drafts").upload(path, file);
+        primaryMediaPath = user.id + "/" + crypto.randomUUID() + "-" + file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+        const { error } = await supabase.storage.from("post-drafts").upload(primaryMediaPath, file);
         if (error) throw error;
+        mediaPaths.push(primaryMediaPath);
+      }
+      for (const extraFile of extraImageFiles) {
+        const path = user.id + "/" + crypto.randomUUID() + "-" + extraFile.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+        const { error } = await supabase.storage.from("post-drafts").upload(path, extraFile);
+        if (error) throw error;
+        extraImagePaths.push(path);
         mediaPaths.push(path);
       }
       let musicPath: string | null = null;
@@ -160,7 +169,7 @@ const Create = () => {
       const editorState = {
         filter, overlay, rotation, brightness, contrast, saturation, aspectRatio, sticker,
         audience, allowComments, locationName, altText, scheduledAt,
-        taggedUsers, mediaType: isVideo ? "video" : isImage ? "image" : "text", musicPath,
+        taggedUsers, mediaType: isVideo ? "video" : isImage ? "image" : "text", musicPath, primaryMediaPath, extraImagePaths,
       };
       const { error } = await supabase.from("post_drafts").insert({ user_id: user.id, caption, editor_state: editorState, media_paths: mediaPaths });
       if (error) throw error;
@@ -190,7 +199,7 @@ const Create = () => {
       setAltText(typeof state.altText === "string" ? state.altText : "");
       setScheduledAt(typeof state.scheduledAt === "string" ? state.scheduledAt : "");
       setTaggedUsers(Array.isArray(state.taggedUsers) ? state.taggedUsers as typeof taggedUsers : []);
-      const mediaPath = draft.media_paths.find((path) => !path.includes("-audio-"));
+      const mediaPath = typeof state.primaryMediaPath === "string" ? state.primaryMediaPath : null;
       if (mediaPath) {
         const { data, error } = await supabase.storage.from("post-drafts").createSignedUrl(mediaPath, 300);
         if (error) throw error;
@@ -199,6 +208,15 @@ const Create = () => {
         const restored = new File([blob], mediaPath.split("/").pop() || "draft-media", { type: blob.type });
         onFile(restored);
       } else onFile(null);
+      const restoredExtraPaths = Array.isArray(state.extraImagePaths) ? state.extraImagePaths.filter((path): path is string => typeof path === "string") : [];
+      const restoredExtras = await Promise.all(restoredExtraPaths.map(async (path) => {
+        const { data, error } = await supabase.storage.from("post-drafts").createSignedUrl(path, 300);
+        if (error) throw error;
+        const response = await fetch(data.signedUrl);
+        const blob = await response.blob();
+        return new File([blob], path.split("/").pop() || "draft-photo", { type: blob.type });
+      }));
+      setExtraImageFiles(restoredExtras);
       setCaption(draft.caption);
       setFilter(typeof state.filter === "string" ? state.filter : "none");
       setOverlay(typeof state.overlay === "string" ? state.overlay : "");
