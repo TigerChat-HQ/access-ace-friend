@@ -361,7 +361,8 @@ const Draughts = () => {
           )}
           {mode === "pvp" && !match && (
             <>
-              <Button onClick={quickMatch} disabled={creating} className="w-full">Quick Match · Find opponent</Button>\n              <Button onClick={createPvP} disabled={creating} className="w-full">
+              <Button onClick={quickMatch} disabled={creating} className="w-full">Quick Match · Find opponent</Button>
+              <Button onClick={createPvP} disabled={creating} className="w-full">
                 {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create new match"}
               </Button>
               <div className="flex gap-2">
