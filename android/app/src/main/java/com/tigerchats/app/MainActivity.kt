@@ -60,6 +60,7 @@ open class MainActivity : Activity() {
                 super.onPageFinished(view, url)
                 if (Uri.parse(url).host != Uri.parse(siteUrl).host) return
                 pageLoaded = true
+                applyNativeViewportHeight(view)
                 applyPendingPath(view)
                 deliverPendingQuickReply(view)
             }
@@ -112,6 +113,10 @@ open class MainActivity : Activity() {
         }
         webView.addJavascriptInterface(NativeBridge(), "TigerNative")
         setContentView(webView)
+        // Use Android's measured WebView height as the authoritative viewport while the IME resizes the Activity.
+        webView.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+            applyNativeViewportHeight(view)
+        }
         pendingPath = safePath(intent?.getStringExtra("path"))
         pendingQuickReply = intent?.getStringExtra(EXTRA_QUICK_REPLY)
         webView.loadUrl(siteUrl + "/")
@@ -177,6 +182,19 @@ open class MainActivity : Activity() {
             .show()
     }
 
+    private fun applyNativeViewportHeight(view: WebView) {
+        val heightDp = view.height / resources.displayMetrics.density
+        if (heightDp <= 0f) return
+        val height = String.format(java.util.Locale.US, "%.2f", heightDp)
+        view.post {
+            if (!isFinishing && !isDestroyed) {
+                view.evaluateJavascript(
+                    "document.documentElement.style.setProperty('--tiger-viewport-height', '" + height + "px')",
+                    null,
+                )
+            }
+        }
+    }
     private fun deliverPendingQuickReply(view: WebView) {
         val reply = pendingQuickReply?.takeIf { it.isNotBlank() } ?: return
         val conversationId = Regex("[?&]c=([0-9a-fA-F-]{36})")
