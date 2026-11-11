@@ -42,10 +42,9 @@ export const useChatPreferences = (conversationId: string | null) => {
   }, [user, conversationId]);
 
   const save = async (next: Partial<ChatPrefs>) => {
-    if (!user || !conversationId) return;
+    if (!user || !conversationId) return { error: new Error("A conversation must be open.") };
     const merged = { ...prefs, ...next };
-    setPrefs(merged);
-    await db.from("chat_preferences").upsert(
+    const { error } = await db.from("chat_preferences").upsert(
       {
         user_id: user.id,
         conversation_id: conversationId,
@@ -54,6 +53,8 @@ export const useChatPreferences = (conversationId: string | null) => {
       },
       { onConflict: "user_id,conversation_id" }
     );
+    if (!error) setPrefs(merged);
+    return { error };
   };
 
   return { prefs, loading, save };
