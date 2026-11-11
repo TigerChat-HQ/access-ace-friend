@@ -55,6 +55,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
   const [reportOpen, setReportOpen] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [collaborationOpen, setCollaborationOpen] = useState(false);
+  const [collaboratorNames, setCollaboratorNames] = useState<string[]>([]);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const touchStartX = useRef<number | null>(null);
   const [saved, setSaved] = useState(false);
@@ -65,6 +66,18 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
   const [audienceDraft, setAudienceDraft] = useState(post.audience || "public");
   const [editingCaption, setEditingCaption] = useState(false);
   const [postActionBusy, setPostActionBusy] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const { data: rows } = await (supabase as any).from("post_collaborators").select("invitee_id").eq("post_id", post.id).eq("status", "accepted");
+      const ids = (rows || []).map((row: { invitee_id: string }) => row.invitee_id);
+      if (!ids.length) { if (active) setCollaboratorNames([]); return; }
+      const { data: profiles } = await supabase.from("profiles").select("username,display_name").in("user_id", ids);
+      if (active) setCollaboratorNames((profiles || []).map(profile => profile.username || profile.display_name || "user"));
+    })();
+    return () => { active = false; };
+  }, [post.id]);
 
   useEffect(() => {
     if (!user) { setSaved(false); return; }
@@ -181,6 +194,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
           </DropdownMenuContent>
         </DropdownMenu>
       </header>
+      {collaboratorNames.length > 0 && <p className="px-4 pb-2 text-xs text-muted-foreground">With {collaboratorNames.map(name => `@${name}`).join(", ")}</p>}
 
       {post.media_url && post.media_type === "image" && (
         <div className="relative" onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }} onTouchEnd={(event) => { if (touchStartX.current === null || mediaItems.length < 2) return; const delta = event.changedTouches[0].clientX - touchStartX.current; if (Math.abs(delta) > 45) setCarouselIndex((index) => (index + (delta < 0 ? 1 : -1) + mediaItems.length) % mediaItems.length); touchStartX.current = null; }}>
