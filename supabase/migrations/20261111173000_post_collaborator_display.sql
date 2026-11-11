@@ -17,6 +17,12 @@ AS $$
     AND (p.scheduled_at IS NULL OR p.scheduled_at <= now())
     AND (
       p.user_id = auth.uid()
+      OR EXISTS (
+        SELECT 1 FROM public.post_collaborators viewer_pc
+        WHERE viewer_pc.post_id = p.id
+          AND viewer_pc.invitee_id = auth.uid()
+          AND viewer_pc.status = 'accepted'
+      )
       OR p.audience = 'public'
       OR (
         p.audience = 'followers'
