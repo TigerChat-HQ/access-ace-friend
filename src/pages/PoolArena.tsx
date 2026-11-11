@@ -18,14 +18,15 @@ const rack = (mode: Mode = "eight"): Ball[] => {
 const pockets=[[.035,.075],[.5,.075],[.965,.075],[.035,.925],[.5,.925],[.965,.925]];
 const clamp=(n:number,a:number,b:number)=>Math.max(a,Math.min(b,n));
 
+const playPoolTone=(frequency:number)=>{const AudioContextCtor=window.AudioContext;if(!AudioContextCtor)return;const context=new AudioContextCtor();const oscillator=context.createOscillator();const gain=context.createGain();oscillator.frequency.value=frequency;gain.gain.setValueAtTime(.035,context.currentTime);gain.gain.exponentialRampToValueAtTime(.001,context.currentTime+.12);oscillator.connect(gain);gain.connect(context.destination);oscillator.onended=()=>{void context.close();};oscillator.start();oscillator.stop(context.currentTime+.13);};
+
 export default function PoolArena(){
  const nav=useNavigate(); const [balls,setBalls]=useState<Ball[]>(rack); const ballsRef=useRef(balls); const [mode,setMode]=useState<Mode>("eight"); const [power,setPower]=useState(48); const [angle,setAngle]=useState(0); const [moving,setMoving]=useState(false);  const [shots,setShots]=useState(0); const [pocketed,setPocketed]=useState<number[]>([]); const [sound,setSound]=useState(true); const [camera,setCamera]=useState<"top"|"angle">("angle"); const [message,setMessage]=useState("Panga cue direction kisha bonyeza SHOOT."); const [aim,setAim]=useState({x:.22,y:.5}); const [showRules,setShowRules]=useState(false);
  useEffect(()=>{ballsRef.current=balls;},[balls]);
  const reset=useCallback((nextMode:Mode=mode)=>{const next=rack(nextMode);ballsRef.current=next;setBalls(next);setMoving(false);setShots(0);setPocketed([]);setAngle(0);setMessage("Meza imeandaliwa. Wewe unaanza.");},[mode]);
- const playPoolTone=(frequency:number)=>{if(!sound)return;const AudioContextCtor=window.AudioContext;if(!AudioContextCtor)return;const context=new AudioContextCtor();const oscillator=context.createOscillator();const gain=context.createGain();oscillator.frequency.value=frequency;gain.gain.setValueAtTime(.035,context.currentTime);gain.gain.exponentialRampToValueAtTime(.001,context.currentTime+.12);oscillator.connect(gain);gain.connect(context.destination);oscillator.onended=()=>{void context.close();};oscillator.start();oscillator.stop(context.currentTime+.13);};
  const shoot=()=>{
   if(moving)return;
-  playPoolTone(170);
+  if(sound)playPoolTone(170);
   const next=ballsRef.current.map(b=>({...b}));
   const cue=next.find(b=>b.id===0);if(!cue||cue.pocketed)return;
   const speed=power/100*.026;cue.vx=Math.cos(angle)*speed;cue.vy=Math.sin(angle)*speed;
@@ -44,7 +45,7 @@ export default function PoolArena(){
    for(let i=0;i<next.length;i++){const a=next[i];if(a.pocketed)continue;for(let j=i+1;j<next.length;j++){const b=next[j];if(b.pocketed)continue;const dx=b.x-a.x,dy=b.y-a.y,dist=Math.hypot(dx,dy),min=.027;if(dist>0&&dist<min){const nx=dx/dist,ny=dy/dist,overlap=(min-dist)/2;a.x-=nx*overlap;a.y-=ny*overlap;b.x+=nx*overlap;b.y+=ny*overlap;const rel=(a.vx-b.vx)*nx+(a.vy-b.vy)*ny;if(rel>0){a.vx-=rel*nx*.96;a.vy-=rel*ny*.96;b.vx+=rel*nx*.96;b.vy+=rel*ny*.96;}}}}
    const newly:number[]=[];
    for(const b of next){if(b.pocketed)continue;const hole=pockets.find(([x,y])=>Math.hypot(b.x-x,b.y-y)<.041);if(hole){if(b.id===0){b.pocketed=true;newly.push(0);}else{b.pocketed=true;newly.push(b.id);}}}
-   if(newly.length){if(newly.some(n=>n!==0))playPoolTone(520);setPocketed(p=>[...p,...newly.filter(n=>n!==0)]);if(newly.includes(0)){const cue=next.find(b=>b.id===0)!;cue.pocketed=false;cue.x=.22;cue.y=.5;cue.vx=0;cue.vy=0;setMessage("Scratch! Cue ball imerudi kwenye nafasi ya kuanzia.");}}
+   if(newly.length){if(sound&&newly.some(n=>n!==0))playPoolTone(520);setPocketed(p=>[...p,...newly.filter(n=>n!==0)]);if(newly.includes(0)){const cue=next.find(b=>b.id===0)!;cue.pocketed=false;cue.x=.22;cue.y=.5;cue.vx=0;cue.vy=0;setMessage("Scratch! Cue ball imerudi kwenye nafasi ya kuanzia.");}}
    ballsRef.current=next;setBalls(next);frame++;
    if(active&&frame<1200){raf=requestAnimationFrame(tick);}else{setMoving(false);setTurn("you");if(!newly.includes(0)&&newly.some(n=>n!==0))setMessage("Mpira umeingia! Endelea na shot inayofuata.");else if(!newly.length)setMessage("Zamu yako. Rekebisha angle na power.");}
   };
