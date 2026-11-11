@@ -14,6 +14,26 @@ type DiagnosticInput = {
 };
 
 const recent = new Map<string, number>();
+const signaturePart = (value: string) => value
+  .toLowerCase()
+  .replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ":uuid")
+  .replace(/0x[0-9a-f]+/gi, ":hex")
+  .replace(/\b[0-9]{4,}\b/g, ":number")
+  .replace(/([?&](?:token|code|id|session)=)[^&\s]+/gi, "$1[redacted]")
+  .replace(/\s+/g, " ")
+  .trim();
+const diagnosticSignature = async (record: Record<string, unknown>) => {
+  const stack = typeof record.stack === "string"
+    ? record.stack.split("\n").slice(0, 5).map((line) => line.replace(/:\d+:\d+/g, ":#:#")).join("\n")
+    : "";
+  const route = typeof record.route === "string" ? record.route.replace(/\/[0-9a-f-]{8,}/gi, "/:id").replace(/\/\d+(?=\/|$)/g, "/:id") : "";
+  const canonical = [
+    record.source, record.category, record.title, record.component_name,
+    route, record.message, stack,
+  ].map((value) => signaturePart(String(value ?? ""))).join("|");
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+  return "sha256:" + Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+};
 const safeText = (value: string, max = 8000) => value.replace(/(Bearer\s+)[^\s]+/gi, "$1[REDACTED]").replace(/(access_token|refresh_token|password|authorization)(\s*[:=]\s*)[^&\s,]+/gi, "$1$2[REDACTED]").slice(0, max);
 
 export async function reportDiagnostic(input: DiagnosticInput) {
@@ -21,15 +41,7 @@ export async function reportDiagnostic(input: DiagnosticInput) {
     const error = input.error;
     const message = safeText(input.message || (error instanceof Error ? error.message : String((error as { message?: unknown })?.message ?? error ?? "Unknown error")));
     const stack = error instanceof Error && error.stack ? safeText(error.stack) : null;
-    const key = [input.source || "feature", input.component || "", input.title, message].join("|");
-    const now = Date.now();
-    if (now - (recent.get(key) || 0) < 15000) return;
-    recent.set(key, now);
-    if (recent.size > 250) recent.clear();
-    const { data: { user } } = await supabase.auth.getUser();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- app_diagnostics exists in production; generated Supabase types are not refreshed.
-    const { data: inserted, error: insertError } = await (supabase as any).from("app_diagnostics").insert({
-      reporter_id: user?.id ?? null,
+    const record = {
       source: input.source || "feature_handler",
       severity: input.severity || "high",
       category: input.category || "runtime",
@@ -41,14 +53,25 @@ export async function reportDiagnostic(input: DiagnosticInput) {
       stack,
       suggestion: input.suggestion || null,
       metadata: input.metadata || {},
-      error_signature: key,
-      last_seen_at: new Date().toISOString(),
-    }).select("id").single();
+    };
+    const signature = await diagnosticSignature(record);
+    const key = signature;
+    const now = Date.now();
+    if (now - (recent.get(key) || 0) < 15000) return;
+    recent.set(key, now);
+    if (recent.size > 250) recent.clear();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    // Database-side upsert is atomic across browser tabs and devices.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC is defined by the diagnostics deduplication migration.
+    const { data: rows, error: insertError } = await (supabase as any).rpc("report_app_diagnostic", {
+      p_record: record,
+      p_signature: signature,
+    });
+    const inserted = Array.isArray(rows) ? rows[0] : rows;
     if (insertError) {
       console.warn("Diagnostics report could not be saved:", insertError.message);
-    } else if (inserted?.id) {
-      // Fire-and-forget: the secured Edge Function triages the error and may
-      // create a reviewed GitHub PR. Runtime reporting must never block the UI.
+    } else if (inserted?.id && inserted.ai_status === "queued") {
       void supabase.functions.invoke("tiger-dev-planner", {
         body: { action: "process_diagnostic", diagnostic_id: inserted.id },
       }).catch((automationError) => console.warn("Tiger AI diagnostics handoff failed:", automationError));
