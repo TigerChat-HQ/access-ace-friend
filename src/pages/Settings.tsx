@@ -69,7 +69,6 @@ const Settings = () => {
   const [dataSaver, setDataSaver] = useState(() => { try { return localStorage.getItem("tigerchats:data-saver") === "true"; } catch { return false; } });
   const updateDataSaver = (enabled: boolean) => { setDataSaver(enabled); try { localStorage.setItem("tigerchats:data-saver", String(enabled)); } catch { /* storage may be unavailable */ } };
   const [notifications, setNotifications] = useState(() => isNativeAndroid ? (window.TigerNative?.areNotificationsEnabled?.() ?? false) : user ? isPushEnabled(user.id) : false);
-  const [backgroundChatBubble, setBackgroundChatBubble] = useState(() => window.TigerNative?.isChatOverlayEnabled?.() ?? false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -92,30 +91,14 @@ const Settings = () => {
   useEffect(() => {
     setNotificationPrefs(getNotificationPreferences(user?.id));
     const refreshPushState = () => setNotifications(isNativeAndroid ? (window.TigerNative?.areNotificationsEnabled?.() ?? false) : user ? isPushEnabled(user.id) : false);
-    const refreshOverlayState = () => setBackgroundChatBubble(window.TigerNative?.isChatOverlayEnabled?.() ?? false);
     refreshPushState();
-    refreshOverlayState();
     window.addEventListener("focus", refreshPushState);
-    window.addEventListener("focus", refreshOverlayState);
     document.addEventListener("visibilitychange", refreshPushState);
-    document.addEventListener("visibilitychange", refreshOverlayState);
     return () => {
       window.removeEventListener("focus", refreshPushState);
-      window.removeEventListener("focus", refreshOverlayState);
       document.removeEventListener("visibilitychange", refreshPushState);
-      document.removeEventListener("visibilitychange", refreshOverlayState);
     };
   }, [user?.id, isNativeAndroid]);
-
-  const updateBackgroundChatBubble = (enabled: boolean) => {
-    if (!isNativeAndroid || !window.TigerNative?.setChatOverlayEnabled) {
-      toast({ title: "Android APK inahitajika", description: "Bubble ya juu ya apps nyingine inapatikana kwenye APK ya Android.", variant: "destructive" });
-      return;
-    }
-    window.TigerNative.setChatOverlayEnabled(enabled);
-    setBackgroundChatBubble(enabled);
-    if (enabled) toast({ title: "Background chat bubble imewashwa", description: "Ruhusu Display over other apps kwenye ukurasa wa Android utakaofunguka." });
-  };
 
   const updateNotificationPreference = (patch: Partial<NotificationPreferences>) => {
     setNotificationPrefs(saveNotificationPreferences(user?.id, patch));
