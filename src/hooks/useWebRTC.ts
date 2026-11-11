@@ -196,19 +196,50 @@ export const useWebRTC = () => {
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error("Simu/WebView hii haitoi huduma ya microphone na camera. Hakikisha unatumia toleo jipya la TigerChats.");
     }
+
+    const preferred: MediaStreamConstraints = {
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      video: video ? { facingMode: facingRef.current, width: { ideal: 1280 }, height: { ideal: 720 } } : false,
+    };
     try {
-      return await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-        video: video ? { facingMode: facingRef.current, width: { ideal: 1280 }, height: { ideal: 720 } } : false,
+      return await navigator.mediaDevices.getUserMedia(preferred);
+    } catch (firstError) {
+      const name = firstError instanceof DOMException ? firstError.name : "";
+      // Android WebView device drivers can reject processing/size constraints or fail
+      // to start capture with NotReadableError even when native permissions are granted.
+      // Retry once with the least restrictive capture request; never retry permission denials.
+      const retryable = [
+        "OverconstrainedError",
+        "ConstraintNotSatisfiedError",
+        "NotReadableError",
+        "TrackStartError",
+        "AbortError",
+      ].includes(name);
+      if (!retryable) throw firstError;
+
+      console.warn("Media capture failed with preferred constraints; retrying Android WebView defaults:", {
+        errorName: name,
+        video,
+        userAgent: navigator.userAgent,
       });
-    } catch (error) {
-      // Some Android WebView camera drivers reject optional processing/size constraints.
-      // Retry once with browser defaults; permission denials are not retried.
-      const name = error instanceof DOMException ? error.name : "";
-      if (name === "OverconstrainedError" || name === "ConstraintNotSatisfiedError") {
-        return navigator.mediaDevices.getUserMedia({ audio: true, video: video ? true : false });
+      try {
+        return await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: video ? true : false,
+        });
+      } catch (retryError) {
+        console.error("Media capture retry also failed:", {
+          firstError,
+          retryError,
+          audioInputs: await navigator.mediaDevices.enumerateDevices()
+            .then((devices) => devices.filter((device) => device.kind === "audioinput").length)
+            .catch(() => -1),
+          videoInputs: await navigator.mediaDevices.enumerateDevices()
+            .then((devices) => devices.filter((device) => device.kind === "videoinput").length)
+            .catch(() => -1),
+        });
+        throw retryError;
       }
-      throw error;
     }
   };
 
