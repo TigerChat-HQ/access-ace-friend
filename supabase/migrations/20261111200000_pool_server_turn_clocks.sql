@@ -76,7 +76,7 @@ GRANT EXECUTE ON FUNCTION public.pool_commit_server_shot(uuid,uuid,integer,jsonb
 
 CREATE OR REPLACE FUNCTION public.pool_check_timeout(p_match_id uuid)
 RETURNS public.pool_matches
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$1
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
   v_match public.pool_matches%ROWTYPE;
   v_elapsed bigint;
   v_one bigint;
