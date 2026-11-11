@@ -9,6 +9,8 @@ import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -27,6 +29,7 @@ import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
+import android.webkit.PermissionRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.core.view.ViewCompat
@@ -36,6 +39,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import androidx.core.app.RemoteInput
 import java.net.HttpURLConnection
 import java.net.URL
@@ -320,7 +324,31 @@ class TigerChatOverlayService : Service() {
             settings.domStorageEnabled = true
             settings.databaseEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
-            webChromeClient = WebChromeClient()
+            webChromeClient = object : WebChromeClient() {
+                override fun onPermissionRequest(request: PermissionRequest) {
+                    mainHandler.post {
+                        val origin = request.origin
+                        if (origin.scheme != "https" || origin.host != "tigerchat-hq.onrender.com") {
+                            request.deny()
+                            return@post
+                        }
+                        val allowed = request.resources.filter { resource ->
+                            when (resource) {
+                                PermissionRequest.RESOURCE_AUDIO_CAPTURE ->
+                                    ContextCompat.checkSelfPermission(this@TigerChatOverlayService, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+                                PermissionRequest.RESOURCE_VIDEO_CAPTURE ->
+                                    ContextCompat.checkSelfPermission(this@TigerChatOverlayService, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                                else -> false
+                            }
+                        }.toTypedArray()
+                        try {
+                            if (allowed.isNotEmpty()) request.grant(allowed) else request.deny()
+                        } catch (error: Exception) {
+                            android.util.Log.w("TigerChatOverlay", "WebView media permission request failed", error)
+                        }
+                    }
+                }
+            }
             isFocusable = true
             isFocusableInTouchMode = true
             webViewClient = object : WebViewClient() {
