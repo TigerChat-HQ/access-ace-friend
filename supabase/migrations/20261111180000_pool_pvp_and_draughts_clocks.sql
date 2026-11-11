@@ -32,7 +32,7 @@ GRANT SELECT ON public.pool_match_queue TO authenticated;
 CREATE OR REPLACE FUNCTION public.create_pool_room(
   p_mode text DEFAULT 'eight_ball',p_visibility text DEFAULT 'private',p_clock_seconds integer DEFAULT 600
 ) RETURNS public.pool_matches
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE v_user uuid := (select auth.uid()); v_match public.pool_matches%ROWTYPE;
 BEGIN
   IF v_user IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF;
@@ -48,7 +48,7 @@ END $$;
 
 CREATE OR REPLACE FUNCTION public.join_pool_room(p_match_id uuid,p_room_code text DEFAULT NULL)
 RETURNS public.pool_matches
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE v_user uuid := (select auth.uid()); v_match public.pool_matches%ROWTYPE;
 BEGIN
   IF v_user IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF;
@@ -62,7 +62,7 @@ BEGIN
 END $$;
 
 CREATE OR REPLACE FUNCTION public.enqueue_pool_match(p_mode text DEFAULT 'eight_ball',p_rating integer DEFAULT 1000,p_clock_seconds integer DEFAULT 600)
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE v_user uuid := (select auth.uid()); v_ticket uuid; v_candidate public.pool_match_queue%ROWTYPE; v_match public.pool_matches%ROWTYPE;
 BEGIN
   IF v_user IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF;
@@ -87,7 +87,7 @@ BEGIN
 END $$;
 
 CREATE OR REPLACE FUNCTION public.cancel_pool_match_queue()
-RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE v_user uuid := (select auth.uid()); v_count integer;
 BEGIN
   IF v_user IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF;
@@ -104,12 +104,12 @@ ALTER TABLE public.draughts_tournaments
   ADD COLUMN IF NOT EXISTS loss_points integer NOT NULL DEFAULT 0 CHECK (loss_points BETWEEN 0 AND 10),
   ADD COLUMN IF NOT EXISTS bye_points integer NOT NULL DEFAULT 3 CHECK (bye_points BETWEEN 0 AND 10),
   ADD COLUMN IF NOT EXISTS tie_breakers text[] NOT NULL DEFAULT ARRAY['head_to_head','wins','buchholz']::text[]
-    CHECK (cardinality(tie_breakers) BETWEEN 1 AND 5);
+    CHECK (cardinality(tie_breakers) BETWEEN 1 AND 5 AND tie_breakers <@ ARRAY['head_to_head','wins','buchholz','sonneborn_berger','rating']::text[]);
 
 CREATE OR REPLACE FUNCTION public.commit_draft_move(
   p_id uuid,p_revision integer,p_board jsonb,p_turn text,p_move jsonb,p_status text,p_winner text
 ) RETURNS public.draft_matches
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE
   v_match public.draft_matches%ROWTYPE; v_user uuid := (select auth.uid()); v_mover text;
   v_elapsed bigint; v_white bigint; v_black bigint; v_flag_winner text; v_expected text;
@@ -149,7 +149,7 @@ END $$;
 
 CREATE OR REPLACE FUNCTION public.join_pool_room_by_code(p_room_code text)
 RETURNS public.pool_matches
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $
 DECLARE v_user uuid := (select auth.uid()); v_match public.pool_matches%ROWTYPE;
 BEGIN
   IF v_user IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF;
@@ -163,7 +163,7 @@ BEGIN
 END $;
 
 CREATE OR REPLACE FUNCTION public.list_pool_public_rooms()
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $
 BEGIN
   IF (select auth.uid()) IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF;
   RETURN coalesce((SELECT jsonb_agg(jsonb_build_object(
@@ -184,7 +184,7 @@ CREATE POLICY "Pool participants read matches" ON public.pool_matches
 
 CREATE OR REPLACE FUNCTION public.claim_draughts_timeout(p_id uuid)
 RETURNS public.draft_matches
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $
 DECLARE
   v_match public.draft_matches%ROWTYPE;
   v_user uuid := (select auth.uid());
@@ -195,7 +195,7 @@ BEGIN
   IF NOT FOUND OR v_match.status<>'active' OR v_match.initial_clock_seconds IS NULL THEN
     RAISE EXCEPTION 'Timed match is unavailable';
   END IF;
-  IF v_user NOT IN (v_match.player_white,v_match.player_black) THEN RAISE EXCEPTION 'Match participant required'; END IF;
+  IF v_user IS NULL OR v_user NOT IN (v_match.player_white,v_match.player_black) THEN RAISE EXCEPTION 'Match participant required'; END IF;
   v_remaining:=CASE WHEN v_match.current_turn='w' THEN v_match.white_clock_ms ELSE v_match.black_clock_ms END;
   v_remaining:=v_remaining-greatest(0,(extract(epoch FROM (now()-coalesce(v_match.clock_started_at,now())))*1000)::bigint);
   IF v_remaining>0 THEN RAISE EXCEPTION 'Clock has not expired'; END IF;
