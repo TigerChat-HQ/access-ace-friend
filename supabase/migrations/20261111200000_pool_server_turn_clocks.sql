@@ -73,3 +73,39 @@ REVOKE ALL ON FUNCTION public.pool_commit_server_shot(uuid,uuid,integer,jsonb,uu
   FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.pool_commit_server_shot(uuid,uuid,integer,jsonb,uuid,text,uuid,text,jsonb)
   TO service_role;
+
+CREATE OR REPLACE FUNCTION public.pool_check_timeout(p_match_id uuid)
+RETURNS public.pool_matches
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $
+DECLARE
+  v_match public.pool_matches%ROWTYPE;
+  v_elapsed bigint;
+  v_one bigint;
+  v_two bigint;
+  v_actor_clock bigint;
+  v_opponent uuid;
+BEGIN
+  SELECT * INTO v_match FROM public.pool_matches WHERE id=p_match_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Pool match not found'; END IF;
+  IF v_match.status<>'active' OR v_match.clock_seconds IS NULL OR v_match.clock_started_at IS NULL
+    THEN RETURN v_match; END IF;
+  v_elapsed:=greatest(0,(extract(epoch FROM (now()-v_match.clock_started_at))*1000)::bigint);
+  v_one:=greatest(0,coalesce(v_match.player_one_clock_ms,v_match.clock_seconds::bigint*1000));
+  v_two:=greatest(0,coalesce(v_match.player_two_clock_ms,v_match.clock_seconds::bigint*1000));
+  IF v_match.current_turn=v_match.player_one THEN v_one:=greatest(0,v_one-v_elapsed);v_actor_clock:=v_one;
+  ELSIF v_match.current_turn=v_match.player_two THEN v_two:=greatest(0,v_two-v_elapsed);v_actor_clock:=v_two;
+  ELSE RETURN v_match; END IF;
+  IF v_actor_clock>0 THEN RETURN v_match; END IF;
+  v_opponent:=CASE WHEN v_match.current_turn=v_match.player_one THEN v_match.player_two ELSE v_match.player_one END;
+  UPDATE public.pool_matches SET status='finished',winner_id=v_opponent,current_turn=v_opponent,
+    finished_at=now(),clock_started_at=NULL,player_one_clock_ms=v_one,player_two_clock_ms=v_two,
+    revision=revision+1,updated_at=now()
+    WHERE id=p_match_id RETURNING * INTO v_match;
+  INSERT INTO public.pool_match_events(match_id,revision,actor_id,event_type,payload)
+    VALUES(v_match.id,v_match.revision,CASE WHEN v_opponent=v_match.player_one THEN v_match.player_two ELSE v_match.player_one END,
+      'timeout',jsonb_build_object('reason','clock_expired','winner_id',v_opponent));
+  RETURN v_match;
+END $;
+
+REVOKE ALL ON FUNCTION public.pool_check_timeout(uuid) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.pool_check_timeout(uuid) TO service_role;
