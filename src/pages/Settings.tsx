@@ -13,11 +13,12 @@ import {
   ArrowLeft, Camera, User, Bell, Shield, Palette, LogOut, MessageCircle,
   ChevronRight, Moon, Sun, Globe, Lock, Fingerprint, Mail, Volume2, Smartphone, Download, KeyRound, Copy, Gauge, RotateCcw,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAppLock, isWebAuthnSupported } from "@/hooks/useAppLock";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 import { TwoFactorSecurity } from "@/components/TwoFactorSecurity";
 import { ChatAppearanceSettings } from "@/components/settings/ChatAppearanceSettings";
+import { FloatingBubbleSettings } from "@/components/settings/FloatingBubbleSettings";
 import { AndroidUpdateChecker } from "@/components/AndroidUpdateChecker";
 import { disablePush, enablePush, isPushEnabled } from "@/lib/firebase-push";
 import { ringtoneOptions, getStoredRingtone, setStoredRingtone, playRingtone, type RingtoneId } from "@/lib/ringtones";
@@ -60,6 +61,7 @@ const Settings = () => {
   const { theme, toggleTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const isNativeAndroid = typeof window !== "undefined" && typeof window.TigerNative?.getFcmToken === "function";
   const [displayName, setDisplayName] = useState("");
@@ -67,6 +69,10 @@ const Settings = () => {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  useEffect(() => {
+    const requestedSection = (location.state as { section?: string } | null)?.section;
+    if (requestedSection === "general") setActiveSection("general");
+  }, [location.state]);
   const [dataSaver, setDataSaver] = useState(() => { try { return localStorage.getItem("tigerchats:data-saver") === "true"; } catch { return false; } });
   const updateDataSaver = (enabled: boolean) => { setDataSaver(enabled); try { localStorage.setItem("tigerchats:data-saver", String(enabled)); } catch { /* storage may be unavailable */ } };
   const [notifications, setNotifications] = useState(() => isNativeAndroid ? (window.TigerNative?.areNotificationsEnabled?.() ?? false) : user ? isPushEnabled(user.id) : false);
@@ -284,7 +290,7 @@ const Settings = () => {
   };
 
   const settingSections = [
-    { id: "general", icon: Gauge, label: "General settings", description: "Data Saver na matumizi ya mtandao" },
+    { id: "general", icon: Gauge, label: "General settings", description: "Bubble, Data Saver na matumizi ya mtandao" },
     { id: "profile", icon: User, label: t("editProfile"), description: t("nameDesc") },
     { id: "notifications", icon: Bell, label: t("notifications"), description: t("notifDesc") },
     { id: "privacy", icon: Shield, label: t("privacy"), description: t("privacyDesc") },
@@ -304,6 +310,7 @@ const Settings = () => {
         return (
           <div className="space-y-4 animate-fade-in">
             <div className="rounded-2xl border border-primary/20 bg-primary/5 px-3 py-1">
+              <FloatingBubbleSettings />
               <SettingToggle label="Data Saver Mode" description="Punguza ubora na ukubwa wa picha wakati wa kuzitazama ili kutumia data kidogo. Video zitapakia metadata tu hadi ubonyeze Play." value={dataSaver} onChange={updateDataSaver} icon={<Gauge className="w-5 h-5" />} />
             </div>
             <p className="text-xs text-muted-foreground">Mipangilio hii huhifadhiwa kwenye kifaa hiki. Zima Data Saver ili kurudi kwenye ubora wa kawaida.</p>
