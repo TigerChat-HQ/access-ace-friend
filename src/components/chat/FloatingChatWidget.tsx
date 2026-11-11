@@ -30,7 +30,6 @@ export const FloatingChatWidget = ({ unreadMessages = 0 }: { unreadMessages?: nu
   const [enabled, setEnabled] = useState(() => { try { return window.localStorage.getItem(ENABLED_KEY) !== "false"; } catch { return true; } });
   const [position, setPosition] = useState<BubblePosition | null>(null);
   const [prefs, setPrefs] = useState<BubblePrefs>(() => { try { return { ...DEFAULT_PREFS, ...JSON.parse(window.localStorage.getItem(PREFS_KEY) || "{}") }; } catch { return DEFAULT_PREFS; } });
-  const [showBubbleSettings, setShowBubbleSettings] = useState(false);
   const [launcherHidden, setLauncherHidden] = useState(() => { try { return window.localStorage.getItem(HIDDEN_KEY) === "true"; } catch { return false; } });
   const bubbleSize = bubbleSizes[prefs.size];
   const dragRef = useRef<{ pointerId: number; startX: number; startY: number; left: number; top: number; moved: boolean } | null>(null);
