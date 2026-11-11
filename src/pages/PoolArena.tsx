@@ -180,7 +180,7 @@ export default function PoolArena(){
   setOnlineRoom(data as PoolRoom);setOnlineNotice("Umejiunga. Inaunganisha hali ya mechi na engine ya server…");
  };
  const findOnlineOpponent=async()=>{
-  const {data,error}=await poolRpc("enqueue_pool_match",{p_mode:mode==="nine"?"nine_ball":"eight_ball",p_rating:1000,p_clock_seconds:600});
+  const {data,error}=await poolRpc("enqueue_pool_match",{p_mode:mode==="nine"?"nine_ball":"eight_ball",p_rating:poolRating?.rating??1000,p_clock_seconds:600});
   if(error){toast({title:"Matchmaking imeshindikana",description:error.message,variant:"destructive"});return;}
   const result=data as {status:string;queue_id?:string;match_id?:string};
   if(result.status==="matched"){setOnlineRoom({id:result.match_id??"",room_code:null,mode,status:"active",player_one:"",player_two:null});setOnlineNotice("Mpinzani amepatikana. Inaunganisha mechi…");}
