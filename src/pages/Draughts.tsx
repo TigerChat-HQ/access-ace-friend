@@ -144,7 +144,7 @@ const Draughts = () => {
   }, [match?.id]);
 
   useEffect(() => {
-    if (!match || match.status !== "active" || !myColor) { setMatchEmotes([]); return; }
+    if (!match || match.status !== "active" || !user) { setMatchEmotes([]); return; }
     let alive = true;
     const load = async () => {
       const { data } = await supabase.from("draughts_match_emotes" as any)
@@ -158,7 +158,7 @@ const Draughts = () => {
         payload => setMatchEmotes(current => [payload.new as typeof current[number], ...current].slice(0, 8)))
       .subscribe();
     return () => { alive = false; void supabase.removeChannel(channel); };
-  }, [match?.id, match?.status, myColor]);
+  }, [match?.id, match?.status, user?.id]);
 
   const sendMatchEmote = async (emoteKey: string) => {
     if (!match || !user || match.status !== "active") return;
