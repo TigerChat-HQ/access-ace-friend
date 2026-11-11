@@ -1,0 +1,37 @@
+-- Invitation and acceptance workflow for collaborative posts.
+CREATE TABLE IF NOT EXISTS public.post_collaborators (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id uuid NOT NULL REFERENCES public.posts(id) ON DELETE CASCADE,
+  inviter_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  invitee_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','accepted','declined')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT post_collaborators_unique_invitee UNIQUE (post_id, invitee_id),
+  CONSTRAINT post_collaborators_not_self CHECK (inviter_id <> invitee_id)
+);
+CREATE INDEX IF NOT EXISTS idx_post_collaborators_invitee_status ON public.post_collaborators(invitee_id,status,created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_post_collaborators_post_status ON public.post_collaborators(post_id,status);
+ALTER TABLE public.post_collaborators ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users view relevant post collaborations" ON public.post_collaborators;
+CREATE POLICY "Users view relevant post collaborations" ON public.post_collaborators
+  FOR SELECT TO authenticated USING (
+    inviter_id = (select auth.uid())
+    OR invitee_id = (select auth.uid())
+    OR (status = 'accepted' AND EXISTS (SELECT 1 FROM public.posts p WHERE p.id = post_id))
+  );
+DROP POLICY IF EXISTS "Post owners invite collaborators" ON public.post_collaborators;
+CREATE POLICY "Post owners invite collaborators" ON public.post_collaborators
+  FOR INSERT TO authenticated WITH CHECK (
+    inviter_id = (select auth.uid())
+    AND EXISTS (SELECT 1 FROM public.posts p WHERE p.id = post_id AND p.user_id = (select auth.uid()))
+  );
+DROP POLICY IF EXISTS "Invitees respond to collaboration" ON public.post_collaborators;
+CREATE POLICY "Invitees respond to collaboration" ON public.post_collaborators
+  FOR UPDATE TO authenticated USING (invitee_id = (select auth.uid()) AND status = 'pending')
+  WITH CHECK (invitee_id = (select auth.uid()) AND status IN ('accepted','declined'));
+DROP POLICY IF EXISTS "Participants remove collaboration" ON public.post_collaborators;
+CREATE POLICY "Participants remove collaboration" ON public.post_collaborators
+  FOR DELETE TO authenticated USING (inviter_id = (select auth.uid()) OR invitee_id = (select auth.uid()));
+REVOKE ALL ON public.post_collaborators FROM anon, authenticated, PUBLIC;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.post_collaborators TO authenticated;
