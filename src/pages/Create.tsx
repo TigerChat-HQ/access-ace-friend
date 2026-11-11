@@ -338,7 +338,7 @@ const Create = () => {
         source_media_path: videoPath,
         cover_path: coverPath,
         audio_path: audioPath,
-        audio_title: audioPath ? audioPath.split("/").pop() : null,
+        audio_title: typeof state.musicPath === "string" ? state.musicPath.split("/").pop() || null : null,
         audio_start_seconds: 0,
         trim_start_seconds: Number(state.trimStart || 0),
         trim_end_seconds: Number(state.trimEnd || 0) > 0 ? Number(state.trimEnd) : null,
@@ -362,6 +362,11 @@ const Create = () => {
     const sourcePath = typeof state.primaryMediaPath === "string" ? state.primaryMediaPath : null;
     if (mediaType !== "text" && !sourcePath) {
       toast({ title: "Draft media missing", description: "Restore this draft and check its media before posting a Status.", variant: "destructive" });
+      return;
+    }
+    const overlayText = typeof state.overlay === "string" ? state.overlay.trim() : "";
+    if (!sourcePath && !draft.caption.trim() && !overlayText) {
+      toast({ title: "Empty Status", description: "This draft has no media or text to share.", variant: "destructive" });
       return;
     }
     setLoading(true);
@@ -398,7 +403,7 @@ const Create = () => {
         musicUrl = supabase.storage.from("stories").getPublicUrl(audioPath).data.publicUrl;
       }
 
-      const overlay = typeof state.overlay === "string" ? state.overlay.trim() : "";
+      const overlay = overlayText;
       const sticker = typeof state.sticker === "string" ? state.sticker : "";
       const textOverlay = {
         ...(overlay ? { text: overlay, text_color: typeof state.textColor === "string" ? state.textColor : "#FFFFFF", text_background: "rgba(0,0,0,0.65)", text_font: "sans-serif", text_size: Math.round(24 * Number(state.textScale || 1)) } : {}),
@@ -416,7 +421,7 @@ const Create = () => {
         duration,
         text_overlay: Object.keys(textOverlay).length ? textOverlay : null,
         audience: storyAudience,
-        background_color: typeof state.textColor === "string" ? state.textColor : "#6D28D9",
+        background_color: "#6D28D9",
       });
       if (storyError) throw storyError;
       toast({ title: "Status posted", description: "Your draft has been shared to Status." });
