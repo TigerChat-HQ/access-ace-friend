@@ -34,7 +34,18 @@ export const PostCollaborationDialog = ({ postId, open, onOpenChange }: { postId
     if (profile.user_id === user.id) { toast({ title: "You cannot invite yourself", variant: "destructive" }); setBusy(false); return; }
     const { error } = await db.from("post_collaborators").insert({ post_id: postId, inviter_id: user.id, invitee_id: profile.user_id });
     if (error) toast({ title: "Invitation could not be sent", description: error.code === "23505" ? "This account has already been invited." : error.message, variant: "destructive" });
-    else { toast({ title: "Collaboration invitation sent" }); setUsername(""); await load(); }
+    else {
+      const { error: notificationError } = await supabase.from("notifications").insert({
+        recipient_id: profile.user_id,
+        actor_id: user.id,
+        type: "collaboration_invite",
+        post_id: postId,
+      });
+      if (notificationError) console.warn("Collaboration invitation notification could not be created", notificationError);
+      toast({ title: "Collaboration invitation sent" });
+      setUsername("");
+      await load();
+    }
     setBusy(false);
   };
   const cancel = async (id: string) => {
