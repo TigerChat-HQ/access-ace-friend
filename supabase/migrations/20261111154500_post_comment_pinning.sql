@@ -7,3 +7,7 @@ CREATE POLICY "Post owners pin comments" ON public.post_comments
   FOR UPDATE TO authenticated
   USING (EXISTS (SELECT 1 FROM public.posts p WHERE p.id = post_id AND p.user_id = (select auth.uid())))
   WITH CHECK (EXISTS (SELECT 1 FROM public.posts p WHERE p.id = post_id AND p.user_id = (select auth.uid())));
+
+-- Limit updates to the moderation field; comment text remains immutable after posting.
+REVOKE UPDATE ON public.post_comments FROM authenticated;
+GRANT UPDATE (pinned_at) ON public.post_comments TO authenticated;
