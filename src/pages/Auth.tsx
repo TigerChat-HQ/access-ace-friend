@@ -86,7 +86,7 @@ const Auth = () => {
     const { error } = await supabase.auth.resend({
       type: "signup",
       email: normalizedEmail,
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: getAuthRedirectUrl("/auth") },
     });
     if (error) {
       toast({ title: "Imeshindikana kutuma", description: error.message, variant: "destructive" });
