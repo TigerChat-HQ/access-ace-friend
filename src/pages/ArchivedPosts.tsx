@@ -38,7 +38,7 @@ const ArchivedPosts = () => {
   useEffect(() => { void load(); }, [user?.id]);
 
   return <div className="flex h-full flex-col bg-background">
-    <header className="tiger-page-header gap-3"><Link to="/profile" className="tiger-header-action" aria-label="Back"><ArrowLeft className="h-5 w-5" /></Link><h1 className="text-sm font-semibold">Archived posts</h1></header>
+    <header className="tiger-page-header gap-3"><Link to="/" className="tiger-header-action" aria-label="Back"><ArrowLeft className="h-5 w-5" /></Link><h1 className="text-sm font-semibold">Archived posts</h1></header>
     <div className="flex-1 overflow-y-auto">{loading ? <div className="py-20 text-center text-sm text-muted-foreground">Loading archive…</div> : posts.length ? posts.map((post) => <PostCard key={post.id} post={post} onChanged={load} />) : <div className="px-6 py-20 text-center"><Archive className="mx-auto mb-3 h-10 w-10 text-muted-foreground" /><p className="font-semibold">Your archive is empty</p><p className="mt-1 text-sm text-muted-foreground">Posts you archive will appear here and remain hidden from other people.</p></div>}</div>
   </div>;
 };
