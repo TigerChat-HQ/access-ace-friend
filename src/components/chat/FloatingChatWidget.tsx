@@ -22,7 +22,7 @@ const clampPosition = (position: BubblePosition, size = BUBBLE_SIZE): BubblePosi
  * Site-wide draggable floating entry point to the full TigerChat experience.
  * The embedded route uses the same authenticated web app and existing chat UI.
  */
-export const FloatingChatWidget = () => {
+export const FloatingChatWidget = ({ unreadMessages = 0 }: { unreadMessages?: number }) => {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<BubblePosition | null>(null);
   const [prefs, setPrefs] = useState<BubblePrefs>(() => { try { return { ...DEFAULT_PREFS, ...JSON.parse(window.localStorage.getItem(PREFS_KEY) || "{}") }; } catch { return DEFAULT_PREFS; } });
@@ -185,7 +185,7 @@ export const FloatingChatWidget = () => {
         style={{ width: bubbleSize, height: bubbleSize, opacity: prefs.opacity / 100, ...(position ? { left: position.left, top: position.top } : { right: "max(16px, env(safe-area-inset-right, 0px))", bottom: "calc(18px + env(safe-area-inset-bottom, 0px))" }) }}
       >
         {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
-        {!open && <span className="absolute right-0 top-0 h-3 w-3 rounded-full border-2 border-background bg-emerald-400" />}
+        {!open && unreadMessages > 0 && <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-background bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">{unreadMessages > 99 ? "99+" : unreadMessages}</span>}
       </button> : <button type="button" onClick={() => setLauncherHidden(false)} className="fixed bottom-4 right-4 z-[101] rounded-full border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground shadow-lg">Restore TigerChat bubble</button>}
     </>
   );
