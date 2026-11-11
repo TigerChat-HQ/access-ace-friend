@@ -81,3 +81,18 @@ describe("Pool competitive rules and shot replay", () => {
     expect(result.state.balls.find(ball => ball.id === 8)?.pocketed).toBe(false);
   });
 });
+
+  it("awards the opponent the rack after three 9-ball fouls by one player", () => {
+    let state = createInitialPoolState("nine_ball", "p1", "p2");
+    for (let index = 1; index <= 3; index += 1) {
+      state.currentTurn = "p1";
+      state.ballInHandFor = null;
+      const result = simulatePoolShot(state, "p1", "p2", {
+        angle: Math.PI / 2, power: 5, requestId: "three-foul-" + index
+      });
+      state = result.state;
+      expect(state.foulStreak.p1).toBe(index);
+      if (index < 3) expect(result.winnerId).toBeNull();
+      else expect(result.winnerId).toBe("p2");
+    }
+  });
