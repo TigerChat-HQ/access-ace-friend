@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, RotateCcw, Volume2, VolumeX, Settings2, Trophy, Target, Zap, Camera, Users, Wifi, CircleHelp } from "lucide-react";
+import { ArrowLeft, RotateCcw, Volume2, VolumeX, Settings2, Trophy, Zap, Camera, Users, CircleHelp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type Ball = { id:number; x:number; y:number; vx:number; vy:number; color:string; label:string; group:"solid"|"stripe"|"cue"|"eight"; pocketed:boolean };
