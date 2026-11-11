@@ -19,8 +19,8 @@ BEGIN
          (u3,'pool-smoke-3@example.invalid','{}','{}'),
          (u4,'pool-smoke-4@example.invalid','{}','{}');
 
-  INSERT INTO public.pool_tournaments(owner_id,title,mode,max_players,entry_fee)
-  VALUES(u1,'Smoke test bracket','eight_ball',4,0) RETURNING id INTO v_tournament_id;
+  INSERT INTO public.pool_tournaments(owner_id,title,mode,max_players,entry_fee,prize_pool)
+  VALUES(u1,'Smoke test bracket','eight_ball',4,0,500) RETURNING id INTO v_tournament_id;
   INSERT INTO public.pool_tournament_entries(tournament_id,user_id,seed_rating)
   VALUES(v_tournament_id,u1,1200),(v_tournament_id,u2,1100),(v_tournament_id,u3,1000),(v_tournament_id,u4,900);
 
@@ -58,6 +58,9 @@ BEGIN
   IF (SELECT coalesce(sum(r.games_played),0) FROM public.pool_player_ratings r
       WHERE r.user_id IN (u1,u2,u3,u4))<>6
     THEN RAISE EXCEPTION 'Elo games played totals do not match three completed matches'; END IF;
+  IF NOT EXISTS(SELECT 1 FROM public.pool_coin_ledger WHERE user_id=final_player
+      AND source_type='tournament' AND reason='tournament_champion' AND amount=500)
+    THEN RAISE EXCEPTION 'Champion prize was not paid'; END IF;
   result := public.pool_settle_match(final_match_id);
   IF result->>'duplicate'<>'true' THEN RAISE EXCEPTION 'Settlement must be idempotent'; END IF;
 END $$;
