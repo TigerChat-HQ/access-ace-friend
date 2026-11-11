@@ -44,11 +44,11 @@ export const AdminDiagnostics = () => {
 
   const load = useCallback(async () => {
     setLoading(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table is added by this PR migration; generated Supabase types are not refreshed yet.
     const pageSize = 1000;
     let offset = 0;
     const allItems: Diagnostic[] = [];
     while (true) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- app_diagnostics exists in production; generated Supabase types are not refreshed.
       const { data, error } = await (supabase as any).from("app_diagnostics")
         .select("*").order("created_at", { ascending: false }).range(offset, offset + pageSize - 1);
       if (error) {
