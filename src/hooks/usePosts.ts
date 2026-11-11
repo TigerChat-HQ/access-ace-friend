@@ -20,6 +20,8 @@ export interface FeedPost {
   post_cover_url?: string | null;
   is_draft?: boolean;
   scheduled_at?: string | null;
+  archived_at?: string | null;
+  pinned_at?: string | null;
   media_items?: unknown;
   profile?: {
     user_id: string;
