@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Flag, UserX, Bookmark, Archive, Pin, Pencil } from "lucide-react";
+import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Flag, UserX, Bookmark, Archive, Pin, Pencil, BarChart3 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { FeedPost, toggleLike, deletePost } from "@/hooks/usePosts";
 import { CommentsSheet } from "./CommentsSheet";
+import { PostInsightsDialog } from "./PostInsightsDialog";
 import { ReportDialog } from "./ReportDialog";
 import { ReelAnalyticsVideo } from "./ReelAnalyticsVideo";
 import { StoryAvatar } from "@/components/social/StoryAvatar";
@@ -51,6 +52,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [insightsOpen, setInsightsOpen] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const touchStartX = useRef<number | null>(null);
   const [saved, setSaved] = useState(false);
@@ -162,7 +164,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
             <MoreVertical className="w-4 h-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {isOwner && <><DropdownMenuItem onClick={() => { setCaptionDraft(post.caption || ""); setAltTextDraft(post.alt_text || ""); setLocationDraft(post.location_name || ""); setAudienceDraft(post.audience || "public"); setEditingCaption(true); }}><Pencil className="w-4 h-4 mr-2" /> Edit post details</DropdownMenuItem><DropdownMenuItem disabled={postActionBusy} onClick={() => updatePost({ allow_comments: post.allow_comments === false }, post.allow_comments === false ? "Comments enabled" : "Comments disabled")}>{post.allow_comments === false ? "Turn comments on" : "Turn comments off"}</DropdownMenuItem><DropdownMenuItem disabled={postActionBusy} onClick={() => updatePost({ hide_like_count: !post.hide_like_count }, post.hide_like_count ? "Like count is visible" : "Like count hidden")}>{post.hide_like_count ? "Show like count" : "Hide like count"}</DropdownMenuItem><DropdownMenuItem disabled={postActionBusy} onClick={() => updatePost({ archived_at: post.archived_at ? null : new Date().toISOString() }, post.archived_at ? "Post restored" : "Post archived")}><Archive className="w-4 h-4 mr-2" /> {post.archived_at ? "Restore from archive" : "Archive post"}</DropdownMenuItem><DropdownMenuItem disabled={postActionBusy} onClick={() => updatePost({ pinned_at: post.pinned_at ? null : new Date().toISOString() }, post.pinned_at ? "Post unpinned" : "Post pinned")}><Pin className="w-4 h-4 mr-2" /> {post.pinned_at ? "Unpin post" : "Pin to profile"}</DropdownMenuItem></>}
+            {isOwner && <><DropdownMenuItem onClick={() => setInsightsOpen(true)}><BarChart3 className="w-4 h-4 mr-2" /> View insights</DropdownMenuItem><DropdownMenuItem onClick={() => { setCaptionDraft(post.caption || ""); setAltTextDraft(post.alt_text || ""); setLocationDraft(post.location_name || ""); setAudienceDraft(post.audience || "public"); setEditingCaption(true); }}><Pencil className="w-4 h-4 mr-2" /> Edit post details</DropdownMenuItem><DropdownMenuItem disabled={postActionBusy} onClick={() => updatePost({ allow_comments: post.allow_comments === false }, post.allow_comments === false ? "Comments enabled" : "Comments disabled")}>{post.allow_comments === false ? "Turn comments on" : "Turn comments off"}</DropdownMenuItem><DropdownMenuItem disabled={postActionBusy} onClick={() => updatePost({ hide_like_count: !post.hide_like_count }, post.hide_like_count ? "Like count is visible" : "Like count hidden")}>{post.hide_like_count ? "Show like count" : "Hide like count"}</DropdownMenuItem><DropdownMenuItem disabled={postActionBusy} onClick={() => updatePost({ archived_at: post.archived_at ? null : new Date().toISOString() }, post.archived_at ? "Post restored" : "Post archived")}><Archive className="w-4 h-4 mr-2" /> {post.archived_at ? "Restore from archive" : "Archive post"}</DropdownMenuItem><DropdownMenuItem disabled={postActionBusy} onClick={() => updatePost({ pinned_at: post.pinned_at ? null : new Date().toISOString() }, post.pinned_at ? "Post unpinned" : "Post pinned")}><Pin className="w-4 h-4 mr-2" /> {post.pinned_at ? "Unpin post" : "Pin to profile"}</DropdownMenuItem></>}
             {canDelete && <DropdownMenuItem onClick={handleDelete} className="text-destructive"><Trash2 className="w-4 h-4 mr-2" /> Delete</DropdownMenuItem>}
             {!isOwner && (
               <>
@@ -230,7 +232,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
       <p className="px-4 pb-3 text-[10px] text-muted-foreground uppercase tracking-wide">{new Date(post.created_at).toLocaleDateString()}</p>
 
       {commentsOpen && <CommentsSheet postId={post.id} open={commentsOpen} onOpenChange={setCommentsOpen} onChange={onChanged} />}
-      {reportOpen && <ReportDialog open={reportOpen} onOpenChange={setReportOpen} targetType="post" targetId={post.id} />}
+      {insightsOpen && <PostInsightsDialog postId={post.id} open={insightsOpen} onOpenChange={setInsightsOpen} />}\n      {reportOpen && <ReportDialog open={reportOpen} onOpenChange={setReportOpen} targetType="post" targetId={post.id} />}
     </article>
   );
 };
