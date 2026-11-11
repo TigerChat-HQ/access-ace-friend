@@ -27,6 +27,7 @@ type ReelCaption = { start: number; end: number; text: string };
 type ReelPost = FeedPost & {
   reel_cover_url?: string | null;
   reel_audio_url?: string | null;
+  reel_audio_title?: string | null;
   reel_audio_start_seconds?: number | null;
   reel_trim_start_seconds?: number | null;
   reel_trim_end_seconds?: number | null;
@@ -48,6 +49,9 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const mediaItems = post.media_items?.length ? post.media_items : post.media_url ? [{ url: post.media_url, type: post.media_type, alt_text: post.alt_text }] : [];
+  const activeMedia = mediaItems[carouselIndex] || mediaItems[0];
 
   const handleLike = async () => {
     if (!user) return;
@@ -115,7 +119,8 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
 
       {post.media_url && post.media_type === "image" && (
         <div className="relative">
-          <img src={post.media_url} alt={post.alt_text || ""} className="w-full max-h-[600px] object-cover bg-muted" loading="lazy" />
+          <img src={activeMedia?.url || post.media_url} alt={activeMedia?.alt_text || post.alt_text || ""} className="w-full max-h-[600px] object-cover bg-muted" loading="lazy" />
+          {mediaItems.length > 1 && <><button type="button" aria-label="Previous photo" onClick={() => setCarouselIndex((index) => (index - 1 + mediaItems.length) % mediaItems.length)} className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/60 px-3 py-2 text-white">‹</button><button type="button" aria-label="Next photo" onClick={() => setCarouselIndex((index) => (index + 1) % mediaItems.length)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/60 px-3 py-2 text-white">›</button><span className="absolute right-3 top-3 rounded-full bg-black/65 px-2 py-1 text-[10px] text-white">{carouselIndex + 1}/{mediaItems.length}</span></>}
           {post.post_audio_url && <div className="absolute bottom-3 left-3 right-3 flex items-center gap-2 rounded-xl bg-black/70 p-2 text-white backdrop-blur"><span className="min-w-0 flex-1 truncate text-xs">{post.post_audio_title || "Post soundtrack"}</span><audio src={post.post_audio_url} controls className="h-8 max-w-[55%]" /></div>}
         </div>
       )}
