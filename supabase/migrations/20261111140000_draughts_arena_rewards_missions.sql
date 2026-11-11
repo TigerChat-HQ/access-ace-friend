@@ -1,0 +1,232 @@
+-- TigerChat Draughts Arena: secure coins, daily missions, XP and achievements.
+ALTER TABLE public.draughts_player_stats
+  ADD COLUMN IF NOT EXISTS xp integer NOT NULL DEFAULT 0 CHECK (xp >= 0),
+  ADD COLUMN IF NOT EXISTS current_streak integer NOT NULL DEFAULT 0 CHECK (current_streak >= 0),
+  ADD COLUMN IF NOT EXISTS best_streak integer NOT NULL DEFAULT 0 CHECK (best_streak >= 0);
+
+CREATE TABLE IF NOT EXISTS public.draughts_wallets (
+  user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  balance bigint NOT NULL DEFAULT 0 CHECK (balance >= 0),
+  lifetime_earned bigint NOT NULL DEFAULT 0 CHECK (lifetime_earned >= 0),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS public.draughts_coin_ledger (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  amount bigint NOT NULL,
+  balance_after bigint NOT NULL CHECK (balance_after >= 0),
+  reason text NOT NULL,
+  source_type text NOT NULL CHECK (source_type IN ('match','mission','achievement','tournament','streak','admin')),
+  source_id uuid,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(user_id, source_type, source_id, reason)
+);
+CREATE INDEX IF NOT EXISTS draughts_coin_ledger_user_created
+  ON public.draughts_coin_ledger(user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS public.draughts_mission_catalog (
+  mission_key text PRIMARY KEY,
+  title text NOT NULL,
+  description text NOT NULL,
+  cadence text NOT NULL CHECK (cadence IN ('daily','weekly')),
+  target integer NOT NULL CHECK (target > 0),
+  reward_coins integer NOT NULL CHECK (reward_coins >= 0),
+  reward_xp integer NOT NULL CHECK (reward_xp >= 0),
+  is_enabled boolean NOT NULL DEFAULT true
+);
+CREATE TABLE IF NOT EXISTS public.draughts_mission_progress (
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  mission_key text NOT NULL REFERENCES public.draughts_mission_catalog(mission_key) ON DELETE CASCADE,
+  period_start date NOT NULL,
+  progress integer NOT NULL DEFAULT 0 CHECK (progress >= 0),
+  claimed_at timestamptz,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY(user_id, mission_key, period_start)
+);
+CREATE TABLE IF NOT EXISTS public.draughts_achievement_catalog (
+  achievement_key text PRIMARY KEY,
+  title text NOT NULL,
+  description text NOT NULL,
+  emoji text NOT NULL DEFAULT '🏅',
+  reward_coins integer NOT NULL DEFAULT 0 CHECK (reward_coins >= 0),
+  is_enabled boolean NOT NULL DEFAULT true
+);
+CREATE TABLE IF NOT EXISTS public.draughts_user_achievements (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  achievement_key text NOT NULL REFERENCES public.draughts_achievement_catalog(achievement_key),
+  awarded_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(user_id, achievement_key)
+);
+
+INSERT INTO public.draughts_mission_catalog(mission_key,title,description,cadence,target,reward_coins,reward_xp) VALUES
+ ('daily_play_one','First Match','Complete one rated or AI match today','daily',1,20,25),
+ ('daily_play_three','Daily Grinder','Complete three matches today','daily',3,45,60),
+ ('daily_win_one','Daily Winner','Win one online PvP match today','daily',1,50,75),
+ ('weekly_play_ten','Weekly Regular','Complete ten matches this week','weekly',10,150,250),
+ ('weekly_win_five','Weekly Champion','Win five online PvP matches this week','weekly',5,250,400)
+ON CONFLICT(mission_key) DO UPDATE SET title=excluded.title,description=excluded.description,
+ cadence=excluded.cadence,target=excluded.target,reward_coins=excluded.reward_coins,reward_xp=excluded.reward_xp;
+INSERT INTO public.draughts_achievement_catalog(achievement_key,title,description,emoji,reward_coins) VALUES
+ ('first_win','First Victory','Win your first online PvP match','🥇',100),
+ ('wins_10','Rising Star','Win 10 online PvP matches','⭐',250),
+ ('wins_50','Draughts Master','Win 50 online PvP matches','👑',1000),
+ ('streak_5','On Fire','Win five online PvP matches in a row','🔥',500)
+ON CONFLICT(achievement_key) DO UPDATE SET title=excluded.title,description=excluded.description,
+ emoji=excluded.emoji,reward_coins=excluded.reward_coins;
+
+ALTER TABLE public.draughts_wallets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.draughts_coin_ledger ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.draughts_mission_catalog ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.draughts_mission_progress ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.draughts_achievement_catalog ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.draughts_user_achievements ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Players read their Draughts wallet" ON public.draughts_wallets;
+CREATE POLICY "Players read their Draughts wallet" ON public.draughts_wallets
+ FOR SELECT TO authenticated USING ((select auth.uid())=user_id);
+DROP POLICY IF EXISTS "Players read their Draughts ledger" ON public.draughts_coin_ledger;
+CREATE POLICY "Players read their Draughts ledger" ON public.draughts_coin_ledger
+ FOR SELECT TO authenticated USING ((select auth.uid())=user_id);
+DROP POLICY IF EXISTS "Mission catalog is visible to players" ON public.draughts_mission_catalog;
+CREATE POLICY "Mission catalog is visible to players" ON public.draughts_mission_catalog
+ FOR SELECT TO authenticated USING (is_enabled);
+DROP POLICY IF EXISTS "Players read their Draughts mission progress" ON public.draughts_mission_progress;
+CREATE POLICY "Players read their Draughts mission progress" ON public.draughts_mission_progress
+ FOR SELECT TO authenticated USING ((select auth.uid())=user_id);
+DROP POLICY IF EXISTS "Achievement catalog is visible to players" ON public.draughts_achievement_catalog;
+CREATE POLICY "Achievement catalog is visible to players" ON public.draughts_achievement_catalog
+ FOR SELECT TO authenticated USING (is_enabled);
+DROP POLICY IF EXISTS "Players read their Draughts achievements" ON public.draughts_user_achievements;
+CREATE POLICY "Players read their Draughts achievements" ON public.draughts_user_achievements
+ FOR SELECT TO authenticated USING ((select auth.uid())=user_id);
+
+GRANT SELECT ON public.draughts_wallets, public.draughts_coin_ledger,
+ public.draughts_mission_catalog, public.draughts_mission_progress,
+ public.draughts_achievement_catalog, public.draughts_user_achievements TO authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.draughts_wallets, public.draughts_coin_ledger,
+ public.draughts_mission_progress, public.draughts_user_achievements FROM anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.claim_draughts_mission(p_mission_key text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE v_user uuid := (select auth.uid()); v_m public.draughts_mission_catalog%ROWTYPE;
+ v_period date; v_progress public.draughts_mission_progress%ROWTYPE; v_balance bigint;
+BEGIN
+ IF v_user IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF;
+ SELECT * INTO v_m FROM public.draughts_mission_catalog WHERE mission_key=p_mission_key AND is_enabled;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Mission not found'; END IF;
+ v_period := CASE WHEN v_m.cadence='daily' THEN (now() AT TIME ZONE 'Africa/Dar_es_Salaam')::date
+   ELSE date_trunc('week', now() AT TIME ZONE 'Africa/Dar_es_Salaam')::date END;
+ SELECT * INTO v_progress FROM public.draughts_mission_progress
+  WHERE user_id=v_user AND mission_key=p_mission_key AND period_start=v_period FOR UPDATE;
+ IF NOT FOUND OR v_progress.progress < v_m.target THEN RAISE EXCEPTION 'Mission is not complete yet'; END IF;
+ IF v_progress.claimed_at IS NOT NULL THEN RAISE EXCEPTION 'Mission reward already claimed'; END IF;
+ UPDATE public.draughts_mission_progress SET claimed_at=now(),updated_at=now()
+  WHERE user_id=v_user AND mission_key=p_mission_key AND period_start=v_period;
+ INSERT INTO public.draughts_wallets(user_id,balance,lifetime_earned) VALUES(v_user,0,0)
+  ON CONFLICT(user_id) DO NOTHING;
+ UPDATE public.draughts_wallets SET balance=balance+v_m.reward_coins,
+  lifetime_earned=lifetime_earned+v_m.reward_coins,updated_at=now()
+  WHERE user_id=v_user RETURNING balance INTO v_balance;
+ INSERT INTO public.draughts_coin_ledger(user_id,amount,balance_after,reason,source_type,source_id)
+ VALUES(v_user,v_m.reward_coins,v_balance,'Mission: '||v_m.title,'mission',
+  (select gen_random_uuid()))
+ ON CONFLICT DO NOTHING;
+ UPDATE public.draughts_player_stats SET xp=xp+v_m.reward_xp,updated_at=now()
+  WHERE user_id=v_user AND season_id IN (SELECT id FROM public.draughts_seasons WHERE is_active);
+ RETURN jsonb_build_object('mission_key',p_mission_key,'coins',v_m.reward_coins,'xp',v_m.reward_xp,'balance',v_balance);
+END $$;
+REVOKE ALL ON FUNCTION public.claim_draughts_mission(text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.claim_draughts_mission(text) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.award_draughts_match_rewards()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE v_user uuid; v_result text; v_coins integer; v_balance bigint; v_stats public.draughts_player_stats%ROWTYPE;
+ v_season uuid; v_wins integer; v_streak integer; v_achievement record; v_achievement_id uuid;
+ v_period date; v_mission record; v_is_pvp boolean;
+BEGIN
+ IF OLD.status='finished' OR NEW.status<>'finished' OR NEW.winner NOT IN ('white','black','draw') THEN RETURN NEW; END IF;
+ IF NEW.player_white IS NULL THEN RETURN NEW; END IF;
+ v_is_pvp := NOT NEW.vs_ai AND NEW.player_black IS NOT NULL;
+ SELECT id INTO v_season FROM public.draughts_seasons WHERE is_active ORDER BY starts_at DESC LIMIT 1;
+ IF v_season IS NULL THEN RETURN NEW; END IF;
+
+ FOR v_user,v_result IN
+   SELECT NEW.player_white, CASE WHEN NEW.winner='white' THEN 'win' WHEN NEW.winner='draw' THEN 'draw' ELSE 'loss' END
+   UNION ALL
+   SELECT NEW.player_black, CASE WHEN NEW.winner='black' THEN 'win' WHEN NEW.winner='draw' THEN 'draw' ELSE 'loss' END
+    WHERE v_is_pvp
+ LOOP
+   v_coins := CASE WHEN v_is_pvp THEN CASE v_result WHEN 'win' THEN 30 WHEN 'draw' THEN 15 ELSE 5 END
+     ELSE CASE v_result WHEN 'win' THEN 5 WHEN 'draw' THEN 2 ELSE 0 END END;
+   IF v_coins>0 THEN
+     INSERT INTO public.draughts_wallets(user_id,balance,lifetime_earned) VALUES(v_user,0,0)
+       ON CONFLICT(user_id) DO NOTHING;
+     UPDATE public.draughts_wallets SET balance=balance+v_coins,lifetime_earned=lifetime_earned+v_coins,updated_at=now()
+       WHERE user_id=v_user RETURNING balance INTO v_balance;
+     INSERT INTO public.draughts_coin_ledger(user_id,amount,balance_after,reason,source_type,source_id)
+       VALUES(v_user,v_coins,v_balance,CASE WHEN v_result='win' THEN 'Match victory' WHEN v_result='draw' THEN 'Match draw' ELSE 'Match participation' END,'match',NEW.id)
+       ON CONFLICT DO NOTHING;
+   END IF;
+   INSERT INTO public.draughts_player_stats(season_id,user_id,xp,current_streak,best_streak)
+    VALUES(v_season,v_user,10,CASE WHEN v_result='win' AND v_is_pvp THEN 1 ELSE 0 END,
+      CASE WHEN v_result='win' AND v_is_pvp THEN 1 ELSE 0 END)
+   ON CONFLICT(season_id,user_id) DO UPDATE SET
+    xp=draughts_player_stats.xp+10,
+    current_streak=CASE WHEN NOT v_is_pvp THEN draughts_player_stats.current_streak
+      WHEN v_result='win' THEN draughts_player_stats.current_streak+1
+      WHEN v_result='loss' THEN 0 ELSE draughts_player_stats.current_streak END,
+    best_streak=greatest(draughts_player_stats.best_streak,
+      CASE WHEN v_is_pvp AND v_result='win' THEN draughts_player_stats.current_streak+1 ELSE draughts_player_stats.current_streak END),
+    updated_at=now()
+   RETURNING * INTO v_stats;
+
+   v_period := (now() AT TIME ZONE 'Africa/Dar_es_Salaam')::date;
+   FOR v_mission IN SELECT * FROM public.draughts_mission_catalog WHERE is_enabled LOOP
+     IF v_mission.cadence='daily' THEN
+       IF v_mission.mission_key='daily_win_one' AND NOT (v_is_pvp AND v_result='win') THEN CONTINUE; END IF;
+       INSERT INTO public.draughts_mission_progress(user_id,mission_key,period_start,progress)
+       VALUES(v_user,v_mission.mission_key,v_period,1)
+       ON CONFLICT(user_id,mission_key,period_start) DO UPDATE SET
+        progress=least(v_mission.target,draughts_mission_progress.progress+1),updated_at=now();
+     ELSE
+       v_period := date_trunc('week', now() AT TIME ZONE 'Africa/Dar_es_Salaam')::date;
+       IF v_mission.mission_key='weekly_win_five' AND NOT (v_is_pvp AND v_result='win') THEN CONTINUE; END IF;
+       INSERT INTO public.draughts_mission_progress(user_id,mission_key,period_start,progress)
+       VALUES(v_user,v_mission.mission_key,v_period,1)
+       ON CONFLICT(user_id,mission_key,period_start) DO UPDATE SET
+        progress=least(v_mission.target,draughts_mission_progress.progress+1),updated_at=now();
+     END IF;
+   END LOOP;
+   v_period := (now() AT TIME ZONE 'Africa/Dar_es_Salaam')::date;
+
+   IF v_is_pvp THEN
+     FOR v_achievement IN
+       SELECT * FROM public.draughts_achievement_catalog WHERE is_enabled AND
+        ((achievement_key='first_win' AND v_result='win' AND v_stats.wins=1) OR
+         (achievement_key='wins_10' AND v_stats.wins=10) OR
+         (achievement_key='wins_50' AND v_stats.wins=50) OR
+         (achievement_key='streak_5' AND v_stats.current_streak=5))
+     LOOP
+       INSERT INTO public.draughts_user_achievements(user_id,achievement_key)
+        VALUES(v_user,v_achievement.achievement_key) ON CONFLICT DO NOTHING RETURNING id INTO v_achievement_id;
+       IF v_achievement_id IS NOT NULL THEN
+         INSERT INTO public.draughts_wallets(user_id,balance,lifetime_earned) VALUES(v_user,0,0)
+          ON CONFLICT(user_id) DO NOTHING;
+         UPDATE public.draughts_wallets SET balance=balance+v_achievement.reward_coins,
+          lifetime_earned=lifetime_earned+v_achievement.reward_coins,updated_at=now()
+          WHERE user_id=v_user RETURNING balance INTO v_balance;
+         INSERT INTO public.draughts_coin_ledger(user_id,amount,balance_after,reason,source_type,source_id)
+          VALUES(v_user,v_achievement.reward_coins,v_balance,'Achievement: '||v_achievement.title,'achievement',v_achievement_id)
+          ON CONFLICT DO NOTHING;
+       END IF;
+       v_achievement_id := NULL;
+     END LOOP;
+   END IF;
+ END LOOP;
+ RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS draft_match_award_arena_rewards ON public.draft_matches;
+CREATE TRIGGER draft_match_award_arena_rewards AFTER UPDATE OF status,winner ON public.draft_matches
+ FOR EACH ROW EXECUTE FUNCTION public.award_draughts_match_rewards();
+REVOKE ALL ON FUNCTION public.award_draughts_match_rewards() FROM PUBLIC, anon, authenticated;
