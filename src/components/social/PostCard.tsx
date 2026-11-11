@@ -108,7 +108,10 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
       </header>
 
       {post.media_url && post.media_type === "image" && (
-        <img src={post.media_url} alt="" className="w-full max-h-[600px] object-cover bg-muted" loading="lazy" />
+        <div className="relative">
+          <img src={post.media_url} alt="" className="w-full max-h-[600px] object-cover bg-muted" loading="lazy" />
+          {reelPost.reel_audio_url && <div className="absolute bottom-3 left-3 right-3 flex items-center gap-2 rounded-xl bg-black/70 p-2 text-white backdrop-blur"><span className="min-w-0 flex-1 truncate text-xs">{reelPost.reel_audio_title || "Post soundtrack"}</span><audio src={reelPost.reel_audio_url} controls className="h-8 max-w-[55%]" /></div>}
+        </div>
       )}
       {post.media_url && post.media_type === "video" && (
         isReel && user ? (
