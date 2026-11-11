@@ -191,7 +191,7 @@ export const AppShell = () => {
     { to: "/", icon: Home, label: "Home", badge: 0 },
     { to: "/chats", icon: MessageCircle, label: "Chats", badge: unreadMessages },
     { to: "/groups", icon: Users, label: "Groups", badge: 0 },
-    { to: "/game", icon: Trophy, label: "Game", badge: 0 },
+    { to: "/games", icon: Trophy, label: "Games", badge: 0 },
     { to: `/u/${user?.id ?? ""}`, icon: UserIcon, label: "Profile", badge: unreadNotifications },
     ...(!roleLoading && isAdmin ? [{ to: "/admin", icon: Crown, label: "Admin Panel", badge: 0 }] : []),
   ];

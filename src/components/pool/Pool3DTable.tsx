@@ -1,0 +1,40 @@
+import { useEffect, useRef, type MouseEvent, type PointerEvent } from "react";
+
+export type PoolRenderBall = { id:number; x:number; y:number; color:string; group:"solid"|"stripe"|"cue"|"eight"; pocketed:boolean; label:string };
+type Props = { balls:PoolRenderBall[]; camera:"top"|"angle"; angle:number; aim:{x:number;y:number}; ballInHand:boolean; onPointerMove:(event:PointerEvent<HTMLDivElement>)=>void; onClick:(event:MouseEvent<HTMLDivElement>)=>void };
+
+type V3=[number,number,number];
+const perspective=(f:number,a:number,n:number,z:number)=>{const t=1/Math.tan(f/2);return new Float32Array([t/a,0,0,0,0,t,0,0,0,0,(z+n)/(n-z),-1,0,0,2*z*n/(n-z),0]);};
+const lookAt=(eye:V3,center:V3,up:V3)=>{const norm=(v:V3):V3=>{const l=Math.hypot(...v)||1;return [v[0]/l,v[1]/l,v[2]/l];};const sub=(a:V3,b:V3):V3=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];const cross=(a:V3,b:V3):V3=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];const z=norm(sub(eye,center)),x=norm(cross(up,z)),y=cross(z,x);return new Float32Array([x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-(x[0]*eye[0]+x[1]*eye[1]+x[2]*eye[2]),-(y[0]*eye[0]+y[1]*eye[1]+y[2]*eye[2]),-(z[0]*eye[0]+z[1]*eye[1]+z[2]*eye[2]),1]);};
+const multiply=(a:Float32Array,b:Float32Array)=>{const o=new Float32Array(16);for(let c=0;c<4;c++)for(let r=0;r<4;r++)o[c*4+r]=a[r]*b[c*4]+a[4+r]*b[c*4+1]+a[8+r]*b[c*4+2]+a[12+r]*b[c*4+3];return o;};
+const model=(x:number,y:number,z:number,sx:number,sy:number,sz:number)=>new Float32Array([sx,0,0,0,0,sy,0,0,0,0,sz,0,x,y,z,1]);
+const hex=(value:string):[number,number,number]=>{const h=value.replace("#","");return [parseInt(h.slice(0,2),16)/255,parseInt(h.slice(2,4),16)/255,parseInt(h.slice(4,6),16)/255];};
+const sphere=()=>{const p:number[]=[],n:number[]=[],idx:number[]=[];const lat=16,lon=24;for(let y=0;y<=lat;y++){const v=y/lat,phi=v*Math.PI;for(let x=0;x<=lon;x++){const u=x/lon,theta=u*Math.PI*2,nx=-Math.cos(theta)*Math.sin(phi),ny=Math.cos(phi),nz=Math.sin(theta)*Math.sin(phi);p.push(nx,ny,nz);n.push(nx,ny,nz);}}for(let y=0;y<lat;y++)for(let x=0;x<lon;x++){const a=y*(lon+1)+x,b=a+lon+1;idx.push(a,b,a+1,b,b+1,a+1);}return {p:new Float32Array(p),n:new Float32Array(n),i:new Uint16Array(idx)};};
+const cube=()=>{const faces:[number[],number[]][]=[[[ -1,-1,1,1,-1,1,1,1,1,-1,1,1],[0,0,1]],[[1,-1,-1,-1,-1,-1,-1,1,-1,1,1,-1],[0,0,-1]],[[-1,1,1,1,1,1,1,1,-1,-1,1,-1],[0,1,0]],[[-1,-1,-1,1,-1,-1,1,-1,1,-1,-1,1],[0,-1,0]],[[1,-1,1,1,-1,-1,1,1,-1,1,1,1],[1,0,0]],[[-1,-1,-1,-1,-1,1,-1,1,1,-1,1,-1],[-1,0,0]]];const p:number[]=[],n:number[]=[],i:number[]=[];for(const [v,norm] of faces){const base=p.length/3;for(let k=0;k<4;k++){p.push(v[k*3],v[k*3+1],v[k*3+2]);n.push(...norm);}i.push(base,base+1,base+2,base,base+2,base+3);}return {p:new Float32Array(p),n:new Float32Array(n),i:new Uint16Array(i)};};
+
+export default function Pool3DTable({balls,camera,angle,aim,ballInHand,onPointerMove,onClick}:Props){
+ const canvasRef=useRef<HTMLCanvasElement>(null);const latest=useRef({balls,camera,angle,aim,ballInHand});latest.current={balls,camera,angle,aim,ballInHand};
+ useEffect(()=>{const canvas=canvasRef.current;if(!canvas)return;const gl=canvas.getContext("webgl",{antialias:true,alpha:false});if(!gl)return;
+ const vs=gl.createShader(gl.VERTEX_SHADER)!;gl.shaderSource(vs,`attribute vec3 aPosition;attribute vec3 aNormal;uniform mat4 uMVP;uniform mat4 uModel;varying vec3 vNormal;varying vec3 vWorld;void main(){vec4 world=uModel*vec4(aPosition,1.0);vWorld=world.xyz;vNormal=mat3(uModel)*aNormal;gl_Position=uMVP*vec4(aPosition,1.0);}`);gl.compileShader(vs);
+ const fs=gl.createShader(gl.FRAGMENT_SHADER)!;gl.shaderSource(fs,`precision mediump float;uniform vec3 uColor;varying vec3 vNormal;varying vec3 vWorld;void main(){vec3 N=normalize(vNormal);vec3 L=normalize(vec3(-0.5,1.0,0.7));float light=0.34+0.66*max(dot(N,L),0.0);float shine=pow(max(dot(reflect(-L,N),normalize(vec3(0.0,0.7,1.0))),0.0),24.0)*0.22;gl_FragColor=vec4(uColor*light+shine,1.0);}`);gl.compileShader(fs);
+ const program=gl.createProgram()!;gl.attachShader(program,vs);gl.attachShader(program,fs);gl.linkProgram(program);gl.useProgram(program);
+ const loc={pos:gl.getAttribLocation(program,"aPosition"),normal:gl.getAttribLocation(program,"aNormal"),mvp:gl.getUniformLocation(program,"uMVP"),model:gl.getUniformLocation(program,"uModel"),color:gl.getUniformLocation(program,"uColor")};
+ const make=(g:ReturnType<typeof sphere>)=>{const pb=gl.createBuffer()!;gl.bindBuffer(gl.ARRAY_BUFFER,pb);gl.bufferData(gl.ARRAY_BUFFER,g.p,gl.STATIC_DRAW);const nb=gl.createBuffer()!;gl.bindBuffer(gl.ARRAY_BUFFER,nb);gl.bufferData(gl.ARRAY_BUFFER,g.n,gl.STATIC_DRAW);const ib=gl.createBuffer()!;gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ib);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,g.i,gl.STATIC_DRAW);return {pb,nb,ib,count:g.i.length};};
+ const meshes={sphere:make(sphere()),cube:make(cube())};
+ const draw=(mesh:typeof meshes.sphere, vp:Float32Array, m:Float32Array, color:[number,number,number])=>{gl.bindBuffer(gl.ARRAY_BUFFER,mesh.pb);gl.enableVertexAttribArray(loc.pos);gl.vertexAttribPointer(loc.pos,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,mesh.nb);gl.enableVertexAttribArray(loc.normal);gl.vertexAttribPointer(loc.normal,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,mesh.ib);gl.uniformMatrix4fv(loc.mvp,false,multiply(vp,m));gl.uniformMatrix4fv(loc.model,false,m);gl.uniform3fv(loc.color,color);gl.drawElements(gl.TRIANGLES,mesh.count,gl.UNSIGNED_SHORT,0);};
+ let raf=0;const render=()=>{const w=canvas.clientWidth,h=canvas.clientHeight;if(canvas.width!==Math.floor(w*devicePixelRatio)||canvas.height!==Math.floor(h*devicePixelRatio)){canvas.width=Math.floor(w*devicePixelRatio);canvas.height=Math.floor(h*devicePixelRatio);}gl.viewport(0,0,canvas.width,canvas.height);gl.enable(gl.DEPTH_TEST);gl.enable(gl.CULL_FACE);gl.clearColor(.035,.025,.018,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+ const state=latest.current;const eye:V3=state.camera==="top"?[0,3.6,.001]:[0,2.7,4.4];const vp=multiply(perspective(.72,w/Math.max(1,h),.1,30),lookAt(eye,[0,0,0],state.camera==="top"?[0,0,-1]:[0,1,0]));
+ // walnut cabinet and raised cushion rails
+ draw(meshes.cube,vp,model(0,-.18,0,1.48,.13,.83),[.25,.105,.045]);
+ draw(meshes.cube,vp,model(0,-.045,0,1.31,.045,.66),[.025,.32,.17]);
+ for(const x of [-1.36,1.36])draw(meshes.cube,vp,model(x,.005,0,.12,.10,.78),[.39,.19,.075]);
+ for(const z of [-.72,.72])draw(meshes.cube,vp,model(0,.005,z,1.36,.10,.10),[.39,.19,.075]);
+ // dark pockets as recessed wells
+ for(const x of [-1.29,0,1.29])for(const z of [-.65,.65])draw(meshes.sphere,vp,model(x,.035,z,.105,.018,.105),[.008,.009,.012]);
+ for(const b of state.balls){if(b.pocketed)continue;const x=(b.x-.5)*2.48,z=(b.y-.5)*1.16;draw(meshes.sphere,vp,model(x,.105,z,.055,.055,.055),b.group==="cue"?[.92,.94,.98]:b.id===8?[.012,.014,.02]:hex(b.color));if(b.group==="stripe")draw(meshes.sphere,vp,model(x,.105,z,.056,.019,.056),[.94,.94,.91]);}
+ const cue=state.balls.find(b=>b.id===0&&!b.pocketed);if(cue&&!state.ballInHand){const x=(cue.x-.5)*2.48,z=(cue.y-.5)*1.16;const dx=Math.cos(state.angle),dz=Math.sin(state.angle);draw(meshes.cube,vp,model(x+dx*.20,.105,z+dz*.20,.22,.009,.012),[.95,.93,.82]);}
+ raf=requestAnimationFrame(render);};render();
+ const resize=new ResizeObserver(()=>{});resize.observe(canvas);return()=>{cancelAnimationFrame(raf);resize.disconnect();gl.getExtension("WEBGL_lose_context")?.loseContext();};
+ },[]);
+ return <div className="relative mx-auto aspect-[2/1] w-full overflow-hidden rounded-[18px] border-[9px] border-[#70401f] bg-[#075b3b] shadow-[0_18px_30px_rgba(0,0,0,.65)]" onPointerMove={onPointerMove} onClick={onClick}><canvas ref={canvasRef} className="h-full w-full" aria-label="Interactive real-time WebGL 3D pool table"/><div className="pointer-events-none absolute bottom-2 inset-x-0 text-center text-[8px] font-black uppercase tracking-[.4em] text-white/45">Tiger Pro · WebGL 3D table</div>{ballInHand&&<div className="pointer-events-none absolute left-2 top-2 rounded bg-black/65 px-2 py-1 text-[10px] font-bold text-amber-300">BALL IN HAND</div>}</div>;
+}

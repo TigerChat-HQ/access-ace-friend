@@ -20,7 +20,26 @@ type MatchRow = Omit<Tables<"draft_matches">, "board" | "last_move" | "current_t
   current_turn: Color;
   last_move: Move | null;
   draw_offer_by: string | null;
+  initial_clock_seconds?: number | null;
+  increment_seconds?: number | null;
+  white_clock_ms?: number | null;
+  black_clock_ms?: number | null;
+  clock_started_at?: string | null;
 };
+
+
+const queueRpc = supabase.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
+const emoteFrom = supabase.from as unknown as (table: string) => {
+  select: (columns: string) => {
+    eq: (column: string, value: string) => {
+      order: (column: string, options: { ascending: boolean }) => {
+        limit: (count: number) => Promise<{ data: unknown[] | null }>;
+      };
+    };
+  };
+  insert: (values: Record<string, string>) => Promise<{ error: { message: string } | null }>;
+};
+const queueTable = supabase.from as unknown as (table: string) => { select: (columns: string) => { eq: (column: string, value: string) => { maybeSingle: () => Promise<{ data: { status: string; match_id: string | null } | null; error: { message: string } | null }> } } };
 
 const Draughts = () => {
   const nav = useNavigate();
@@ -33,11 +52,41 @@ const Draughts = () => {
   const [selected, setSelected] = useState<number | null>(null);
   const [aiThinking, setAiThinking] = useState(false);
   const [openMatches, setOpenMatches] = useState<MatchRow[]>([]);
+  const [queueTicket, setQueueTicket] = useState<string | null>(null);
+  const [queueSearching, setQueueSearching] = useState(false);
   const [creating, setCreating] = useState(false);
   const [aiDifficulty, setAiDifficulty] = useState<"easy" | "medium" | "hard" | "expert">("medium");
   const aiDepth = aiDifficulty === "easy" ? 2 : aiDifficulty === "medium" ? 3 : aiDifficulty === "hard" ? 4 : 5;
   const [flipBoard, setFlipBoard] = useState<boolean | null>(null);
   const [tigerSupervisorEnabled, setTigerSupervisorEnabled] = useState(true);
+  const [matchEmotes, setMatchEmotes] = useState<Array<{id:string;user_id:string;emote_key:string;created_at:string}>>([]);
+  const [realtimeStatus, setRealtimeStatus] = useState<"connecting"|"live"|"reconnecting">("connecting");
+  const [clockNow, setClockNow] = useState(() => Date.now());
+  const timeoutClaimed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!match || match.status !== "active" || !match.initial_clock_seconds || !match.clock_started_at) return;
+    const base = match.current_turn === "w" ? match.white_clock_ms : match.black_clock_ms;
+    if (base == null) return;
+    const remaining = base - Math.max(0, Date.now() - new Date(match.clock_started_at).getTime());
+    const key = `${match.id}:${match.revision}`;
+    if (remaining > 0 || timeoutClaimed.current === key) return;
+    timeoutClaimed.current = key;
+    void queueRpc("claim_draughts_timeout", { p_id: match.id }).then(({ data, error }) => {
+      if (error) {
+        window.setTimeout(() => {
+          if (timeoutClaimed.current === key) timeoutClaimed.current = null;
+          setClockNow(Date.now());
+        }, 2500);
+        return;
+      }
+      if (data) setMatch(data as MatchRow);
+    });
+  }, [clockNow, match?.id, match?.revision, match?.status, match?.current_turn, match?.clock_started_at, match?.white_clock_ms, match?.black_clock_ms, match?.initial_clock_seconds]);
+  useEffect(() => {
+    if (!match || match.status !== "active" || !match.initial_clock_seconds) return;
+    const timer = window.setInterval(() => setClockNow(Date.now()), 250);
+    return () => window.clearInterval(timer);
+  }, [match?.id, match?.status, match?.initial_clock_seconds]);
   useEffect(() => {
     let alive = true;
     supabase.from("draughts_admin_settings").select("tiger_ai_supervisor_enabled").eq("id", true).maybeSingle()
@@ -136,6 +185,30 @@ const Draughts = () => {
     return () => { void supabase.removeChannel(ch); };
   }, [match?.id]);
 
+  useEffect(() => {
+    if (!match || match.status !== "active" || !user) { setMatchEmotes([]); return; }
+    let alive = true;
+    const load = async () => {
+      const { data } = await emoteFrom("draughts_match_emotes")
+        .select("id,user_id,emote_key,created_at").eq("match_id", match.id)
+        .order("created_at", { ascending: false }).limit(8);
+      if (alive) setMatchEmotes((data ?? []) as unknown as typeof matchEmotes);
+    };
+    void load();
+    const channel = supabase.channel(`draughts-emotes:${match.id}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "draughts_match_emotes", filter: `match_id=eq.${match.id}` },
+        payload => setMatchEmotes(current => [payload.new as typeof current[number], ...current].slice(0, 8)))
+      .subscribe();
+    return () => { alive = false; void supabase.removeChannel(channel); };
+  }, [match?.id, match?.status, user?.id]);
+
+  const sendMatchEmote = async (emoteKey: string) => {
+    if (!match || !user || match.status !== "active") return;
+    const { error } = await emoteFrom("draughts_match_emotes")
+      .insert({ match_id: match.id, user_id: user.id, emote_key: emoteKey });
+    if (error) toast({ title: "Reaction not sent", description: error.message, variant: "destructive" });
+  };
+
   const myColor: Color | null = useMemo(() => {
     if (!match || !user) return null;
     if (match.player_white === user.id) return "w";
@@ -222,11 +295,75 @@ const Draughts = () => {
   };
 
   const quickMatch = async () => {
-    if (!user || creating) return;
-    const candidate = openMatches.find((item) => item.player_white !== user.id && !item.player_black);
-    if (candidate) { await joinMatch(candidate); return; }
-    await createPvP();
+    if (!user || creating || queueSearching) return;
+    setQueueSearching(true);
+    try {
+      const { data, error } = await queueRpc("enqueue_draughts_match", {
+        p_rating: 1000, p_clock_seconds: 600, p_increment_seconds: 5, p_region: null,
+      });
+      if (error) throw error;
+      const result = data as { status?: string; queue_id?: string; match_id?: string };
+      if (result.status === "matched" && result.match_id) {
+        const { data: joined, error: loadError } = await supabase.from("draft_matches").select("*").eq("id", result.match_id).single();
+        if (loadError || !joined) throw loadError ?? new Error("Matched game could not be loaded");
+        setMatch(joined as unknown as MatchRow);
+        setMode("pvp");
+        toast({ title: "Opponent found", description: "Your 10+5 rated Draughts match is ready." });
+      } else if (result.status === "queued" && result.queue_id) {
+        setQueueTicket(result.queue_id);
+        toast({ title: "Searching for opponent", description: "We are matching you with a player near your rating." });
+      } else {
+        throw new Error("Unexpected matchmaking response");
+      }
+    } catch (error) {
+      toast({
+        title: "Matchmaking is not ready",
+        description: error instanceof Error ? error.message : "Could not enter the queue. You can still create or join an open room.",
+        variant: "destructive",
+      });
+      // Keep the existing lobby flow available if the matchmaking RPC is not deployed yet.
+      const candidate = openMatches.find((item) => item.player_white !== user.id && !item.player_black);
+      if (candidate) await joinMatch(candidate);
+      else await createPvP();
+    } finally {
+      setQueueSearching(false);
+    }
   };
+
+  const cancelQueue = async () => {
+    const { error } = await queueRpc("cancel_draughts_match_queue", {});
+    if (error) {
+      toast({ title: "Could not cancel search", description: error.message, variant: "destructive" });
+      return;
+    }
+    setQueueTicket(null);
+    toast({ title: "Match search cancelled" });
+  };
+
+  useEffect(() => {
+    if (!queueTicket || !user) return;
+    let alive = true;
+    const poll = async () => {
+      const { data, error } = await queueTable("draughts_match_queue")
+        .select("status,match_id").eq("id", queueTicket).maybeSingle();
+      if (!alive || error || !data) return;
+      if (data.status === "matched" && data.match_id) {
+        const { data: row } = await supabase.from("draft_matches").select("*").eq("id", data.match_id).maybeSingle();
+        if (alive && row) {
+          setMatch(row as unknown as MatchRow);
+          setMode("pvp");
+          setQueueTicket(null);
+          toast({ title: "Opponent found", description: "Your Draughts match is ready." });
+        }
+      } else if (data.status === "expired" || data.status === "cancelled") {
+        setQueueTicket(null);
+        toast({ title: "Match search ended", description: "No opponent was found. Try again." });
+      }
+    };
+    void poll();
+    const timer = window.setInterval(() => void poll(), 2500);
+    return () => { alive = false; window.clearInterval(timer); };
+  }, [queueTicket, user?.id]);
 
   const joinMatch = async (m: MatchRow) => {
     if (!user) return;
@@ -313,12 +450,19 @@ const Draughts = () => {
           <button onClick={() => nav(-1)} className="tiger-header-action hover:bg-surface-hover" aria-label="Back">
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
-          <h1 className="min-w-0 flex-1 truncate text-base font-bold text-foreground">Tanzanian Draughts</h1>
-          <div className="flex shrink-0 items-center gap-1"><button onClick={() => nav("/draughts/rewards")} className="rounded-lg bg-amber-500/10 px-2 py-2 text-[11px] font-bold text-amber-500">Rewards</button><button onClick={() => nav("/draughts/watch")} className="rounded-lg bg-emerald-500/10 px-2 py-2 text-[11px] font-bold text-emerald-500">Watch</button><button onClick={() => nav("/draughts/tournaments")} className="rounded-lg bg-primary/10 px-2 py-2 text-[11px] font-bold text-primary">Tournaments</button></div>
+          <h1 className="min-w-0 flex-1 truncate text-base font-bold text-foreground">Draughts Arena</h1>
+          <div className="flex shrink-0 items-center gap-1"><button onClick={() => nav("/games")} className="rounded-lg bg-primary/10 px-2 py-2 text-[11px] font-bold text-primary">Games</button><button onClick={() => nav("/draughts/rewards")} className="rounded-lg bg-amber-500/10 px-2 py-2 text-[11px] font-bold text-amber-500">Rewards</button><button onClick={() => nav("/draughts/watch")} className="rounded-lg bg-emerald-500/10 px-2 py-2 text-[11px] font-bold text-emerald-500">Watch</button><button onClick={() => nav("/draughts/tournaments")} className="rounded-lg bg-primary/10 px-2 py-2 text-[11px] font-bold text-primary">Tournaments</button></div>
         </header>
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {mode === "menu" && (
             <>
+              <div className="rounded-xl border border-border bg-card p-3">
+                <label htmlFor="draughts-ai-level" className="mb-2 block text-xs font-bold text-muted-foreground">TIGER AI DIFFICULTY</label>
+                <select id="draughts-ai-level" value={aiDifficulty} onChange={(event) => setAiDifficulty(event.target.value as typeof aiDifficulty)} className="h-11 w-full rounded-lg border border-border bg-background px-3 text-sm font-semibold text-foreground">
+                  <option value="easy">Easy · Beginner</option><option value="medium">Medium · Balanced</option><option value="hard">Hard · Advanced</option><option value="expert">Expert · Challenge</option>
+                </select>
+                <p className="mt-2 text-[10px] text-muted-foreground">Kiwango hiki hubadilisha kina cha uchambuzi wa Tiger AI kabla ya kuanza mechi.</p>
+              </div>
               <button
                 onClick={startAI}
                 disabled={creating}
@@ -354,7 +498,9 @@ const Draughts = () => {
           )}
           {mode === "pvp" && !match && (
             <>
-              <Button onClick={quickMatch} disabled={creating} className="w-full">Quick Match · Find opponent</Button>\n              <Button onClick={createPvP} disabled={creating} className="w-full">
+              <Button onClick={quickMatch} disabled={creating || queueSearching || !!queueTicket} className="w-full">{queueSearching ? "Joining matchmaking…" : queueTicket ? "Searching for opponent…" : "Quick Match · Find opponent"}</Button>
+              {queueTicket && <Button onClick={() => void cancelQueue()} variant="outline" className="w-full">Cancel opponent search</Button>}
+              <Button onClick={createPvP} disabled={creating} className="w-full">
                 {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create new match"}
               </Button>
               <div className="flex gap-2">
@@ -436,6 +582,27 @@ const Draughts = () => {
     if (!accepting) toast({ title: "Draw offered", description: "Your opponent can accept the draw." });
   };
 
+  const rematch = async () => {
+    if (!match || !user || creating) return;
+    setCreating(true);
+    try {
+      const { data, error } = await supabase.rpc("create_draft_match", { p_vs_ai: match.vs_ai });
+      if (error || !data) throw error ?? new Error("Could not create the rematch.");
+      setMatch(data as unknown as MatchRow);
+      setSelected(null);
+      setFlipBoard(null);
+      setMode(match.vs_ai ? "ai" : "pvp");
+      toast({
+        title: match.vs_ai ? "New AI match ready" : "Rematch room created",
+        description: match.vs_ai ? "A fresh game against Tiger AI has started." : "Share the new room code with your previous opponent to play again.",
+      });
+    } catch (error) {
+      toast({ title: "Rematch unavailable", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const shareMatch = async () => {
     if (!match) return;
     const url = `${window.location.origin}/draughts?match=${match.id}`;
@@ -483,9 +650,12 @@ const Draughts = () => {
           </button>
         )}
         {match.status === "finished" && (
-          <Button size="sm" onClick={exitMatch}>
-            <RotateCw className="w-3.5 h-3.5 mr-1" /> New game
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={exitMatch}>Menu</Button>
+            <Button size="sm" onClick={rematch} disabled={creating}>
+              <RotateCw className="w-3.5 h-3.5 mr-1" /> {creating ? "Preparing…" : "Rematch"}
+            </Button>
+          </div>
         )}
       </header>
 
@@ -502,6 +672,33 @@ const Draughts = () => {
             <Copy className="w-3.5 h-3.5 mr-1" /> Copy
           </Button>
         </div>
+      )}
+
+      <div className="flex items-center justify-end px-4 pt-2">
+        <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${realtimeStatus==="live"?"bg-emerald-500/10 text-emerald-600":"bg-amber-500/10 text-amber-600"}`}>
+          {realtimeStatus==="live"?"● Live · synced":realtimeStatus==="connecting"?"Connecting…":"Reconnecting · syncing board"}
+        </span>
+      </div>
+
+      {match.status === "active" && match.initial_clock_seconds != null && (
+        <section className="grid grid-cols-2 gap-2 px-3 pt-2" aria-label="Match clocks">
+          {(["w", "b"] as const).map((side) => {
+            const base = side === "w" ? (match.white_clock_ms ?? match.initial_clock_seconds! * 1000) : (match.black_clock_ms ?? match.initial_clock_seconds! * 1000);
+            const running = match.current_turn === side && !!match.clock_started_at;
+            const elapsed = running ? Math.max(0, clockNow - new Date(match.clock_started_at!).getTime()) : 0;
+            const remaining = Math.max(0, base - elapsed);
+            const seconds = Math.ceil(remaining / 1000);
+            return (
+              <div key={side} className={`rounded-xl border p-2 text-center ${running ? "border-primary bg-primary/10" : "border-border bg-card"}`}>
+                <p className="text-[10px] text-muted-foreground">{side === "w" ? "White clock" : "Black clock"}</p>
+                <p className={`font-mono text-xl font-black tabular-nums ${seconds <= 10 ? "text-destructive" : "text-foreground"}`}>
+                  {Math.floor(seconds / 60).toString().padStart(2, "0")}:{(seconds % 60).toString().padStart(2, "0")}
+                </p>
+                <p className="text-[9px] text-muted-foreground">{running ? "Running" : "Paused"}</p>
+              </div>
+            );
+          })}
+        </section>
       )}
 
       {/* Score bar */}
@@ -521,6 +718,18 @@ const Draughts = () => {
           </div>
         </div>
       </div>
+
+      {match.status === "active" && myColor && !match.vs_ai && (
+        <section className="mx-3 mt-3 rounded-xl border border-border bg-card/80 p-3">
+          <div className="mb-2 flex items-center justify-between"><p className="text-xs font-bold">Live match reactions</p><span className="text-[10px] text-muted-foreground">Opponent can see these</span></div>
+          <div className="flex flex-wrap gap-2">
+            {[["gg","👏"],["well_played","💯"],["thinking","🤔"],["wow","😮"],["oops","😅"],["clap","🙌"],["tiger","🐯"],["laugh","😂"]].map(([key,emoji]) => (
+              <button key={key} type="button" onClick={() => void sendMatchEmote(key)} className="rounded-lg border border-border bg-background px-3 py-2 text-lg transition hover:border-primary/60 hover:bg-primary/5" aria-label={key}>{emoji}</button>
+            ))}
+          </div>
+          {matchEmotes.length > 0 && <div className="mt-2 flex flex-wrap gap-2" aria-live="polite">{matchEmotes.slice(0,5).map(item => <span key={item.id} className="rounded-full bg-muted px-2 py-1 text-xs">{({gg:"👏",well_played:"💯",thinking:"🤔",wow:"😮",oops:"😅",clap:"🙌",tiger:"🐯",laugh:"😂"} as Record<string,string>)[item.emote_key] ?? "✨"} {item.user_id===user?.id?"You":"Opponent"}</span>)}</div>}
+        </section>
+      )}
 
       {tigerSupervisorEnabled && (
         <div className="mx-3 mt-3 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2.5">

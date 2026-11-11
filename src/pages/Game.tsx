@@ -183,17 +183,12 @@ const Game = () => {
         <header className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
-              Tanzanian <span className="text-primary">Draft Game</span>
+              Tiger <span className="text-primary">Quiz Arena</span>
             </h1>
             <p className="text-xs text-muted-foreground">Answer fast. Earn trophies. Climb the ranks.</p>
           </div>
           <div className="flex items-center gap-2">
-            <Link
-              to="/draughts"
-              className="text-[11px] px-2.5 py-1.5 rounded-full bg-primary/15 border border-primary/30 text-primary hover:bg-primary/25"
-            >
-              ♟ Draughts
-            </Link>
+            <Link to="/games" className="text-[11px] px-2.5 py-1.5 rounded-full bg-primary/15 border border-primary/30 text-primary hover:bg-primary/25">🎮 Games Hub</Link>
             <Trophy className="w-7 h-7 text-primary drop-shadow-[0_0_12px_hsl(var(--primary)/0.6)]" />
           </div>
         </header>
