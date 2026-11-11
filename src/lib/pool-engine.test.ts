@@ -17,6 +17,8 @@ describe("authoritative Pool engine", () => {
     expect(result.firstContact).toBe(1);
     expect(result.state.balls.every(ball => Number.isFinite(ball.x) && Number.isFinite(ball.y))).toBe(true);
     expect(result.status).toBe("active");
+    expect(result.trajectory.length).toBeGreaterThan(1);
+    expect(result.trajectory.at(-1)?.balls).toHaveLength(result.state.balls.length);
   });
   it("awards ball-in-hand after cue scratch", () => {
     const state = createInitialPoolState("eight_ball", "p1", "p2");
@@ -59,5 +61,23 @@ describe("authoritative Pool engine", () => {
     state.ballInHandFor = "p1";
     expect(() => simulatePoolShot(state, "p1", "p2", { angle: 0, power: 50, requestId: "no-placement" })).toThrow("Place the cue ball");
     expect(() => simulatePoolShot(state, "p1", "p2", { angle: 0, power: 50, cuePosition: { x: 0.68, y: 0.5 }, requestId: "overlap" })).toThrow("overlaps");
+  });
+});
+describe("Pool competitive rules and shot replay", () => {
+  it("records an initial and final trajectory frame for every shot", () => {
+    const state = createInitialPoolState("eight_ball", "p1", "p2");
+    const result = simulatePoolShot(state, "p1", "p2", { angle: 0, power: 60, requestId: "replay-1" });
+    expect(result.trajectory[0].balls.find(ball => ball.id === 0)?.x).toBeGreaterThan(0.22);
+    expect(result.trajectory.at(-1)?.balls.find(ball => ball.id === 0)?.pocketed).toBe(false);
+  });
+  it("does not allow the 8-ball to be legally pocketed on the break", () => {
+    const state = createInitialPoolState("eight_ball", "p1", "p2");
+    const cue = state.balls.find(ball => ball.id === 0)!;
+    const eight = state.balls.find(ball => ball.id === 8)!;
+    state.balls = [cue, eight, { ...state.balls.find(ball => ball.id === 1)!, x: 0.52, y: 0.5 }];
+    cue.x = 0.5; cue.y = 0.5; eight.x = 0.5; eight.y = 0.12;
+    const result = simulatePoolShot(state, "p1", "p2", { angle: -Math.PI / 2, power: 100, requestId: "break-eight" });
+    expect(result.winnerId).toBeNull();
+    expect(result.state.balls.find(ball => ball.id === 8)?.pocketed).toBe(false);
   });
 });
