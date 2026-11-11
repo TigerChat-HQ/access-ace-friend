@@ -11,7 +11,7 @@ import { FollowListDialog } from "@/components/social/FollowListDialog";
 import { DraughtsProfileRank } from "@/components/draughts/DraughtsProfileRank";
 import {
   ArrowLeft, Settings, Shield, MessageCircle, Grid3x3, LogOut, Pencil, Lock, Bookmark,
-  MoreVertical, Flag, UserX, UserCheck, Trash2, ChevronDown, ChevronUp,
+  MoreVertical, Flag, UserX, UserCheck, Trash2, ChevronDown, ChevronUp, Archive,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -193,7 +193,7 @@ const Profile = () => {
             </button>
           )}
           {isMe ? (
-            <><button onClick={() => navigate("/saved")} className="tiger-header-action hover:text-primary" aria-label="Saved posts"><Bookmark className="w-5 h-5" /></button><button onClick={() => navigate("/settings")} className="tiger-header-action hover:text-foreground" aria-label="Settings">
+            <><button onClick={() => navigate("/saved")} className="tiger-header-action hover:text-primary" aria-label="Saved posts"><Bookmark className="w-5 h-5" /></button><button onClick={() => navigate("/archive")} className="tiger-header-action hover:text-primary" aria-label="Archived posts"><Archive className="w-5 h-5" /></button><button onClick={() => navigate("/settings")} className="tiger-header-action hover:text-foreground" aria-label="Settings">
               <Settings className="w-5 h-5" />
             </button></>
           ) : (
