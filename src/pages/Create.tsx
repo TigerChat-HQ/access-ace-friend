@@ -27,6 +27,10 @@ const Create = () => {
   const [caption, setCaption] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [extraImageFiles, setExtraImageFiles] = useState<File[]>([]);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [textColor, setTextColor] = useState("#ffffff");
+  const [textScale, setTextScale] = useState(1);
+  const [textPosition, setTextPosition] = useState<"top" | "center" | "bottom">("bottom");
   const [preview, setPreview] = useState<string | null>(null);
   const [filter, setFilter] = useState("none");
   const [overlay, setOverlay] = useState("");
@@ -73,6 +77,7 @@ const Create = () => {
     clearRenderedPreview();
     setFile(f);
     setExtraImageFiles([]);
+    setCoverFile(null);
     setFilter("none");
     setOverlay("");
     setRotation(0);
@@ -159,6 +164,13 @@ const Create = () => {
         extraImagePaths.push(path);
         mediaPaths.push(path);
       }
+      let coverPath: string | null = null;
+      if (coverFile) {
+        coverPath = user.id + "/" + crypto.randomUUID() + "-cover-" + coverFile.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+        const { error } = await supabase.storage.from("post-drafts").upload(coverPath, coverFile);
+        if (error) throw error;
+        mediaPaths.push(coverPath);
+      }
       let musicPath: string | null = null;
       if (musicFile) {
         musicPath = user.id + "/" + crypto.randomUUID() + "-audio-" + musicFile.name.replace(/[^a-zA-Z0-9._-]/g, "-");
@@ -169,7 +181,8 @@ const Create = () => {
       const editorState = {
         filter, overlay, rotation, brightness, contrast, saturation, aspectRatio, sticker,
         audience, allowComments, locationName, altText, scheduledAt,
-        taggedUsers, mediaType: isVideo ? "video" : isImage ? "image" : "text", musicPath, primaryMediaPath, extraImagePaths,
+        taggedUsers, mediaType: isVideo ? "video" : isImage ? "image" : "text", musicPath, primaryMediaPath, extraImagePaths, coverPath,
+        textColor, textScale, textPosition,
       };
       const { error } = await supabase.from("post_drafts").insert({ user_id: user.id, caption, editor_state: editorState, media_paths: mediaPaths });
       if (error) throw error;
@@ -232,6 +245,17 @@ const Create = () => {
       setAltText(typeof state.altText === "string" ? state.altText : "");
       setScheduledAt(typeof state.scheduledAt === "string" ? state.scheduledAt : "");
       setTaggedUsers(Array.isArray(state.taggedUsers) ? state.taggedUsers as typeof taggedUsers : []);
+      const coverPath = typeof state.coverPath === "string" ? state.coverPath : null;
+      if (coverPath) {
+        const { data, error } = await supabase.storage.from("post-drafts").createSignedUrl(coverPath, 300);
+        if (error) throw error;
+        const response = await fetch(data.signedUrl);
+        const blob = await response.blob();
+        setCoverFile(new File([blob], coverPath.split("/").pop() || "post-cover", { type: blob.type }));
+      } else setCoverFile(null);
+      setTextColor(typeof state.textColor === "string" ? state.textColor : "#ffffff");
+      setTextScale(Number(state.textScale || 1));
+      setTextPosition(state.textPosition === "top" || state.textPosition === "center" ? state.textPosition : "bottom");
       const musicPath = typeof state.musicPath === "string" ? state.musicPath : null;
       if (musicPath) {
         const { data, error } = await supabase.storage.from("post-drafts").createSignedUrl(musicPath, 300);
@@ -313,7 +337,7 @@ const Create = () => {
     if (overlay.trim()) {
       ctx.filter = "none";
       const fontSize = Math.round(canvas.width / 14);
-      ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+      ctx.font = `bold ${Math.round(fontSize * textScale)}px Inter, sans-serif`;
       ctx.textAlign = "center";
       ctx.fillStyle = "rgba(0,0,0,0.6)";
       const padding = fontSize * 0.4;
@@ -321,9 +345,9 @@ const Create = () => {
       const w = metrics.width + padding * 2;
       const h = fontSize * 1.4;
       const x = canvas.width / 2;
-      const y = canvas.height * 0.85;
+      const y = canvas.height * (textPosition === "top" ? 0.15 : textPosition === "center" ? 0.5 : 0.85);
       ctx.fillRect(x - w / 2, y - h * 0.85, w, h);
-      ctx.fillStyle = "white";
+      ctx.fillStyle = textColor;
       ctx.fillText(overlay, x, y);
     }
     if (sticker) { ctx.font = Math.round(canvas.width / 7) + "px sans-serif"; ctx.textAlign = "center"; ctx.fillText(sticker, canvas.width * 0.82, canvas.height * 0.18); }
@@ -375,6 +399,14 @@ const Create = () => {
         mediaItems.push({ url, type: "image", alt_text: altText.trim() || null });
       }
 
+      let publishedCoverUrl: string | null = null;
+      if (coverFile && isVideo) {
+        const coverUploadPath = user.id + "/" + Date.now() + "-cover-" + coverFile.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+        const { error: coverUploadError } = await supabase.storage.from("post-media").upload(coverUploadPath, coverFile);
+        if (coverUploadError) throw coverUploadError;
+        publishedCoverUrl = supabase.storage.from("post-media").getPublicUrl(coverUploadPath).data.publicUrl;
+      }
+
       let publishedMusicUrl: string | null = null;
       if (musicFile && isImage) {
         const musicPath = user.id + "/post-audio/" + Date.now() + "-" + musicFile.name.replace(/[^a-zA-Z0-9._-]/g, "-");
@@ -391,6 +423,7 @@ const Create = () => {
         hashtags: extractHashtags(caption),
         post_audio_url: publishedMusicUrl,
         post_audio_title: musicFile?.name || null,
+        post_cover_url: publishedCoverUrl,
         audience,
         allow_comments: allowComments,
         location_name: locationName.trim() || null,
@@ -450,8 +483,8 @@ const Create = () => {
                 />
                 {sticker && <span className="absolute right-5 top-5 text-5xl drop-shadow-lg pointer-events-none">{sticker}</span>}
                 {overlay && (
-                  <div className="absolute inset-x-0 bottom-[12%] text-center px-4 pointer-events-none">
-                    <span className="inline-block bg-black/60 text-white text-lg font-bold px-3 py-1 rounded">
+                  <div className={cn("absolute inset-x-0 text-center px-4 pointer-events-none", textPosition === "top" ? "top-[12%]" : textPosition === "center" ? "top-1/2 -translate-y-1/2" : "bottom-[12%]")}>
+                    <span className="inline-block bg-black/60 text-lg font-bold px-3 py-1 rounded" style={{ color: textColor, fontSize: Math.round(18 * textScale) + "px" }}>
                       {overlay}
                     </span>
                   </div>
@@ -469,6 +502,10 @@ const Create = () => {
 
         {isVideo && (
           <section className="space-y-3 rounded-xl border border-border p-3">
+            <label className="block space-y-1 text-xs text-muted-foreground">Video cover image (optional)
+              <input type="file" accept="image/*" onChange={(event) => setCoverFile(event.target.files?.[0] || null)} className="block w-full text-xs" />
+              {coverFile && <span className="block truncate text-foreground">{coverFile.name}</span>}
+            </label>
             <h2 className="text-sm font-semibold text-foreground">Video & audio editor</h2>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Trim start · {trimStart.toFixed(1)}s</label>
@@ -541,14 +578,21 @@ const Create = () => {
               {([{label:"Brightness",value:brightness,set:setBrightness},{label:"Contrast",value:contrast,set:setContrast},{label:"Saturation",value:saturation,set:setSaturation}] as const).map((item) => <label key={item.label} className="block text-xs text-muted-foreground">{item.label} · {item.value}%<input type="range" min={0} max={200} value={item.value} onChange={(event) => item.set(Number(event.target.value))} className="w-full" /></label>)}
               <div className="flex flex-wrap gap-2">{["❤️","🔥","😂","😍","🐯","✨","🎉","🌟","📍","💯"].map((emoji) => <button key={emoji} type="button" onClick={() => setSticker(sticker === emoji ? "" : emoji)} aria-pressed={sticker === emoji} className={cn("rounded-lg border px-2 py-1 text-xl", sticker === emoji ? "border-primary bg-primary/10" : "border-border")}>{emoji}</button>)}</div>
             </section>
-            <div className="flex items-center gap-2">
-              <Type className="w-4 h-4 text-primary shrink-0" />
+            <div className="space-y-2 rounded-xl border border-border p-3">
+              <div className="flex items-center gap-2">
+                <Type className="w-4 h-4 text-primary shrink-0" />
               <input
                 value={overlay}
                 onChange={(e) => setOverlay(e.target.value)}
                 placeholder="Add text overlay..."
                 className="flex-1 bg-surface rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none"
               />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <label className="text-xs text-muted-foreground">Text color<input type="color" value={textColor} onChange={(event) => setTextColor(event.target.value)} className="mt-1 block h-9 w-full rounded border border-border bg-transparent" /></label>
+                <label className="text-xs text-muted-foreground">Text size<input type="range" min={0.6} max={2} step={0.1} value={textScale} onChange={(event) => setTextScale(Number(event.target.value))} className="mt-3 w-full" /></label>
+                <label className="text-xs text-muted-foreground">Position<select value={textPosition} onChange={(event) => setTextPosition(event.target.value as typeof textPosition)} className="mt-1 block w-full rounded border border-border bg-surface p-2"><option value="top">Top</option><option value="center">Center</option><option value="bottom">Bottom</option></select></label>
+              </div>
             </div>
           </>
         )}
