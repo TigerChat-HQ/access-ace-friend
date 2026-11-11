@@ -254,7 +254,8 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
       <p className="px-4 pb-3 text-[10px] text-muted-foreground uppercase tracking-wide">{new Date(post.created_at).toLocaleDateString()}</p>
 
       {commentsOpen && <CommentsSheet postId={post.id} open={commentsOpen} onOpenChange={setCommentsOpen} onChange={onChanged} />}
-      {mediaEditorOpen && <PostMediaEditorDialog postId={post.id} initialItems={mediaItems} open={mediaEditorOpen} onOpenChange={setMediaEditorOpen} onSaved={onChanged} />}\n      {collaborationOpen && <PostCollaborationDialog postId={post.id} open={collaborationOpen} onOpenChange={setCollaborationOpen} />}
+      {mediaEditorOpen && <PostMediaEditorDialog postId={post.id} initialItems={mediaItems} open={mediaEditorOpen} onOpenChange={setMediaEditorOpen} onSaved={onChanged} />}
+      {collaborationOpen && <PostCollaborationDialog postId={post.id} open={collaborationOpen} onOpenChange={setCollaborationOpen} />}
       {insightsOpen && <PostInsightsDialog postId={post.id} open={insightsOpen} onOpenChange={setInsightsOpen} />}
       {reportOpen && <ReportDialog open={reportOpen} onOpenChange={setReportOpen} targetType="post" targetId={post.id} />}
     </article>
