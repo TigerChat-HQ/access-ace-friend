@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Radio, Eye, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Board, type Color } from "@/lib/draughts";
+import { type Board, type Color } from "@/lib/draughts";
 
 type LiveMatch = { id:string; player_white:string; player_black:string|null; board:Board; current_turn:Color; status:string; winner:string|null; vs_ai:boolean; revision:number; updated_at:string };
 type PlayerProfile = { user_id:string; display_name:string|null; username:string|null };
