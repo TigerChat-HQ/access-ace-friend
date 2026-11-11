@@ -26,7 +26,8 @@ export default function PoolArena(){
  useEffect(()=>{ballsRef.current=balls;},[balls]);
  const reset=useCallback((nextMode:Mode=mode)=>{const next=rack(nextMode);ballsRef.current=next;setBalls(next);setMoving(false);setShots(0);setPocketed([]);setAngle(0);setBallInHand(false);setPlayerTurn(true);aiShotRef.current=false;setMessage("Meza imeandaliwa. Wewe unaanza.");},[mode]);
  const shoot=(shotAngle=angle,shotPower=power,byAI=false)=>{
-  if(moving||(ballInHand&&!byAI)||(opponent==="ai"&&!playerTurn&&!byAI))return;\n  aiShotRef.current=byAI;
+  if(moving||(ballInHand&&!byAI)||(opponent==="ai"&&!playerTurn&&!byAI))return;
+  aiShotRef.current=byAI;
   if(sound)playPoolTone(170);
   const next=ballsRef.current.map(b=>({...b}));
   const cue=next.find(b=>b.id===0);if(!cue||cue.pocketed)return;
