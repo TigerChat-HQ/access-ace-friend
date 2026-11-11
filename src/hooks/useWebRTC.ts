@@ -228,14 +228,25 @@ export const useWebRTC = () => {
           video: video ? true : false,
         });
       } catch (retryError) {
-        console.error("Media capture retry also failed:", {
+        // If the camera is busy or unavailable during a video call, preserve the call
+        // as audio-only when the microphone can still be opened.
+        if (video) {
+          try {
+            const audioOnlyStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            console.warn("Camera unavailable; continuing this video call as audio-only.", {
+              cameraError: retryError instanceof DOMException ? retryError.name : "UnknownError",
+            });
+            return audioOnlyStream;
+          } catch (audioError) {
+            console.error("Camera and microphone capture both failed:", { firstError, retryError, audioError });
+            throw audioError;
+          }
+        }
+        console.error("Microphone capture failed:", {
           firstError,
           retryError,
           audioInputs: await navigator.mediaDevices.enumerateDevices()
             .then((devices) => devices.filter((device) => device.kind === "audioinput").length)
-            .catch(() => -1),
-          videoInputs: await navigator.mediaDevices.enumerateDevices()
-            .then((devices) => devices.filter((device) => device.kind === "videoinput").length)
             .catch(() => -1),
         });
         throw retryError;
