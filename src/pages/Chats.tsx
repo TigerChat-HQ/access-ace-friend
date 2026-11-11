@@ -208,7 +208,6 @@ const Chats = () => {
       messageType: "text",
       replyToId: replyTo?.id || null,
     });
-    window.TigerNative?.dismissChatNotification?.();
     setReplyTo(null);
     toast({
       title: typeof navigator !== "undefined" && !navigator.onLine

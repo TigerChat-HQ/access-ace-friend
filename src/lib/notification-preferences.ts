@@ -24,7 +24,7 @@ const defaults: NotificationPreferences = {
   social: true,
   sound: true,
   vibration: true,
-  floatingBubble: true,
+  floatingBubble: false,
   floatingBubbleSize: "small",
   floatingBubblePosition: { side: "right", verticalOffset: 1 },
 };
@@ -47,6 +47,7 @@ const normalizePreferences = (value: unknown): NotificationPreferences => {
   return {
     ...defaults,
     ...stored,
+    floatingBubble: false,
     floatingBubbleSize: isBubbleSize(stored.floatingBubbleSize)
       ? stored.floatingBubbleSize
       : defaults.floatingBubbleSize,

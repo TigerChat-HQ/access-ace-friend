@@ -26,55 +26,15 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
         val body = data["body"] ?: "You have a new message"
         val path = data["path"] ?: "/chats"
         val kind = data["kind"] ?: "message"
-        val conversationId = Regex("[?&]c=([^&]+)").find(path)?.groupValues?.getOrNull(1)
-        val overlayEnabled = getSharedPreferences("tiger_overlay", Context.MODE_PRIVATE)
-            .getBoolean("enabled", false) &&
-            (Build.VERSION.SDK_INT < 23 || android.provider.Settings.canDrawOverlays(this))
-        val useCustomOverlay = (kind == "message" || kind == "call") && overlayEnabled
-        val canUseSystemBubble = kind == "message" && conversationId != null &&
-            Build.VERSION.SDK_INT >= 30 && !useCustomOverlay
-
-        if (useCustomOverlay) {
-            val overlay = Intent(this, TigerChatOverlayService::class.java)
-                .setAction(TigerChatOverlayService.ACTION_SHOW_NOTIFICATION)
-                .putExtra(TigerChatOverlayService.EXTRA_TITLE, title)
-                .putExtra(TigerChatOverlayService.EXTRA_BODY, body)
-                .putExtra(TigerChatOverlayService.EXTRA_PATH, path)
-                .putExtra(TigerChatOverlayService.EXTRA_AVATAR, data["avatar_url"] ?: "")
-                .putExtra(TigerChatOverlayService.EXTRA_KIND, kind)
-            try {
-                androidx.core.content.ContextCompat.startForegroundService(this, overlay)
-            } catch (_: Exception) {
-                showStandardNotification(title, body, path, allowReply = kind == "message")
-            }
-        } else if (canUseSystemBubble) {
-            try {
-                showChatBubble(title, body, path, conversationId!!)
-            } catch (_: Exception) {
-                showStandardNotification(title, body, path)
-            }
-        } else {
-            showStandardNotification(title, body, path)
-        }
+        showStandardNotification(title, body, path, allowReply = kind == "message")
     }
 
-    private fun ensureChannels(conversationId: String? = null, shortcutId: String? = null): String {
-        val manager = getSystemService(NotificationManager::class.java)
+    private fun ensureChannels(): String {
         if (Build.VERSION.SDK_INT >= 26) {
-            val parent = NotificationChannel(CHANNEL_MESSAGES, "Messages", NotificationManager.IMPORTANCE_HIGH).apply {
+            val channel = NotificationChannel(CHANNEL_MESSAGES, "Messages", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "New TIGERCHATS messages"
-                if (Build.VERSION.SDK_INT >= 29) setAllowBubbles(true)
             }
-            manager.createNotificationChannel(parent)
-            if (Build.VERSION.SDK_INT >= 30 && conversationId != null && shortcutId != null) {
-                val channelId = "chat_" + conversationId.hashCode().toUInt().toString(16)
-                val conversation = NotificationChannel(channelId, "Chat", NotificationManager.IMPORTANCE_HIGH).apply {
-                    setConversationId(CHANNEL_MESSAGES, shortcutId)
-                    setAllowBubbles(true)
-                }
-                manager.createNotificationChannel(conversation)
-                return channelId
-            }
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
         return CHANNEL_MESSAGES
     }
@@ -96,48 +56,6 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
             .setAllowGeneratedReplies(true)
             .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
             .build()
-    }
-
-    private fun showChatBubble(title: String, body: String, path: String, conversationId: String) {
-        val shortcutId = "chat_" + conversationId
-        val target = Intent(this, BubbleActivity::class.java).putExtra("path", path)
-        val requestCode = conversationId.hashCode()
-        val bubbleIntent = PendingIntent.getActivity(this, requestCode, target, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE)
-        val icon = Icon.createWithResource(this, R.drawable.ic_app)
-        val person = Person.Builder().setName(title).setIcon(icon).build()
-
-        if (Build.VERSION.SDK_INT >= 30) {
-            val shortcut = ShortcutInfo.Builder(this, shortcutId)
-                .setShortLabel(title.take(40))
-                .setLongLabel(title)
-                .setIcon(icon)
-                .setIntent(target)
-                .setPerson(person)
-                .setLongLived(true)
-                .build()
-            getSystemService(android.content.pm.ShortcutManager::class.java).addDynamicShortcuts(listOf(shortcut))
-        }
-
-        val channelId = ensureChannels(conversationId, shortcutId)
-        val bubble = NotificationCompat.BubbleMetadata.Builder(bubbleIntent, IconCompat.createWithResource(this, R.drawable.ic_app))
-            .setDesiredHeight(640)
-            .setAutoExpandBubble(false)
-            .setSuppressNotification(false)
-            .build()
-        val notification = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(title)
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-            .setShortcutId(shortcutId)
-            .setBubbleMetadata(bubble)
-            .setContentIntent(bubbleIntent)
-            .addAction(quickReplyAction(path))
-            .setAutoCancel(true)
-            .setOnlyAlertOnce(true)
-            .build()
-        getSystemService(NotificationManager::class.java).notify(requestCode, notification)
     }
 
     private fun showStandardNotification(title: String, body: String, path: String, allowReply: Boolean = true) {
