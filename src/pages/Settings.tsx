@@ -17,6 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { useAppLock, isWebAuthnSupported } from "@/hooks/useAppLock";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 import { TwoFactorSecurity } from "@/components/TwoFactorSecurity";
+import { ChatAppearanceSettings } from "@/components/settings/ChatAppearanceSettings";
 import { AndroidUpdateChecker } from "@/components/AndroidUpdateChecker";
 import { disablePush, enablePush, isPushEnabled } from "@/lib/firebase-push";
 import { ringtoneOptions, getStoredRingtone, setStoredRingtone, playRingtone, type RingtoneId } from "@/lib/ringtones";
@@ -289,6 +290,7 @@ const Settings = () => {
     { id: "privacy", icon: Shield, label: t("privacy"), description: t("privacyDesc") },
     { id: "security", icon: KeyRound, label: "Usalama na nenosiri", description: "Account ID na kubadili nenosiri" },
     { id: "appearance", icon: Palette, label: t("appearance"), description: t("appearDesc") },
+    { id: "chat-appearance", icon: MessageCircle, label: "Chat customization", description: "Chat backgrounds, message colors and text size" },
   ];
 
   const languages: { code: Language; label: string }[] = [
@@ -477,6 +479,8 @@ const Settings = () => {
             </div>
           </div>
         );
+      case "chat-appearance":
+        return <ChatAppearanceSettings />;
       case "appearance":
         return (
           <div className="space-y-4 animate-fade-in">
