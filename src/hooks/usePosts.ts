@@ -162,6 +162,7 @@ export const useUserPosts = (userId: string | undefined) => {
       .from("posts")
       .select("*")
       .eq("user_id", userId)
+      .order("pinned_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false });
     if (!data) {
       setPosts([]);
