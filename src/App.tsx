@@ -34,6 +34,7 @@ const TigerAI = lazy(() => import("./pages/TigerAI"));
 const Game = lazy(() => import("./pages/Game"));
 const Draughts = lazy(() => import("./pages/Draughts"));
 const DraughtsTournaments = lazy(() => import("./pages/DraughtsTournaments"));
+const DraughtsRewards = lazy(() => import("./pages/DraughtsRewards"));
 const Contact = lazy(() => import("./pages/Contact"));
 const PublicDraughts = lazy(() => import("./pages/PublicDraughts"));
 import { HelmetProvider } from "react-helmet-async";
@@ -57,7 +58,7 @@ const App = () => <HelmetProvider><QueryClientProvider client={queryClient}><The
   <Route path="/forgot-password" element={<ForgotPassword />} /><Route path="/reset-password" element={<ResetPassword />} /><Route path="/install" element={<Install />} /><Route path="/tanzanian-draft-game" element={<PublicDraughts />} /><Route path="/contact" element={<Contact />} />
   <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
     <Route path="/" element={<Feed />} /><Route path="/reels" element={<Reels />} /><Route path="/reels/studio" element={<ReelsStudio />} /><Route path="/creator" element={<ProfessionalDashboard />} /><Route path="/search" element={<Search />} /><Route path="/create" element={<Create />} /><Route path="/chats" element={<Chats />} /><Route path="/groups" element={<Groups />} />
-    <Route path="/stories" element={<Navigate to="/" replace />} /><Route path="/u/:userId" element={<Profile />} /><Route path="/profile/:userId" element={<Profile />} /><Route path="/@:userId" element={<Profile />} /><Route path="/post/:postId" element={<PostDetail />} /><Route path="/saved" element={<SavedPosts />} /><Route path="/saved/collections" element={<PostCollections />} /><Route path="/collaborations" element={<PostCollaborations />} /><Route path="/archive" element={<ArchivedPosts />} /><Route path="/admin" element={<Admin />} /><Route path="/notifications" element={<Notifications />} /><Route path="/settings" element={<Settings />} /><Route path="/tiger-ai" element={<TigerAI />} /><Route path="/game" element={<Game />} /><Route path="/draughts" element={<Draughts />} /><Route path="/draughts/tournaments" element={<DraughtsTournaments />} />
+    <Route path="/stories" element={<Navigate to="/" replace />} /><Route path="/u/:userId" element={<Profile />} /><Route path="/profile/:userId" element={<Profile />} /><Route path="/@:userId" element={<Profile />} /><Route path="/post/:postId" element={<PostDetail />} /><Route path="/saved" element={<SavedPosts />} /><Route path="/saved/collections" element={<PostCollections />} /><Route path="/collaborations" element={<PostCollaborations />} /><Route path="/archive" element={<ArchivedPosts />} /><Route path="/admin" element={<Admin />} /><Route path="/notifications" element={<Notifications />} /><Route path="/settings" element={<Settings />} /><Route path="/tiger-ai" element={<TigerAI />} /><Route path="/game" element={<Game />} /><Route path="/draughts" element={<Draughts />} /><Route path="/draughts/tournaments" element={<DraughtsTournaments />} /><Route path="/draughts/rewards" element={<DraughtsRewards />} />
   </Route><Route path="*" element={<NotFound />} />
 </Routes></Suspense></BrowserRouter></TwoFactorGate></TooltipProvider></AuthProvider></LanguageProvider></ThemeProvider></QueryClientProvider></HelmetProvider>;
 export default App;
