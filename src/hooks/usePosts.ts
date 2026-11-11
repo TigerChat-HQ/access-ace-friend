@@ -77,7 +77,7 @@ export const useFeed = (mode: "following" | "discover" = "following") => {
     }
 
     // Filter blocked users (both directions)
-    const visiblePosts = rawPosts.filter((p) => !blocked.has(p.user_id) && !p.archived_at);
+    const visiblePosts = (rawPosts as Array<(typeof rawPosts)[number] & { archived_at?: string | null }>).filter((p) => !blocked.has(p.user_id) && !p.archived_at);
 
     const postIds = visiblePosts.map((p) => p.id);
     const userIds = [...new Set(visiblePosts.map((p) => p.user_id))];
@@ -162,7 +162,7 @@ export const useUserPosts = (userId: string | undefined) => {
       .from("posts")
       .select("*")
       .eq("user_id", userId)
-      .order("pinned_at", { ascending: false, nullsFirst: false })
+      .order("pinned_at" as any, { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false });
     if (!data) {
       setPosts([]);
