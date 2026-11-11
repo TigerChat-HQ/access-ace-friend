@@ -1,15 +1,59 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MessageCircle, X, Maximize2 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
+type BubblePosition = { left: number; top: number };
+
+const BUBBLE_SIZE = 56;
+const EDGE_GAP = 8;
+const POSITION_KEY = "tigerchat-floating-bubble-position";
+
+const clampPosition = (position: BubblePosition): BubblePosition => ({
+  left: Math.max(EDGE_GAP, Math.min(position.left, window.innerWidth - BUBBLE_SIZE - EDGE_GAP)),
+  top: Math.max(EDGE_GAP, Math.min(position.top, window.innerHeight - BUBBLE_SIZE - EDGE_GAP)),
+});
+
 /**
- * Site-wide floating entry point to the full TigerChat experience.
+ * Site-wide draggable floating entry point to the full TigerChat experience.
  * The embedded route uses the same authenticated web app and existing chat UI.
  */
 export const FloatingChatWidget = () => {
   const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState<BubblePosition | null>(null);
+  const dragRef = useRef<{ pointerId: number; startX: number; startY: number; left: number; top: number; moved: boolean } | null>(null);
+  const draggedClickRef = useRef(false);
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Restore the user's last bubble position and keep it inside the viewport.
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(POSITION_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as BubblePosition;
+        if (Number.isFinite(parsed.left) && Number.isFinite(parsed.top)) {
+          setPosition(clampPosition(parsed));
+        }
+      }
+    } catch {
+      // Ignore unavailable storage or malformed saved coordinates.
+    }
+
+    const keepOnScreen = () => {
+      setPosition((current) => (current ? clampPosition(current) : current));
+    };
+    window.addEventListener("resize", keepOnScreen);
+    return () => window.removeEventListener("resize", keepOnScreen);
+  }, []);
+
+  useEffect(() => {
+    if (!position) return;
+    try {
+      window.localStorage.setItem(POSITION_KEY, JSON.stringify(position));
+    } catch {
+      // The bubble remains draggable even when storage is unavailable.
+    }
+  }, [position]);
 
   // The embedded chat route hides this launcher to prevent recursive iframes.
   if (location.search.includes("bubble=1")) return null;
@@ -17,6 +61,45 @@ export const FloatingChatWidget = () => {
   const openFullChat = () => {
     setOpen(false);
     navigate("/chats");
+  };
+
+  const startDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!event.isPrimary || event.button !== 0) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const current = position ?? { left: rect.left, top: rect.top };
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      left: current.left,
+      top: current.top,
+      moved: false,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const moveDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+    if (!drag.moved && Math.abs(deltaX) + Math.abs(deltaY) < 5) return;
+    drag.moved = true;
+    setPosition(clampPosition({ left: drag.left + deltaX, top: drag.top + deltaY }));
+  };
+
+  const finishDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (dragRef.current?.pointerId !== event.pointerId) return;
+    draggedClickRef.current = Boolean(dragRef.current.moved);
+    dragRef.current = null;
+  };
+
+  const toggleBubble = () => {
+    if (draggedClickRef.current) {
+      draggedClickRef.current = false;
+      return;
+    }
+    setOpen((value) => !value);
   };
 
   return (
@@ -70,14 +153,22 @@ export const FloatingChatWidget = () => {
 
       <button
         type="button"
-        onClick={() => setOpen((value) => !value)}
-        aria-label={open ? "Close TigerChat" : "Open TigerChat"}
+        onPointerDown={startDrag}
+        onPointerMove={moveDrag}
+        onPointerUp={finishDrag}
+        onPointerCancel={finishDrag}
+        onClick={toggleBubble}
+        onContextMenu={(event) => event.preventDefault()}
+        aria-label={open ? "Close TigerChat or drag to move" : "Open TigerChat or drag to move"}
         aria-expanded={open}
-        className="fixed z-[101] flex h-14 w-14 items-center justify-center rounded-full border border-primary-foreground/20 bg-primary text-primary-foreground shadow-[0_8px_30px_hsl(var(--primary)/0.4)] transition-transform duration-200 hover:scale-105 active:scale-95"
-        style={{
-          right: "max(16px, env(safe-area-inset-right, 0px))",
-          bottom: "calc(18px + env(safe-area-inset-bottom, 0px))",
-        }}
+        title="Drag to move"
+        className="fixed z-[101] flex h-14 w-14 touch-none select-none items-center justify-center rounded-full border border-primary-foreground/20 bg-primary text-primary-foreground shadow-[0_8px_30px_hsl(var(--primary)/0.4)] transition-transform duration-200 hover:scale-105 active:scale-95"
+        style={position
+          ? { left: position.left, top: position.top }
+          : {
+              right: "max(16px, env(safe-area-inset-right, 0px))",
+              bottom: "calc(18px + env(safe-area-inset-bottom, 0px))",
+            }}
       >
         {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
         {!open && <span className="absolute right-0 top-0 h-3 w-3 rounded-full border-2 border-background bg-emerald-400" />}
