@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MessageCircle, X, Maximize2, Settings, Minus, Plus } from "lucide-react";
+import { MessageCircle, X, Maximize2, Settings } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 type BubblePosition = { left: number; top: number };
@@ -133,6 +133,7 @@ export const FloatingChatWidget = () => {
               TigerChat
             </div>
             <div className="flex items-center gap-1">
+              <button type="button" onClick={() => setShowBubbleSettings((value) => !value)} aria-label="Bubble customization" title="Bubble settings" className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><Settings className="h-4 w-4" /></button>
               <button
                 type="button"
                 onClick={openFullChat}
@@ -152,6 +153,7 @@ export const FloatingChatWidget = () => {
               </button>
             </div>
           </header>
+          {showBubbleSettings && <div className="shrink-0 border-b border-border/70 bg-card p-3 text-xs"><div className="mb-2 flex items-center justify-between"><strong>Floating bubble</strong><button type="button" onClick={() => setPrefs(DEFAULT_PREFS)} className="text-primary">Reset</button></div><div className="mb-3 flex items-center gap-2"><span className="w-16 text-muted-foreground">Size</span>{(["small", "normal", "large"] as const).map((size) => <button key={size} type="button" onClick={() => setPrefs((p) => ({ ...p, size }))} aria-pressed={prefs.size === size} className={`rounded-lg border px-2 py-1 capitalize ${prefs.size === size ? "border-primary text-primary" : "border-border"}`}>{size}</button>)}</div><div className="mb-3 flex items-center gap-2"><span className="w-16 text-muted-foreground">Color</span>{(Object.keys(bubbleColors) as Array<keyof typeof bubbleColors>).map((color) => <button key={color} type="button" onClick={() => setPrefs((p) => ({ ...p, color }))} aria-label={color} aria-pressed={prefs.color === color} className={`h-6 w-6 rounded-full ${bubbleColors[color]} ${prefs.color === color ? "ring-2 ring-foreground ring-offset-2 ring-offset-card" : ""}`} />)}</div><label className="flex items-center gap-2"><input type="checkbox" checked={prefs.snap} onChange={(event) => setPrefs((p) => ({ ...p, snap: event.target.checked }))} /> Snap bubble to nearest screen edge after dragging</label></div>}
           <iframe
             title="TigerChat conversations"
             src="/chats?bubble=1"
