@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ type Diagnostic = {
   id: string; source: string; severity: string; category: string; title: string;
   message: string | null; route: string | null; component_name: string | null;
   action_label: string | null; suggestion: string | null; status: string; created_at: string;
-  stack?: string | null; metadata?: Record<string, unknown> | null;
+  stack?: string | null; metadata?: Record<string, unknown> | null; ai_status?: string; ai_task_id?: string | null;
 };
 const EXPECTED_TABLES = [
   "profiles","conversations","conversation_members","messages","stories","story_views",
@@ -38,6 +38,8 @@ export const AdminDiagnostics = () => {
   const [items, setItems] = useState<Diagnostic[]>([]);
   const [adminNotices, setAdminNotices] = useState<AdminDiagnosticNotice[]>([]);
   const [mergingTask, setMergingTask] = useState<string | null>(null);
+  const [retryingQueue, setRetryingQueue] = useState(false);
+  const queueRetryStarted = useRef(false);
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(false);
   const [title, setTitle] = useState("");
@@ -77,6 +79,39 @@ export const AdminDiagnostics = () => {
     setLoading(false);
   }, [toast]);
 
+  const retryQueuedDiagnostics = useCallback(async (showToast = true) => {
+    if (retryingQueue) return;
+    setRetryingQueue(true);
+    // Only the Edge Function can authorize and claim each item; the browser never changes AI state directly.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- diagnostic workflow columns are not in generated types yet.
+    const { data: queued, error: queueError } = await (supabase as any).from("app_diagnostics")
+      .select("id,title").eq("ai_status", "queued").is("ai_task_id", null)
+      .order("created_at", { ascending: true }).limit(25);
+    if (queueError) {
+      if (showToast) toast({ title: "Tiger AI queue haijasomeka", description: queueError.message, variant: "destructive" });
+      setRetryingQueue(false);
+      return;
+    }
+    let started = 0;
+    let failed = 0;
+    for (const item of queued ?? []) {
+      const { data, error } = await supabase.functions.invoke("tiger-dev-planner", {
+        body: { action: "process_diagnostic", diagnostic_id: item.id },
+      });
+      if (error || data?.error || data?.ok === false) failed += 1;
+      else started += 1;
+    }
+    setRetryingQueue(false);
+    await load();
+    if (showToast && (queued ?? []).length > 0) {
+      toast({
+        title: "Tiger AI queue imekaguliwa",
+        description: `${started} zimetumwa kwa uchakataji · ${failed} zimehitaji ukaguzi wa connection/ruhusa.`,
+        variant: failed > 0 ? "destructive" : "default",
+      });
+    }
+  }, [load, retryingQueue, toast]);
+
   const record = useCallback(async (payload: Record<string, unknown>) => {
     const { data: { user } } = await supabase.auth.getUser();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table is added by this PR migration; generated Supabase types are not refreshed yet.
@@ -87,6 +122,14 @@ export const AdminDiagnostics = () => {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  
+  // Admin inbox automatically hands off any legacy queued diagnostics on first mount.
+  // The Edge Function rechecks admin authorization and atomically claims each item.
+  useEffect(() => {
+    if (queueRetryStarted.current) return;
+    queueRetryStarted.current = true;
+    void retryQueuedDiagnostics(false);
+  }, [retryQueuedDiagnostics]);
 
   useEffect(() => {
     const channel = supabase.channel("admin-diagnostic-inbox")
@@ -288,7 +331,7 @@ export const AdminDiagnostics = () => {
       <Button size="sm" onClick={() => void submitSuggestion()} disabled={!title.trim()}><Send className="mr-1 h-3.5 w-3.5"/>Save report</Button>
     </div>
     <div className="rounded-lg border border-primary/30 bg-card p-3 space-y-2">
-      <h4 className="text-sm font-semibold flex items-center gap-2"><Bell className="h-4 w-4 text-primary"/> Admin Notification Box <Badge>{adminNotices.filter(n => !n.is_read).length} mpya</Badge></h4>
+      <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-sm font-semibold flex items-center gap-2"><Bell className="h-4 w-4 text-primary"/> Admin Notification Box <Badge>{adminNotices.filter(n => !n.is_read).length} mpya</Badge></h4><Button size="sm" variant="outline" onClick={() => void retryQueuedDiagnostics(true)} disabled={retryingQueue}>{retryingQueue ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin"/> : <RefreshCw className="mr-1 h-3.5 w-3.5"/>}Retry Tiger AI queue</Button></div>
       {adminNotices.length === 0 ? <p className="text-xs text-muted-foreground">Hakuna taarifa mpya za Tiger AI kwa sasa.</p> : adminNotices.map(notice => <div key={notice.id} className="rounded-md border border-border p-2 space-y-1">
         <div className="flex items-start gap-2"><span className="mt-1 h-2 w-2 rounded-full bg-emerald-500 shrink-0"/><div className="min-w-0 flex-1"><p className="text-sm font-bold">{notice.title}</p><p className="text-xs text-muted-foreground">{notice.message}</p><p className="text-[10px] text-muted-foreground">{new Date(notice.created_at).toLocaleString()}</p></div>{!notice.is_read && <Button size="sm" variant="ghost" onClick={() => void markNoticeRead(notice.id)}>Read</Button>}</div>
         {notice.pr_url && <a className="text-xs text-primary underline inline-flex items-center gap-1" href={notice.pr_url} target="_blank" rel="noopener noreferrer"><GitPullRequest className="h-3 w-3"/>Open PR</a>}
