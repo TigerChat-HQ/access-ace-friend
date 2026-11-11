@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 const PREFS_KEY = "tigerchat-floating-bubble-prefs";
 const HIDDEN_KEY = "tigerchat-floating-bubble-hidden";
 const ENABLED_KEY = "tigerchat-floating-bubble-enabled";
+const POSITION_KEY = "tigerchat-floating-bubble-position";
 const EVENT_NAME = "tigerchat:bubble-settings-changed";
 
 type BubblePrefs = {
@@ -58,11 +59,14 @@ export const FloatingBubbleSettings = () => {
     emitChange();
   };
   const reset = () => {
-    setPrefs(DEFAULT_PREFS);
+    setEnabled(true);
     setHidden(false);
+    setPrefs(DEFAULT_PREFS);
     try {
+      localStorage.setItem(ENABLED_KEY, "true");
       localStorage.setItem(PREFS_KEY, JSON.stringify(DEFAULT_PREFS));
       localStorage.setItem(HIDDEN_KEY, "false");
+      localStorage.removeItem(POSITION_KEY);
     } catch { /* storage may be unavailable */ }
     emitChange();
   };
