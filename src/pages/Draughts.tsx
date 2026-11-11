@@ -314,7 +314,7 @@ const Draughts = () => {
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
           <h1 className="min-w-0 flex-1 truncate text-base font-bold text-foreground">Tanzanian Draughts</h1>
-          <div className="flex shrink-0 items-center gap-1.5"><button onClick={() => nav("/draughts/rewards")} className="rounded-lg bg-amber-500/10 px-2.5 py-2 text-xs font-bold text-amber-500">Rewards</button><button onClick={() => nav("/draughts/tournaments")} className="rounded-lg bg-primary/10 px-2.5 py-2 text-xs font-bold text-primary">Tournaments</button></div>
+          <div className="flex shrink-0 items-center gap-1"><button onClick={() => nav("/draughts/rewards")} className="rounded-lg bg-amber-500/10 px-2 py-2 text-[11px] font-bold text-amber-500">Rewards</button><button onClick={() => nav("/draughts/watch")} className="rounded-lg bg-emerald-500/10 px-2 py-2 text-[11px] font-bold text-emerald-500">Watch</button><button onClick={() => nav("/draughts/tournaments")} className="rounded-lg bg-primary/10 px-2 py-2 text-[11px] font-bold text-primary">Tournaments</button></div>
         </header>
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {mode === "menu" && (
