@@ -18,7 +18,8 @@ const SavedPosts = () => {
     const ids = (saves || []).map((row: { post_id: string }) => row.post_id);
     if (!ids.length) { setPosts([]); setLoading(false); return; }
     const { data } = await supabase.from("posts").select("*").in("id", ids).is("archived_at", null);
-    const visible = data || [];
+    const byId = new Map((data || []).map((post) => [post.id, post]));
+    const visible = ids.map((id: string) => byId.get(id)).filter(Boolean) as NonNullable<typeof data>;
     if (!visible.length) { setPosts([]); setLoading(false); return; }
     const postIds = visible.map((post) => post.id);
     const userIds = [...new Set(visible.map((post) => post.user_id))];
