@@ -22,6 +22,7 @@ export interface FeedPost {
   scheduled_at?: string | null;
   archived_at?: string | null;
   pinned_at?: string | null;
+  hide_like_count?: boolean;
   media_items?: unknown;
   profile?: {
     user_id: string;
