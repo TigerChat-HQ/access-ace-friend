@@ -52,6 +52,12 @@ BEGIN
   IF (SELECT count(*) FROM public.pool_match_results r JOIN public.pool_tournament_matches tm
       ON tm.match_id=r.match_id WHERE tm.tournament_id=v_tournament_id)<>3
     THEN RAISE EXCEPTION 'Expected three persisted match results'; END IF;
+  IF (SELECT count(*) FROM public.pool_coin_ledger l JOIN public.pool_matches m
+      ON l.source_id=m.id WHERE m.tournament_id=v_tournament_id AND l.source_type='match')<>6
+    THEN RAISE EXCEPTION 'Expected winner and participation coin rewards for all three matches'; END IF;
+  IF (SELECT coalesce(sum(r.games_played),0) FROM public.pool_player_ratings r
+      WHERE r.user_id IN (u1,u2,u3,u4))<>6
+    THEN RAISE EXCEPTION 'Elo games played totals do not match three completed matches'; END IF;
   result := public.pool_settle_match(final_match_id);
   IF result->>'duplicate'<>'true' THEN RAISE EXCEPTION 'Settlement must be idempotent'; END IF;
 END $$;
