@@ -43,6 +43,7 @@ export const AdminDiagnostics = () => {
 
   const load = useCallback(async () => {
     setLoading(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table is added by this PR migration; generated Supabase types are not refreshed yet.
     const { data, error } = await (supabase as any).from("app_diagnostics")
       .select("*").order("created_at", { ascending: false }).limit(100);
     if (error) toast({ title: "Diagnostics load failed", description: error.message, variant: "destructive" });
@@ -52,6 +53,7 @@ export const AdminDiagnostics = () => {
 
   const record = useCallback(async (payload: Record<string, unknown>) => {
     const { data: { user } } = await supabase.auth.getUser();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table is added by this PR migration; generated Supabase types are not refreshed yet.
     const { error } = await (supabase as any).from("app_diagnostics").insert({
       reporter_id: user?.id ?? null, ...payload,
     });
@@ -101,6 +103,7 @@ export const AdminDiagnostics = () => {
   const runSchemaCheck = async () => {
     setChecking(true);
     const results = await Promise.all(EXPECTED_TABLES.map(async (name) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic table names are required for the schema registry scan.
       const { error } = await (supabase as any).from(name).select("*", { head: true, count: "exact" });
       if (!error) return { name, status: "ok" as const };
       const code = String(error.code ?? "");
@@ -139,6 +142,7 @@ export const AdminDiagnostics = () => {
   };
 
   const updateStatus = async (id: string, status: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table is added by this PR migration; generated Supabase types are not refreshed yet.
     const { error } = await (supabase as any).from("app_diagnostics").update({
       status, resolved_at: status === "fixed" || status === "ignored" ? new Date().toISOString() : null
     }).eq("id", id);
