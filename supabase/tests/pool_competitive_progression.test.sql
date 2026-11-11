@@ -19,12 +19,12 @@ BEGIN
          (u3,'pool-smoke-3@example.invalid','{}','{}'),
          (u4,'pool-smoke-4@example.invalid','{}','{}');
 
-  INSERT INTO public.pool_tournaments(owner_id,title,mode,max_players,entry_fee,prize_pool)
-  VALUES(u1,'Smoke test bracket','eight_ball',4,0,500) RETURNING id INTO v_tournament_id;
+  PERFORM set_config('request.jwt.claim.sub',u1::text,true);
+  SELECT id INTO v_tournament_id FROM public.create_pool_tournament('Smoke test bracket','eight_ball',4,0);
+  IF (SELECT prize_pool FROM public.pool_tournaments WHERE id=v_tournament_id)<>500
+    THEN RAISE EXCEPTION 'Free-entry tournament must have a 500 coin champion prize'; END IF;
   INSERT INTO public.pool_tournament_entries(tournament_id,user_id,seed_rating)
   VALUES(v_tournament_id,u1,1200),(v_tournament_id,u2,1100),(v_tournament_id,u3,1000),(v_tournament_id,u4,900);
-
-  PERFORM set_config('request.jwt.claim.sub',u1::text,true);
   result := public.start_pool_tournament(v_tournament_id);
   IF result->>'status'<>'active' THEN RAISE EXCEPTION 'Tournament did not start'; END IF;
   SELECT count(*) INTO first_round_count FROM public.pool_tournament_matches
