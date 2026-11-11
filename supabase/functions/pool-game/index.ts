@@ -50,9 +50,10 @@ Deno.serve(async(req:Request)=>{
    const {data:latest}=await admin.from("pool_matches").select("*").eq("id",matchId).maybeSingle();
    return reply({error:commitError.message,match:latest,state:latest?.state},409);
   }
+  const timedOut=committed.status==="finished"&&result.status!=="finished";
   let progressionPending=false;
-  if(result.status==="finished"){const settled=await admin.rpc("pool_settle_match",{p_match_id:matchId});progressionPending=!!settled.error;if(settled.error)console.error("Pool settlement pending",settled.error.message);}
-  return reply({match:committed,state:committed.state,result:{foul:result.foul,foulReason:result.foulReason,pocketed:result.pocketed,firstContact:result.firstContact,trajectory:result.trajectory,progressionPending}});
+  if(committed.status==="finished"){const settled=await admin.rpc("pool_settle_match",{p_match_id:matchId});progressionPending=!!settled.error;if(settled.error)console.error("Pool settlement pending",settled.error.message);}
+  return reply({match:committed,state:committed.state,result:{foul:result.foul,foulReason:result.foulReason,pocketed:result.pocketed,firstContact:result.firstContact,trajectory:timedOut?[]:result.trajectory,timeout:timedOut,progressionPending}});
  }catch(error){
   return reply({error:error instanceof Error?error.message:"Unexpected Pool server error"},400);
  }
