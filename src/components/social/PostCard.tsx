@@ -51,7 +51,11 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
-  const mediaItems = post.media_items?.length ? post.media_items : post.media_url ? [{ url: post.media_url, type: post.media_type, alt_text: post.alt_text }] : [];
+  const storedMediaItems = Array.isArray(post.media_items)
+    ? post.media_items.filter((item): item is { url: string; type: string; alt_text?: string | null } =>
+        typeof item === "object" && item !== null && "url" in item && typeof item.url === "string" && "type" in item && typeof item.type === "string")
+    : [];
+  const mediaItems = storedMediaItems.length ? storedMediaItems : post.media_url ? [{ url: post.media_url, type: post.media_type, alt_text: post.alt_text }] : [];
   const activeMedia = mediaItems[carouselIndex] || mediaItems[0];
 
   const handleLike = async () => {
