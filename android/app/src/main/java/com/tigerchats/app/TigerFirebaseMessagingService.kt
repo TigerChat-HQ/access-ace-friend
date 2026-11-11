@@ -156,7 +156,7 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
                 this,
                 shortcutId.hashCode(),
                 bubbleIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
             val bubble = NotificationCompat.BubbleMetadata.Builder(
                 bubblePendingIntent,
