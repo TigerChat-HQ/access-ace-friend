@@ -2,6 +2,7 @@ package com.tigerchats.app
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -156,7 +157,24 @@ open class MainActivity : Activity() {
             try { request.deny() } catch (_: Exception) { }
             pendingMediaPermissionRequest = null
             pendingMediaAndroidPermissions = emptyArray()
+            showMediaPermissionSettingsPrompt()
         }
+    }
+
+    private fun showMediaPermissionSettingsPrompt() {
+        if (isFinishing || isDestroyed) return
+        AlertDialog.Builder(this)
+            .setTitle("Camera and microphone permission")
+            .setMessage("TigerChat needs microphone access for voice calls and camera plus microphone access for video calls. Enable the required permissions in Android app settings, then try again.")
+            .setNegativeButton("Not now", null)
+            .setPositiveButton("Open settings") { _, _ ->
+                val settingsIntent = Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:$packageName"),
+                )
+                startActivity(settingsIntent)
+            }
+            .show()
     }
 
     private fun deliverPendingQuickReply(view: WebView) {
