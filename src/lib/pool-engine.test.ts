@@ -18,7 +18,7 @@ describe("authoritative Pool engine", () => {
     expect(result.state.balls.every(ball => Number.isFinite(ball.x) && Number.isFinite(ball.y))).toBe(true);
     expect(result.status).toBe("active");
     expect(result.trajectory.length).toBeGreaterThan(1);
-    expect(result.trajectory.at(-1)?.balls).toHaveLength(result.state.balls.length);
+    expect(result.trajectory[result.trajectory.length - 1]?.balls).toHaveLength(result.state.balls.length);
   });
   it("awards ball-in-hand after cue scratch", () => {
     const state = createInitialPoolState("eight_ball", "p1", "p2");
