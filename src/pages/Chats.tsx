@@ -85,6 +85,7 @@ const Chats = () => {
   const [favoriteChats, setFavoriteChats] = useState<string[]>(() => readFavoriteChats());
   const [stories, setStories] = useState<Story[]>([]);
   const [storyViewerIndex, setStoryViewerIndex] = useState<number | null>(null);
+  const [storyUploadOpen, setStoryUploadOpen] = useState(false);
   const webrtc = useCall();
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
@@ -563,7 +564,7 @@ const Chats = () => {
             </DropdownMenu>
             <NewDmDialog onStarted={(id) => { setActiveChat(id); refetchConversations(); }} />
             <NewGroupDialog onCreated={(id) => { if (id) setActiveChat(id); void refetchConversations(); }} />
-            <StoryUploadDialog onUploaded={() => {
+            <StoryUploadDialog open={storyUploadOpen} onOpenChange={setStoryUploadOpen} hideTrigger onUploaded={() => {
               supabase.from("stories").select("*").order("created_at", { ascending: false }).then(async ({ data }) => {
                 if (data) {
                   const enriched = await Promise.all(data.map(async (story) => {
@@ -590,7 +591,7 @@ const Chats = () => {
           ))}
         </div>
 
-        <StoriesBar stories={storyBarData} onStoryClick={(index) => setStoryViewerIndex(index)} onAddStory={() => {}} />
+        <StoriesBar stories={storyBarData} onStoryClick={(index) => setStoryViewerIndex(index)} onAddStory={() => setStoryUploadOpen(true)} />
 
         <div className="flex-1 overflow-y-auto scrollbar-thin">
           {convosLoading ? (
