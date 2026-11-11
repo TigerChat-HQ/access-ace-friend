@@ -968,32 +968,92 @@ export type Database = {
       }
       posts: {
         Row: {
+          allow_comments: boolean
+          audience: string
           caption: string | null
           created_at: string
           hashtags: string[] | null
           id: string
+          is_draft: boolean
+          location_name: string | null
+          media_items: Json
           media_type: string
           media_url: string | null
+          alt_text: string | null
+          post_audio_title: string | null
+          post_audio_url: string | null
+          scheduled_at: string | null
+          tagged_user_ids: string[]
           updated_at: string
           user_id: string
         }
         Insert: {
+          allow_comments?: boolean
+          audience?: string
           caption?: string | null
           created_at?: string
           hashtags?: string[] | null
           id?: string
+          is_draft?: boolean
+          location_name?: string | null
+          media_items?: Json
           media_type?: string
           media_url?: string | null
+          alt_text?: string | null
+          post_audio_title?: string | null
+          post_audio_url?: string | null
+          scheduled_at?: string | null
+          tagged_user_ids?: string[]
           updated_at?: string
           user_id: string
         }
         Update: {
+          allow_comments?: boolean
+          audience?: string
           caption?: string | null
           created_at?: string
           hashtags?: string[] | null
           id?: string
+          is_draft?: boolean
+          location_name?: string | null
+          media_items?: Json
           media_type?: string
           media_url?: string | null
+          alt_text?: string | null
+          post_audio_title?: string | null
+          post_audio_url?: string | null
+          scheduled_at?: string | null
+          tagged_user_ids?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      post_drafts: {
+        Row: {
+          caption: string
+          created_at: string
+          editor_state: Json
+          id: string
+          media_paths: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          caption?: string
+          created_at?: string
+          editor_state?: Json
+          id?: string
+          media_paths?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          caption?: string
+          created_at?: string
+          editor_state?: Json
+          id?: string
+          media_paths?: string[]
           updated_at?: string
           user_id?: string
         }
