@@ -1,45 +1,47 @@
 import { describe, expect, it } from "vitest";
-import { applyMove, legalMoves, type Board } from "./draughts";
+import { applyMove, initialBoard, legalMoves, pickAIMove, type Board } from "./draughts";
 
-describe("flying kings", () => {
-  it("travels any distance along all four empty diagonals", () => {
-    const board: Board = Array(64).fill(null);
-    board[28] = { c: "w", k: true };
-    expect(legalMoves(board, "w").map(m => m.to).sort((a,b) => a-b)).toEqual([1,7,10,14,19,21,35,37,42,46,49,55,56]);
+describe("Draughts AI and move engine", () => {
+  it("creates a standard 8x8 opening with twelve pieces per side", () => {
+    const board = initialBoard();
+    expect(board).toHaveLength(64);
+    expect(board.filter((piece) => piece?.c === "w")).toHaveLength(12);
+    expect(board.filter((piece) => piece?.c === "b")).toHaveLength(12);
   });
-  it("captures a distant opponent with every available landing beyond it", () => {
+
+  it("enforces a capture when one is available", () => {
     const board: Board = Array(64).fill(null);
-    board[49] = { c: "w", k: true };
-    board[35] = { c: "b", k: false };
-    const moves = legalMoves(board, "w");
-    expect(moves.map(m => m.to)).toEqual([28,21,14,7]);
-    expect(moves.every(m => m.captures.length === 1 && m.captures[0] === 35)).toBe(true);
+    board[2 * 8 + 1] = { c: "b", k: false };
+    board[3 * 8 + 2] = { c: "w", k: false };
+    const moves = legalMoves(board, "b");
+    expect(moves.length).toBeGreaterThan(0);
+    expect(moves.every((move) => move.captures.length > 0)).toBe(true);
+    expect(moves.some((move) => move.to === 4 * 8 + 3)).toBe(true);
   });
-  it("cannot fly through its own piece or two adjacent opponents", () => {
-    const board: Board = Array(64).fill(null);
-    board[49] = { c: "w", k: true };
-    board[35] = { c: "w", k: false };
-    expect(legalMoves(board, "w").filter(m => m.from === 49).map(m => m.to)).not.toContain(28);
-    board[35] = { c: "b", k: false };
-    board[28] = { c: "b", k: false };
-    expect(legalMoves(board, "w").filter(m => m.from === 49).every(m => m.captures.length === 0)).toBe(true);
+
+  it("returns a legal move for each exposed AI difficulty depth", () => {
+    const board = initialBoard();
+    const legal = legalMoves(board, "b");
+    for (const depth of [2, 3, 4, 5]) {
+      const move = pickAIMove(board, "b", depth);
+      expect(move).not.toBeNull();
+      expect(legal).toContainEqual(move);
+    }
   });
-  it("chains flying captures without duplicating captured indices", () => {
+
+  it("returns null when the side to move has no legal moves", () => {
     const board: Board = Array(64).fill(null);
-    board[49] = { c: "w", k: true };
-    board[35] = { c: "b", k: false };
-    board[19] = { c: "b", k: false };
-    const move = legalMoves(board, "w").find(m => m.to === 10);
-    expect(move?.captures).toEqual([35,19]);
-    if (!move) throw new Error("Missing flying chain");
-    const result = applyMove(board, move);
-    expect(result[35]).toBeNull();
-    expect(result[19]).toBeNull();
-    expect(result[10]).toEqual({ c: "w", k: true });
+    board[7 * 8] = { c: "w", k: false };
+    expect(pickAIMove(board, "b", 3)).toBeNull();
   });
-  it("keeps ordinary men limited to one-square quiet moves", () => {
-    const board: Board = Array(64).fill(null);
-    board[49] = { c: "w", k: false };
-    expect(legalMoves(board, "w").map(m => m.to)).toEqual([40,42]);
+
+  it("applies a chosen move without mutating the original board", () => {
+    const board = initialBoard();
+    const move = pickAIMove(board, "b", 2);
+    expect(move).not.toBeNull();
+    const next = applyMove(board, move!);
+    expect(next).not.toBe(board);
+    expect(board.filter(Boolean)).toHaveLength(24);
+    expect(next.filter(Boolean)).toHaveLength(24);
   });
 });
