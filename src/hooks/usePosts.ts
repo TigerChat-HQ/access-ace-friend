@@ -10,6 +10,16 @@ export interface FeedPost {
   media_type: string;
   hashtags: string[] | null;
   created_at: string;
+  audience?: string;
+  allow_comments?: boolean;
+  location_name?: string | null;
+  tagged_user_ids?: string[] | null;
+  alt_text?: string | null;
+  post_audio_url?: string | null;
+  post_audio_title?: string | null;
+  is_draft?: boolean;
+  scheduled_at?: string | null;
+  media_items?: unknown;
   profile?: {
     user_id: string;
     username: string | null;
