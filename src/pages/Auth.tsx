@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getAuthRedirectUrl } from "@/lib/authRedirect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -45,7 +46,7 @@ const Auth = () => {
           password,
           options: {
             data: { display_name: displayName.trim() },
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: getAuthRedirectUrl("/auth"),
           },
         });
         if (error) throw error;
@@ -85,7 +86,7 @@ const Auth = () => {
     const { error } = await supabase.auth.resend({
       type: "signup",
       email: normalizedEmail,
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: getAuthRedirectUrl("/auth") },
     });
     if (error) {
       toast({ title: "Imeshindikana kutuma", description: error.message, variant: "destructive" });
