@@ -33,6 +33,8 @@ const Draughts = () => {
   const [selected, setSelected] = useState<number | null>(null);
   const [aiThinking, setAiThinking] = useState(false);
   const [openMatches, setOpenMatches] = useState<MatchRow[]>([]);
+  const [queueTicket, setQueueTicket] = useState<string | null>(null);
+  const [queueSearching, setQueueSearching] = useState(false);
   const [creating, setCreating] = useState(false);
   const [aiDifficulty, setAiDifficulty] = useState<"easy" | "medium" | "hard" | "expert">("medium");
   const aiDepth = aiDifficulty === "easy" ? 2 : aiDifficulty === "medium" ? 3 : aiDifficulty === "hard" ? 4 : 5;
@@ -222,11 +224,75 @@ const Draughts = () => {
   };
 
   const quickMatch = async () => {
-    if (!user || creating) return;
-    const candidate = openMatches.find((item) => item.player_white !== user.id && !item.player_black);
-    if (candidate) { await joinMatch(candidate); return; }
-    await createPvP();
+    if (!user || creating || queueSearching) return;
+    setQueueSearching(true);
+    try {
+      const { data, error } = await supabase.rpc("enqueue_draughts_match", {
+        p_rating: 1000, p_clock_seconds: 600, p_increment_seconds: 5, p_region: null,
+      });
+      if (error) throw error;
+      const result = data as { status?: string; queue_id?: string; match_id?: string };
+      if (result.status === "matched" && result.match_id) {
+        const { data: joined, error: loadError } = await supabase.from("draft_matches").select("*").eq("id", result.match_id).single();
+        if (loadError || !joined) throw loadError ?? new Error("Matched game could not be loaded");
+        setMatch(joined as unknown as MatchRow);
+        setMode("pvp");
+        toast({ title: "Opponent found", description: "Your 10+5 rated Draughts match is ready." });
+      } else if (result.status === "queued" && result.queue_id) {
+        setQueueTicket(result.queue_id);
+        toast({ title: "Searching for opponent", description: "We are matching you with a player near your rating." });
+      } else {
+        throw new Error("Unexpected matchmaking response");
+      }
+    } catch (error) {
+      toast({
+        title: "Matchmaking is not ready",
+        description: error instanceof Error ? error.message : "Could not enter the queue. You can still create or join an open room.",
+        variant: "destructive",
+      });
+      // Keep the existing lobby flow available if the matchmaking RPC is not deployed yet.
+      const candidate = openMatches.find((item) => item.player_white !== user.id && !item.player_black);
+      if (candidate) await joinMatch(candidate);
+      else await createPvP();
+    } finally {
+      setQueueSearching(false);
+    }
   };
+
+  const cancelQueue = async () => {
+    const { error } = await supabase.rpc("cancel_draughts_match_queue");
+    if (error) {
+      toast({ title: "Could not cancel search", description: error.message, variant: "destructive" });
+      return;
+    }
+    setQueueTicket(null);
+    toast({ title: "Match search cancelled" });
+  };
+
+  useEffect(() => {
+    if (!queueTicket || !user) return;
+    let alive = true;
+    const poll = async () => {
+      const { data, error } = await supabase.from("draughts_match_queue")
+        .select("status,match_id").eq("id", queueTicket).maybeSingle();
+      if (!alive || error || !data) return;
+      if (data.status === "matched" && data.match_id) {
+        const { data: row } = await supabase.from("draft_matches").select("*").eq("id", data.match_id).maybeSingle();
+        if (alive && row) {
+          setMatch(row as unknown as MatchRow);
+          setMode("pvp");
+          setQueueTicket(null);
+          toast({ title: "Opponent found", description: "Your Draughts match is ready." });
+        }
+      } else if (data.status === "expired" || data.status === "cancelled") {
+        setQueueTicket(null);
+        toast({ title: "Match search ended", description: "No opponent was found. Try again." });
+      }
+    };
+    void poll();
+    const timer = window.setInterval(() => void poll(), 2500);
+    return () => { alive = false; window.clearInterval(timer); };
+  }, [queueTicket, user?.id]);
 
   const joinMatch = async (m: MatchRow) => {
     if (!user) return;
@@ -361,7 +427,8 @@ const Draughts = () => {
           )}
           {mode === "pvp" && !match && (
             <>
-              <Button onClick={quickMatch} disabled={creating} className="w-full">Quick Match · Find opponent</Button>
+              <Button onClick={quickMatch} disabled={creating || queueSearching || !!queueTicket} className="w-full">{queueSearching ? "Joining matchmaking…" : queueTicket ? "Searching for opponent…" : "Quick Match · Find opponent"}</Button>
+              {queueTicket && <Button onClick={() => void cancelQueue()} variant="outline" className="w-full">Cancel opponent search</Button>}
               <Button onClick={createPvP} disabled={creating} className="w-full">
                 {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create new match"}
               </Button>

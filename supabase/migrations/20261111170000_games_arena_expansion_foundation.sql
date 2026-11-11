@@ -245,3 +245,132 @@ GRANT SELECT ON public.draughts_match_queue, public.draughts_friend_challenges,
   public.draughts_cosmetics, public.draughts_user_cosmetics, public.pool_matches,
   public.pool_match_events, public.pool_wallets, public.pool_coin_ledger,
   public.pool_cosmetics, public.pool_user_cosmetics TO authenticated;
+
+
+-- Trusted matchmaking RPCs. Pairing and match creation happen atomically under row locks.
+CREATE OR REPLACE FUNCTION public.enqueue_draughts_match(
+  p_rating integer DEFAULT 1000,
+  p_clock_seconds integer DEFAULT 600,
+  p_increment_seconds integer DEFAULT 0,
+  p_region text DEFAULT NULL
+) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=public
+AS $$
+DECLARE
+  v_user uuid := (select auth.uid());
+  v_candidate public.draughts_match_queue%ROWTYPE;
+  v_match public.draft_matches%ROWTYPE;
+  v_board jsonb;
+  v_queue_id uuid;
+BEGIN
+  IF v_user IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF;
+  IF p_rating NOT BETWEEN 0 AND 5000 OR p_clock_seconds NOT BETWEEN 30 AND 7200
+     OR p_increment_seconds NOT BETWEEN 0 AND 60 THEN RAISE EXCEPTION 'Invalid matchmaking settings'; END IF;
+
+  UPDATE public.draughts_match_queue
+    SET status='expired'
+    WHERE status='queued' AND expires_at < now();
+
+  -- One active queue ticket per user.
+  UPDATE public.draughts_match_queue
+    SET status='cancelled'
+    WHERE user_id=v_user AND status='queued';
+
+  INSERT INTO public.draughts_match_queue(user_id,rating,clock_seconds,increment_seconds,region)
+    VALUES(v_user,p_rating,p_clock_seconds,p_increment_seconds,nullif(trim(p_region),''))
+    RETURNING id INTO v_queue_id;
+
+  SELECT * INTO v_candidate
+  FROM public.draughts_match_queue q
+  WHERE q.status='queued' AND q.user_id<>v_user
+    AND q.clock_seconds=p_clock_seconds
+    AND q.increment_seconds=p_increment_seconds
+    AND (q.region IS NULL OR p_region IS NULL OR q.region=p_region)
+    AND abs(q.rating-p_rating) <= 150
+  ORDER BY q.queued_at
+  FOR UPDATE SKIP LOCKED
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('status','queued','queue_id',v_queue_id,'match_id',NULL);
+  END IF;
+
+  SELECT jsonb_agg(CASE
+    WHEN ((n/8+n%8)%2=1) AND n/8<3 THEN jsonb_build_object('c','b','k',false)
+    WHEN ((n/8+n%8)%2=1) AND n/8>4 THEN jsonb_build_object('c','w','k',false)
+    ELSE 'null'::jsonb END ORDER BY n)
+  INTO v_board FROM generate_series(0,63) AS g(n);
+
+  INSERT INTO public.draft_matches(
+    player_white,player_black,vs_ai,board,current_turn,status,
+    initial_clock_seconds,increment_seconds,white_clock_ms,black_clock_ms,clock_started_at
+  ) VALUES (
+    v_candidate.user_id,v_user,false,v_board,'w','active',
+    p_clock_seconds,p_increment_seconds,p_clock_seconds*1000::bigint,p_clock_seconds*1000::bigint,now()
+  ) RETURNING * INTO v_match;
+
+  UPDATE public.draughts_match_queue
+    SET status='matched',match_id=v_match.id
+    WHERE id IN (v_candidate.id,v_queue_id);
+
+  RETURN jsonb_build_object('status','matched','queue_id',v_queue_id,'match_id',v_match.id);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.cancel_draughts_match_queue()
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=public
+AS $$
+DECLARE v_user uuid := (select auth.uid()); v_count integer;
+BEGIN
+  IF v_user IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF;
+  UPDATE public.draughts_match_queue SET status='cancelled'
+    WHERE user_id=v_user AND status='queued';
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count > 0;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.accept_draughts_friend_challenge(p_challenge_id uuid)
+RETURNS public.draft_matches
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=public
+AS $$
+DECLARE
+  v_user uuid := (select auth.uid());
+  v_challenge public.draughts_friend_challenges%ROWTYPE;
+  v_board jsonb;
+  v_match public.draft_matches%ROWTYPE;
+BEGIN
+  IF v_user IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF;
+  SELECT * INTO v_challenge FROM public.draughts_friend_challenges
+    WHERE id=p_challenge_id FOR UPDATE;
+  IF NOT FOUND OR v_challenge.challenged_id<>v_user OR v_challenge.status<>'pending'
+     OR v_challenge.expires_at<=now() THEN RAISE EXCEPTION 'Challenge is unavailable'; END IF;
+
+  SELECT jsonb_agg(CASE
+    WHEN ((n/8+n%8)%2=1) AND n/8<3 THEN jsonb_build_object('c','b','k',false)
+    WHEN ((n/8+n%8)%2=1) AND n/8>4 THEN jsonb_build_object('c','w','k',false)
+    ELSE 'null'::jsonb END ORDER BY n)
+  INTO v_board FROM generate_series(0,63) AS g(n);
+
+  INSERT INTO public.draft_matches(
+    player_white,player_black,vs_ai,board,current_turn,status,
+    initial_clock_seconds,increment_seconds,white_clock_ms,black_clock_ms,clock_started_at
+  ) VALUES (
+    v_challenge.challenger_id,v_user,false,v_board,'w','active',
+    v_challenge.clock_seconds,v_challenge.increment_seconds,
+    v_challenge.clock_seconds*1000::bigint,v_challenge.clock_seconds*1000::bigint,now()
+  ) RETURNING * INTO v_match;
+
+  UPDATE public.draughts_friend_challenges
+    SET status='accepted',match_id=v_match.id WHERE id=p_challenge_id;
+  RETURN v_match;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.enqueue_draughts_match(integer,integer,integer,text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.cancel_draughts_match_queue() FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.accept_draughts_friend_challenge(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.enqueue_draughts_match(integer,integer,integer,text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.cancel_draughts_match_queue() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.accept_draughts_friend_challenge(uuid) TO authenticated;
