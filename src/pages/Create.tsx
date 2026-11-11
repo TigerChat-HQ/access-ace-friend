@@ -42,7 +42,7 @@ const Create = () => {
   const [trimEnd, setTrimEnd] = useState(0);
   const [originalVolume, setOriginalVolume] = useState(100);
   const [musicVolume, setMusicVolume] = useState(35);
-  const [musicFile, setMusicFile] = useState<File | null>(null);
+
   const [renderedVideo, setRenderedVideo] = useState<File | null>(null);
   const [renderedPreview, setRenderedPreview] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
