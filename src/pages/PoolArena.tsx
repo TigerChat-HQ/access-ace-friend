@@ -23,6 +23,11 @@ const clamp=(n:number,a:number,b:number)=>Math.max(a,Math.min(b,n));
 type PoolRoom = { id: string; room_code: string | null; mode: string; status: string; player_one: string; player_two: string | null; current_turn?: string | null; revision?: number; state?: { balls?: Ball[]; ballInHandFor?: string | null; winnerId?: string | null } };
 type PoolServerResponse = { match?: PoolRoom; state?: PoolRoom["state"]; result?: { foul?: boolean; foulReason?: string | null } };
 const poolRpc = supabase.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
+const poolQueueFrom = supabase.from as unknown as (table: string) => { select: (columns: string) => { eq: (column: string, value: string) => { maybeSingle: () => Promise<{ data: unknown; error: { message: string } | null }> } } };
+const poolRealtime = supabase as unknown as {
+ channel: (name: string) => { on: (type: "postgres_changes", filter: { event: "UPDATE"; schema: "public"; table: string; filter: string }, callback: (payload: { new: unknown }) => void) => { subscribe: () => unknown } };
+ removeChannel: (channel: unknown) => Promise<unknown>;
+};
 
 
 const playPoolTone=(frequency:number)=>{const AudioContextCtor=window.AudioContext;if(!AudioContextCtor)return;const context=new AudioContextCtor();const oscillator=context.createOscillator();const gain=context.createGain();oscillator.frequency.value=frequency;gain.gain.setValueAtTime(.035,context.currentTime);gain.gain.exponentialRampToValueAtTime(.001,context.currentTime+.12);oscillator.connect(gain);gain.connect(context.destination);oscillator.onended=()=>{void context.close();};oscillator.start();oscillator.stop(context.currentTime+.13);};
@@ -39,19 +44,19 @@ export default function PoolArena(){
  useEffect(()=>{
   if(!onlineRoom?.id)return;
   void refreshOnlineMatch(onlineRoom.id);
-  const channel=supabase.channel("pool-match-"+onlineRoom.id)
+  const channel=poolRealtime.channel("pool-match-"+onlineRoom.id)
    .on("postgres_changes",{event:"UPDATE",schema:"public",table:"pool_matches",filter:"id=eq."+onlineRoom.id},(payload)=>{
     const row=payload.new as PoolRoom;setOnlineRoom(row);
     if(Array.isArray(row.state?.balls)){ballsRef.current=row.state.balls;setBalls(row.state.balls);setOnlineCuePosition(null);setMoving(false);}
     if(row.status==="finished")setOnlineNotice(row.state?.winnerId===onlinePlayerId?"Umeshinda mechi!":"Mechi imekamilika.");
     else if(row.status==="active")setOnlineNotice(row.current_turn===onlinePlayerId?"Zamu yako. Panga shot.":"Mpinzani anacheza…");
    }).subscribe();
-  return()=>{void supabase.removeChannel(channel);};
- },[onlineRoom?.id,onlinePlayerId,refreshOnlineMatch]);
+  return()=>{void poolRealtime.removeChannel(channel);};
+ },[onlineRoom?.id,onlineRoom?.status,onlinePlayerId,refreshOnlineMatch]);
  useEffect(()=>{
   if(!queueTicket)return;
   const poll=window.setInterval(async()=>{
-   const {data}=await supabase.from("pool_match_queue").select("status,match_id").eq("id",queueTicket).maybeSingle();
+   const {data}=await poolQueueFrom("pool_match_queue").select("status,match_id").eq("id",queueTicket).maybeSingle();
    const ticket=data as {status:string;match_id:string|null}|null;
    if(ticket?.status==="matched"&&ticket.match_id){setQueueTicket(null);setOnlineRoom({id:ticket.match_id,room_code:null,mode:mode==="nine"?"nine_ball":"eight_ball",status:"active",player_one:"",player_two:null});setOnlineNotice("Mpinzani amepatikana. Inaunganisha mechi…");}
    else if(ticket&&(ticket.status==="expired"||ticket.status==="cancelled")){setQueueTicket(null);setOnlineNotice("Utafutaji wa mpinzani umeisha.");}
@@ -72,7 +77,7 @@ export default function PoolArena(){
  },[onlineRoom,onlinePlayerId,onlineBusy,onlineCuePosition,toast,refreshOnlineMatch]);
  const reset=useCallback((nextMode:Mode=mode)=>{const next=rack(nextMode);ballsRef.current=next;setBalls(next);setMoving(false);setShots(0);setPocketed([]);setAngle(0);setBallInHand(false);setPlayerTurn(true);aiShotRef.current=false;setMessage("Meza imeandaliwa. Wewe unaanza.");},[mode]);
  const shoot=useCallback((shotAngle=angle,shotPower=power,byAI=false)=>{
-  if(onlineRoom?.status==="active"){void submitOnlineShot(shotAngle,shotPower);return;}
+  if(onlineRoom){if(onlineRoom.status==="active")void submitOnlineShot(shotAngle,shotPower);else setMessage("Subiri mpinzani ajiunge au mechi imalizike.");return;}
   if(moving||(ballInHand&&!byAI)||(opponent==="ai"&&!playerTurn&&!byAI))return;
   aiShotRef.current=byAI;
   if(sound)playPoolTone(170);
@@ -101,7 +106,7 @@ export default function PoolArena(){
   raf=requestAnimationFrame(tick);return()=>cancelAnimationFrame(raf);
  },[moving,sound,opponent,onlineRoom?.status]);
  useEffect(()=>{
-  if(opponent!=="ai"||playerTurn||moving)return;
+  if(onlineRoom?.status==="active"||opponent!=="ai"||playerTurn||moving)return;
   const timer=window.setTimeout(()=>{
    let live=ballsRef.current.map(b=>({...b}));
    let cue=live.find(b=>b.id===0);
@@ -119,7 +124,7 @@ export default function PoolArena(){
    setAngle(shotAngle);setPower(58);setMessage("Tiger AI anapiga…");shoot(shotAngle,58,true);
   },850);
   return()=>window.clearTimeout(timer);
- },[opponent,playerTurn,moving,ballInHand,mode,shoot]);
+ },[opponent,playerTurn,moving,ballInHand,mode,shoot,onlineRoom?.status]);
  const setAimFromPointer=(event:PointerEvent<HTMLDivElement>|MouseEvent<HTMLDivElement>)=>{const rect=event.currentTarget.getBoundingClientRect();const x=clamp((event.clientX-rect.left)/rect.width,.07,.93),y=clamp((event.clientY-rect.top)/rect.height,.12,.88);const cue=ballsRef.current.find(b=>b.id===0);if(!cue||moving||onlineBusy)return;const placing=onlineRoom?.status==="active"?onlineRoom.state?.ballInHandFor===onlinePlayerId:ballInHand;if(placing&&event.type==="click"){const blocked=ballsRef.current.some(b=>b.id!==0&&!b.pocketed&&Math.hypot(b.x-x,b.y-y)<.032);if(blocked){setMessage("Eneo hilo limezibwa. Chagua sehemu tupu ya meza.");return;}if(onlineRoom?.status==="active"){setOnlineCuePosition({x,y});setAim({x,y});setMessage("Cue ball placement imechaguliwa. Bonyeza SHOOT kuthibitisha.");return;}const next=ballsRef.current.map(b=>b.id===0?{...b,x,y,vx:0,vy:0,pocketed:false}:b);ballsRef.current=next;setBalls(next);setBallInHand(false);setAim({x,y});setMessage("Cue ball imewekwa. Chagua mwelekeo kisha piga SHOOT.");return;}if(!placing){setAngle(Math.atan2(y-cue.y,x-cue.x));setAim({x,y});}};
  const createOnlineRoom=async()=>{
   const {data,error}=await poolRpc("create_pool_room",{p_mode:mode==="nine"?"nine_ball":"eight_ball",p_visibility:"private",p_clock_seconds:600});
@@ -145,7 +150,7 @@ export default function PoolArena(){
   if(error){toast({title:"Imeshindikana kusitisha matchmaking",description:error.message,variant:"destructive"});return;}
   setQueueTicket(null);setOnlineNotice("Utafutaji wa mpinzani umesitishwa.");
  };
- const cue=balls.find(b=>b.id===0);const remaining=balls.filter(b=>b.id!==0&&!b.pocketed).length;const onlineActive=onlineRoom?.status==="active";const onlineBallInHand=onlineActive&&onlineRoom?.state?.ballInHandFor===onlinePlayerId;const onlineMyTurn=onlineActive&&onlineRoom?.current_turn===onlinePlayerId;
+ const cue=balls.find(b=>b.id===0);const remaining=balls.filter(b=>b.id!==0&&!b.pocketed).length;const onlineActive=onlineRoom?.status==="active";const onlineBallInHand=onlineActive&&onlineRoom?.state?.ballInHandFor===onlinePlayerId;const onlineMyTurn=onlineActive&&onlineRoom?.current_turn===onlinePlayerId;const shownShots=onlineActive?Math.max(0,(onlineRoom?.revision??1)-1):shots;const shownPocketed=onlineActive?balls.filter(b=>b.id!==0&&b.pocketed).length:pocketed.length;
  return <main className="min-h-full overflow-y-auto bg-background pb-24">
   <header className="tiger-page-header"><button onClick={()=>nav("/games")} className="tiger-header-action" aria-label="Back to games"><ArrowLeft className="h-5 w-5"/></button><div className="min-w-0 flex-1"><p className="text-[10px] font-bold uppercase tracking-[.2em] text-primary">TigerChat Sports</p><h1 className="text-base font-black">4D Pool Arena</h1></div><button onClick={()=>setShowRules(v=>!v)} className="rounded-lg p-2 hover:bg-muted" aria-label="Rules"><CircleHelp className="h-5 w-5"/></button></header>
   <section className="mx-auto max-w-5xl space-y-4 p-3 sm:p-5">
@@ -163,7 +168,7 @@ export default function PoolArena(){
    <div className="rounded-[28px] border border-amber-900/70 bg-gradient-to-br from-amber-700 via-amber-950 to-black p-3 shadow-2xl sm:p-5">
     <Pool3DTable balls={balls} camera={camera} angle={angle} aim={aim} ballInHand={onlineActive?!!onlineBallInHand:ballInHand} onPointerMove={setAimFromPointer} onClick={setAimFromPointer}/>
    </div>
-   <div className="grid grid-cols-3 gap-2"><div className="rounded-xl border border-border bg-card p-3"><p className="text-[10px] text-muted-foreground">Shots</p><p className="text-xl font-black">{shots}</p></div><div className="rounded-xl border border-border bg-card p-3"><p className="text-[10px] text-muted-foreground">Balls left</p><p className="text-xl font-black">{remaining}</p></div><div className="rounded-xl border border-border bg-card p-3"><p className="text-[10px] text-muted-foreground">Pocketed</p><p className="text-xl font-black">{pocketed.length}</p></div></div>
+   <div className="grid grid-cols-3 gap-2"><div className="rounded-xl border border-border bg-card p-3"><p className="text-[10px] text-muted-foreground">Shots</p><p className="text-xl font-black">{shownShots}</p></div><div className="rounded-xl border border-border bg-card p-3"><p className="text-[10px] text-muted-foreground">Balls left</p><p className="text-xl font-black">{remaining}</p></div><div className="rounded-xl border border-border bg-card p-3"><p className="text-[10px] text-muted-foreground">Pocketed</p><p className="text-xl font-black">{shownPocketed}</p></div></div>
    <div className="rounded-2xl border border-border bg-card p-4 space-y-3"><div className="flex items-center justify-between gap-2"><span className="text-sm font-bold">Shot controls</span><span className="text-xs text-muted-foreground">{onlineActive?(onlineMyTurn?"Your online turn":"Opponent turn"):opponent==="ai"?(playerTurn?"Your turn":"Tiger AI turn"):"Practice"} · {Math.round(angle*180/Math.PI)}°</span></div><label className="flex items-center justify-between gap-3 text-xs text-muted-foreground">Opponent<select className="rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground" value={opponent} onChange={e=>{setOpponent(e.target.value as "practice"|"ai");setPlayerTurn(true);aiShotRef.current=false;setMessage(e.target.value==="ai"?"Tiger AI amejiunga. Anacheza baada ya zamu yako.":"Practice mode.");}}><option value="practice">Practice · no opponent</option><option value="ai">Tiger AI · local opponent</option></select></label><label className="block text-xs text-muted-foreground">Power · {power}%<input className="mt-2 w-full accent-primary" type="range" min="5" max="100" value={power} onChange={e=>setPower(Number(e.target.value))} disabled={moving}/></label><div className="grid grid-cols-2 gap-2"><Button onClick={()=>shoot()} disabled={onlineActive?(!onlineMyTurn||onlineBusy||!!onlineBallInHand&&!onlineCuePosition):moving||ballInHand||(opponent==="ai"&&!playerTurn)}><Zap className="mr-2 h-4 w-4"/>SHOOT</Button><Button variant="outline" onClick={() => reset()} disabled={moving}><RotateCcw className="mr-2 h-4 w-4"/>Rack again</Button></div><p className="text-xs text-muted-foreground" aria-live="polite">{message}</p>{ballInHand&&<p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs font-semibold text-amber-600">BALL-IN-HAND: gusa sehemu tupu ya meza kuweka cue ball.</p>}<div className="flex flex-wrap gap-2"><button onClick={()=>setSound(v=>!v)} className="rounded-lg border border-border px-3 py-2 text-xs">{sound?<Volume2 className="mr-1 inline h-3.5 w-3.5"/>:<VolumeX className="mr-1 inline h-3.5 w-3.5"/>}Sound {sound?"On":"Off"}</button><button onClick={()=>setShowRules(v=>!v)} className="rounded-lg border border-border px-3 py-2 text-xs"><Settings2 className="mr-1 inline h-3.5 w-3.5"/>Game rules</button></div></div>
    {showRules&&<div className="rounded-2xl border border-border bg-card p-4 text-xs text-muted-foreground"><h3 className="mb-2 font-bold text-foreground">Pool controls & rules</h3><p>Gusa eneo la meza kuelekeza shot, chagua nguvu ya cue kisha bonyeza SHOOT. Mipira hugongana, hurudi kwenye rails na huingia kwenye pockets. 8-Ball na 9-Ball hapa zina rack tofauti za mipira; sheria kamili za ushindani, foul adjudication, AI opponent na online multiplayer bado zinahitaji engine ya mechi na uthibitishaji wa server.</p><p className="mt-2">Meza ya mfano ina uwiano wa 2:1 unaofanana na meza ya 9-foot; si kipimo halisi cha kifaa cha kuchezea.</p></div>}
    <div className="grid grid-cols-2 gap-2"><button onClick={()=>nav("/draughts/tournaments")} className="rounded-xl border border-border bg-card p-3 text-left"><Trophy className="mb-2 h-5 w-5 text-primary"/><b className="block text-xs">Draughts tournaments</b><span className="text-[10px] text-muted-foreground">Current live competitions</span></button><button onClick={()=>nav("/games")} className="rounded-xl border border-border bg-card p-3 text-left"><Users className="mb-2 h-5 w-5 text-primary"/><b className="block text-xs">More games</b><span className="text-[10px] text-muted-foreground">Back to Games Hub</span></button></div>

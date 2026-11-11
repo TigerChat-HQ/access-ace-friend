@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createInitialPoolState, simulatePoolShot } from "./pool-engine";
+import { createInitialPoolState, simulatePoolShot } from "../../supabase/functions/_shared/pool-engine";
 
 describe("authoritative Pool engine", () => {
   it("creates correct rack sizes and ball identities", () => {

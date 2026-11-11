@@ -149,7 +149,7 @@ END $$;
 
 CREATE OR REPLACE FUNCTION public.join_pool_room_by_code(p_room_code text)
 RETURNS public.pool_matches
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE v_user uuid := (select auth.uid()); v_match public.pool_matches%ROWTYPE;
 BEGIN
   IF v_user IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF;
@@ -160,10 +160,10 @@ BEGIN
     clock_started_at=now(),started_at=now(),updated_at=now()
     WHERE id=v_match.id RETURNING * INTO v_match;
   RETURN v_match;
-END $;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.list_pool_public_rooms()
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 BEGIN
   IF (select auth.uid()) IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF;
   RETURN coalesce((SELECT jsonb_agg(jsonb_build_object(
@@ -172,7 +172,7 @@ BEGIN
     SELECT id,mode,player_one,created_at,clock_seconds FROM public.pool_matches
     WHERE status='waiting' AND visibility='public' ORDER BY created_at DESC LIMIT 25
   ) rooms),'[]'::jsonb);
-END $;
+END $$;
 
 DROP POLICY IF EXISTS "Pool participants read matches" ON public.pool_matches;
 CREATE POLICY "Pool participants read matches" ON public.pool_matches
@@ -184,7 +184,7 @@ CREATE POLICY "Pool participants read matches" ON public.pool_matches
 
 CREATE OR REPLACE FUNCTION public.claim_draughts_timeout(p_id uuid)
 RETURNS public.draft_matches
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE
   v_match public.draft_matches%ROWTYPE;
   v_user uuid := (select auth.uid());
@@ -206,7 +206,7 @@ BEGIN
     clock_started_at=NULL,revision=revision+1,updated_at=now()
     WHERE id=p_id RETURNING * INTO v_match;
   RETURN v_match;
-END $;
+END $$;
 
 REVOKE ALL ON FUNCTION public.claim_draughts_timeout(uuid) FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION public.create_pool_room(text,text,integer) FROM PUBLIC,anon;
