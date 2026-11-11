@@ -12,6 +12,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { useUserRole } from "@/hooks/useUserRole";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { NativePushRegistration } from "@/components/NativePushRegistration";
+import { FloatingChatWidget } from "@/components/chat/FloatingChatWidget";
 
 export const AppShell = () => {
   const { user } = useAuth();
@@ -208,6 +209,7 @@ export const AppShell = () => {
         <div className="tiger-app-safe-area flex min-h-0 min-w-0 flex-1 flex-col">
           <OfflineIndicator />
           <main className="min-h-0 min-w-0 flex-1 overflow-hidden"><Outlet /></main>
+          {user && <FloatingChatWidget />}
           {!hideBar && <nav aria-label="Main navigation" className="flex shrink-0 items-center border-t border-border/50 bg-card/80 px-1 pt-1 backdrop-blur-md pb-[calc(0.375rem+env(safe-area-inset-bottom,0px))] lg:hidden">
             {items.map(({ to, icon: Icon, label, badge }) => <NavLink key={label} to={to} end={to === "/"} className={({ isActive }) => `relative flex h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-lg px-0.5 transition-colors ${isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
               <span className="relative flex h-5 w-5 items-center justify-center"><Icon className="h-5 w-5" />{badge > 0 && <span className="absolute -right-2 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground shadow-[0_0_8px_hsl(var(--primary)/0.6)]">{badge > 99 ? "99+" : badge}</span>}</span>
