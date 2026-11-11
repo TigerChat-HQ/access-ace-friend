@@ -7,7 +7,7 @@ Deno.serve(async(req:Request)=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
  if(req.method!=="POST")return reply({error:"POST required"},405);
  try{
-  const authorization=req.headers.get("Authorization")??"",token=authorization.replace(/^Bearer\\s+/i,"");
+  const authorization=req.headers.get("Authorization")??"",token=authorization.replace(/^Bearer\s+/i,"");
   if(!token||token===authorization)return reply({error:"Sign in required"},401);
   const url=Deno.env.get("SUPABASE_URL")??"",anon=Deno.env.get("SUPABASE_ANON_KEY")??"",secret=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")??"";
   if(!url||!anon||!secret)return reply({error:"Pool server is not configured"},503);
