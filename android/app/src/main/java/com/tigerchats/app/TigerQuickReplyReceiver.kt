@@ -18,7 +18,7 @@ class TigerQuickReplyReceiver : BroadcastReceiver() {
             .find(path)?.groupValues?.getOrNull(1) ?: return
 
         val safePath = "/chats?c=$conversationId"
-        val bubbleIntent = Intent(context, BubbleActivity::class.java)
+        val bubbleIntent = Intent(context, MainActivity::class.java)
             .putExtra("path", safePath)
             .putExtra(MainActivity.EXTRA_QUICK_REPLY, text)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
