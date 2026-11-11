@@ -18,6 +18,7 @@ import { useAppLock, isWebAuthnSupported } from "@/hooks/useAppLock";
 import tigerLogo from "@/assets/tigerchats-logo.png";
 import { TwoFactorSecurity } from "@/components/TwoFactorSecurity";
 import { ChatAppearanceSettings } from "@/components/settings/ChatAppearanceSettings";
+import { FloatingBubbleSettings } from "@/components/settings/FloatingBubbleSettings";
 import { AndroidUpdateChecker } from "@/components/AndroidUpdateChecker";
 import { disablePush, enablePush, isPushEnabled } from "@/lib/firebase-push";
 import { ringtoneOptions, getStoredRingtone, setStoredRingtone, playRingtone, type RingtoneId } from "@/lib/ringtones";
@@ -304,6 +305,7 @@ const Settings = () => {
         return (
           <div className="space-y-4 animate-fade-in">
             <div className="rounded-2xl border border-primary/20 bg-primary/5 px-3 py-1">
+              <FloatingBubbleSettings />
               <SettingToggle label="Data Saver Mode" description="Punguza ubora na ukubwa wa picha wakati wa kuzitazama ili kutumia data kidogo. Video zitapakia metadata tu hadi ubonyeze Play." value={dataSaver} onChange={updateDataSaver} icon={<Gauge className="w-5 h-5" />} />
             </div>
             <p className="text-xs text-muted-foreground">Mipangilio hii huhifadhiwa kwenye kifaa hiki. Zima Data Saver ili kurudi kwenye ubora wa kawaida.</p>
