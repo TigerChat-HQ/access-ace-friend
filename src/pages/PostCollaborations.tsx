@@ -34,7 +34,19 @@ const PostCollaborations = () => {
   const respond = async (invite: Invite, status: "accepted"|"declined") => {
     const { error } = await db.from("post_collaborators").update({status,updated_at:new Date().toISOString()}).eq("id",invite.id).eq("invitee_id",user?.id);
     if (error) toast({title:"Could not update invitation",description:error.message,variant:"destructive"});
-    else {toast({title:status==="accepted"?"Collaboration accepted":"Invitation declined"});await load();}
+    else {
+      if (status === "accepted" && user?.id) {
+        const { error: notificationError } = await supabase.from("notifications").insert({
+          recipient_id: invite.inviter_id,
+          actor_id: user.id,
+          type: "collaboration_accepted",
+          post_id: invite.post_id,
+        });
+        if (notificationError) console.warn("Collaboration response notification could not be created", notificationError);
+      }
+      toast({title:status==="accepted"?"Collaboration accepted":"Invitation declined"});
+      await load();
+    }
   };
   const pending=invites.filter(i=>i.status==="pending");
   const history=invites.filter(i=>i.status!=="pending");
