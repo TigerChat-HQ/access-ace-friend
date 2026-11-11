@@ -197,13 +197,14 @@ function search(
     }
     if (maximizing) alpha = Math.max(alpha, best);
     else beta = Math.min(beta, best);
-    if (beta <= alpha) break;
+    if (beta <= alpha) { cutoff = true; break; }
   }
 
   // Only cache fully searched nodes; cutoff scores are bounds, not exact values.
   if (!cutoff) {
     if (table.size >= 50_000) table.clear();
-    table.set(key, { score: best, bestMove });
+    const bound = best <= originalAlpha ? "upper" : best >= originalBeta ? "lower" : "exact";
+    table.set(key, { score: best, bestMove, bound });
   }
   return best;
 }
