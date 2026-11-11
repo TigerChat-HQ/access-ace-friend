@@ -45,7 +45,7 @@ CREATE OR REPLACE FUNCTION public.report_app_diagnostic(p_record jsonb, p_signat
 RETURNS TABLE (id uuid, occurrence_count integer, ai_status text)
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, public, auth
+SET search_path = pg_catalog, auth
 AS $$
 DECLARE
   v_user_id uuid := auth.uid();
@@ -101,7 +101,8 @@ BEGIN
     status = CASE WHEN current_row.status IN ('fixed','ignored') THEN 'new' ELSE current_row.status END,
     resolved_at = CASE WHEN current_row.status IN ('fixed','ignored') THEN NULL ELSE current_row.resolved_at END,
     ai_status = CASE WHEN current_row.status IN ('fixed','ignored') THEN 'queued' ELSE current_row.ai_status END,
-    ai_task_id = CASE WHEN current_row.status IN ('fixed','ignored') THEN NULL ELSE current_row.ai_task_id END
+    ai_task_id = CASE WHEN current_row.status IN ('fixed','ignored') THEN NULL ELSE current_row.ai_task_id END,
+    reporter_id = CASE WHEN current_row.status IN ('fixed','ignored') THEN EXCLUDED.reporter_id ELSE current_row.reporter_id END
   RETURNING current_row.id, current_row.occurrence_count, current_row.ai_status;
 END;
 $$;
