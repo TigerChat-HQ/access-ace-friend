@@ -127,8 +127,8 @@ export const AdminDiagnostics = () => {
       `Suggestion: ${item.suggestion || "none"}`,
       `Stack: ${item.stack || "not available"}`,
       `Metadata: ${JSON.stringify(item.metadata || {})}`,
-    ].join("\\n")).join("\\n\\n----------------------------------------\\n\\n");
-    const output = `TigerChat Diagnostics export | ${items.length} records\\nExported: ${new Date().toISOString()}\\n\\n${payload}`;
+    ].join("\n")).join("\n\n----------------------------------------\n\n");
+    const output = `TigerChat Diagnostics export | ${items.length} records\nExported: ${new Date().toISOString()}\n\n${payload}`;
     try {
       await navigator.clipboard.writeText(output);
       toast({ title: "All diagnostics copied", description: `${items.length} records copied. Paste them into ChatGPT.` });
