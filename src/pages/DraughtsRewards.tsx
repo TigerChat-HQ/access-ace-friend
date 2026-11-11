@@ -32,6 +32,7 @@ export default function DraughtsRewards() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [ledger, setLedger] = useState<Array<{ id: string; amount: number; reason: string; created_at: string }>>([]);
   const [leaderboard, setLeaderboard] = useState<Stats[]>([]);
+  const [leaderProfiles, setLeaderProfiles] = useState<Record<string, { display_name: string | null; avatar_url: string | null }>>({});
   const [recentMatches, setRecentMatches] = useState<RecentMatch[]>([]);
   const [passClaims, setPassClaims] = useState<number[]>([]);
 
@@ -47,10 +48,16 @@ export default function DraughtsRewards() {
       const { data: mine } = await supabase.from("draughts_player_stats").select("*").eq("season_id", season.id).eq("user_id", user.id).maybeSingle();
       setStats(mine as unknown as Stats | null);
       const { data: top } = await supabase.from("draughts_player_stats").select("user_id,rating_points,wins,losses,draws,xp,current_streak,best_streak").eq("season_id", season.id).order("rating_points", { ascending: false }).order("wins", { ascending: false }).limit(100);
-      setLeaderboard((top as unknown as Stats[] | null) ?? []);
+      const topRows = (top as unknown as Stats[] | null) ?? [];
+      setLeaderboard(topRows);
+      const topIds = topRows.map((row) => row.user_id);
+      if (topIds.length) {
+        const { data: profileRows } = await supabase.from("profiles").select("user_id,display_name,avatar_url").in("user_id", topIds);
+        setLeaderProfiles(Object.fromEntries((profileRows ?? []).map((profile) => [profile.user_id, { display_name: profile.display_name, avatar_url: profile.avatar_url }])));
+      } else setLeaderProfiles({});
       const { data: claims } = await supabase.from("draughts_pass_claims" as any).select("level").eq("season_id", season.id).eq("user_id", user.id);
       setPassClaims(((claims ?? []) as unknown as Array<{ level: number }>).map((item) => item.level));
-    } else { setStats(null); setLeaderboard([]); setPassClaims([]); }
+    } else { setStats(null); setLeaderboard([]); setLeaderProfiles({}); setPassClaims([]); }
 
     const { data: catalog } = await supabase.from("draughts_mission_catalog" as any).select("*").eq("is_enabled", true).order("cadence");
     const { data: progress } = await supabase.from("draughts_mission_progress" as any).select("*").eq("user_id", user.id);
@@ -131,6 +138,23 @@ export default function DraughtsRewards() {
         </div>
       </section>
 
+      <section className="rounded-2xl border border-amber-400/30 bg-gradient-to-br from-amber-500/10 via-card to-card p-4">
+        <div className="mb-3 flex items-center gap-2"><Crown className="h-5 w-5 text-amber-500" /><h2 className="font-bold">Season Pass · 10 Levels</h2></div>
+        <p className="mb-3 text-xs text-muted-foreground">Pata XP kwa kucheza na kukamilisha missions. Kila kiwango kina zawadi yake ya Draughts Coins.</p>
+        <div className="space-y-2">
+          {passLevels.map((level, index) => {
+            const number = index + 1;
+            const unlocked = (stats?.xp ?? 0) >= level.xp;
+            const claimed = passClaims.includes(number);
+            return <div key={number} className="flex items-center gap-3 rounded-xl border border-border/70 bg-background/60 p-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-sm font-black text-amber-500">{number}</div>
+              <div className="min-w-0 flex-1"><p className="text-sm font-bold">Level {number} · {level.xp.toLocaleString()} XP</p><p className="text-[11px] text-muted-foreground">Reward: {level.coins.toLocaleString()} DC</p></div>
+              <Button size="sm" variant={claimed ? "outline" : "default"} disabled={!unlocked || claimed || loading} onClick={() => void claimPass(number)}>{claimed ? "Claimed" : unlocked ? "Claim" : "Locked"}</Button>
+            </div>;
+          })}
+        </div>
+      </section>
+
       <section className="rounded-2xl border border-border bg-card p-4">
         <div className="mb-3 flex items-center gap-2"><Medal className="h-5 w-5 text-primary" /><h2 className="font-bold">Achievements</h2></div>
         <div className="grid grid-cols-2 gap-2">
@@ -143,7 +167,7 @@ export default function DraughtsRewards() {
         <div className="mb-3 flex items-center gap-2"><Crown className="h-5 w-5 text-amber-500" /><h2 className="font-bold">Season Top 100</h2></div>
         <div className="space-y-2">
           {leaderboard.slice(0, 10).map((player, index) => <div key={player.user_id} className="flex items-center gap-3 rounded-lg bg-muted/40 px-3 py-2">
-            <span className="w-7 text-sm font-black text-amber-500">#{index + 1}</span><span className="min-w-0 flex-1 truncate text-xs">{player.user_id === user?.id ? "You" : `Player ${player.user_id.slice(0, 6)}`}</span><span className="text-xs font-bold">{player.rating_points} RP</span><span className="text-[10px] text-muted-foreground">{division(player.rating_points)}</span>
+            <span className="w-7 text-sm font-black text-amber-500">#{index + 1}</span><span className="min-w-0 flex-1 truncate text-xs">{player.user_id === user?.id ? "You" : leaderProfiles[player.user_id]?.display_name || "Player"}</span><span className="text-xs font-bold">{player.rating_points} RP</span><span className="text-[10px] text-muted-foreground">{division(player.rating_points)}</span>
           </div>)}
           {leaderboard.length === 0 && <p className="text-sm text-muted-foreground">No ranked players yet this season.</p>}
         </div>
