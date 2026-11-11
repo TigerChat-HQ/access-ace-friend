@@ -195,19 +195,6 @@ open class MainActivity : Activity() {
         }
     }
 
-    override fun onDestroy() {
-        pendingMediaPermissionRequest?.let { request ->
-            try { request.deny() } catch (_: Exception) { }
-        }
-        pendingMediaPermissionRequest = null
-        pendingMediaAndroidPermissions = emptyArray()
-        if (::webView.isInitialized) {
-            webView.stopLoading()
-            webView.destroy()
-        }
-        super.onDestroy()
-    }
-
     private fun showMediaPermissionSettingsPrompt() {
         if (isFinishing || isDestroyed) return
         AlertDialog.Builder(this)
@@ -395,5 +382,6 @@ open class MainActivity : Activity() {
         const val EXTRA_QUICK_REPLY = "tiger_quick_reply"
         const val EXTRA_NATIVE_CALL_TYPE = "tiger_native_call_type"
         private const val MEDIA_PERMISSION_REQUEST_CODE = 7302
+        private const val TAG = "TigerChatMedia"
     }
 }
