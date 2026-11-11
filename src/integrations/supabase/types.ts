@@ -1024,6 +1024,7 @@ export type Database = {
           alt_text?: string | null
           post_audio_title?: string | null
           post_audio_url?: string | null
+          post_cover_url?: string | null
           scheduled_at?: string | null
           tagged_user_ids?: string[]
           updated_at?: string
