@@ -49,8 +49,6 @@ export const useNotifications = () => {
       if (opts?.kind === "social" && !preferences.social) return;
       if (!document.hidden && opts?.kind) {
         window.dispatchEvent(new CustomEvent("tiger:notification", { detail: { title, body, url: opts.url || "/", tag: opts.tag || "tigerchats", kind: opts.kind, icon: opts.icon || "" } }));
-        const native = (window as Window & { TigerNative?: { showChatNotification?: (title: string, body: string, path: string, avatarUrl: string) => void } }).TigerNative;
-        native?.showChatNotification?.(title, body, opts.url || "/", opts.icon || "");
         if (preferences.vibration && typeof navigator.vibrate === "function") navigator.vibrate(120);
       }
       if (!("Notification" in window) || Notification.permission !== "granted") return;
