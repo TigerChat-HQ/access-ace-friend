@@ -279,7 +279,7 @@ Deno.serve(async (req) => {
         const protectedText = [diagnostic.title, diagnostic.message, plan.title, plan.summary, ...(Array.isArray(plan.areas) ? plan.areas : [])].filter(Boolean).join(" ");
         const risk = plan.risk === "high" || PROTECTED.test(protectedText) || !Array.isArray(plan.areas) || plan.areas.length === 0
           ? "high"
-          : plan.risk === "low" ? "low" : "medium";
+          : plan.risk === "low" ? "low" : plan.risk === "medium" ? "medium" : "high";
         const category = ["bug","feature","ux","performance","security"].includes(plan.category) ? plan.category : "bug";
         const { data: task, error: taskError } = await sb.from("dev_tasks").insert({
           title, summary, category, priority: ["low","medium","high","critical"].includes(plan.priority) ? plan.priority : diagnostic.severity,
