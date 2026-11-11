@@ -20,6 +20,11 @@ type MatchRow = Omit<Tables<"draft_matches">, "board" | "last_move" | "current_t
   current_turn: Color;
   last_move: Move | null;
   draw_offer_by: string | null;
+  initial_clock_seconds?: number | null;
+  increment_seconds?: number | null;
+  white_clock_ms?: number | null;
+  black_clock_ms?: number | null;
+  clock_started_at?: string | null;
 };
 
 
@@ -56,6 +61,12 @@ const Draughts = () => {
   const [tigerSupervisorEnabled, setTigerSupervisorEnabled] = useState(true);
   const [matchEmotes, setMatchEmotes] = useState<Array<{id:string;user_id:string;emote_key:string;created_at:string}>>([]);
   const [realtimeStatus, setRealtimeStatus] = useState<"connecting"|"live"|"reconnecting">("connecting");
+  const [clockNow, setClockNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!match || match.status !== "active" || !match.initial_clock_seconds) return;
+    const timer = window.setInterval(() => setClockNow(Date.now()), 250);
+    return () => window.clearInterval(timer);
+  }, [match?.id, match?.status, match?.initial_clock_seconds]);
   useEffect(() => {
     let alive = true;
     supabase.from("draughts_admin_settings").select("tiger_ai_supervisor_enabled").eq("id", true).maybeSingle()
@@ -648,6 +659,27 @@ const Draughts = () => {
           {realtimeStatus==="live"?"● Live · synced":realtimeStatus==="connecting"?"Connecting…":"Reconnecting · syncing board"}
         </span>
       </div>
+
+      {match.status === "active" && match.initial_clock_seconds != null && (
+        <section className="grid grid-cols-2 gap-2 px-3 pt-2" aria-label="Match clocks">
+          {(["w", "b"] as const).map((side) => {
+            const base = side === "w" ? (match.white_clock_ms ?? match.initial_clock_seconds! * 1000) : (match.black_clock_ms ?? match.initial_clock_seconds! * 1000);
+            const running = match.current_turn === side && !!match.clock_started_at;
+            const elapsed = running ? Math.max(0, clockNow - new Date(match.clock_started_at!).getTime()) : 0;
+            const remaining = Math.max(0, base - elapsed);
+            const seconds = Math.ceil(remaining / 1000);
+            return (
+              <div key={side} className={`rounded-xl border p-2 text-center ${running ? "border-primary bg-primary/10" : "border-border bg-card"}`}>
+                <p className="text-[10px] text-muted-foreground">{side === "w" ? "White clock" : "Black clock"}</p>
+                <p className={`font-mono text-xl font-black tabular-nums ${seconds <= 10 ? "text-destructive" : "text-foreground"}`}>
+                  {Math.floor(seconds / 60).toString().padStart(2, "0")}:{(seconds % 60).toString().padStart(2, "0")}
+                </p>
+                <p className="text-[9px] text-muted-foreground">{running ? "Running" : "Paused"}</p>
+              </div>
+            );
+          })}
+        </section>
+      )}
 
       {/* Score bar */}
       <div className="grid grid-cols-2 gap-2 px-3 py-2 border-b border-border/50 bg-card/30">
