@@ -198,7 +198,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
       </header>
       {collaboratorNames.length > 0 && <p className="px-4 pb-2 text-xs text-muted-foreground">With {collaboratorNames.map(name => `@${name}`).join(", ")}</p>}
 
-      {post.media_url && post.media_type === "image" && (
+      {post.media_url && activeMedia?.type !== "video" && (
         <div className="relative" onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }} onTouchEnd={(event) => { if (touchStartX.current === null || mediaItems.length < 2) return; const delta = event.changedTouches[0].clientX - touchStartX.current; if (Math.abs(delta) > 45) setCarouselIndex((index) => (index + (delta < 0 ? 1 : -1) + mediaItems.length) % mediaItems.length); touchStartX.current = null; }}>
           <img src={activeMedia?.url || post.media_url} alt={activeMedia?.alt_text || post.alt_text || ""} onDoubleClick={() => { if (!liked) void handleLike(); }} className="w-full max-h-[600px] object-cover bg-muted" loading="lazy" />
           {mediaItems.length > 1 && <><button type="button" aria-label="Previous photo" onClick={() => setCarouselIndex((index) => (index - 1 + mediaItems.length) % mediaItems.length)} className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/60 px-3 py-2 text-white">‹</button><button type="button" aria-label="Next photo" onClick={() => setCarouselIndex((index) => (index + 1) % mediaItems.length)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/60 px-3 py-2 text-white">›</button><span className="absolute right-3 top-3 rounded-full bg-black/65 px-2 py-1 text-[10px] text-white">{carouselIndex + 1}/{mediaItems.length}</span></>}
