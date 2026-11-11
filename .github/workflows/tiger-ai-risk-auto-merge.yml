@@ -52,7 +52,7 @@ jobs:
               // Only the exact AI repair labels qualify; protected paths and high-risk triage never receive them.
               const { data: checks } = await github.rest.checks.listForRef({ owner, repo, ref: pr.head.sha, per_page: 100 });
               const runs = checks.check_runs || [];
-              const requiredNames = ['quality', 'Tests and build', 'Security check'];
+              const requiredNames = ['quality', 'tests', 'security'];
               const completedNames = new Set(runs.filter(r => r.status === 'completed' && ['success','neutral','skipped'].includes(r.conclusion)).map(r => r.name));
               const missing = requiredNames.filter(name => !completedNames.has(name));
               const pending = runs.filter(r => r.status !== 'completed');
