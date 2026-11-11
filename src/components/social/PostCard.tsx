@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Flag, UserX, Bookmark, Archive, Pin, Pencil, BarChart3 } from "lucide-react";
+import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Flag, UserX, Bookmark, Archive, Pin, Pencil, BarChart3, UserPlus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
