@@ -82,6 +82,8 @@ describe("Pool competitive rules and shot replay", () => {
   });
 });
 
+
+describe("9-ball tournament penalties", () => {
   it("awards the opponent the rack after three 9-ball fouls by one player", () => {
     let state = createInitialPoolState("nine_ball", "p1", "p2");
     for (let index = 1; index <= 3; index += 1) {
@@ -96,3 +98,4 @@ describe("Pool competitive rules and shot replay", () => {
       else expect(result.winnerId).toBe("p2");
     }
   });
+});
