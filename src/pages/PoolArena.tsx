@@ -100,7 +100,7 @@ export default function PoolArena(){
    }).subscribe();
   const waitingPoll=onlineRoom.status==="waiting"?window.setInterval(()=>{void refreshOnlineMatch(onlineRoom.id);},2500):null;
   return()=>{if(waitingPoll!==null)window.clearInterval(waitingPoll);void poolRealtime.removeChannel(channel);};
- },[onlineRoom?.id,onlineRoom?.status,onlinePlayerId,refreshOnlineMatch,animateTrajectory]);
+ },[onlineRoom?.id,onlineRoom?.status,onlinePlayerId,refreshOnlineMatch,animateTrajectory,loadPoolProfile]);
  useEffect(()=>{
   if(!queueTicket)return;
   const poll=window.setInterval(async()=>{
