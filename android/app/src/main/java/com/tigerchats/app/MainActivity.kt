@@ -384,6 +384,21 @@ open class MainActivity : Activity() {
         fun areNotificationsEnabled(): Boolean = NotificationManagerCompat.from(this@MainActivity).areNotificationsEnabled()
 
         @JavascriptInterface
+        fun openMessageBubbleSettings() {
+            runOnUiThread {
+                val settingsIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
+                        .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, "messages")
+                } else {
+                    Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
+                }
+                startActivity(settingsIntent)
+            }
+        }
+
+        @JavascriptInterface
         fun openNotificationSettings() {
             runOnUiThread {
                 val settingsIntent = Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
