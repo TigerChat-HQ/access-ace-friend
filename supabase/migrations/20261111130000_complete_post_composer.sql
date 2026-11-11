@@ -2,6 +2,7 @@
 ALTER TABLE public.posts
   ADD COLUMN IF NOT EXISTS post_audio_url text,
   ADD COLUMN IF NOT EXISTS post_audio_title text,
+  ADD COLUMN IF NOT EXISTS post_cover_url text,
   ADD COLUMN IF NOT EXISTS audience text NOT NULL DEFAULT 'public',
   ADD COLUMN IF NOT EXISTS allow_comments boolean NOT NULL DEFAULT true,
   ADD COLUMN IF NOT EXISTS location_name text,
