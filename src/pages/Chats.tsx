@@ -72,8 +72,12 @@ const Chats = () => {
   const [params, setParams] = useSearchParams();
   const activeChat = params.get("c");
   const setActiveChat = (id: string | null) => {
-    if (id) setParams({ c: id });
-    else setParams({});
+    setParams((current) => {
+      const next = new URLSearchParams(current);
+      if (id) next.set("c", id);
+      else next.delete("c");
+      return next;
+    });
   };
 
   const [search, setSearch] = useState("");
