@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Flag, UserX, Bookmark, Archive, Pin, Pencil, BarChart3, UserPlus } from "lucide-react";
+import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Flag, UserX, Bookmark, Archive, Pin, Pencil, BarChart3, UserPlus, Images } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +7,7 @@ import { FeedPost, toggleLike, deletePost } from "@/hooks/usePosts";
 import { CommentsSheet } from "./CommentsSheet";
 import { PostInsightsDialog } from "./PostInsightsDialog";
 import { PostCollaborationDialog } from "./PostCollaborationDialog";
+import { PostMediaEditorDialog } from "./PostMediaEditorDialog";
 import { ReportDialog } from "./ReportDialog";
 import { ReelAnalyticsVideo } from "./ReelAnalyticsVideo";
 import { StoryAvatar } from "@/components/social/StoryAvatar";
@@ -55,6 +56,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
   const [reportOpen, setReportOpen] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [collaborationOpen, setCollaborationOpen] = useState(false);
+  const [mediaEditorOpen, setMediaEditorOpen] = useState(false);
   const [collaboratorNames, setCollaboratorNames] = useState<string[]>([]);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const touchStartX = useRef<number | null>(null);
@@ -183,7 +185,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
             <MoreVertical className="w-4 h-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {isOwner && <><DropdownMenuItem onClick={() => setCollaborationOpen(true)}><UserPlus className="w-4 h-4 mr-2" /> Invite collaborator</DropdownMenuItem><DropdownMenuItem onClick={() => setInsightsOpen(true)}><BarChart3 className="w-4 h-4 mr-2" /> View insights</DropdownMenuItem><DropdownMenuItem onClick={() => { setCaptionDraft(post.caption || ""); setAltTextDraft(post.alt_text || ""); setLocationDraft(post.location_name || ""); setAudienceDraft(post.audience || "public"); setEditingCaption(true); }}><Pencil className="w-4 h-4 mr-2" /> Edit post details</DropdownMenuItem><DropdownMenuItem disabled={postActionBusy} onClick={() => updatePost({ allow_comments: post.allow_comments === false }, post.allow_comments === false ? "Comments enabled" : "Comments disabled")}>{post.allow_comments === false ? "Turn comments on" : "Turn comments off"}</DropdownMenuItem><DropdownMenuItem disabled={postActionBusy} onClick={() => updatePost({ hide_like_count: !post.hide_like_count }, post.hide_like_count ? "Like count is visible" : "Like count hidden")}>{post.hide_like_count ? "Show like count" : "Hide like count"}</DropdownMenuItem><DropdownMenuItem disabled={postActionBusy} onClick={() => updatePost({ archived_at: post.archived_at ? null : new Date().toISOString() }, post.archived_at ? "Post restored" : "Post archived")}><Archive className="w-4 h-4 mr-2" /> {post.archived_at ? "Restore from archive" : "Archive post"}</DropdownMenuItem><DropdownMenuItem disabled={postActionBusy} onClick={() => updatePost({ pinned_at: post.pinned_at ? null : new Date().toISOString() }, post.pinned_at ? "Post unpinned" : "Post pinned")}><Pin className="w-4 h-4 mr-2" /> {post.pinned_at ? "Unpin post" : "Pin to profile"}</DropdownMenuItem></>}
+            {isOwner && <><DropdownMenuItem onClick={() => setMediaEditorOpen(true)}><Images className="w-4 h-4 mr-2" /> Edit media</DropdownMenuItem><DropdownMenuItem onClick={() => setCollaborationOpen(true)}><UserPlus className="w-4 h-4 mr-2" /> Invite collaborator</DropdownMenuItem><DropdownMenuItem onClick={() => setInsightsOpen(true)}><BarChart3 className="w-4 h-4 mr-2" /> View insights</DropdownMenuItem><DropdownMenuItem onClick={() => { setCaptionDraft(post.caption || ""); setAltTextDraft(post.alt_text || ""); setLocationDraft(post.location_name || ""); setAudienceDraft(post.audience || "public"); setEditingCaption(true); }}><Pencil className="w-4 h-4 mr-2" /> Edit post details</DropdownMenuItem><DropdownMenuItem disabled={postActionBusy} onClick={() => updatePost({ allow_comments: post.allow_comments === false }, post.allow_comments === false ? "Comments enabled" : "Comments disabled")}>{post.allow_comments === false ? "Turn comments on" : "Turn comments off"}</DropdownMenuItem><DropdownMenuItem disabled={postActionBusy} onClick={() => updatePost({ hide_like_count: !post.hide_like_count }, post.hide_like_count ? "Like count is visible" : "Like count hidden")}>{post.hide_like_count ? "Show like count" : "Hide like count"}</DropdownMenuItem><DropdownMenuItem disabled={postActionBusy} onClick={() => updatePost({ archived_at: post.archived_at ? null : new Date().toISOString() }, post.archived_at ? "Post restored" : "Post archived")}><Archive className="w-4 h-4 mr-2" /> {post.archived_at ? "Restore from archive" : "Archive post"}</DropdownMenuItem><DropdownMenuItem disabled={postActionBusy} onClick={() => updatePost({ pinned_at: post.pinned_at ? null : new Date().toISOString() }, post.pinned_at ? "Post unpinned" : "Post pinned")}><Pin className="w-4 h-4 mr-2" /> {post.pinned_at ? "Unpin post" : "Pin to profile"}</DropdownMenuItem></>}
             {canDelete && <DropdownMenuItem onClick={handleDelete} className="text-destructive"><Trash2 className="w-4 h-4 mr-2" /> Delete</DropdownMenuItem>}
             {!isOwner && (
               <>
@@ -252,7 +254,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
       <p className="px-4 pb-3 text-[10px] text-muted-foreground uppercase tracking-wide">{new Date(post.created_at).toLocaleDateString()}</p>
 
       {commentsOpen && <CommentsSheet postId={post.id} open={commentsOpen} onOpenChange={setCommentsOpen} onChange={onChanged} />}
-      {collaborationOpen && <PostCollaborationDialog postId={post.id} open={collaborationOpen} onOpenChange={setCollaborationOpen} />}
+      {mediaEditorOpen && <PostMediaEditorDialog postId={post.id} initialItems={mediaItems} open={mediaEditorOpen} onOpenChange={setMediaEditorOpen} onSaved={onChanged} />}\n      {collaborationOpen && <PostCollaborationDialog postId={post.id} open={collaborationOpen} onOpenChange={setCollaborationOpen} />}
       {insightsOpen && <PostInsightsDialog postId={post.id} open={insightsOpen} onOpenChange={setInsightsOpen} />}
       {reportOpen && <ReportDialog open={reportOpen} onOpenChange={setReportOpen} targetType="post" targetId={post.id} />}
     </article>
