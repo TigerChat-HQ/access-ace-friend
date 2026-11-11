@@ -34,6 +34,7 @@ type ReelPost = FeedPost & {
   reel_captions?: ReelCaption[] | null;
   post_audio_url?: string | null;
   post_audio_title?: string | null;
+  post_cover_url?: string | null;
   location_name?: string | null;
   tagged_user_ids?: string[] | null;
   alt_text?: string | null;
@@ -140,7 +141,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
             className="relative w-full bg-black"
           />
         ) : (
-          <video src={post.media_url} poster={reelPost.reel_cover_url || undefined} controls playsInline className="w-full max-h-[600px] bg-black" />
+          <video src={post.media_url} poster={post.post_cover_url || reelPost.reel_cover_url || undefined} controls playsInline className="w-full max-h-[600px] bg-black" />
         )
       )}
 
