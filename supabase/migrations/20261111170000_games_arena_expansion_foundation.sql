@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS public.draughts_match_queue (
   status text NOT NULL DEFAULT 'queued' CHECK (status IN ('queued','matched','cancelled','expired')),
   match_id uuid REFERENCES public.draft_matches(id) ON DELETE SET NULL,
   queued_at timestamptz NOT NULL DEFAULT now(),
-  expires_at timestamptz NOT NULL DEFAULT (now() + interval '2 minutes'),
+  expires_at timestamptz NOT NULL DEFAULT (now() + interval '2 minutes')
 );
 CREATE UNIQUE INDEX IF NOT EXISTS draughts_queue_one_active_per_user
   ON public.draughts_match_queue(user_id) WHERE status='queued';
