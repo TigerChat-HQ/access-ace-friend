@@ -44,6 +44,7 @@ const Draughts = () => {
   const aiDepth = aiDifficulty === "easy" ? 2 : aiDifficulty === "medium" ? 3 : aiDifficulty === "hard" ? 4 : 5;
   const [flipBoard, setFlipBoard] = useState<boolean | null>(null);
   const [tigerSupervisorEnabled, setTigerSupervisorEnabled] = useState(true);
+  const [matchEmotes, setMatchEmotes] = useState<Array<{id:string;user_id:string;emote_key:string;created_at:string}>>([]);
   useEffect(() => {
     let alive = true;
     supabase.from("draughts_admin_settings").select("tiger_ai_supervisor_enabled").eq("id", true).maybeSingle()
@@ -141,6 +142,30 @@ const Draughts = () => {
     channelRef.current = ch;
     return () => { void supabase.removeChannel(ch); };
   }, [match?.id]);
+
+  useEffect(() => {
+    if (!match || match.status !== "active" || !myColor) { setMatchEmotes([]); return; }
+    let alive = true;
+    const load = async () => {
+      const { data } = await supabase.from("draughts_match_emotes" as any)
+        .select("id,user_id,emote_key,created_at").eq("match_id", match.id)
+        .order("created_at", { ascending: false }).limit(8);
+      if (alive) setMatchEmotes((data ?? []) as unknown as typeof matchEmotes);
+    };
+    void load();
+    const channel = supabase.channel(`draughts-emotes:${match.id}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "draughts_match_emotes", filter: `match_id=eq.${match.id}` },
+        payload => setMatchEmotes(current => [payload.new as typeof current[number], ...current].slice(0, 8)))
+      .subscribe();
+    return () => { alive = false; void supabase.removeChannel(channel); };
+  }, [match?.id, match?.status, myColor]);
+
+  const sendMatchEmote = async (emoteKey: string) => {
+    if (!match || !user || match.status !== "active") return;
+    const { error } = await supabase.from("draughts_match_emotes" as any)
+      .insert({ match_id: match.id, user_id: user.id, emote_key: emoteKey });
+    if (error) toast({ title: "Reaction not sent", description: error.message, variant: "destructive" });
+  };
 
   const myColor: Color | null = useMemo(() => {
     if (!match || !user) return null;
@@ -624,6 +649,18 @@ const Draughts = () => {
           </div>
         </div>
       </div>
+
+      {match.status === "active" && myColor && !match.vs_ai && (
+        <section className="mx-3 mt-3 rounded-xl border border-border bg-card/80 p-3">
+          <div className="mb-2 flex items-center justify-between"><p className="text-xs font-bold">Live match reactions</p><span className="text-[10px] text-muted-foreground">Opponent can see these</span></div>
+          <div className="flex flex-wrap gap-2">
+            {[["gg","👏"],["well_played","💯"],["thinking","🤔"],["wow","😮"],["oops","😅"],["clap","🙌"],["tiger","🐯"],["laugh","😂"]].map(([key,emoji]) => (
+              <button key={key} type="button" onClick={() => void sendMatchEmote(key)} className="rounded-lg border border-border bg-background px-3 py-2 text-lg transition hover:border-primary/60 hover:bg-primary/5" aria-label={key}>{emoji}</button>
+            ))}
+          </div>
+          {matchEmotes.length > 0 && <div className="mt-2 flex flex-wrap gap-2" aria-live="polite">{matchEmotes.slice(0,5).map(item => <span key={item.id} className="rounded-full bg-muted px-2 py-1 text-xs">{({gg:"👏",well_played:"💯",thinking:"🤔",wow:"😮",oops:"😅",clap:"🙌",tiger:"🐯",laugh:"😂"} as Record<string,string>)[item.emote_key] ?? "✨"} {item.user_id===user?.id?"You":"Opponent"}</span>)}</div>}
+        </section>
+      )}
 
       {tigerSupervisorEnabled && (
         <div className="mx-3 mt-3 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2.5">
