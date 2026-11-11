@@ -68,7 +68,7 @@ const Notifications = () => {
           <ul>
             {items.map((n) => {
               const initials = (n.actor?.display_name || n.actor?.username || "U").slice(0, 2).toUpperCase();
-              const target = n.type === "report_reply" ? `/contact${n.report_id ? `?report=${n.report_id}` : ""}` : n.post_id ? `/post/${n.post_id}` : `/u/${n.actor_id}`;
+              const target = n.type === "report_reply" ? `/contact${n.report_id ? `?report=${n.report_id}` : ""}` : n.type === "collaboration_invite" ? "/collaborations" : n.post_id ? `/post/${n.post_id}` : `/u/${n.actor_id}`;
               return (
                 <li key={n.id}>
                   <Link
