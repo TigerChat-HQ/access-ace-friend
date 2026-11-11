@@ -27,6 +27,7 @@ CREATE POLICY "Users manage own collection items" ON public.post_collection_item
     EXISTS (SELECT 1 FROM public.post_collections c WHERE c.id = collection_id AND c.user_id = (select auth.uid()))
   ) WITH CHECK (
     EXISTS (SELECT 1 FROM public.post_collections c WHERE c.id = collection_id AND c.user_id = (select auth.uid()))
+    AND EXISTS (SELECT 1 FROM public.post_saves s WHERE s.user_id = (select auth.uid()) AND s.post_id = post_collection_items.post_id)
   );
 REVOKE ALL ON public.post_collections, public.post_collection_items FROM anon, authenticated, PUBLIC;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.post_collections, public.post_collection_items TO authenticated;
