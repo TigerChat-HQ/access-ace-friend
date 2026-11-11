@@ -45,10 +45,22 @@ export const AdminDiagnostics = () => {
   const load = useCallback(async () => {
     setLoading(true);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table is added by this PR migration; generated Supabase types are not refreshed yet.
-    const { data, error } = await (supabase as any).from("app_diagnostics")
-      .select("*").order("created_at", { ascending: false }).limit(100);
-    if (error) toast({ title: "Diagnostics load failed", description: error.message, variant: "destructive" });
-    else setItems((data ?? []) as Diagnostic[]);
+    const pageSize = 1000;
+    let offset = 0;
+    const allItems: Diagnostic[] = [];
+    while (true) {
+      const { data, error } = await (supabase as any).from("app_diagnostics")
+        .select("*").order("created_at", { ascending: false }).range(offset, offset + pageSize - 1);
+      if (error) {
+        toast({ title: "Diagnostics load failed", description: error.message, variant: "destructive" });
+        break;
+      }
+      const page = (data ?? []) as Diagnostic[];
+      allItems.push(...page);
+      if (page.length < pageSize) break;
+      offset += pageSize;
+    }
+    setItems(allItems);
     setLoading(false);
   }, [toast]);
 
