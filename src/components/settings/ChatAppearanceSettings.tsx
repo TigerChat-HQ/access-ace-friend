@@ -27,7 +27,7 @@ const colors = [
   { key: "orange", label: "Orange", className: "bg-orange-500" },
 ];
 
-const defaults: ChatPrefs = { wallpaper: "default", bubble_color: "primary", font_size: "medium", theme: "default" };
+const defaults: ChatPrefs = { wallpaper: "default", bubble_color: "primary", font_size: "medium", theme: "default", muted_until: null };
 
 export const ChatAppearanceSettings = () => {
   const { user } = useAuth();
