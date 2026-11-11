@@ -41,7 +41,7 @@ export default function DraughtsRewards() {
     const { data: season } = await supabase.from("draughts_seasons").select("id,name").eq("is_active", true).order("starts_at", { ascending: false }).limit(1).maybeSingle();
     if (season) {
       const { data: mine } = await supabase.from("draughts_player_stats").select("*").eq("season_id", season.id).eq("user_id", user.id).maybeSingle();
-      setStats(mine as Stats | null);
+      setStats(mine as unknown as Stats | null);
       const { data: top } = await supabase.from("draughts_player_stats").select("user_id,rating_points,wins,losses,draws,xp,current_streak,best_streak").eq("season_id", season.id).order("rating_points", { ascending: false }).order("wins", { ascending: false }).limit(100);
       setLeaderboard((top as unknown as Stats[] | null) ?? []);
     } else { setStats(null); setLeaderboard([]); }
