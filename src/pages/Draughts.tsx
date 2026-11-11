@@ -44,7 +44,7 @@ const Draughts = () => {
   const aiDepth = aiDifficulty === "easy" ? 2 : aiDifficulty === "medium" ? 3 : aiDifficulty === "hard" ? 4 : 5;
   const [flipBoard, setFlipBoard] = useState<boolean | null>(null);
   const [tigerSupervisorEnabled, setTigerSupervisorEnabled] = useState(true);
-  const [matchEmotes, setMatchEmotes] = useState<Array<{id:string;user_id:string;emote_key:string;created_at:string}>>([]);
+  const [matchEmotes, setMatchEmotes] = useState<Array<{id:string;user_id:string;emote_key:string;created_at:string}>>([]);\n  const [realtimeStatus, setRealtimeStatus] = useState<"connecting"|"live"|"reconnecting">("connecting");
   useEffect(() => {
     let alive = true;
     supabase.from("draughts_admin_settings").select("tiger_ai_supervisor_enabled").eq("id", true).maybeSingle()
@@ -631,6 +631,12 @@ const Draughts = () => {
           </Button>
         </div>
       )}
+
+      <div className="flex items-center justify-end px-4 pt-2">
+        <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${realtimeStatus==="live"?"bg-emerald-500/10 text-emerald-600":"bg-amber-500/10 text-amber-600"}`}>
+          {realtimeStatus==="live"?"● Live · synced":realtimeStatus==="connecting"?"Connecting…":"Reconnecting · syncing board"}
+        </span>
+      </div>
 
       {/* Score bar */}
       <div className="grid grid-cols-2 gap-2 px-3 py-2 border-b border-border/50 bg-card/30">
