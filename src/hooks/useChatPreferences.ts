@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { getGlobalChatPreferences } from "@/lib/chat-global-preferences";
 
 export interface ChatPrefs {
   wallpaper: string | null;
@@ -33,8 +34,8 @@ export const useChatPreferences = (conversationId: string | null) => {
       .eq("conversation_id", conversationId)
       .maybeSingle()
       .then(({ data }) => {
-        if (data) setPrefs({ ...DEFAULT, ...(data as unknown as Partial<ChatPrefs>) });
-        else setPrefs(DEFAULT);
+        const globalDefaults = getGlobalChatPreferences(user.id);
+        setPrefs({ ...DEFAULT, ...globalDefaults, ...(data as unknown as Partial<ChatPrefs> | null) });
         setLoading(false);
       });
   }, [user, conversationId]);
