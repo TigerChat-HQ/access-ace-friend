@@ -1,5 +1,8 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
+import { installGlobalDiagnostics } from "@/lib/diagnostics";
+
+installGlobalDiagnostics();
 import "./index.css";
 
 // Register the PWA worker after first paint so installation does not compete
