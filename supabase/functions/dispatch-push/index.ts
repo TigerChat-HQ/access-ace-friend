@@ -182,6 +182,20 @@ Deno.serve(async (req) => {
     const admin = createClient(url, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
+    if (kind === "message") {
+      const { data: muteRows, error: muteError } = await admin
+        .from("chat_preferences")
+        .select("user_id,muted_until")
+        .eq("conversation_id", conversationId)
+        .in("user_id", recipients)
+        .not("muted_until", "is", null);
+      if (muteError) throw muteError;
+      const mutedIds = new Set((muteRows || [])
+        .filter((row) => row.muted_until && new Date(row.muted_until).getTime() > Date.now())
+        .map((row) => row.user_id));
+      recipients = recipients.filter((recipientId) => !mutedIds.has(recipientId));
+      if (!recipients.length) return reply({ sent: 0, reason: "All recipients muted this conversation" });
+    }
     const { data: devices, error: deviceError } = await admin
       .from("device_push_tokens")
       .select("id,token")
