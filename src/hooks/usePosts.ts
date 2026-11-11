@@ -10,6 +10,17 @@ export interface FeedPost {
   media_type: string;
   hashtags: string[] | null;
   created_at: string;
+  audience?: string;
+  allow_comments?: boolean;
+  location_name?: string | null;
+  tagged_user_ids?: string[] | null;
+  alt_text?: string | null;
+  post_audio_url?: string | null;
+  post_audio_title?: string | null;
+  post_cover_url?: string | null;
+  is_draft?: boolean;
+  scheduled_at?: string | null;
+  media_items?: unknown;
   profile?: {
     user_id: string;
     username: string | null;
@@ -122,12 +133,14 @@ export const useFeed = (mode: "following" | "discover" = "following") => {
 
   // Realtime
   useEffect(() => {
+    const refreshTimer = window.setInterval(() => { void fetchPosts(); }, 60_000);
     const channel = supabase
       .channel("posts-feed")
       .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, () => fetchPosts())
       .on("postgres_changes", { event: "*", schema: "public", table: "post_likes" }, () => fetchPosts())
       .subscribe();
     return () => {
+      window.clearInterval(refreshTimer);
       supabase.removeChannel(channel);
     };
   }, [fetchPosts]);
