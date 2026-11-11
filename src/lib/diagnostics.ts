@@ -27,6 +27,7 @@ export async function reportDiagnostic(input: DiagnosticInput) {
     recent.set(key, now);
     if (recent.size > 250) recent.clear();
     const { data: { user } } = await supabase.auth.getUser();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- app_diagnostics exists in production; generated Supabase types are not refreshed.
     const { error: insertError } = await (supabase as any).from("app_diagnostics").insert({
       reporter_id: user?.id ?? null,
       source: input.source || "feature_handler",
