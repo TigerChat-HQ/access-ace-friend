@@ -104,7 +104,7 @@ BEGIN
     VALUES(v_match.id,v_match.revision,CASE WHEN v_opponent=v_match.player_one THEN v_match.player_two ELSE v_match.player_one END,
       'timeout',jsonb_build_object('reason','clock_expired','winner_id',v_opponent));
   RETURN v_match;
-END $;
+END $$;
 
 REVOKE ALL ON FUNCTION public.pool_check_timeout(uuid) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.pool_check_timeout(uuid) TO service_role;
