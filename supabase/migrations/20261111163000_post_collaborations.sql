@@ -39,3 +39,19 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.post_collaborators TO authenticat
 -- Invitees may only change the response state and its timestamp.
 REVOKE UPDATE ON public.post_collaborators FROM authenticated;
 GRANT UPDATE (status, updated_at) ON public.post_collaborators TO authenticated;
+
+-- Accepted collaborators can view the published post even when its audience is
+-- private or followers-only. Drafts and scheduled posts remain unavailable.
+DROP POLICY IF EXISTS "Accepted collaborators view shared posts" ON public.posts;
+CREATE POLICY "Accepted collaborators view shared posts" ON public.posts
+  FOR SELECT TO authenticated
+  USING (
+    is_draft = false
+    AND (scheduled_at IS NULL OR scheduled_at <= now())
+    AND EXISTS (
+      SELECT 1 FROM public.post_collaborators pc
+      WHERE pc.post_id = posts.id
+        AND pc.invitee_id = (select auth.uid())
+        AND pc.status = 'accepted'
+    )
+  );
