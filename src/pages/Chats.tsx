@@ -499,6 +499,24 @@ const Chats = () => {
     );
   };
 
+  useEffect(() => {
+    const nativeWindow = window as Window & {
+      __tigerPendingNativeCall?: { callType?: string; conversationId?: string };
+    };
+    const startPendingNativeCall = (detail?: { callType?: string; conversationId?: string }) => {
+      if (!detail || !activeConvo || !activeChat || detail.conversationId !== activeChat) return;
+      if (detail.callType !== "voice" && detail.callType !== "video") return;
+      nativeWindow.__tigerPendingNativeCall = undefined;
+      handleStartCall(detail.callType === "video");
+    };
+    startPendingNativeCall(nativeWindow.__tigerPendingNativeCall);
+    const onNativeCall = (event: Event) => {
+      startPendingNativeCall((event as CustomEvent<{ callType?: string; conversationId?: string }>).detail);
+    };
+    window.addEventListener("tiger:native-start-call", onNativeCall);
+    return () => window.removeEventListener("tiger:native-start-call", onNativeCall);
+  }, [activeChat, activeConvo, activeConvoName, activeConvoAvatar, webrtc.startCall]);
+
   const showSidebar = !activeChat;
   const matchSet = new Set(matchIds);
   const activeMatchId = matchIds[matchIdx];
