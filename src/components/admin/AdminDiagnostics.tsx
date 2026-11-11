@@ -42,7 +42,7 @@ export const AdminDiagnostics = () => {
   const [checking, setChecking] = useState(false);
   const [title, setTitle] = useState("");
   const [suggestion, setSuggestion] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [schemaResults, setSchemaResults] = useState<{name:string;status:"ok"|"missing"|"error";detail?:string}[]>([]);
 
   const load = useCallback(async () => {
@@ -84,6 +84,13 @@ export const AdminDiagnostics = () => {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    const channel = supabase.channel("admin-diagnostic-inbox")
+      .on("postgres_changes", { event: "*", schema: "public", table: "admin_diagnostic_notifications" }, () => { void load(); })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [load]);
 
   const runSchemaCheck = async () => {
     setChecking(true);
@@ -178,7 +185,7 @@ export const AdminDiagnostics = () => {
     }
   };
 
-  const visible = statusFilter === "all" ? items : items.filter(x => x.status === statusFilter);
+  const visible = statusFilter === "active" ? items.filter(x => x.status === "new" || x.status === "investigating") : statusFilter === "all" ? items : items.filter(x => x.status === statusFilter);
   const missingCount = schemaResults.filter(x => x.status === "missing").length;
   return <section className="space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -215,7 +222,7 @@ export const AdminDiagnostics = () => {
     </div>
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex flex-wrap items-center gap-2"><h4 className="text-sm font-semibold">Issue log ({visible.length})</h4><Button size="sm" variant="outline" onClick={() => void copyAllErrors()} disabled={items.length === 0}><Copy className="mr-1 h-3.5 w-3.5"/>Copy all errors ({items.length})</Button></div>
-      <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="rounded-md border border-border bg-background px-2 py-1 text-xs"><option value="all">All statuses</option><option value="new">New</option><option value="investigating">Investigating</option><option value="fixed">Fixed</option><option value="ignored">Ignored</option></select>
+      <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="rounded-md border border-border bg-background px-2 py-1 text-xs"><option value="active">Active errors</option><option value="all">All / history</option><option value="new">New</option><option value="investigating">Investigating</option><option value="fixed">Fixed</option><option value="ignored">Ignored</option></select>
     </div>
     {visible.map(item=><article key={item.id} className={`rounded-lg border bg-card p-3 space-y-2 ${item.status === "new" ? "border-emerald-500/50" : "border-border"}`}>
       <div className="flex flex-wrap items-center gap-1"><Badge variant={item.severity==="critical"||item.severity==="high"?"destructive":"secondary"}>{item.severity}</Badge><Badge variant="outline">{item.category}</Badge><Badge>{item.status}</Badge></div>
