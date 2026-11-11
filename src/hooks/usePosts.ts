@@ -75,7 +75,7 @@ export const useFeed = (mode: "following" | "discover" = "following") => {
     }
 
     // Filter blocked users (both directions)
-    const visiblePosts = rawPosts.filter((p) => !blocked.has(p.user_id));
+    const visiblePosts = rawPosts.filter((p) => !blocked.has(p.user_id) && !p.archived_at);
 
     const postIds = visiblePosts.map((p) => p.id);
     const userIds = [...new Set(visiblePosts.map((p) => p.user_id))];
