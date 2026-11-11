@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Supabase generated types do not yet include the pending PR migrations; any casts are isolated to the database boundary. */
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Bookmark, FolderPlus, Trash2, Folder, X } from "lucide-react";
