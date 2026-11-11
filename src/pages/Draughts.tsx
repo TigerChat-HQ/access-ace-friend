@@ -44,7 +44,8 @@ const Draughts = () => {
   const aiDepth = aiDifficulty === "easy" ? 2 : aiDifficulty === "medium" ? 3 : aiDifficulty === "hard" ? 4 : 5;
   const [flipBoard, setFlipBoard] = useState<boolean | null>(null);
   const [tigerSupervisorEnabled, setTigerSupervisorEnabled] = useState(true);
-  const [matchEmotes, setMatchEmotes] = useState<Array<{id:string;user_id:string;emote_key:string;created_at:string}>>([]);\n  const [realtimeStatus, setRealtimeStatus] = useState<"connecting"|"live"|"reconnecting">("connecting");
+  const [matchEmotes, setMatchEmotes] = useState<Array<{id:string;user_id:string;emote_key:string;created_at:string}>>([]);
+  const [realtimeStatus, setRealtimeStatus] = useState<"connecting"|"live"|"reconnecting">("connecting");
   useEffect(() => {
     let alive = true;
     supabase.from("draughts_admin_settings").select("tiger_ai_supervisor_enabled").eq("id", true).maybeSingle()
