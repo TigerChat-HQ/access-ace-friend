@@ -174,7 +174,7 @@ export const useNotifications = () => {
               : n.type === "collaboration_accepted"
               ? `${name} accepted your post collaboration invitation`
               : `${name} mentioned you`;
-          const url = n.post_id ? `/post/${n.post_id}` : `/u/${n.actor_id}`;
+          const url = n.type === "collaboration_invite" ? "/collaborations" : n.post_id ? `/post/${n.post_id}` : `/u/${n.actor_id}`;
           showNotification("TIGERCHATS", body, { url, tag: `social-${n.id}`, kind: "social", icon: actor?.avatar_url || undefined });
         }
       )
