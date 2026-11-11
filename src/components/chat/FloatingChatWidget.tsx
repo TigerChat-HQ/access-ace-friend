@@ -158,7 +158,7 @@ export const FloatingChatWidget = ({ unreadMessages = 0 }: { unreadMessages?: nu
               TigerChat
             </div>
             <div className="flex items-center gap-1">
-              <button type="button" onClick={() => navigate("/settings")} aria-label="Bubble settings in General Settings" title="Bubble settings" className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><Settings className="h-4 w-4" /></button>
+              <button type="button" onClick={() => navigate("/settings", { state: { section: "general" } })} aria-label="Bubble settings in General Settings" title="Bubble settings" className="rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground"><Settings className="h-4 w-4" /></button>
               <button
                 type="button"
                 onClick={openFullChat}
