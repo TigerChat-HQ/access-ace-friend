@@ -51,7 +51,8 @@ export default function PoolArena(){
     if(row.status==="finished")setOnlineNotice(row.state?.winnerId===onlinePlayerId?"Umeshinda mechi!":"Mechi imekamilika.");
     else if(row.status==="active")setOnlineNotice(row.current_turn===onlinePlayerId?"Zamu yako. Panga shot.":"Mpinzani anacheza…");
    }).subscribe();
-  return()=>{void poolRealtime.removeChannel(channel);};
+  const waitingPoll=onlineRoom.status==="waiting"?window.setInterval(()=>{void refreshOnlineMatch(onlineRoom.id);},2500):null;
+  return()=>{if(waitingPoll!==null)window.clearInterval(waitingPoll);void poolRealtime.removeChannel(channel);};
  },[onlineRoom?.id,onlineRoom?.status,onlinePlayerId,refreshOnlineMatch]);
  useEffect(()=>{
   if(!queueTicket)return;
@@ -106,7 +107,7 @@ export default function PoolArena(){
   raf=requestAnimationFrame(tick);return()=>cancelAnimationFrame(raf);
  },[moving,sound,opponent,onlineRoom?.status]);
  useEffect(()=>{
-  if(onlineRoom?.status==="active"||opponent!=="ai"||playerTurn||moving)return;
+  if(onlineRoom||opponent!=="ai"||playerTurn||moving)return;
   const timer=window.setTimeout(()=>{
    let live=ballsRef.current.map(b=>({...b}));
    let cue=live.find(b=>b.id===0);
@@ -124,8 +125,8 @@ export default function PoolArena(){
    setAngle(shotAngle);setPower(58);setMessage("Tiger AI anapiga…");shoot(shotAngle,58,true);
   },850);
   return()=>window.clearTimeout(timer);
- },[opponent,playerTurn,moving,ballInHand,mode,shoot,onlineRoom?.status]);
- const setAimFromPointer=(event:PointerEvent<HTMLDivElement>|MouseEvent<HTMLDivElement>)=>{const rect=event.currentTarget.getBoundingClientRect();const x=clamp((event.clientX-rect.left)/rect.width,.07,.93),y=clamp((event.clientY-rect.top)/rect.height,.12,.88);const cue=ballsRef.current.find(b=>b.id===0);if(!cue||moving||onlineBusy)return;const placing=onlineRoom?.status==="active"?onlineRoom.state?.ballInHandFor===onlinePlayerId:ballInHand;if(placing&&event.type==="click"){const blocked=ballsRef.current.some(b=>b.id!==0&&!b.pocketed&&Math.hypot(b.x-x,b.y-y)<.032);if(blocked){setMessage("Eneo hilo limezibwa. Chagua sehemu tupu ya meza.");return;}if(onlineRoom?.status==="active"){setOnlineCuePosition({x,y});setAim({x,y});setMessage("Cue ball placement imechaguliwa. Bonyeza SHOOT kuthibitisha.");return;}const next=ballsRef.current.map(b=>b.id===0?{...b,x,y,vx:0,vy:0,pocketed:false}:b);ballsRef.current=next;setBalls(next);setBallInHand(false);setAim({x,y});setMessage("Cue ball imewekwa. Chagua mwelekeo kisha piga SHOOT.");return;}if(!placing){setAngle(Math.atan2(y-cue.y,x-cue.x));setAim({x,y});}};
+ },[opponent,playerTurn,moving,ballInHand,mode,shoot,onlineRoom]);
+ const setAimFromPointer=(event:PointerEvent<HTMLDivElement>|MouseEvent<HTMLDivElement>)=>{const rect=event.currentTarget.getBoundingClientRect();const x=clamp((event.clientX-rect.left)/rect.width,.07,.93),y=clamp((event.clientY-rect.top)/rect.height,.12,.88);const cue=ballsRef.current.find(b=>b.id===0);if(!cue||moving||onlineBusy)return;const onlineNeedsPlacement=onlineRoom?.status==="active"&&onlineRoom.state?.ballInHandFor===onlinePlayerId;const placing=onlineNeedsPlacement&&!onlineCuePosition?true:!onlineRoom?ballInHand:false;if(placing&&event.type==="click"){const blocked=ballsRef.current.some(b=>b.id!==0&&!b.pocketed&&Math.hypot(b.x-x,b.y-y)<.032);if(blocked){setMessage("Eneo hilo limezibwa. Chagua sehemu tupu ya meza.");return;}if(onlineRoom?.status==="active"){setOnlineCuePosition({x,y});setAim({x,y});setMessage("Cue ball placement imechaguliwa. Bonyeza SHOOT kuthibitisha.");return;}const next=ballsRef.current.map(b=>b.id===0?{...b,x,y,vx:0,vy:0,pocketed:false}:b);ballsRef.current=next;setBalls(next);setBallInHand(false);setAim({x,y});setMessage("Cue ball imewekwa. Chagua mwelekeo kisha piga SHOOT.");return;}if(!placing){const cueX=onlineCuePosition?.x??cue.x,cueY=onlineCuePosition?.y??cue.y;setAngle(Math.atan2(y-cueY,x-cueX));setAim({x,y});}};
  const createOnlineRoom=async()=>{
   const {data,error}=await poolRpc("create_pool_room",{p_mode:mode==="nine"?"nine_ball":"eight_ball",p_visibility:"private",p_clock_seconds:600});
   if(error){toast({title:"Room creation failed",description:error.message,variant:"destructive"});return;}
