@@ -11,6 +11,7 @@ export type PoolShotResult = {
   state:PoolState; nextTurn:string; winnerId:string|null; status:"active"|"finished";
   foul:boolean; foulReason:string|null; pocketed:number[]; firstContact:number|null;
   railsAfterContact:number; requestId:string;
+  trajectory:Array<{t:number;balls:Array<{id:number;x:number;y:number;pocketed:boolean}>}>;
 };
 const COLORS=["#facc15","#2563eb","#dc2626","#7c3aed","#ea580c","#16a34a","#991b1b","#111827","#facc15","#2563eb","#dc2626","#7c3aed","#ea580c","#16a34a","#991b1b"];
 const POCKETS=[[.035,.075],[.5,.075],[.965,.075],[.035,.925],[.5,.925],[.965,.925]] as const;
@@ -56,6 +57,7 @@ export function simulatePoolShot(source:PoolState,actorId:string,opponentId:stri
  cue.vy=Math.sin(input.angle)*(input.power/100*1.65);
  let firstContact:number|null=null,railsAfterContact=0,totalRails=0,scratch=false;
  const pocketed:number[]=[];
+ const trajectory:Array<{t:number;balls:Array<{id:number;x:number;y:number;pocketed:boolean}>}>=[];
  const dt=1/120,friction=Math.pow(.986,.5),stop=.012;
  for(let step=0;step<2400;step++){
   let moving=false;
@@ -94,6 +96,7 @@ export function simulatePoolShot(source:PoolState,actorId:string,opponentId:stri
     ball.pocketed=true;ball.vx=0;ball.vy=0;if(ball.id===0)scratch=true;else pocketed.push(ball.id);
    }
   }
+  if(step%12===0){trajectory.push({t:step*dt,balls:state.balls.map(b=>({id:b.id,x:b.x,y:b.y,pocketed:b.pocketed}))});}
   if(!moving&&state.balls.every(b=>b.pocketed||Math.hypot(b.vx,b.vy)===0))break;
  }
  const firstBall=firstContact===null?null:remaining.find(b=>b.id===firstContact)??null;
@@ -144,5 +147,6 @@ export function simulatePoolShot(source:PoolState,actorId:string,opponentId:stri
  if(foul)state.ballInHandFor=opponentId;
  state.breakPending=false;state.currentTurn=nextTurn;state.winnerId=winnerId;
  state.lastShot={actorId,angle:input.angle,power:input.power,firstContact,pocketed:[...pocketed],foul,foulReason,railsAfterContact,totalRails};
- return {state,nextTurn,winnerId,status:winnerId?"finished":"active",foul,foulReason,pocketed,firstContact,railsAfterContact,requestId:input.requestId};
+ trajectory.push({t:trajectory.length?trajectory[trajectory.length-1].t+dt:0,balls:state.balls.map(b=>({id:b.id,x:b.x,y:b.y,pocketed:b.pocketed}))});
+ return {state,nextTurn,winnerId,status:winnerId?"finished":"active",foul,foulReason,pocketed,firstContact,railsAfterContact,requestId:input.requestId,trajectory};
 }
