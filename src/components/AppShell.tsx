@@ -12,6 +12,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { useUserRole } from "@/hooks/useUserRole";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { NativePushRegistration } from "@/components/NativePushRegistration";
+import { FloatingChatWidget } from "@/components/chat/FloatingChatWidget";
 
 export const AppShell = () => {
   const { user } = useAuth();
@@ -54,7 +55,7 @@ export const AppShell = () => {
       const bottom = top + (vv?.height ?? view.innerHeight);
       const rect = active.getBoundingClientRect();
       if (rect.bottom > bottom - 20 || rect.top < top + 12) {
-        active.scrollIntoView({ behavior: "auto", block: "center", inline: "nearest" });
+        active.scrollIntoView({ behavior: "auto", block: "nearest", inline: "nearest" });
       }
       let parent = active.parentElement;
       while (parent && parent !== doc.body) {
@@ -71,7 +72,7 @@ export const AppShell = () => {
       if (doc !== document) {
         const frameElement = doc.defaultView?.frameElement;
         if (frameElement instanceof HTMLElement) {
-          frameElement.scrollIntoView({ behavior: "auto", block: "center", inline: "nearest" });
+          frameElement.scrollIntoView({ behavior: "auto", block: "nearest", inline: "nearest" });
         }
       }
     };
@@ -199,7 +200,7 @@ export const AppShell = () => {
     <AppLockGate><CallProvider><AnnouncementGate>
       <div className="flex min-h-0 bg-background" style={{ height: "var(--tiger-viewport-height, 100dvh)" }}>
         <NativePushRegistration />
-        <aside className="hidden h-full w-56 shrink-0 flex-col gap-2 border-r border-border bg-card p-4 lg:flex">
+        <aside className={`hidden h-full w-56 shrink-0 flex-col gap-2 border-r border-border bg-card p-4 ${location.search.includes("bubble=1") ? "" : "lg:flex"}`}>
           <div className="mb-4 flex items-center gap-2 py-4 font-bold"><img src={logo} alt="" className="h-9 w-9" />TIGERCHATS</div>
           {items.map(({ to, icon: Icon, label }) => <Button key={label} asChild variant={location.pathname === to ? "secondary" : "ghost"} className="justify-start"><NavLink to={to} end={to === "/"}><Icon className="mr-3 h-4 w-4" />{label}</NavLink></Button>)}
           <div className="my-3 border-t border-border" />
@@ -208,6 +209,7 @@ export const AppShell = () => {
         <div className="tiger-app-safe-area flex min-h-0 min-w-0 flex-1 flex-col">
           <OfflineIndicator />
           <main className="min-h-0 min-w-0 flex-1 overflow-hidden"><Outlet /></main>
+          {user && <FloatingChatWidget />}
           {!hideBar && <nav aria-label="Main navigation" className="flex shrink-0 items-center border-t border-border/50 bg-card/80 px-1 pt-1 backdrop-blur-md pb-[calc(0.375rem+env(safe-area-inset-bottom,0px))] lg:hidden">
             {items.map(({ to, icon: Icon, label, badge }) => <NavLink key={label} to={to} end={to === "/"} className={({ isActive }) => `relative flex h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-lg px-0.5 transition-colors ${isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
               <span className="relative flex h-5 w-5 items-center justify-center"><Icon className="h-5 w-5" />{badge > 0 && <span className="absolute -right-2 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground shadow-[0_0_8px_hsl(var(--primary)/0.6)]">{badge > 99 ? "99+" : badge}</span>}</span>
