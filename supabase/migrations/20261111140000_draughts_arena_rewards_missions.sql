@@ -353,3 +353,51 @@ DROP TRIGGER IF EXISTS draft_match_capture_replay_move ON public.draft_matches;
 CREATE TRIGGER draft_match_capture_replay_move AFTER UPDATE OF revision,last_move,board ON public.draft_matches
  FOR EACH ROW EXECUTE FUNCTION public.capture_draughts_match_move();
 REVOKE ALL ON FUNCTION public.capture_draughts_match_move() FROM PUBLIC,anon,authenticated;
+
+
+-- Ten-tier seasonal progression pass. XP is earned from matches and missions.
+CREATE TABLE IF NOT EXISTS public.draughts_pass_claims (
+ user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+ season_id uuid NOT NULL REFERENCES public.draughts_seasons(id) ON DELETE CASCADE,
+ level integer NOT NULL CHECK(level BETWEEN 1 AND 10),
+ coins_awarded integer NOT NULL CHECK(coins_awarded>=0),
+ claimed_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(user_id,season_id,level)
+);
+ALTER TABLE public.draughts_pass_claims ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Players read their season pass claims" ON public.draughts_pass_claims;
+CREATE POLICY "Players read their season pass claims" ON public.draughts_pass_claims
+ FOR SELECT TO authenticated USING ((select auth.uid())=user_id);
+GRANT SELECT ON public.draughts_pass_claims TO authenticated;
+REVOKE INSERT,UPDATE,DELETE ON public.draughts_pass_claims FROM anon,authenticated;
+
+CREATE OR REPLACE FUNCTION public.claim_draughts_pass_reward(p_level integer)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+DECLARE v_user uuid := (select auth.uid()); v_season uuid; v_xp integer; v_required integer;
+ v_coins integer; v_balance bigint;
+BEGIN
+ IF v_user IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF;
+ IF p_level<1 OR p_level>10 THEN RAISE EXCEPTION 'Invalid season pass level'; END IF;
+ SELECT id INTO v_season FROM public.draughts_seasons WHERE is_active ORDER BY starts_at DESC LIMIT 1;
+ IF v_season IS NULL THEN RAISE EXCEPTION 'No active season'; END IF;
+ SELECT coalesce(xp,0) INTO v_xp FROM public.draughts_player_stats WHERE season_id=v_season AND user_id=v_user;
+ IF v_xp IS NULL THEN v_xp:=0; END IF;
+ v_required := CASE p_level WHEN 1 THEN 100 WHEN 2 THEN 250 WHEN 3 THEN 450 WHEN 4 THEN 700
+  WHEN 5 THEN 1000 WHEN 6 THEN 1400 WHEN 7 THEN 1850 WHEN 8 THEN 2350 WHEN 9 THEN 2900 ELSE 3500 END;
+ v_coins := CASE p_level WHEN 1 THEN 50 WHEN 2 THEN 100 WHEN 3 THEN 150 WHEN 4 THEN 200
+  WHEN 5 THEN 250 WHEN 6 THEN 300 WHEN 7 THEN 400 WHEN 8 THEN 500 WHEN 9 THEN 700 ELSE 1000 END;
+ IF v_xp<v_required THEN RAISE EXCEPTION 'More XP is required for this level'; END IF;
+ INSERT INTO public.draughts_pass_claims(user_id,season_id,level,coins_awarded)
+ VALUES(v_user,v_season,p_level,v_coins) ON CONFLICT DO NOTHING;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Season pass reward already claimed'; END IF;
+ INSERT INTO public.draughts_wallets(user_id,balance,lifetime_earned) VALUES(v_user,0,0)
+  ON CONFLICT(user_id) DO NOTHING;
+ UPDATE public.draughts_wallets SET balance=balance+v_coins,lifetime_earned=lifetime_earned+v_coins,updated_at=now()
+  WHERE user_id=v_user RETURNING balance INTO v_balance;
+ INSERT INTO public.draughts_coin_ledger(user_id,amount,balance_after,reason,source_type,source_id)
+ VALUES(v_user,v_coins,'0'::bigint+v_balance,'Season Pass Level '||p_level,'season',v_season)
+ ON CONFLICT DO NOTHING;
+ RETURN jsonb_build_object('level',p_level,'coins',v_coins,'balance',v_balance,'xp',v_xp);
+END $$;
+REVOKE ALL ON FUNCTION public.claim_draughts_pass_reward(integer) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.claim_draughts_pass_reward(integer) TO authenticated;
