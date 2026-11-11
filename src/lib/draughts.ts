@@ -158,7 +158,7 @@ function positionKey(board: Board, color: Color, depth: number): string {
   return key;
 }
 
-type SearchEntry = { score: number; bestMove: Move | null };
+type SearchEntry = { score: number; bestMove: Move | null; bound: "exact" | "lower" | "upper" };
 function search(
   board: Board,
   depth: number,
@@ -172,8 +172,15 @@ function search(
   if (depth <= 0) return evaluate(board);
 
   const key = positionKey(board, color, depth);
+  const originalAlpha = alpha;
+  const originalBeta = beta;
   const cached = table.get(key);
-  if (cached) return cached.score;
+  if (cached) {
+    if (cached.bound === "exact") return cached.score;
+    if (cached.bound === "lower") alpha = Math.max(alpha, cached.score);
+    if (cached.bound === "upper") beta = Math.min(beta, cached.score);
+    if (beta <= alpha) return cached.score;
+  }
 
   const ordered = [...moves].sort((a, b) => moveOrderScore(b) - moveOrderScore(a));
   const maximizing = color === "b";
@@ -190,7 +197,7 @@ function search(
     }
     if (maximizing) alpha = Math.max(alpha, best);
     else beta = Math.min(beta, best);
-    if (beta <= alpha) { cutoff = true; break; }
+    if (beta <= alpha) break;
   }
 
   // Only cache fully searched nodes; cutoff scores are bounds, not exact values.
