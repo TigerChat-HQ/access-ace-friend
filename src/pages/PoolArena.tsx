@@ -82,8 +82,8 @@ export default function PoolArena(){
  const refreshOnlineMatch=useCallback(async(matchId:string)=>{
   const {data,error}=await supabase.functions.invoke<PoolServerResponse>("pool-game",{body:{action:"state",matchId}});
   if(error){setOnlineNotice("Haiwezi kusoma hali ya mechi: "+error.message);return;}
-  if(data?.match){setOnlineRoom(data.match);if(Array.isArray(data.state?.balls)&&animationRafRef.current===null){ballsRef.current=data.state.balls;setBalls(data.state.balls);}setOnlineCuePosition(null);if(animationRafRef.current===null)setMoving(false);}
- },[]);
+  if(data?.match){setOnlineRoom(data.match);if(Array.isArray(data.state?.balls)&&animationRafRef.current===null){ballsRef.current=data.state.balls;setBalls(data.state.balls);}setOnlineCuePosition(null);if(animationRafRef.current===null)setMoving(false);if(data.match.status==="finished"&&onlinePlayerId)void loadPoolProfile(onlinePlayerId);}
+ },[loadPoolProfile,onlinePlayerId]);
  useEffect(()=>{
   if(!onlineRoom?.id)return;
   void refreshOnlineMatch(onlineRoom.id);
