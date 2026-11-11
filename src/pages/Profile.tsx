@@ -174,7 +174,7 @@ const Profile = () => {
 
   const initials = (profile.display_name || profile.username || "U").slice(0, 2).toUpperCase();
   const isPrivate = !!profile.is_private;
-  const canSeePosts = isMe || !isPrivate || isFollowing;
+  const canSeePosts = isMe || !isPrivate || isFollowing || posts.some((post) => post.is_collaboration);
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -193,7 +193,7 @@ const Profile = () => {
             </button>
           )}
           {isMe ? (
-            <><button onClick={() => navigate("/saved")} className="tiger-header-action hover:text-primary" aria-label="Saved posts"><Bookmark className="w-5 h-5" /></button><button onClick={() => navigate("/archive")} className="tiger-header-action hover:text-primary" aria-label="Archived posts"><Archive className="w-5 h-5" /></button><button onClick={() => navigate("/settings")} className="tiger-header-action hover:text-foreground" aria-label="Settings">
+            <><button onClick={() => navigate("/saved")} className="tiger-header-action hover:text-primary" aria-label="Saved posts"><Bookmark className="w-5 h-5" /></button><button onClick={() => navigate("/archive")} className="tiger-header-action hover:text-primary" aria-label="Archived posts"><Archive className="w-5 h-5" /></button><button onClick={() => navigate("/collaborations")} className="tiger-header-action hover:text-primary" aria-label="Post collaborations"><Users className="w-5 h-5" /></button><button onClick={() => navigate("/settings")} className="tiger-header-action hover:text-foreground" aria-label="Settings">
               <Settings className="w-5 h-5" />
             </button></>
           ) : (
