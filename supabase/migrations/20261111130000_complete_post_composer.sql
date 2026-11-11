@@ -89,3 +89,22 @@ WITH CHECK (
     WHERE p.id = post_id AND p.allow_comments = true
   )
 );
+
+-- Keep engagement rows private whenever the parent post is not visible.
+DROP POLICY IF EXISTS "Comments viewable" ON public.post_comments;
+CREATE POLICY "Comments viewable on visible posts"
+ON public.post_comments FOR SELECT TO authenticated
+USING (EXISTS (SELECT 1 FROM public.posts p WHERE p.id = post_id));
+
+DROP POLICY IF EXISTS "Likes viewable" ON public.post_likes;
+CREATE POLICY "Likes viewable on visible posts"
+ON public.post_likes FOR SELECT TO authenticated
+USING (EXISTS (SELECT 1 FROM public.posts p WHERE p.id = post_id));
+
+DROP POLICY IF EXISTS "Users like as self" ON public.post_likes;
+CREATE POLICY "Users like visible posts as self"
+ON public.post_likes FOR INSERT TO authenticated
+WITH CHECK (
+  auth.uid() = user_id
+  AND EXISTS (SELECT 1 FROM public.posts p WHERE p.id = post_id)
+);
