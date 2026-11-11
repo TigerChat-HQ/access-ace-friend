@@ -35,3 +35,7 @@ CREATE POLICY "Participants remove collaboration" ON public.post_collaborators
   FOR DELETE TO authenticated USING (inviter_id = (select auth.uid()) OR invitee_id = (select auth.uid()));
 REVOKE ALL ON public.post_collaborators FROM anon, authenticated, PUBLIC;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.post_collaborators TO authenticated;
+
+-- Invitees may only change the response state and its timestamp.
+REVOKE UPDATE ON public.post_collaborators FROM authenticated;
+GRANT UPDATE (status, updated_at) ON public.post_collaborators TO authenticated;
