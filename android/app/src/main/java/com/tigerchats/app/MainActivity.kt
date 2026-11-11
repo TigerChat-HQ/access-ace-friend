@@ -71,18 +71,29 @@ open class MainActivity : Activity() {
             override fun onPermissionRequest(request: PermissionRequest) {
                 runOnUiThread {
                     val origin = request.origin
-                    if (origin.scheme != "https" || origin.host != "tigerchat-hq.onrender.com") {
-                        request.deny()
+                    val pageHost = Uri.parse(webView.url ?: "").host
+                    if (
+                        origin.scheme != "https" ||
+                        origin.host != "tigerchat-hq.onrender.com" ||
+                        pageHost != "tigerchat-hq.onrender.com"
+                    ) {
+                        android.util.Log.w(TAG, "Blocked WebView media permission for origin=" + origin + " page=" + webView.url)
+                        try { request.deny() } catch (_: Exception) { }
                         return@runOnUiThread
                     }
 
-                    val requested = request.resources.toSet()
+                    // Only expose microphone/camera; never grant other WebView resources.
+                    val mediaResources = request.resources.filter {
+                        it == PermissionRequest.RESOURCE_AUDIO_CAPTURE ||
+                            it == PermissionRequest.RESOURCE_VIDEO_CAPTURE
+                    }
                     val androidPermissions = buildList {
-                        if (PermissionRequest.RESOURCE_AUDIO_CAPTURE in requested) add(Manifest.permission.RECORD_AUDIO)
-                        if (PermissionRequest.RESOURCE_VIDEO_CAPTURE in requested) add(Manifest.permission.CAMERA)
-                    }.toTypedArray()
+                        if (PermissionRequest.RESOURCE_AUDIO_CAPTURE in mediaResources) add(Manifest.permission.RECORD_AUDIO)
+                        if (PermissionRequest.RESOURCE_VIDEO_CAPTURE in mediaResources) add(Manifest.permission.CAMERA)
+                    }.distinct().toTypedArray()
                     if (androidPermissions.isEmpty()) {
-                        request.deny()
+                        android.util.Log.w(TAG, "Denied WebView request with no supported media resources")
+                        try { request.deny() } catch (_: Exception) { }
                         return@runOnUiThread
                     }
 
@@ -94,14 +105,22 @@ open class MainActivity : Activity() {
                     val missing = androidPermissions.filter {
                         ContextCompat.checkSelfPermission(this@MainActivity, it) != PackageManager.PERMISSION_GRANTED
                     }
+                    android.util.Log.i(TAG, "WebView media request: resources=" + mediaResources + " missing=" + missing)
                     if (missing.isEmpty()) {
-                        grantWebMediaPermission(request, requested)
+                        grantWebMediaPermission(request)
                     } else {
-                        ActivityCompat.requestPermissions(
-                            this@MainActivity,
-                            missing.toTypedArray(),
-                            MEDIA_PERMISSION_REQUEST_CODE,
-                        )
+                        try {
+                            ActivityCompat.requestPermissions(
+                                this@MainActivity,
+                                missing.toTypedArray(),
+                                MEDIA_PERMISSION_REQUEST_CODE,
+                            )
+                        } catch (error: Exception) {
+                            android.util.Log.e(TAG, "Could not request Android media permissions", error)
+                            try { request.deny() } catch (_: Exception) { }
+                            pendingMediaPermissionRequest = null
+                            pendingMediaAndroidPermissions = emptyArray()
+                        }
                     }
                 }
             }
@@ -126,7 +145,7 @@ open class MainActivity : Activity() {
         warmFirebaseToken()
     }
 
-    private fun grantWebMediaPermission(request: PermissionRequest, requested: Set<String>) {
+    private fun grantWebMediaPermission(request: PermissionRequest) {
         val allowed = request.resources.filter { resource ->
             when (resource) {
                 PermissionRequest.RESOURCE_AUDIO_CAPTURE ->
@@ -137,9 +156,16 @@ open class MainActivity : Activity() {
             }
         }.toTypedArray()
         try {
-            if (allowed.isNotEmpty()) request.grant(allowed) else request.deny()
-        } catch (_: Exception) {
+            if (allowed.isNotEmpty()) {
+                android.util.Log.i(TAG, "Granted WebView media resources: " + allowed.joinToString())
+                request.grant(allowed)
+            } else {
+                android.util.Log.w(TAG, "Denied WebView media request: Android permissions are not granted")
+                request.deny()
+            }
+        } catch (error: Exception) {
             // The WebView may have navigated away while the Android permission dialog was open.
+            android.util.Log.w(TAG, "WebView media permission request became stale", error)
         } finally {
             if (pendingMediaPermissionRequest === request) {
                 pendingMediaPermissionRequest = null
@@ -160,13 +186,26 @@ open class MainActivity : Activity() {
         val allGranted = pendingMediaAndroidPermissions.all {
             ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
         }
-        if (allGranted) grantWebMediaPermission(request, request.resources.toSet())
+        if (allGranted) grantWebMediaPermission(request)
         else {
             try { request.deny() } catch (_: Exception) { }
             pendingMediaPermissionRequest = null
             pendingMediaAndroidPermissions = emptyArray()
             showMediaPermissionSettingsPrompt()
         }
+    }
+
+    override fun onDestroy() {
+        pendingMediaPermissionRequest?.let { request ->
+            try { request.deny() } catch (_: Exception) { }
+        }
+        pendingMediaPermissionRequest = null
+        pendingMediaAndroidPermissions = emptyArray()
+        if (::webView.isInitialized) {
+            webView.stopLoading()
+            webView.destroy()
+        }
+        super.onDestroy()
     }
 
     private fun showMediaPermissionSettingsPrompt() {
