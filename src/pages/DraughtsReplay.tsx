@@ -21,7 +21,7 @@ export default function DraughtsReplay() {
       .then(({ data, error }) => {
         if (!alive) return;
         if (error) toast({ title: "Replay could not load", description: error.message, variant: "destructive" });
-        setMoves((data ?? []) as ReplayMove[]);
+        setMoves((data ?? []) as unknown as ReplayMove[]);
         setLoading(false);
       });
     return () => { alive = false; };
