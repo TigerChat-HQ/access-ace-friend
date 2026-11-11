@@ -54,7 +54,8 @@ export const AppShell = () => {
       const bottom = top + (vv?.height ?? view.innerHeight);
       const rect = active.getBoundingClientRect();
       if (rect.bottom > bottom - 20 || rect.top < top + 12) {
-        active.scrollIntoView({ behavior: "auto", block: "center", inline: "nearest" });
+        // Keep the composer anchored to the keyboard; do not center the focused input.
+        // Only adjust a genuinely scrollable chat container below.
       }
       let parent = active.parentElement;
       while (parent && parent !== doc.body) {
@@ -71,7 +72,7 @@ export const AppShell = () => {
       if (doc !== document) {
         const frameElement = doc.defaultView?.frameElement;
         if (frameElement instanceof HTMLElement) {
-          frameElement.scrollIntoView({ behavior: "auto", block: "center", inline: "nearest" });
+          // Do not center the chat iframe when the keyboard opens.
         }
       }
     };
