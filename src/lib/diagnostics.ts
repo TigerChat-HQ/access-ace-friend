@@ -29,7 +29,7 @@ const diagnosticSignature = async (record: Record<string, unknown>) => {
   const route = typeof record.route === "string" ? record.route.replace(/\\/[0-9a-f-]{8,}/gi, "/:id").replace(/\\/\\d+(?=\\/|$)/g, "/:id") : "";
   const canonical = [
     record.source, record.category, record.title, record.component_name,
-    record.action_label, route, record.message, stack,
+    route, record.message, stack,
   ].map((value) => signaturePart(String(value ?? ""))).join("|");
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
   return "sha256:" + Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
