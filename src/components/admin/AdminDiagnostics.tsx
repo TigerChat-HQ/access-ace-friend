@@ -163,6 +163,7 @@ export const AdminDiagnostics = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Ingia kwanza ili kuhifadhi nakala.");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- app_diagnostics is provisioned by the diagnostics migration; generated Supabase types are not refreshed yet.
       const { data, error } = await (supabase as any).from("app_diagnostics").select("*").order("created_at", { ascending: false });
       if (error) throw error;
       const backup = { format: "tigerchat-diagnostics-backup", version: 1, created_at: new Date().toISOString(), record_count: (data ?? []).length, records: data ?? [] };
