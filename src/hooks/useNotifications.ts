@@ -90,6 +90,9 @@ export const useNotifications = () => {
         async (payload) => {
           const msg = payload.new as unknown as IncomingMessageRow;
           if (msg.sender_id === user.id) return;
+          const { data: chatPreference } = await (supabase as any).from("chat_preferences")
+            .select("muted_until").eq("user_id", user.id).eq("conversation_id", msg.conversation_id).maybeSingle();
+          if (chatPreference?.muted_until && new Date(chatPreference.muted_until).getTime() > Date.now()) return;
           const preferences = getNotificationPreferences(user.id);
           if (preferences.enabled && preferences.chat && preferences.sound) {
             const stop = playRingtone("incoming_sms");
