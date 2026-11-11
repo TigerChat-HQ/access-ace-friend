@@ -507,7 +507,14 @@ const Chats = () => {
       if (!detail || !activeConvo || !activeChat || detail.conversationId !== activeChat) return;
       if (detail.callType !== "voice" && detail.callType !== "video") return;
       nativeWindow.__tigerPendingNativeCall = undefined;
-      handleStartCall(detail.callType === "video");
+      if (!activeConvo.otherProfile?.user_id) return;
+      webrtc.startCall(
+        activeConvo.otherProfile.user_id,
+        activeConvo.id,
+        detail.callType,
+        activeConvoName,
+        activeConvoAvatar,
+      );
     };
     startPendingNativeCall(nativeWindow.__tigerPendingNativeCall);
     const onNativeCall = (event: Event) => {
