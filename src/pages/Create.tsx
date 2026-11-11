@@ -132,7 +132,7 @@ const Create = () => {
   const searchPeople = async (value: string) => {
     setTagQuery(value);
     if (!value.trim()) { setTagResults([]); return; }
-    const term = value.trim().replace(/^@/, "");
+    const term = value.trim().replace(/^@/, "").replace(/[^a-zA-Z0-9_ ]/g, "").slice(0, 40);
     const { data } = await supabase.from("profiles").select("user_id,username,display_name")
       .or("username.ilike.%"+term+"%,display_name.ilike.%"+term+"%").limit(8);
     setTagResults((data || []).filter((person) => person.user_id !== user?.id && !taggedUsers.some((tag) => tag.user_id === person.user_id)));
@@ -463,7 +463,7 @@ const Create = () => {
           className="text-primary font-semibold text-sm disabled:opacity-50 flex items-center gap-1.5"
         >
           {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-          Share
+          {scheduledAt ? "Schedule" : "Share"}
         </button>
       </header>
 
