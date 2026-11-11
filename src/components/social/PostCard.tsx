@@ -53,7 +53,10 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
   const [reportOpen, setReportOpen] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [saved, setSaved] = useState(false);
-  const [saveBusy, setSaveBusy] = useState(false);\n  const [captionDraft, setCaptionDraft] = useState(post.caption || "");\n  const [editingCaption, setEditingCaption] = useState(false);\n  const [postActionBusy, setPostActionBusy] = useState(false);
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [captionDraft, setCaptionDraft] = useState(post.caption || "");
+  const [editingCaption, setEditingCaption] = useState(false);
+  const [postActionBusy, setPostActionBusy] = useState(false);
 
   useEffect(() => {
     if (!user) { setSaved(false); return; }
@@ -96,7 +99,16 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
     await toggleLike(post.id, user.id, liked);
   };
 
-  const updatePost = async (patch: Record<string, unknown>, success: string) => {\n    if (!isOwner || postActionBusy) return;\n    setPostActionBusy(true);\n    const { error } = await (supabase.from("posts").update(patch).eq("id", post.id).eq("user_id", user!.id) as any);\n    setPostActionBusy(false);\n    if (error) toast({ title: "Post update failed", description: error.message, variant: "destructive" });\n    else { toast({ title: success }); setEditingCaption(false); onChanged?.(); }\n  };\n\n  const handleDelete = async () => {
+  const updatePost = async (patch: Record<string, unknown>, success: string) => {
+    if (!isOwner || postActionBusy) return;
+    setPostActionBusy(true);
+    const { error } = await (supabase.from("posts").update(patch).eq("id", post.id).eq("user_id", user!.id) as any);
+    setPostActionBusy(false);
+    if (error) toast({ title: "Post update failed", description: error.message, variant: "destructive" });
+    else { toast({ title: success }); setEditingCaption(false); onChanged?.(); }
+  };
+
+  const handleDelete = async () => {
     const { error } = await deletePost(post.id);
     if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
     else {
@@ -142,7 +154,8 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
             <MoreVertical className="w-4 h-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {isOwner && <><DropdownMenuItem onClick={() => { setCaptionDraft(post.caption || ""); setEditingCaption(true); }}><Pencil className="w-4 h-4 mr-2" /> Edit caption</DropdownMenuItem><DropdownMenuItem disabled={postActionBusy} onClick={() => updatePost({ archived_at: post.archived_at ? null : new Date().toISOString() }, post.archived_at ? "Post restored" : "Post archived")}><Archive className="w-4 h-4 mr-2" /> {post.archived_at ? "Restore from archive" : "Archive post"}</DropdownMenuItem><DropdownMenuItem disabled={postActionBusy} onClick={() => updatePost({ pinned_at: post.pinned_at ? null : new Date().toISOString() }, post.pinned_at ? "Post unpinned" : "Post pinned")}><Pin className="w-4 h-4 mr-2" /> {post.pinned_at ? "Unpin post" : "Pin to profile"}</DropdownMenuItem></>}\n            {canDelete && <DropdownMenuItem onClick={handleDelete} className="text-destructive"><Trash2 className="w-4 h-4 mr-2" /> Delete</DropdownMenuItem>}
+            {isOwner && <><DropdownMenuItem onClick={() => { setCaptionDraft(post.caption || ""); setEditingCaption(true); }}><Pencil className="w-4 h-4 mr-2" /> Edit caption</DropdownMenuItem><DropdownMenuItem disabled={postActionBusy} onClick={() => updatePost({ archived_at: post.archived_at ? null : new Date().toISOString() }, post.archived_at ? "Post restored" : "Post archived")}><Archive className="w-4 h-4 mr-2" /> {post.archived_at ? "Restore from archive" : "Archive post"}</DropdownMenuItem><DropdownMenuItem disabled={postActionBusy} onClick={() => updatePost({ pinned_at: post.pinned_at ? null : new Date().toISOString() }, post.pinned_at ? "Post unpinned" : "Post pinned")}><Pin className="w-4 h-4 mr-2" /> {post.pinned_at ? "Unpin post" : "Pin to profile"}</DropdownMenuItem></>}
+            {canDelete && <DropdownMenuItem onClick={handleDelete} className="text-destructive"><Trash2 className="w-4 h-4 mr-2" /> Delete</DropdownMenuItem>}
             {!isOwner && (
               <>
                 <DropdownMenuItem onClick={() => setReportOpen(true)}><Flag className="w-4 h-4 mr-2" /> Report post</DropdownMenuItem>
@@ -193,7 +206,8 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
         <button onClick={handleSave} disabled={!user || saveBusy} aria-label={saved ? "Remove saved post" : "Save post"} aria-pressed={saved} className="text-foreground hover:text-primary transition-colors disabled:opacity-40"><Bookmark className={`w-5 h-5 ${saved ? "fill-current text-primary" : ""}`} /></button>
       </div>
 
-      {editingCaption && isOwner && <div className="mx-4 mb-3 space-y-2 rounded-xl border border-border p-3"><label className="text-xs font-medium" htmlFor={`caption-${post.id}`}>Edit caption</label><textarea id={`caption-${post.id}`} value={captionDraft} maxLength={2200} onChange={(event) => setCaptionDraft(event.target.value)} className="min-h-24 w-full resize-y rounded-lg border border-border bg-background p-2 text-sm" /><div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">{captionDraft.length}/2200</span><div className="flex gap-2"><button type="button" onClick={() => setEditingCaption(false)} className="rounded-lg px-3 py-2 text-xs">Cancel</button><button type="button" disabled={postActionBusy || captionDraft.length > 2200} onClick={() => updatePost({ caption: captionDraft.trim() }, "Caption updated")} className="rounded-lg bg-primary px-3 py-2 text-xs text-primary-foreground disabled:opacity-50">Save</button></div></div></div>}\n      {post.location_name && <p className="px-4 pb-2 text-xs text-muted-foreground">📍 {post.location_name}</p>}
+      {editingCaption && isOwner && <div className="mx-4 mb-3 space-y-2 rounded-xl border border-border p-3"><label className="text-xs font-medium" htmlFor={`caption-${post.id}`}>Edit caption</label><textarea id={`caption-${post.id}`} value={captionDraft} maxLength={2200} onChange={(event) => setCaptionDraft(event.target.value)} className="min-h-24 w-full resize-y rounded-lg border border-border bg-background p-2 text-sm" /><div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">{captionDraft.length}/2200</span><div className="flex gap-2"><button type="button" onClick={() => setEditingCaption(false)} className="rounded-lg px-3 py-2 text-xs">Cancel</button><button type="button" disabled={postActionBusy || captionDraft.length > 2200} onClick={() => updatePost({ caption: captionDraft.trim() }, "Caption updated")} className="rounded-lg bg-primary px-3 py-2 text-xs text-primary-foreground disabled:opacity-50">Save</button></div></div></div>}
+      {post.location_name && <p className="px-4 pb-2 text-xs text-muted-foreground">📍 {post.location_name}</p>}
       {post.tagged_user_ids && post.tagged_user_ids.length > 0 && <p className="px-4 pb-2 text-xs text-muted-foreground">Tagged {post.tagged_user_ids.length} {post.tagged_user_ids.length === 1 ? "person" : "people"}</p>}
       {post.caption && (
         <p className="px-4 pb-2 text-sm text-foreground whitespace-pre-wrap">
