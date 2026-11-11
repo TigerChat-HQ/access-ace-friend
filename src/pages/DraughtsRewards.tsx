@@ -36,7 +36,8 @@ export default function DraughtsRewards() {
     if (!user) return;
     setLoading(true);
     const { data: wallet } = await supabase.from("draughts_wallets" as any).select("balance,lifetime_earned").eq("user_id", user.id).maybeSingle();
-    const walletRow = wallet as unknown as { balance: number; lifetime_earned: number } | null;\n    setBalance(Number(walletRow?.balance ?? 0));
+    const walletRow = wallet as unknown as { balance: number; lifetime_earned: number } | null;
+    setBalance(Number(walletRow?.balance ?? 0));
     setLifetime(Number(walletRow?.lifetime_earned ?? 0));
     const { data: season } = await supabase.from("draughts_seasons").select("id,name").eq("is_active", true).order("starts_at", { ascending: false }).limit(1).maybeSingle();
     if (season) {
