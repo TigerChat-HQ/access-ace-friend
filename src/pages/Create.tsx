@@ -152,6 +152,7 @@ const Create = () => {
     if (!user) return;
     setLoading(true);
     try {
+      const previousMediaPaths = activeDraftId ? (drafts.find((item) => item.id === activeDraftId)?.media_paths || []) : [];
       const mediaPaths: string[] = [];
       let primaryMediaPath: string | null = null;
       const extraImagePaths: string[] = [];
@@ -195,6 +196,11 @@ const Create = () => {
       if (saveResult.error) throw saveResult.error;
       if (!saveResult.data?.id) throw new Error("The draft was not saved. Refresh your drafts and try again.");
       setActiveDraftId(saveResult.data.id);
+      const obsoletePaths = previousMediaPaths.filter((path) => !mediaPaths.includes(path));
+      if (obsoletePaths.length) {
+        const { error: cleanupError } = await supabase.storage.from("post-drafts").remove(obsoletePaths);
+        if (cleanupError) console.warn("Old draft media cleanup failed:", cleanupError.message);
+      }
       const { data, error: refreshError } = await supabase.from("post_drafts").select("id,caption,updated_at,media_paths,editor_state").eq("user_id", user.id).order("updated_at", { ascending: false }).limit(10);
       if (refreshError) throw refreshError;
       setDrafts(data || []);
@@ -395,7 +401,7 @@ const Create = () => {
       const overlay = typeof state.overlay === "string" ? state.overlay.trim() : "";
       const sticker = typeof state.sticker === "string" ? state.sticker : "";
       const textOverlay = {
-        ...(overlay ? { text: overlay, text_color: typeof state.textColor === "string" ? state.textColor : "#FFFFFF", text_size: 24 } : {}),
+        ...(overlay ? { text: overlay, text_color: typeof state.textColor === "string" ? state.textColor : "#FFFFFF", text_background: "rgba(0,0,0,0.65)", text_font: "sans-serif", text_size: Math.round(24 * Number(state.textScale || 1)) } : {}),
         ...(sticker ? { sticker } : {}),
         ...(typeof state.filter === "string" && state.filter !== "none" ? { image_filter: state.filter } : {}),
         ...(musicUrl ? { music_title: musicUrl.split("/").pop() || "Background music" } : {}),
