@@ -19,7 +19,7 @@ export interface FeedPost {
   post_audio_title?: string | null;
   is_draft?: boolean;
   scheduled_at?: string | null;
-  media_items?: unknown;
+  media_items?: { url: string; type: string; alt_text?: string | null }[] | null;
   profile?: {
     user_id: string;
     username: string | null;
