@@ -22,15 +22,17 @@ Deno.serve(async(req:Request)=>{
   if(!match)return reply({error:"Match not found"},404);
   if(match.player_one!==actor&&match.player_two!==actor)return reply({error:"Not a match participant"},403);
   if(action==="state"){
-   if(match.status==="active"){
+   let currentMatch=match;
+   if(currentMatch.status==="active"){
     const timeoutCheck=await admin.rpc("pool_check_timeout",{p_match_id:matchId});
     if(timeoutCheck.error)throw timeoutCheck.error;
-    if(timeoutCheck.data?.status==="finished"){
+    if(timeoutCheck.data)currentMatch=timeoutCheck.data;
+    if(currentMatch.status==="finished"){
      const settled=await admin.rpc("pool_settle_match",{p_match_id:matchId});
      if(settled.error)console.error("Pool timeout settlement pending",settled.error.message);
     }
    }
-   if(match.status==="active"&&(!match.state||Object.keys(match.state).length===0)){
+   if(currentMatch.status==="active"&&(!currentMatch.state||Object.keys(currentMatch.state).length===0)){
     const initial=createInitialPoolState(match.mode as PoolMode,match.player_one,match.player_two);
     const {error}=await admin.rpc("pool_initialize_match",{p_match_id:match.id,p_actor_id:actor,p_state:initial});
     if(error)throw error;
