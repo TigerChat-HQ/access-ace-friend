@@ -34,6 +34,7 @@ export interface FeedPost {
   comment_count: number;
   liked_by_me: boolean;
   score?: number;
+  is_collaboration?: boolean;
 }
 
 const getBlockedSet = async (userId: string): Promise<Set<string>> => {
