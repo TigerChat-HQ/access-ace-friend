@@ -17,6 +17,7 @@ export interface FeedPost {
   alt_text?: string | null;
   post_audio_url?: string | null;
   post_audio_title?: string | null;
+  post_cover_url?: string | null;
   is_draft?: boolean;
   scheduled_at?: string | null;
   media_items?: { url: string; type: string; alt_text?: string | null }[] | null;
