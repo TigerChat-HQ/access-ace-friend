@@ -9,11 +9,12 @@ export interface ChatPrefs {
   bubble_color: string | null;
   font_size: "small" | "medium" | "large";
   theme: string;
+  muted_until: string | null;
 }
 
 const db = supabase as unknown as SupabaseClient;
 
-const DEFAULT: ChatPrefs = { wallpaper: null, bubble_color: null, font_size: "medium", theme: "default" };
+const DEFAULT: ChatPrefs = { wallpaper: null, bubble_color: null, font_size: "medium", theme: "default", muted_until: null };
 
 export const useChatPreferences = (conversationId: string | null) => {
   const { user } = useAuth();
