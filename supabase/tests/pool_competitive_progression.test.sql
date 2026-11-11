@@ -21,18 +21,18 @@ BEGIN
 
   INSERT INTO public.pool_tournaments(owner_id,title,mode,max_players,entry_fee)
   VALUES(u1,'Smoke test bracket','eight_ball',4,0) RETURNING id INTO v_tournament_id;
-  INSERT INTO public.pool_tournament_entries(v_tournament_id,user_id,seed_rating)
+  INSERT INTO public.pool_tournament_entries(tournament_id,user_id,seed_rating)
   VALUES(v_tournament_id,u1,1200),(v_tournament_id,u2,1100),(v_tournament_id,u3,1000),(v_tournament_id,u4,900);
 
   PERFORM set_config('request.jwt.claim.sub',u1::text,true);
   result := public.start_pool_tournament(v_tournament_id);
   IF result->>'status'<>'active' THEN RAISE EXCEPTION 'Tournament did not start'; END IF;
   SELECT count(*) INTO first_round_count FROM public.pool_tournament_matches
-    WHERE v_tournament_id=v_tournament_id AND round_no=1;
+    WHERE tournament_id=v_tournament_id AND round_no=1;
   IF first_round_count<>2 THEN RAISE EXCEPTION 'Expected 2 first-round matches'; END IF;
 
   FOR item IN SELECT match_id,player_one FROM public.pool_tournament_matches
-    WHERE v_tournament_id=v_tournament_id AND round_no=1 ORDER BY match_no
+    WHERE tournament_id=v_tournament_id AND round_no=1 ORDER BY match_no
   LOOP
     UPDATE public.pool_matches SET status='finished',winner_id=item.player_one,finished_at=now()
       WHERE id=item.match_id;
@@ -41,7 +41,7 @@ BEGIN
   END LOOP;
 
   SELECT match_id,player_one INTO final_match_id,final_player FROM public.pool_tournament_matches
-    WHERE v_tournament_id=v_tournament_id AND round_no=2;
+    WHERE tournament_id=v_tournament_id AND round_no=2;
   IF final_match_id IS NULL THEN RAISE EXCEPTION 'Final match was not generated'; END IF;
   UPDATE public.pool_matches SET status='finished',winner_id=final_player,finished_at=now()
     WHERE id=final_match_id;
@@ -50,7 +50,7 @@ BEGIN
   IF (SELECT status FROM public.pool_tournaments WHERE id=v_tournament_id)<>'completed'
     THEN RAISE EXCEPTION 'Tournament did not complete'; END IF;
   IF (SELECT count(*) FROM public.pool_match_results r JOIN public.pool_tournament_matches tm
-      ON tm.match_id=r.match_id WHERE tm.v_tournament_id=v_tournament_id)<>3
+      ON tm.match_id=r.match_id WHERE tm.tournament_id=v_tournament_id)<>3
     THEN RAISE EXCEPTION 'Expected three persisted match results'; END IF;
   result := public.pool_settle_match(final_match_id);
   IF result->>'duplicate'<>'true' THEN RAISE EXCEPTION 'Settlement must be idempotent'; END IF;
