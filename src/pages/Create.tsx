@@ -6,6 +6,10 @@ import { Image as ImageIcon, X, Loader2, Type, RotateCw, Music2, Sparkles } from
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { renderVideoEdit } from "@/lib/postMediaEditor";
+import { Clapperboard, BookOpen } from "lucide-react";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+const db = supabase as unknown as SupabaseClient;
 
 const extractHashtags = (text: string): string[] =>
   [...new Set((text.match(/#(\w+)/g) || []).map((t) => t.slice(1).toLowerCase()))];
@@ -281,6 +285,143 @@ const Create = () => {
     }
   };
 
+  const readPrivateDraftFile = async (path: string) => {
+    const { data, error } = await supabase.storage.from("post-drafts").createSignedUrl(path, 600);
+    if (error || !data?.signedUrl) throw error || new Error("Could not access draft media.");
+    const response = await fetch(data.signedUrl);
+    if (!response.ok) throw new Error("Could not download draft media.");
+    const blob = await response.blob();
+    return new File([blob], path.split("/").pop() || "draft-media", { type: blob.type || "application/octet-stream" });
+  };
+
+  const convertDraftToReel = async (draft: typeof drafts[number]) => {
+    if (!user || loading) return;
+    const state = draft.editor_state as Record<string, unknown>;
+    if (state.mediaType !== "video") {
+      toast({ title: "Reel needs a video", description: "This draft does not contain a video. Choose a video post draft to continue.", variant: "destructive" });
+      return;
+    }
+    const sourcePath = typeof state.primaryMediaPath === "string" ? state.primaryMediaPath : null;
+    if (!sourcePath) {
+      toast({ title: "Video missing", description: "Restore this draft and check its media before converting it.", variant: "destructive" });
+      return;
+    }
+    setLoading(true);
+    try {
+      const videoFile = await readPrivateDraftFile(sourcePath);
+      if (!videoFile.type.startsWith("video/")) throw new Error("The selected draft media is not a video.");
+      const videoPath = `${user.id}/reels/import-video-${crypto.randomUUID()}-${videoFile.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
+      const { error: videoUploadError } = await supabase.storage.from("reel-drafts").upload(videoPath, videoFile, { contentType: videoFile.type, upsert: false });
+      if (videoUploadError) throw videoUploadError;
+
+      const copyOptionalAsset = async (value: unknown, kind: string) => {
+        if (typeof value !== "string" || !value) return null;
+        const asset = await readPrivateDraftFile(value);
+        const targetPath = `${user.id}/reels/import-${kind}-${crypto.randomUUID()}-${asset.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
+        const { error } = await supabase.storage.from("reel-drafts").upload(targetPath, asset, { contentType: asset.type || undefined, upsert: false });
+        if (error) throw error;
+        return targetPath;
+      };
+      const [coverPath, audioPath] = await Promise.all([
+        copyOptionalAsset(state.coverPath, "cover"),
+        copyOptionalAsset(state.musicPath, "audio"),
+      ]);
+      const { error: insertError } = await db.from("reel_drafts").insert({
+        user_id: user.id,
+        caption: draft.caption || "",
+        source_media_path: videoPath,
+        cover_path: coverPath,
+        audio_path: audioPath,
+        audio_title: audioPath ? audioPath.split("/").pop() : null,
+        audio_start_seconds: 0,
+        trim_start_seconds: Number(state.trimStart || 0),
+        trim_end_seconds: Number(state.trimEnd || 0) > 0 ? Number(state.trimEnd) : null,
+        captions: [],
+        editor_state: { version: 1, imported_from_post_draft: draft.id, original_editor_state: state },
+      });
+      if (insertError) throw insertError;
+      toast({ title: "Draft copied to Reels Studio", description: "Video, cover, audio and caption have been transferred. Review before publishing." });
+      navigate("/reels/studio");
+    } catch (error) {
+      toast({ title: "Could not convert to Reel", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const publishDraftAsStatus = async (draft: typeof drafts[number]) => {
+    if (!user || loading) return;
+    const state = draft.editor_state as Record<string, unknown>;
+    const mediaType = state.mediaType === "video" || state.mediaType === "image" ? state.mediaType : "text";
+    const sourcePath = typeof state.primaryMediaPath === "string" ? state.primaryMediaPath : null;
+    if (mediaType !== "text" && !sourcePath) {
+      toast({ title: "Draft media missing", description: "Restore this draft and check its media before posting a Status.", variant: "destructive" });
+      return;
+    }
+    setLoading(true);
+    try {
+      let imageUrl: string | null = null;
+      let duration: number | null = null;
+      if (sourcePath && mediaType !== "text") {
+        const media = await readPrivateDraftFile(sourcePath);
+        if (mediaType === "video") {
+          if (!media.type.startsWith("video/")) throw new Error("Draft media is not a video.");
+          duration = await new Promise<number>((resolve, reject) => {
+            const probe = document.createElement("video");
+            const objectUrl = URL.createObjectURL(media);
+            probe.preload = "metadata";
+            probe.onloadedmetadata = () => { const value = probe.duration; URL.revokeObjectURL(objectUrl); if (!Number.isFinite(value) || value > 120) reject(new Error("Status videos must be 2 minutes or shorter.")); else resolve(Math.round(value)); };
+            probe.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error("Could not read video duration.")); };
+            probe.src = objectUrl;
+          });
+        } else if (!media.type.startsWith("image/")) {
+          throw new Error("Draft media is not an image.");
+        }
+        const mediaPath = `${user.id}/${crypto.randomUUID()}-${media.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
+        const { error: uploadError } = await supabase.storage.from("stories").upload(mediaPath, media, { contentType: media.type, upsert: false });
+        if (uploadError) throw uploadError;
+        imageUrl = supabase.storage.from("stories").getPublicUrl(mediaPath).data.publicUrl;
+      }
+
+      let musicUrl: string | null = null;
+      if (typeof state.musicPath === "string" && state.musicPath) {
+        const audio = await readPrivateDraftFile(state.musicPath);
+        const audioPath = `${user.id}/audio-${crypto.randomUUID()}-${audio.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
+        const { error: audioError } = await supabase.storage.from("stories").upload(audioPath, audio, { contentType: audio.type, upsert: false });
+        if (audioError) throw audioError;
+        musicUrl = supabase.storage.from("stories").getPublicUrl(audioPath).data.publicUrl;
+      }
+
+      const overlay = typeof state.overlay === "string" ? state.overlay.trim() : "";
+      const sticker = typeof state.sticker === "string" ? state.sticker : "";
+      const textOverlay = {
+        ...(overlay ? { text: overlay, text_color: typeof state.textColor === "string" ? state.textColor : "#FFFFFF", text_size: 24 } : {}),
+        ...(sticker ? { sticker } : {}),
+        ...(typeof state.filter === "string" && state.filter !== "none" ? { image_filter: state.filter } : {}),
+        ...(musicUrl ? { music_title: musicUrl.split("/").pop() || "Background music" } : {}),
+      };
+      const storyAudience = state.audience === "private" ? "only_me" : state.audience === "followers" ? "contacts" : "everyone";
+      const { error: storyError } = await db.from("stories").insert({
+        user_id: user.id,
+        image_url: imageUrl,
+        caption: draft.caption.trim() || null,
+        music_url: musicUrl,
+        media_type: mediaType,
+        duration,
+        text_overlay: Object.keys(textOverlay).length ? textOverlay : null,
+        audience: storyAudience,
+        background_color: typeof state.textColor === "string" ? state.textColor : "#6D28D9",
+      });
+      if (storyError) throw storyError;
+      toast({ title: "Status posted", description: "Your draft has been shared to Status." });
+      navigate("/stories");
+    } catch (error) {
+      toast({ title: "Could not post Status", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handlePreviewVideo = async () => {
     if (!file || !isVideo) return;
     clearRenderedPreview();
@@ -478,7 +619,7 @@ const Create = () => {
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {drafts.length > 0 && <section className="rounded-xl border border-border p-3 space-y-2"><div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Saved post drafts</h2><span className="text-xs text-muted-foreground">{drafts.length}</span></div><div className="flex gap-2 overflow-x-auto">{drafts.map((draft) => <button key={draft.id} type="button" onClick={() => restoreDraft(draft)} className={cn("shrink-0 max-w-48 rounded-lg border px-3 py-2 text-left", activeDraftId === draft.id ? "border-primary bg-primary/10" : "border-border")}><span className="block truncate text-xs font-medium">{draft.caption || "Untitled post"}</span><span className="block text-[10px] text-muted-foreground">{new Date(draft.updated_at).toLocaleDateString()}</span></button>)}</div></section>}
+        {drafts.length > 0 && <section className="rounded-xl border border-border p-3 space-y-2"><div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Saved post drafts</h2><span className="text-xs text-muted-foreground">{drafts.length}</span></div><div className="space-y-2">{drafts.map((draft) => <div key={draft.id} className={cn("rounded-lg border p-2", activeDraftId === draft.id ? "border-primary bg-primary/10" : "border-border")}><button type="button" onClick={() => void restoreDraft(draft)} className="w-full text-left"><span className="block truncate text-xs font-medium">{draft.caption || "Untitled post"}</span><span className="block text-[10px] text-muted-foreground">{new Date(draft.updated_at).toLocaleDateString()}</span></button><div className="mt-2 flex gap-2"><button type="button" disabled={loading} onClick={() => void convertDraftToReel(draft)} className="flex flex-1 items-center justify-center gap-1 rounded-md border border-border px-2 py-1.5 text-[11px] text-foreground disabled:opacity-50"><Clapperboard className="h-3.5 w-3.5" /> Reels</button><button type="button" disabled={loading} onClick={() => void publishDraftAsStatus(draft)} className="flex flex-1 items-center justify-center gap-1 rounded-md border border-border px-2 py-1.5 text-[11px] text-foreground disabled:opacity-50"><BookOpen className="h-3.5 w-3.5" /> Status</button></div></div>)}</div></section>}
         {preview && (
           <div className="relative rounded-xl overflow-hidden bg-muted">
             {isVideo ? (
