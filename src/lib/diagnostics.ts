@@ -28,7 +28,7 @@ export async function reportDiagnostic(input: DiagnosticInput) {
     if (recent.size > 250) recent.clear();
     const { data: { user } } = await supabase.auth.getUser();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- app_diagnostics exists in production; generated Supabase types are not refreshed.
-    const { error: insertError } = await (supabase as any).from("app_diagnostics").insert({
+    const { data: inserted, error: insertError } = await (supabase as any).from("app_diagnostics").insert({
       reporter_id: user?.id ?? null,
       source: input.source || "feature_handler",
       severity: input.severity || "high",
@@ -41,8 +41,18 @@ export async function reportDiagnostic(input: DiagnosticInput) {
       stack,
       suggestion: input.suggestion || null,
       metadata: input.metadata || {},
-    });
-    if (insertError) console.warn("Diagnostics report could not be saved:", insertError.message);
+      error_signature: key,
+      last_seen_at: new Date().toISOString(),
+    }).select("id").single();
+    if (insertError) {
+      console.warn("Diagnostics report could not be saved:", insertError.message);
+    } else if (inserted?.id) {
+      // Fire-and-forget: the secured Edge Function triages the error and may
+      // create a reviewed GitHub PR. Runtime reporting must never block the UI.
+      void supabase.functions.invoke("tiger-dev-planner", {
+        body: { action: "process_diagnostic", diagnostic_id: inserted.id },
+      }).catch((automationError) => console.warn("Tiger AI diagnostics handoff failed:", automationError));
+    }
   } catch (reportError) {
     console.warn("Diagnostics reporter failed:", reportError);
   }

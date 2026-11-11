@@ -5,8 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Bug, RefreshCw, Loader2, Send, Database, CheckCircle2, AlertTriangle, Copy } from "lucide-react";
+import { Bug, RefreshCw, Loader2, Send, Database, CheckCircle2, AlertTriangle, Copy, Bell, GitPullRequest, Check } from "lucide-react";
 
+type AdminDiagnosticNotice = { id: string; diagnostic_id: string | null; task_id: string | null; notification_type: string; title: string; message: string; pr_url: string | null; is_read: boolean; created_at: string };
 type Diagnostic = {
   id: string; source: string; severity: string; category: string; title: string;
   message: string | null; route: string | null; component_name: string | null;
@@ -35,11 +36,13 @@ const EXPECTED_TABLES = [
 export const AdminDiagnostics = () => {
   const { toast } = useToast();
   const [items, setItems] = useState<Diagnostic[]>([]);
+  const [adminNotices, setAdminNotices] = useState<AdminDiagnosticNotice[]>([]);
+  const [mergingTask, setMergingTask] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(false);
   const [title, setTitle] = useState("");
   const [suggestion, setSuggestion] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [schemaResults, setSchemaResults] = useState<{name:string;status:"ok"|"missing"|"error";detail?:string}[]>([]);
 
   const load = useCallback(async () => {
@@ -60,7 +63,14 @@ export const AdminDiagnostics = () => {
       if (page.length < pageSize) break;
       offset += pageSize;
     }
-    setItems(allItems);
+    setItems(allItems.sort((a, b) => {
+      const activeA = a.status === "new" || a.status === "investigating" ? 1 : 0;
+      const activeB = b.status === "new" || b.status === "investigating" ? 1 : 0;
+      return activeB - activeA || new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table is created by diagnostics workflow migration.
+    const { data: notices } = await (supabase as any).from("admin_diagnostic_notifications").select("*").order("created_at", { ascending: false }).limit(30);
+    setAdminNotices((notices ?? []) as AdminDiagnosticNotice[]);
     setLoading(false);
   }, [toast]);
 
@@ -74,6 +84,13 @@ export const AdminDiagnostics = () => {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    const channel = supabase.channel("admin-diagnostic-inbox")
+      .on("postgres_changes", { event: "*", schema: "public", table: "admin_diagnostic_notifications" }, () => { void load(); })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [load]);
 
   const runSchemaCheck = async () => {
     setChecking(true);
@@ -125,6 +142,25 @@ export const AdminDiagnostics = () => {
     else await load();
   };
 
+  const markNoticeRead = async (id: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table is created by diagnostics workflow migration.
+    await (supabase as any).from("admin_diagnostic_notifications").update({ is_read: true }).eq("id", id);
+    setAdminNotices(current => current.map(n => n.id === id ? { ...n, is_read: true } : n));
+  };
+
+  const approveMerge = async (notice: AdminDiagnosticNotice) => {
+    if (!notice.task_id) return;
+    setMergingTask(notice.task_id);
+    const { data, error } = await supabase.functions.invoke("tiger-dev-planner", { body: { action: "merge_diagnostic_pr", task_id: notice.task_id, notification_id: notice.id } });
+    setMergingTask(null);
+    if (error || data?.error) {
+      toast({ title: "Merge imezuiwa", description: data?.error || error?.message || "GitHub merge failed", variant: "destructive" });
+      return;
+    }
+    toast({ title: "Mabadiliko yameunganishwa", description: "Tiger AI PR imepita ukaguzi na kuunganishwa main." });
+    await load();
+  };
+
   const copyAllErrors = async () => {
     const payload = items.map((item, index) => [
       `ERROR #${index + 1}`,
@@ -149,7 +185,7 @@ export const AdminDiagnostics = () => {
     }
   };
 
-  const visible = statusFilter === "all" ? items : items.filter(x => x.status === statusFilter);
+  const visible = statusFilter === "active" ? items.filter(x => x.status === "new" || x.status === "investigating") : statusFilter === "all" ? items : items.filter(x => x.status === statusFilter);
   const missingCount = schemaResults.filter(x => x.status === "missing").length;
   return <section className="space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -176,13 +212,21 @@ export const AdminDiagnostics = () => {
       <Textarea value={suggestion} onChange={e=>setSuggestion(e.target.value)} placeholder="Describe the problem or suggested fix..." rows={3}/>
       <Button size="sm" onClick={() => void submitSuggestion()} disabled={!title.trim()}><Send className="mr-1 h-3.5 w-3.5"/>Save report</Button>
     </div>
+    <div className="rounded-lg border border-primary/30 bg-card p-3 space-y-2">
+      <h4 className="text-sm font-semibold flex items-center gap-2"><Bell className="h-4 w-4 text-primary"/> Admin Notification Box <Badge>{adminNotices.filter(n => !n.is_read).length} mpya</Badge></h4>
+      {adminNotices.length === 0 ? <p className="text-xs text-muted-foreground">Hakuna taarifa mpya za Tiger AI kwa sasa.</p> : adminNotices.map(notice => <div key={notice.id} className="rounded-md border border-border p-2 space-y-1">
+        <div className="flex items-start gap-2"><span className="mt-1 h-2 w-2 rounded-full bg-emerald-500 shrink-0"/><div className="min-w-0 flex-1"><p className="text-sm font-bold">{notice.title}</p><p className="text-xs text-muted-foreground">{notice.message}</p><p className="text-[10px] text-muted-foreground">{new Date(notice.created_at).toLocaleString()}</p></div>{!notice.is_read && <Button size="sm" variant="ghost" onClick={() => void markNoticeRead(notice.id)}>Read</Button>}</div>
+        {notice.pr_url && <a className="text-xs text-primary underline inline-flex items-center gap-1" href={notice.pr_url} target="_blank" rel="noopener noreferrer"><GitPullRequest className="h-3 w-3"/>Open PR</a>}
+        {notice.notification_type === "repair_ready" && notice.task_id && <Button size="sm" onClick={() => void approveMerge(notice)} disabled={mergingTask !== null}><Check className="mr-1 h-3.5 w-3.5"/>{mergingTask === notice.task_id ? "Inakagua..." : "Thibitisha na unganisha main"}</Button>}
+      </div>)}
+    </div>
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex flex-wrap items-center gap-2"><h4 className="text-sm font-semibold">Issue log ({visible.length})</h4><Button size="sm" variant="outline" onClick={() => void copyAllErrors()} disabled={items.length === 0}><Copy className="mr-1 h-3.5 w-3.5"/>Copy all errors ({items.length})</Button></div>
-      <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="rounded-md border border-border bg-background px-2 py-1 text-xs"><option value="all">All statuses</option><option value="new">New</option><option value="investigating">Investigating</option><option value="fixed">Fixed</option><option value="ignored">Ignored</option></select>
+      <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="rounded-md border border-border bg-background px-2 py-1 text-xs"><option value="active">Active errors</option><option value="all">All / history</option><option value="new">New</option><option value="investigating">Investigating</option><option value="fixed">Fixed</option><option value="ignored">Ignored</option></select>
     </div>
-    {visible.map(item=><article key={item.id} className="rounded-lg border border-border bg-card p-3 space-y-2">
+    {visible.map(item=><article key={item.id} className={`rounded-lg border bg-card p-3 space-y-2 ${item.status === "new" ? "border-emerald-500/50" : "border-border"}`}>
       <div className="flex flex-wrap items-center gap-1"><Badge variant={item.severity==="critical"||item.severity==="high"?"destructive":"secondary"}>{item.severity}</Badge><Badge variant="outline">{item.category}</Badge><Badge>{item.status}</Badge></div>
-      <p className="text-sm font-semibold">{item.title}</p>
+      <p className="text-sm font-bold flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0"/>{item.title}</p>
       {item.message && <p className="text-xs text-muted-foreground break-words">{item.message}</p>}
       <p className="text-[11px] text-muted-foreground">{new Date(item.created_at).toLocaleString()} · {item.route ?? "unknown route"}{item.action_label ? ` · Click: ${item.action_label}` : ""}</p>
       {item.component_name && <p className="text-xs">Component: {item.component_name}</p>}
