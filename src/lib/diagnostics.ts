@@ -13,44 +13,57 @@ type DiagnosticInput = {
   metadata?: Record<string, unknown>;
 };
 
-const recent = new Map<string, number>();
-const safeText = (value: string, max = 8000) => value.replace(/(Bearer\s+)[^\s]+/gi, "$1[REDACTED]").replace(/(access_token|refresh_token|password|authorization)(\s*[:=]\s*)[^&\s,]+/gi, "$1$2[REDACTED]").slice(0, max);
+const safeText = (value: string, max = 8000) => value.replace(/(Bearer\\s+)[^\\s]+/gi, "$1[REDACTED]").replace(/(access_token|refresh_token|password|authorization)(\\s*[:=]\\s*)[^&\\s,]+/gi, "$1$2[REDACTED]").slice(0, max);
+
+const normalizeForSignature = (value: string) => value
+  .toLowerCase()
+  .replace(/https?:\\/\\/\\S+/g, "[url]")
+  .replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, "[uuid]")
+  .replace(/\\b0x[0-9a-f]+\\b/gi, "[hex]")
+  .replace(/\\b\\d+\\b/g, "[n]")
+  .replace(/\\s+/g, " ")
+  .trim();
+
+async function makeErrorSignature(parts: string[]) {
+  const canonical = parts.map(normalizeForSignature).join("|");
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 
 export async function reportDiagnostic(input: DiagnosticInput) {
   try {
     const error = input.error;
     const message = safeText(input.message || (error instanceof Error ? error.message : String((error as { message?: unknown })?.message ?? error ?? "Unknown error")));
     const stack = error instanceof Error && error.stack ? safeText(error.stack) : null;
-    const key = [input.source || "feature", input.component || "", input.title, message].join("|");
-    const now = Date.now();
-    if (now - (recent.get(key) || 0) < 15000) return;
-    recent.set(key, now);
-    if (recent.size > 250) recent.clear();
-    const { data: { user } } = await supabase.auth.getUser();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- app_diagnostics exists in production; generated Supabase types are not refreshed.
-    const { data: inserted, error: insertError } = await (supabase as any).from("app_diagnostics").insert({
-      reporter_id: user?.id ?? null,
-      source: input.source || "feature_handler",
-      severity: input.severity || "high",
-      category: input.category || "runtime",
-      title: safeText(input.title, 240),
-      message,
-      route: typeof window !== "undefined" ? window.location.pathname : null,
-      component_name: input.component || null,
-      action_label: input.action || null,
-      stack,
-      suggestion: input.suggestion || null,
-      metadata: input.metadata || {},
-      error_signature: key,
-      last_seen_at: new Date().toISOString(),
-    }).select("id").single();
+    const route = typeof window !== "undefined" ? window.location.pathname.replace(/\\b[0-9a-f]{8}-[0-9a-f-]{27,}\\b/gi, ":id").replace(/\\/\\d+(?=\\/|$)/g, "/:id") : "";
+    const source = input.source || "feature_handler";
+    const title = safeText(input.title, 240);
+    const signature = await makeErrorSignature([source, input.category || "runtime", input.component || "", route, title, message]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- app_diagnostics RPC is added by the paired migration.
+    const { data, error: insertError } = await (supabase as any).rpc("record_app_diagnostic", {
+      p_error_signature: signature,
+      p_source: source,
+      p_severity: input.severity || "high",
+      p_category: input.category || "runtime",
+      p_title: title,
+      p_message: message,
+      p_route: route || null,
+      p_component_name: input.component || null,
+      p_action_label: input.action || null,
+      p_stack: stack,
+      p_suggestion: input.suggestion || null,
+      p_metadata: input.metadata || {},
+    });
     if (insertError) {
       console.warn("Diagnostics report could not be saved:", insertError.message);
-    } else if (inserted?.id) {
-      // Fire-and-forget: the secured Edge Function triages the error and may
-      // create a reviewed GitHub PR. Runtime reporting must never block the UI.
+      return;
+    }
+    const record = Array.isArray(data) ? data[0] : data;
+    if (record?.diagnostic_id && record.should_process) {
+      // Only a new or genuinely reopened diagnostic is handed to Tiger AI.
+      // Repeated occurrences update the same row and never create duplicate repair tasks.
       void supabase.functions.invoke("tiger-dev-planner", {
-        body: { action: "process_diagnostic", diagnostic_id: inserted.id },
+        body: { action: "process_diagnostic", diagnostic_id: record.diagnostic_id },
       }).catch((automationError) => console.warn("Tiger AI diagnostics handoff failed:", automationError));
     }
   } catch (reportError) {
