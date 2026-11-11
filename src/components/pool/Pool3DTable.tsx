@@ -23,7 +23,7 @@ export default function Pool3DTable({balls,camera,angle,aim,ballInHand,onPointer
  const meshes={sphere:make(sphere()),cube:make(cube())};
  const draw=(mesh:typeof meshes.sphere, vp:Float32Array, m:Float32Array, color:[number,number,number])=>{gl.bindBuffer(gl.ARRAY_BUFFER,mesh.pb);gl.enableVertexAttribArray(loc.pos);gl.vertexAttribPointer(loc.pos,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,mesh.nb);gl.enableVertexAttribArray(loc.normal);gl.vertexAttribPointer(loc.normal,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,mesh.ib);gl.uniformMatrix4fv(loc.mvp,false,multiply(vp,m));gl.uniformMatrix4fv(loc.model,false,m);gl.uniform3fv(loc.color,color);gl.drawElements(gl.TRIANGLES,mesh.count,gl.UNSIGNED_SHORT,0);};
  let raf=0;const render=()=>{const w=canvas.clientWidth,h=canvas.clientHeight;if(canvas.width!==Math.floor(w*devicePixelRatio)||canvas.height!==Math.floor(h*devicePixelRatio)){canvas.width=Math.floor(w*devicePixelRatio);canvas.height=Math.floor(h*devicePixelRatio);}gl.viewport(0,0,canvas.width,canvas.height);gl.enable(gl.DEPTH_TEST);gl.enable(gl.CULL_FACE);gl.clearColor(.035,.025,.018,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
- const state=latest.current;const eye:V3=state.camera==="top"?[0,3.6,.001]:[0,2.7,4.4];const vp=multiply(perspective(.72,w/Math.max(1,h),.1,30),lookAt(eye,[0,0,0],[0,1,0]));
+ const state=latest.current;const eye:V3=state.camera==="top"?[0,3.6,.001]:[0,2.7,4.4];const vp=multiply(perspective(.72,w/Math.max(1,h),.1,30),lookAt(eye,[0,0,0],state.camera==="top"?[0,0,-1]:[0,1,0]));
  // walnut cabinet and raised cushion rails
  draw(meshes.cube,vp,model(0,-.18,0,1.48,.13,.83),[.25,.105,.045]);
  draw(meshes.cube,vp,model(0,-.045,0,1.31,.045,.66),[.025,.32,.17]);
