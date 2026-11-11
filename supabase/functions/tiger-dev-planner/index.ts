@@ -290,34 +290,39 @@ Deno.serve(async (req) => {
         if (taskError || !task) throw new Error(taskError?.message || "Could not create Tiger AI repair task");
         await sb.from("app_diagnostics").update({ ai_task_id: task.id, ai_status: risk === "high" ? "needs_review" : "processing" }).eq("id", diagnostic.id);
         await sb.from("dev_audit_log").insert({ task_id: task.id, actor: "tiger_ai", action: "diagnostic_auto_triaged", details: { title, diagnostic_id: diagnostic.id, risk } });
-        if (risk === "high") {
-          await sb.from("admin_diagnostic_notifications").insert({ diagnostic_id: diagnostic.id, task_id: task.id, notification_type: "new_error", title: "Tiger AI inahitaji ukaguzi wa admin", message: "Kosa limechambuliwa lakini limewekewa ulinzi kwa sababu lina hatari au halina chanzo salama cha code kilichothibitishwa.", is_read: false });
-          return json({ ok: true, task_id: task.id, needs_review: true });
-        }
         try {
           const pr = await createCodeChange(task);
-          const autoMergeLabel = risk === "low" ? "tiger-ai-auto-merge-low" : "tiger-ai-auto-merge-medium";
-          // Labels are the only signal consumed by the trusted default-branch auto-merge workflow.
-          try {
-            await githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/labels`, Deno.env.get("GITHUB_TOKEN"), {
+          if (risk !== "high") {
+            const autoMergeLabel = risk === "low" ? "tiger-ai-auto-merge-low" : "tiger-ai-auto-merge-medium";
+            // Only low/medium fixes receive the explicit label consumed by the trusted auto-merge workflow.
+            try {
+              await githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/labels`, Deno.env.get("GITHUB_TOKEN"), {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: autoMergeLabel, color: risk === "low" ? "0e8a16" : "1d76db", description: `Tiger AI approved automation for ${risk}-risk fixes only` }),
+              });
+            } catch (labelError) {
+              const message = labelError instanceof Error ? labelError.message : "";
+              if (!message.includes("[422]") && !message.includes("already_exists")) throw labelError;
+            }
+            await githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/issues/${pr.number}/labels`, Deno.env.get("GITHUB_TOKEN"), {
               method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ name: autoMergeLabel, color: risk === "low" ? "0e8a16" : "1d76db", description: `Tiger AI approved automation for ${risk}-risk fixes only` }),
+              body: JSON.stringify({ labels: [autoMergeLabel] }),
             });
-          } catch (labelError) {
-            const message = labelError instanceof Error ? labelError.message : "";
-            if (!message.includes("[422]") && !message.includes("already_exists")) throw labelError;
           }
-          await githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/issues/${pr.number}/labels`, Deno.env.get("GITHUB_TOKEN"), {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ labels: [autoMergeLabel] }),
-          });
           const nextPlan = { ...(task.plan || {}), pr };
           const { error: saveError } = await sb.from("dev_tasks").update({ plan: nextPlan, status: "in_progress", updated_at: new Date().toISOString() }).eq("id", task.id);
           if (saveError) throw new Error(saveError.message);
           await sb.from("app_diagnostics").update({ ai_status: "pr_open" }).eq("id", diagnostic.id);
-          await sb.from("dev_audit_log").insert({ task_id: task.id, actor: "tiger_ai", action: "diagnostic_repair_pr_created", details: { title, diagnostic_id: diagnostic.id, url: pr.url, number: pr.number, files: pr.files } });
-          await sb.from("admin_diagnostic_notifications").insert({ diagnostic_id: diagnostic.id, task_id: task.id, notification_type: "repair_ready", title: "Tiger AI imeandaa marekebisho", message: "PR imefunguliwa na kuwekewa risk label. Low/medium zitaunganishwa na Tiger AI baada ya CI zote kupita; high risk inabaki kwa idhini ya admin.", pr_url: pr.url, is_read: false });
-          return json({ ok: true, task_id: task.id, pr });
+          await sb.from("dev_audit_log").insert({ task_id: task.id, actor: "tiger_ai", action: "diagnostic_repair_pr_created", details: { title, diagnostic_id: diagnostic.id, url: pr.url, number: pr.number, files: pr.files, risk } });
+          await sb.from("admin_diagnostic_notifications").insert({
+            diagnostic_id: diagnostic.id, task_id: task.id, notification_type: "repair_ready",
+            title: risk === "high" ? "Tiger AI imeandaa PR ya hatari kubwa — idhini yako inahitajika" : "Tiger AI imeandaa marekebisho",
+            message: risk === "high"
+              ? "PR hii ni high risk. Tiger AI haitaiunganisha main; Admin lazima akague code na CI kisha aunganishe mwenyewe."
+              : `PR ya ${risk} risk imefunguliwa. Tiger AI itaiunganisha main baada ya CI zote zinazohitajika kupita.`,
+            pr_url: pr.url, is_read: false
+          });
+          return json({ ok: true, task_id: task.id, pr, needs_review: risk === "high", auto_merge_eligible: risk !== "high" });
         } catch (error) {
           const message = error instanceof Error ? error.message : "AI code drafting failed";
           await sb.from("app_diagnostics").update({ ai_status: "failed" }).eq("id", diagnostic.id);
