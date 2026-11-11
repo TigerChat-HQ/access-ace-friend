@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 type Mission = { mission_key: string; title: string; description: string; cadence: "daily" | "weekly"; target: number; reward_coins: number; reward_xp: number; progress?: number; claimed_at?: string | null; period_start?: string };
 type Achievement = { id: string; achievement_key: string; awarded_at: string; catalog?: { title: string; description: string; emoji: string; reward_coins: number } };
 type Stats = { rating_points: number; wins: number; losses: number; draws: number; xp?: number; current_streak?: number; best_streak?: number; user_id: string };
+type RecentMatch = { id: string; vs_ai: boolean; winner: string | null; created_at: string };
 const periodStart = (cadence: "daily" | "weekly") => {
   const now = new Date();
   if (cadence === "daily") return new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Dar_es_Salaam" }).format(now);
@@ -29,6 +30,7 @@ export default function DraughtsRewards() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [ledger, setLedger] = useState<Array<{ id: string; amount: number; reason: string; created_at: string }>>([]);
   const [leaderboard, setLeaderboard] = useState<Stats[]>([]);
+  const [recentMatches, setRecentMatches] = useState<RecentMatch[]>([]);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -59,6 +61,8 @@ export default function DraughtsRewards() {
     const catalogRows = (achievementCatalog ?? []) as Array<{ achievement_key: string; title: string; description: string; emoji: string; reward_coins: number }>;
     setAchievements(earnedRows.map((item) => ({ ...item, catalog: catalogRows.find((c) => c.achievement_key === item.achievement_key) })));
     const { data: recent } = await supabase.from("draughts_coin_ledger" as any).select("id,amount,reason,created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(12);
+    const { data: matches } = await supabase.from("draft_matches").select("id,vs_ai,winner,created_at").eq("status", "finished").or(`player_white.eq.${user.id},player_black.eq.${user.id}`).order("created_at", { ascending: false }).limit(10);
+    setRecentMatches((matches as RecentMatch[] | null) ?? []);
     setLedger((recent as typeof ledger) ?? []);
     setLoading(false);
   }, [user]);
