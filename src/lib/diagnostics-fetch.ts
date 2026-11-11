@@ -10,6 +10,26 @@ type FetchErrorRecord = {
 };
 
 const recent = new Map<string, number>();
+const signaturePart = (value: string) => value
+  .toLowerCase()
+  .replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ":uuid")
+  .replace(/0x[0-9a-f]+/gi, ":hex")
+  .replace(/\\b[0-9]{4,}\\b/g, ":number")
+  .replace(/([?&](?:token|code|id|session)=)[^&\\s]+/gi, "$1[redacted]")
+  .replace(/\\s+/g, " ")
+  .trim();
+const diagnosticSignature = async (record: Record<string, unknown>) => {
+  const stack = typeof record.stack === "string"
+    ? record.stack.split("\\n").slice(0, 5).map((line) => line.replace(/:\\d+:\\d+/g, ":#:#")).join("\\n")
+    : "";
+  const route = typeof record.route === "string" ? record.route.replace(/\\/[0-9a-f-]{8,}/gi, "/:id").replace(/\\/\\d+(?=\\/|$)/g, "/:id") : "";
+  const canonical = [
+    record.source, record.category, record.title, record.component_name,
+    record.action_label, route, record.message, stack,
+  ].map((value) => signaturePart(String(value ?? ""))).join("|");
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+  return "sha256:" + Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+};
 let lastAction = "";
 let lastActionAt = 0;
 
@@ -26,26 +46,34 @@ export function createDiagnosticsFetch(
   const baseUrl = supabaseUrl.replace(/\/$/, "");
 
   const saveFailure = async (record: FetchErrorRecord, authorization: string) => {
-    const key = [record.category, record.title, record.message].join("|");
-    const now = Date.now();
-    if (now - (recent.get(key) || 0) < 15000) return;
-    recent.set(key, now);
-    if (recent.size > 300) recent.clear();
-
     try {
-      await originalFetch(`${baseUrl}/rest/v1/app_diagnostics`, {
+      const payload = { ...record };
+      const signature = await diagnosticSignature(payload);
+      const key = signature;
+      const now = Date.now();
+      if (now - (recent.get(key) || 0) < 15000) return;
+      recent.set(key, now);
+      if (recent.size > 300) recent.clear();
+      const headers = {
+        apikey: publishableKey,
+        Authorization: authorization,
+        "Content-Type": "application/json",
+      };
+      const response = await originalFetch(`${baseUrl}/rest/v1/rpc/report_app_diagnostic`, {
         method: "POST",
-        headers: {
-          apikey: publishableKey,
-          Authorization: authorization,
-          "Content-Type": "application/json",
-          Prefer: "return=minimal",
-        },
-        body: JSON.stringify({
-          reporter_id: null,
-          ...record,
-        }),
+        headers,
+        body: JSON.stringify({ p_record: payload, p_signature: signature }),
       });
+      if (!response.ok) return;
+      const result = await response.json().catch(() => null);
+      const row = Array.isArray(result) ? result[0] : result;
+      if (row?.id && row.ai_status === "queued") {
+        void originalFetch(`${baseUrl}/functions/v1/tiger-dev-planner`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ action: "process_diagnostic", diagnostic_id: row.id }),
+        }).catch(() => undefined);
+      }
     } catch {
       // Diagnostics must never break the original app request.
     }
