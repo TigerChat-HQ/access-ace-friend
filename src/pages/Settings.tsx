@@ -290,7 +290,7 @@ const Settings = () => {
   };
 
   const settingSections = [
-    { id: "general", icon: Gauge, label: "General settings", description: "Data Saver na matumizi ya mtandao" },
+    { id: "general", icon: Gauge, label: "General settings", description: "Bubble, Data Saver na matumizi ya mtandao" },
     { id: "profile", icon: User, label: t("editProfile"), description: t("nameDesc") },
     { id: "notifications", icon: Bell, label: t("notifications"), description: t("notifDesc") },
     { id: "privacy", icon: Shield, label: t("privacy"), description: t("privacyDesc") },
