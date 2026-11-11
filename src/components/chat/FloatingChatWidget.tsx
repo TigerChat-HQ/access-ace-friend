@@ -8,8 +8,8 @@ const BUBBLE_SIZE = 56;
 const EDGE_GAP = 8;
 const POSITION_KEY = "tigerchat-floating-bubble-position";
 const PREFS_KEY = "tigerchat-floating-bubble-prefs";
-type BubblePrefs = { size: "small" | "normal" | "large"; color: "primary" | "blue" | "purple" | "orange"; snap: boolean };
-const DEFAULT_PREFS: BubblePrefs = { size: "normal", color: "primary", snap: true };
+type BubblePrefs = { size: "small" | "normal" | "large"; color: "primary" | "blue" | "purple" | "orange"; shape: "circle" | "rounded"; opacity: 70 | 85 | 100; snap: boolean };
+const DEFAULT_PREFS: BubblePrefs = { size: "normal", color: "primary", shape: "circle", opacity: 100, snap: true };
 const bubbleSizes = { small: 48, normal: 56, large: 66 };
 const bubbleColors = { primary: "bg-primary", blue: "bg-blue-600", purple: "bg-purple-600", orange: "bg-orange-600" };
 
@@ -64,6 +64,7 @@ export const FloatingChatWidget = () => {
   }, [position]);
 
   useEffect(() => { try { window.localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* storage may be unavailable */ } }, [prefs]);
+  useEffect(() => { setPosition((current) => current ? clampPosition(current, bubbleSize) : current); }, [bubbleSize]);
 
   // The embedded chat route hides this launcher to prevent recursive iframes.
   if (location.search.includes("bubble=1")) return null;
@@ -153,7 +154,7 @@ export const FloatingChatWidget = () => {
               </button>
             </div>
           </header>
-          {showBubbleSettings && <div className="shrink-0 border-b border-border/70 bg-card p-3 text-xs"><div className="mb-2 flex items-center justify-between"><strong>Floating bubble</strong><button type="button" onClick={() => setPrefs(DEFAULT_PREFS)} className="text-primary">Reset</button></div><div className="mb-3 flex items-center gap-2"><span className="w-16 text-muted-foreground">Size</span>{(["small", "normal", "large"] as const).map((size) => <button key={size} type="button" onClick={() => setPrefs((p) => ({ ...p, size }))} aria-pressed={prefs.size === size} className={`rounded-lg border px-2 py-1 capitalize ${prefs.size === size ? "border-primary text-primary" : "border-border"}`}>{size}</button>)}</div><div className="mb-3 flex items-center gap-2"><span className="w-16 text-muted-foreground">Color</span>{(Object.keys(bubbleColors) as Array<keyof typeof bubbleColors>).map((color) => <button key={color} type="button" onClick={() => setPrefs((p) => ({ ...p, color }))} aria-label={color} aria-pressed={prefs.color === color} className={`h-6 w-6 rounded-full ${bubbleColors[color]} ${prefs.color === color ? "ring-2 ring-foreground ring-offset-2 ring-offset-card" : ""}`} />)}</div><label className="flex items-center gap-2"><input type="checkbox" checked={prefs.snap} onChange={(event) => setPrefs((p) => ({ ...p, snap: event.target.checked }))} /> Snap bubble to nearest screen edge after dragging</label></div>}
+          {showBubbleSettings && <div className="shrink-0 border-b border-border/70 bg-card p-3 text-xs"><div className="mb-2 flex items-center justify-between"><strong>Floating bubble</strong><button type="button" onClick={() => setPrefs(DEFAULT_PREFS)} className="text-primary">Reset</button></div><div className="mb-3 flex items-center gap-2"><span className="w-16 text-muted-foreground">Size</span>{(["small", "normal", "large"] as const).map((size) => <button key={size} type="button" onClick={() => setPrefs((p) => ({ ...p, size }))} aria-pressed={prefs.size === size} className={`rounded-lg border px-2 py-1 capitalize ${prefs.size === size ? "border-primary text-primary" : "border-border"}`}>{size}</button>)}</div><div className="mb-3 flex items-center gap-2"><span className="w-16 text-muted-foreground">Color</span>{(Object.keys(bubbleColors) as Array<keyof typeof bubbleColors>).map((color) => <button key={color} type="button" onClick={() => setPrefs((p) => ({ ...p, color }))} aria-label={color} aria-pressed={prefs.color === color} className={`h-6 w-6 rounded-full ${bubbleColors[color]} ${prefs.color === color ? "ring-2 ring-foreground ring-offset-2 ring-offset-card" : ""}`} />)}</div><div className="mb-3 flex flex-wrap items-center gap-2"><span className="w-16 text-muted-foreground">Shape</span>{(["circle", "rounded"] as const).map((shape) => <button key={shape} type="button" onClick={() => setPrefs((p) => ({ ...p, shape }))} aria-pressed={prefs.shape === shape} className={`border px-3 py-1 ${shape === "circle" ? "rounded-full" : "rounded-lg"} ${prefs.shape === shape ? "border-primary text-primary" : "border-border"}`}>{shape}</button>)}<span className="ml-2 text-muted-foreground">Opacity</span>{([100, 85, 70] as const).map((opacity) => <button key={opacity} type="button" onClick={() => setPrefs((p) => ({ ...p, opacity }))} aria-pressed={prefs.opacity === opacity} className={`rounded border px-2 py-1 ${prefs.opacity === opacity ? "border-primary text-primary" : "border-border"}`}>{opacity}%</button>)}</div><label className="flex items-center gap-2"><input type="checkbox" checked={prefs.snap} onChange={(event) => setPrefs((p) => ({ ...p, snap: event.target.checked }))} /> Snap bubble to nearest screen edge after dragging</label></div>}
           <iframe
             title="TigerChat conversations"
             src="/chats?bubble=1"
@@ -174,8 +175,8 @@ export const FloatingChatWidget = () => {
         aria-label={open ? "Close TigerChat or drag to move" : "Open TigerChat or drag to move"}
         aria-expanded={open}
         title="Drag to move"
-        className={`fixed z-[101] flex touch-none select-none items-center justify-center rounded-full border border-primary-foreground/20 ${bubbleColors[prefs.color]} text-white shadow-[0_8px_30px_hsl(var(--primary)/0.4)] transition-transform duration-200 hover:scale-105 active:scale-95`}
-        style={{ width: bubbleSize, height: bubbleSize, ...(position ? { left: position.left, top: position.top } : { right: "max(16px, env(safe-area-inset-right, 0px))", bottom: "calc(18px + env(safe-area-inset-bottom, 0px))" }) }}
+        className={`fixed z-[101] flex touch-none select-none items-center justify-center ${prefs.shape === "circle" ? "rounded-full" : "rounded-2xl"} border border-primary-foreground/20 ${bubbleColors[prefs.color]} text-white shadow-[0_8px_30px_hsl(var(--primary)/0.4)] transition-transform duration-200 hover:scale-105 active:scale-95`}
+        style={{ width: bubbleSize, height: bubbleSize, opacity: prefs.opacity / 100, ...(position ? { left: position.left, top: position.top } : { right: "max(16px, env(safe-area-inset-right, 0px))", bottom: "calc(18px + env(safe-area-inset-bottom, 0px))" }) }}
       >
         {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
         {!open && <span className="absolute right-0 top-0 h-3 w-3 rounded-full border-2 border-background bg-emerald-400" />}
