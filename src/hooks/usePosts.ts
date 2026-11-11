@@ -132,12 +132,14 @@ export const useFeed = (mode: "following" | "discover" = "following") => {
 
   // Realtime
   useEffect(() => {
+    const refreshTimer = window.setInterval(() => { void fetchPosts(); }, 60_000);
     const channel = supabase
       .channel("posts-feed")
       .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, () => fetchPosts())
       .on("postgres_changes", { event: "*", schema: "public", table: "post_likes" }, () => fetchPosts())
       .subscribe();
     return () => {
+      window.clearInterval(refreshTimer);
       supabase.removeChannel(channel);
     };
   }, [fetchPosts]);
