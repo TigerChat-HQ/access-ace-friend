@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Trophy, Coins, Medal, Swords, Gamepad2, Radio, Users, ChevronRight, Sparkles } from "lucide-react";
+import { ArrowLeft, Trophy, Coins, Medal, Gamepad2, Radio, Users, ChevronRight, Sparkles } from "lucide-react";
 
 const games = [
   { title: "Draughts Arena", subtitle: "Classic strategy · AI · PvP", tag: "LIVE", path: "/draughts", art: "from-emerald-950 via-emerald-900 to-slate-950", icon: "♟", accent: "text-emerald-300" },
