@@ -77,3 +77,15 @@ CREATE POLICY "Users manage own private post draft media"
 ON storage.objects FOR ALL TO authenticated
 USING (bucket_id = 'post-drafts' AND (storage.foldername(name))[1] = (select auth.uid())::text)
 WITH CHECK (bucket_id = 'post-drafts' AND (storage.foldername(name))[1] = (select auth.uid())::text);
+
+-- Respect the creator's comment setting at the database boundary, not only in the UI.
+DROP POLICY IF EXISTS "Users comment as self" ON public.post_comments;
+CREATE POLICY "Users comment on posts with comments enabled"
+ON public.post_comments FOR INSERT TO authenticated
+WITH CHECK (
+  auth.uid() = user_id
+  AND EXISTS (
+    SELECT 1 FROM public.posts p
+    WHERE p.id = post_id AND p.allow_comments = true
+  )
+);
