@@ -47,7 +47,7 @@ export default function PoolArena(){
    for(const b of next){if(b.pocketed)continue;const hole=pockets.find(([x,y])=>Math.hypot(b.x-x,b.y-y)<.041);if(hole){if(b.id===0){b.pocketed=true;newly.push(0);}else{b.pocketed=true;newly.push(b.id);}}}
    if(newly.length){if(sound&&newly.some(n=>n!==0))playPoolTone(520);setPocketed(p=>[...p,...newly.filter(n=>n!==0)]);if(newly.includes(0)){const cue=next.find(b=>b.id===0)!;cue.pocketed=false;cue.x=.22;cue.y=.5;cue.vx=0;cue.vy=0;setMessage("Scratch! Cue ball imerudi kwenye nafasi ya kuanzia.");}}
    ballsRef.current=next;setBalls(next);frame++;
-   if(active&&frame<1200){raf=requestAnimationFrame(tick);}else{setMoving(false);setTurn("you");if(!newly.includes(0)&&newly.some(n=>n!==0))setMessage("Mpira umeingia! Endelea na shot inayofuata.");else if(!newly.length)setMessage("Zamu yako. Rekebisha angle na power.");}
+   if(active&&frame<1200){raf=requestAnimationFrame(tick);}else{setMoving(false);if(!newly.includes(0)&&newly.some(n=>n!==0))setMessage("Mpira umeingia! Endelea na shot inayofuata.");else if(!newly.length)setMessage("Zamu yako. Rekebisha angle na power.");}
   };
   raf=requestAnimationFrame(tick);return()=>cancelAnimationFrame(raf);
  },[moving,sound]);
