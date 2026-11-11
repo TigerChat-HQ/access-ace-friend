@@ -115,7 +115,7 @@ open class MainActivity : Activity() {
         setContentView(webView)
         // Use Android's measured WebView height as the authoritative viewport while the IME resizes the Activity.
         webView.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
-            applyNativeViewportHeight(view)
+            (view as? WebView)?.let(::applyNativeViewportHeight)
         }
         pendingPath = safePath(intent?.getStringExtra("path"))
         pendingQuickReply = intent?.getStringExtra(EXTRA_QUICK_REPLY)
