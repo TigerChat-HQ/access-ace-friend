@@ -11,6 +11,8 @@ import { MusicPicker } from "./MusicPicker";
 
 interface StoryUploadDialogProps {
   onUploaded: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const db = supabase as unknown as SupabaseClient;
@@ -18,10 +20,12 @@ const MAX_VIDEO_SECONDS = 120;
 const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
 const BACKGROUNDS = ["#6D28D9", "#0F766E", "#BE123C", "#1D4ED8", "#B45309", "#111827"];
 
-export const StoryUploadDialog = ({ onUploaded }: StoryUploadDialogProps) => {
+export const StoryUploadDialog = ({ onUploaded, open: controlledOpen, onOpenChange }: StoryUploadDialogProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaType, setMediaType] = useState<"image" | "video">("image");
   const [music, setMusic] = useState<{ url: string; title: string; start: number; end: number } | null>(null);
