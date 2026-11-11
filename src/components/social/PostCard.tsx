@@ -144,6 +144,10 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
         await navigator.clipboard.writeText(url);
         toast({ title: "Link copied" });
       }
+      if (user) {
+        const { error } = await (supabase as any).from("post_shares").insert({ post_id: post.id, user_id: user.id });
+        if (error) console.warn("Share analytics could not be recorded", error);
+      }
     } catch (error: unknown) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       toast({ title: "Could not share post", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
@@ -232,7 +236,8 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
       <p className="px-4 pb-3 text-[10px] text-muted-foreground uppercase tracking-wide">{new Date(post.created_at).toLocaleDateString()}</p>
 
       {commentsOpen && <CommentsSheet postId={post.id} open={commentsOpen} onOpenChange={setCommentsOpen} onChange={onChanged} />}
-      {insightsOpen && <PostInsightsDialog postId={post.id} open={insightsOpen} onOpenChange={setInsightsOpen} />}\n      {reportOpen && <ReportDialog open={reportOpen} onOpenChange={setReportOpen} targetType="post" targetId={post.id} />}
+      {insightsOpen && <PostInsightsDialog postId={post.id} open={insightsOpen} onOpenChange={setInsightsOpen} />}
+      {reportOpen && <ReportDialog open={reportOpen} onOpenChange={setReportOpen} targetType="post" targetId={post.id} />}
     </article>
   );
 };
