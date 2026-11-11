@@ -144,7 +144,7 @@ export function simulatePoolShot(source:PoolState,actorId:string,opponentId:stri
  state.foulStreak[actorId]=foul?(state.foulStreak[actorId]??0)+1:0;
  if(state.mode==="nine_ball"&&state.foulStreak[actorId]>=3)winnerId=opponentId;
  const retain=!foul&&!winnerId&&(state.breakPending?pocketed.length>0:state.mode==="nine_ball"?pocketed.length>0:pocketed.some(id=>ballGroup(state.balls.find(b=>b.id===id)!)===state.groups[actorId]));
- const nextTurn=winnerId?actorId:foul||!retain?opponentId:actorId;
+ const nextTurn=winnerId?winnerId:foul||!retain?opponentId:actorId;
  if(scratch){cue.pocketed=false;cue.x=.22;cue.y=.5;cue.vx=0;cue.vy=0;}
  if(foul)state.ballInHandFor=opponentId;
  state.breakPending=false;state.currentTurn=nextTurn;state.winnerId=winnerId;
