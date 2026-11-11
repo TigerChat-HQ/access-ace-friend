@@ -4,7 +4,7 @@ export type PoolState = {
   version:1; mode:PoolMode; balls:PoolBall[];
   groups:Record<string,"solids"|"stripes"|null>;
   breakPending:boolean; ballInHandFor:string|null; currentTurn:string;
-  winnerId:string|null; lastShot:Record<string,unknown>|null;
+  foulStreak:Record<string,number>; winnerId:string|null; lastShot:Record<string,unknown>|null;
 };
 export type PoolShotInput = { angle:number; power:number; cuePosition?:{x:number;y:number}; requestId:string };
 export type PoolShotResult = {
@@ -35,13 +35,13 @@ export function createInitialPoolState(mode:PoolMode,p1:string,p2:string):PoolSt
   const id=ids[i];
   balls.push({id,x,y,vx:0,vy:0,color:id===8&&mode==="eight_ball"?"#111827":COLORS[id-1],label:String(id),group:mode==="eight_ball"&&id===8?"eight":id<8?"solid":"stripe",pocketed:false});
  });
- return {version:1,mode,balls,groups:{[p1]:null,[p2]:null},breakPending:true,ballInHandFor:null,currentTurn:p1,winnerId:null,lastShot:null};
+ return {version:1,mode,balls,groups:{[p1]:null,[p2]:null},breakPending:true,ballInHandFor:null,currentTurn:p1,foulStreak:{[p1]:0,[p2]:0},winnerId:null,lastShot:null};
 }
 export function simulatePoolShot(source:PoolState,actorId:string,opponentId:string,input:PoolShotInput):PoolShotResult{
  validate(input);
  if(source.winnerId)throw new Error("Match is already finished");
  if(source.currentTurn!==actorId)throw new Error("It is not your turn");
- const state:PoolState={...source,balls:source.balls.map(b=>({...b,vx:0,vy:0})),groups:{...source.groups},lastShot:source.lastShot?{...source.lastShot}:null};
+ const state:PoolState={...source,balls:source.balls.map(b=>({...b,vx:0,vy:0})),groups:{...source.groups},foulStreak:{...(source.foulStreak??{})},lastShot:source.lastShot?{...source.lastShot}:null};
  const cue=state.balls.find(b=>b.id===0);
  if(!cue||cue.pocketed)throw new Error("Cue ball is unavailable");
  if(state.ballInHandFor===actorId){
@@ -141,12 +141,14 @@ export function simulatePoolShot(source:PoolState,actorId:string,opponentId:stri
  }
  if(state.mode==="nine_ball"&&pocketed.includes(9)&&!foulReason)winnerId=actorId;
  const foul=!!foulReason;
+ state.foulStreak[actorId]=foul?(state.foulStreak[actorId]??0)+1:0;
+ if(state.mode==="nine_ball"&&state.foulStreak[actorId]>=3)winnerId=opponentId;
  const retain=!foul&&!winnerId&&(state.breakPending?pocketed.length>0:state.mode==="nine_ball"?pocketed.length>0:pocketed.some(id=>ballGroup(state.balls.find(b=>b.id===id)!)===state.groups[actorId]));
  const nextTurn=winnerId?actorId:foul||!retain?opponentId:actorId;
  if(scratch){cue.pocketed=false;cue.x=.22;cue.y=.5;cue.vx=0;cue.vy=0;}
  if(foul)state.ballInHandFor=opponentId;
  state.breakPending=false;state.currentTurn=nextTurn;state.winnerId=winnerId;
- state.lastShot={actorId,angle:input.angle,power:input.power,firstContact,pocketed:[...pocketed],foul,foulReason,railsAfterContact,totalRails};
+ state.lastShot={actorId,angle:input.angle,power:input.power,firstContact,pocketed:[...pocketed],foul,foulReason,railsAfterContact,totalRails,foulStreak:state.foulStreak[actorId]};
  trajectory.push({t:trajectory.length?trajectory[trajectory.length-1].t+dt:0,balls:state.balls.map(b=>({id:b.id,x:b.x,y:b.y,pocketed:b.pocketed}))});
  return {state,nextTurn,winnerId,status:winnerId?"finished":"active",foul,foulReason,pocketed,firstContact,railsAfterContact,requestId:input.requestId,trajectory};
 }
