@@ -62,6 +62,26 @@ const Draughts = () => {
   const [matchEmotes, setMatchEmotes] = useState<Array<{id:string;user_id:string;emote_key:string;created_at:string}>>([]);
   const [realtimeStatus, setRealtimeStatus] = useState<"connecting"|"live"|"reconnecting">("connecting");
   const [clockNow, setClockNow] = useState(() => Date.now());
+  const timeoutClaimed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!match || match.status !== "active" || !match.initial_clock_seconds || !match.clock_started_at) return;
+    const base = match.current_turn === "w" ? match.white_clock_ms : match.black_clock_ms;
+    if (base == null) return;
+    const remaining = base - Math.max(0, Date.now() - new Date(match.clock_started_at).getTime());
+    const key = `${match.id}:${match.revision}`;
+    if (remaining > 0 || timeoutClaimed.current === key) return;
+    timeoutClaimed.current = key;
+    void queueRpc("claim_draughts_timeout", { p_id: match.id }).then(({ data, error }) => {
+      if (error) {
+        window.setTimeout(() => {
+          if (timeoutClaimed.current === key) timeoutClaimed.current = null;
+          setClockNow(Date.now());
+        }, 2500);
+        return;
+      }
+      if (data) setMatch(data as MatchRow);
+    });
+  }, [clockNow, match?.id, match?.revision, match?.status, match?.current_turn, match?.clock_started_at, match?.white_clock_ms, match?.black_clock_ms, match?.initial_clock_seconds]);
   useEffect(() => {
     if (!match || match.status !== "active" || !match.initial_clock_seconds) return;
     const timer = window.setInterval(() => setClockNow(Date.now()), 250);

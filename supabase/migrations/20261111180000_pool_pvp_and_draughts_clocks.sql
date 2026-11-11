@@ -181,6 +181,34 @@ CREATE POLICY "Pool participants read matches" ON public.pool_matches
     OR (visibility='public' AND status IN ('waiting','active','finished'))
   );
 
+
+CREATE OR REPLACE FUNCTION public.claim_draughts_timeout(p_id uuid)
+RETURNS public.draft_matches
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $
+DECLARE
+  v_match public.draft_matches%ROWTYPE;
+  v_user uuid := (select auth.uid());
+  v_remaining bigint;
+  v_winner text;
+BEGIN
+  SELECT * INTO v_match FROM public.draft_matches WHERE id=p_id FOR UPDATE;
+  IF NOT FOUND OR v_match.status<>'active' OR v_match.initial_clock_seconds IS NULL THEN
+    RAISE EXCEPTION 'Timed match is unavailable';
+  END IF;
+  IF v_user NOT IN (v_match.player_white,v_match.player_black) THEN RAISE EXCEPTION 'Match participant required'; END IF;
+  v_remaining:=CASE WHEN v_match.current_turn='w' THEN v_match.white_clock_ms ELSE v_match.black_clock_ms END;
+  v_remaining:=v_remaining-greatest(0,(extract(epoch FROM (now()-coalesce(v_match.clock_started_at,now())))*1000)::bigint);
+  IF v_remaining>0 THEN RAISE EXCEPTION 'Clock has not expired'; END IF;
+  v_winner:=CASE WHEN v_match.current_turn='w' THEN 'black' ELSE 'white' END;
+  UPDATE public.draft_matches SET status='finished',winner=v_winner,
+    white_clock_ms=CASE WHEN current_turn='w' THEN 0 ELSE white_clock_ms END,
+    black_clock_ms=CASE WHEN current_turn='b' THEN 0 ELSE black_clock_ms END,
+    clock_started_at=NULL,revision=revision+1,updated_at=now()
+    WHERE id=p_id RETURNING * INTO v_match;
+  RETURN v_match;
+END $;
+
+REVOKE ALL ON FUNCTION public.claim_draughts_timeout(uuid) FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION public.create_pool_room(text,text,integer) FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION public.join_pool_room_by_code(text) FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION public.list_pool_public_rooms() FROM PUBLIC,anon;
@@ -188,6 +216,7 @@ REVOKE ALL ON FUNCTION public.join_pool_room(uuid,text) FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION public.enqueue_pool_match(text,integer,integer) FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION public.cancel_pool_match_queue() FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION public.commit_draft_move(uuid,integer,jsonb,text,jsonb,text,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.claim_draughts_timeout(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.create_pool_room(text,text,integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.join_pool_room_by_code(text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.list_pool_public_rooms() TO authenticated;
