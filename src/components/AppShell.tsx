@@ -54,7 +54,7 @@ export const AppShell = () => {
       const bottom = top + (vv?.height ?? view.innerHeight);
       const rect = active.getBoundingClientRect();
       if (rect.bottom > bottom - 20 || rect.top < top + 12) {
-        active.scrollIntoView({ behavior: "auto", block: "center", inline: "nearest" });
+        active.scrollIntoView({ behavior: "auto", block: "nearest", inline: "nearest" });
       }
       let parent = active.parentElement;
       while (parent && parent !== doc.body) {
@@ -71,7 +71,7 @@ export const AppShell = () => {
       if (doc !== document) {
         const frameElement = doc.defaultView?.frameElement;
         if (frameElement instanceof HTMLElement) {
-          frameElement.scrollIntoView({ behavior: "auto", block: "center", inline: "nearest" });
+          frameElement.scrollIntoView({ behavior: "auto", block: "nearest", inline: "nearest" });
         }
       }
     };
