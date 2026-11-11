@@ -106,7 +106,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
   const updatePost = async (patch: Record<string, unknown>, success: string) => {
     if (!isOwner || postActionBusy) return;
     setPostActionBusy(true);
-    const { error } = await (supabase.from("posts").update(patch).eq("id", post.id).eq("user_id", user!.id) as any);
+    const { error } = await (supabase as any).from("posts").update(patch).eq("id", post.id).eq("user_id", user!.id);
     setPostActionBusy(false);
     if (error) toast({ title: "Post update failed", description: error.message, variant: "destructive" });
     else { toast({ title: success }); setEditingCaption(false); onChanged?.(); }
