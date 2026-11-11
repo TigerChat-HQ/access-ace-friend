@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Draughts Arena tables and RPCs are introduced by the accompanying SQL migration; generated client types are refreshed separately. */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
