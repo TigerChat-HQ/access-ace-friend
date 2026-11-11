@@ -76,10 +76,13 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
         const { error } = await (supabase.from("post_saves" as any).delete().eq("post_id", post.id).eq("user_id", user.id) as any);
         if (error) throw error;
         setSaved(false);
+        toast({ title: "Removed from Saved" });
+        onChanged?.();
       } else {
         const { error } = await (supabase.from("post_saves" as any).insert({ post_id: post.id, user_id: user.id }) as any);
         if (error) throw error;
         setSaved(true);
+        toast({ title: "Saved to your collection" });
       }
     } catch (error) {
       toast({ title: "Could not update saved posts", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
@@ -109,6 +112,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
   };
 
   const handleDelete = async () => {
+    if (!window.confirm("Delete this post permanently?")) return;
     const { error } = await deletePost(post.id);
     if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
     else {
