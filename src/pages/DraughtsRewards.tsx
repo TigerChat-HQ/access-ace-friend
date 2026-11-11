@@ -36,34 +36,34 @@ export default function DraughtsRewards() {
     if (!user) return;
     setLoading(true);
     const { data: wallet } = await supabase.from("draughts_wallets" as any).select("balance,lifetime_earned").eq("user_id", user.id).maybeSingle();
-    setBalance(Number(wallet?.balance ?? 0));
-    setLifetime(Number(wallet?.lifetime_earned ?? 0));
+    const walletRow = wallet as unknown as { balance: number; lifetime_earned: number } | null;\n    setBalance(Number(walletRow?.balance ?? 0));
+    setLifetime(Number(walletRow?.lifetime_earned ?? 0));
     const { data: season } = await supabase.from("draughts_seasons").select("id,name").eq("is_active", true).order("starts_at", { ascending: false }).limit(1).maybeSingle();
     if (season) {
       const { data: mine } = await supabase.from("draughts_player_stats").select("*").eq("season_id", season.id).eq("user_id", user.id).maybeSingle();
       setStats(mine as Stats | null);
       const { data: top } = await supabase.from("draughts_player_stats").select("user_id,rating_points,wins,losses,draws,xp,current_streak,best_streak").eq("season_id", season.id).order("rating_points", { ascending: false }).order("wins", { ascending: false }).limit(100);
-      setLeaderboard((top as Stats[] | null) ?? []);
+      setLeaderboard((top as unknown as Stats[] | null) ?? []);
     } else { setStats(null); setLeaderboard([]); }
 
     const { data: catalog } = await supabase.from("draughts_mission_catalog" as any).select("*").eq("is_enabled", true).order("cadence");
     const { data: progress } = await supabase.from("draughts_mission_progress" as any).select("*").eq("user_id", user.id);
     const today = periodStart("daily");
     const week = periodStart("weekly");
-    const progressRows = (progress ?? []) as Array<{ mission_key: string; period_start: string; progress: number; claimed_at: string | null }>;
-    setMissions(((catalog ?? []) as Mission[]).map((mission) => {
+    const progressRows = (progress ?? []) as unknown as Array<{ mission_key: string; period_start: string; progress: number; claimed_at: string | null }>;
+    setMissions(((catalog ?? []) as unknown as Mission[]).map((mission) => {
       const row = progressRows.find((item) => item.mission_key === mission.mission_key && item.period_start === (mission.cadence === "daily" ? today : week));
       return { ...mission, progress: row?.progress ?? 0, claimed_at: row?.claimed_at ?? null, period_start: mission.cadence === "daily" ? today : week };
     }));
     const { data: earned } = await supabase.from("draughts_user_achievements" as any).select("id,achievement_key,awarded_at").eq("user_id", user.id).order("awarded_at", { ascending: false });
     const { data: achievementCatalog } = await supabase.from("draughts_achievement_catalog" as any).select("*");
-    const earnedRows = (earned ?? []) as Achievement[];
-    const catalogRows = (achievementCatalog ?? []) as Array<{ achievement_key: string; title: string; description: string; emoji: string; reward_coins: number }>;
+    const earnedRows = (earned ?? []) as unknown as Achievement[];
+    const catalogRows = (achievementCatalog ?? []) as unknown as Array<{ achievement_key: string; title: string; description: string; emoji: string; reward_coins: number }>;
     setAchievements(earnedRows.map((item) => ({ ...item, catalog: catalogRows.find((c) => c.achievement_key === item.achievement_key) })));
     const { data: recent } = await supabase.from("draughts_coin_ledger" as any).select("id,amount,reason,created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(12);
     const { data: matches } = await supabase.from("draft_matches").select("id,vs_ai,winner,created_at").eq("status", "finished").or(`player_white.eq.${user.id},player_black.eq.${user.id}`).order("created_at", { ascending: false }).limit(10);
     setRecentMatches((matches as RecentMatch[] | null) ?? []);
-    setLedger((recent as typeof ledger) ?? []);
+    setLedger((recent as unknown as typeof ledger) ?? []);
     setLoading(false);
   }, [user]);
 
