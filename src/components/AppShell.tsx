@@ -10,7 +10,6 @@ import { AnnouncementGate } from "@/components/AnnouncementGate";
 import { useUnreadBadges } from "@/hooks/useUnreadBadges";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useUserRole } from "@/hooks/useUserRole";
-import { NotificationBubble } from "@/components/NotificationBubble";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { NativePushRegistration } from "@/components/NativePushRegistration";
 
@@ -199,7 +198,6 @@ export const AppShell = () => {
   return (
     <AppLockGate><CallProvider><AnnouncementGate>
       <div className="flex min-h-0 bg-background" style={{ height: "var(--tiger-viewport-height, 100dvh)" }}>
-        <NotificationBubble />
         <NativePushRegistration />
         <aside className="hidden h-full w-56 shrink-0 flex-col gap-2 border-r border-border bg-card p-4 lg:flex">
           <div className="mb-4 flex items-center gap-2 py-4 font-bold"><img src={logo} alt="" className="h-9 w-9" />TIGERCHATS</div>
