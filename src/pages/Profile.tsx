@@ -11,7 +11,7 @@ import { FollowListDialog } from "@/components/social/FollowListDialog";
 import { DraughtsProfileRank } from "@/components/draughts/DraughtsProfileRank";
 import {
   ArrowLeft, Settings, Shield, MessageCircle, Grid3x3, LogOut, Pencil, Lock, Bookmark,
-  MoreVertical, Flag, UserX, UserCheck, Trash2, ChevronDown, ChevronUp, Archive,
+  MoreVertical, Flag, UserX, UserCheck, Trash2, ChevronDown, ChevronUp, Archive, Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
