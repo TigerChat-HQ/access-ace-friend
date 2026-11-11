@@ -72,10 +72,10 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
   useEffect(() => {
     let active = true;
     void (async () => {
-      const { data: rows } = await (supabase as any).from("post_collaborators").select("inviter_id,invitee_id").eq("post_id", post.id).eq("status", "accepted");
-      const ids = [...new Set((rows || []).flatMap((row: { inviter_id: string; invitee_id: string }) => [row.inviter_id, row.invitee_id]))];
-      if (!ids.length) { if (active) setCollaboratorNames([]); return; }
-      const { data: profiles } = await supabase.from("profiles").select("username,display_name").in("user_id", ids);
+      const { data: ids, error } = await supabase.rpc("get_post_collaborator_ids" as any, { _post_id: post.id } as any) as any;
+      if (error || !ids?.length) { if (active) setCollaboratorNames([]); return; }
+      const userIds = ids.map((row: { user_id: string }) => row.user_id);
+      const { data: profiles } = await supabase.from("profiles").select("username,display_name").in("user_id", userIds);
       if (active) setCollaboratorNames((profiles || []).map(profile => profile.username || profile.display_name || "user"));
     })();
     return () => { active = false; };
