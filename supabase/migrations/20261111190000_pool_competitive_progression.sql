@@ -276,9 +276,6 @@ BEGIN
       lifetime_earned=pool_wallets.lifetime_earned+v_lcoins,updated_at=now() RETURNING * INTO v_wallet;
   INSERT INTO public.pool_coin_ledger(user_id,amount,balance_after,reason,source_type,source_id)
     VALUES(v_l.user_id,v_lcoins,v_wallet.balance,'match_participation','match',p_match_id);
-  INSERT INTO public.pool_coin_ledger(user_id,amount,balance_after,reason,source_type,source_id)
-    VALUES(v_w.user_id,0,v_wallet.balance,'match_xp_awarded','match',p_match_id)
-    ON CONFLICT DO NOTHING;
   SELECT * INTO v_bracket FROM public.pool_tournament_matches WHERE match_id=p_match_id FOR UPDATE;
   IF FOUND THEN
     UPDATE public.pool_tournament_matches SET winner_id=v_m.winner_id,status='completed' WHERE id=v_bracket.id;
