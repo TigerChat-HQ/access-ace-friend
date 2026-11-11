@@ -67,3 +67,13 @@ CREATE POLICY "Posts viewable by audience" ON public.posts
       )
     )
   );
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('post-drafts', 'post-drafts', false)
+ON CONFLICT (id) DO UPDATE SET public = false;
+
+DROP POLICY IF EXISTS "Users manage own private post draft media" ON storage.objects;
+CREATE POLICY "Users manage own private post draft media"
+ON storage.objects FOR ALL TO authenticated
+USING (bucket_id = 'post-drafts' AND (storage.foldername(name))[1] = (select auth.uid())::text)
+WITH CHECK (bucket_id = 'post-drafts' AND (storage.foldername(name))[1] = (select auth.uid())::text);
