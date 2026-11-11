@@ -15,7 +15,9 @@ export default function DraughtsReplay() {
   const { toast } = useToast();
   const [moves, setMoves] = useState<ReplayMove[]>([]);
   const [step, setStep] = useState(0);
-  const [loading, setLoading] = useState(true);\n  const [playing, setPlaying] = useState(false);\n  const [speed, setSpeed] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState(1);
   useEffect(() => {
     let alive = true;
     supabase.from("draughts_match_moves" as any).select("revision,move,board,created_at").eq("match_id", matchId).order("revision")
