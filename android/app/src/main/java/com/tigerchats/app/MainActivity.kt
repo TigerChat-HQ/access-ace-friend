@@ -18,15 +18,12 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
 
 open class MainActivity : Activity() {
     protected lateinit var webView: WebView
     private val siteUrl = "https://tigerchat-hq.onrender.com"
-    private var safeAreaTopDp = 0f
     private var pendingPath = "/"
     private var pendingQuickReply: String? = null
     private var pageLoaded = false
@@ -35,9 +32,10 @@ open class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Let WebView receive system-bar and IME insets itself. Consuming them here
-        // prevents its visual viewport from resizing when the keyboard opens.
-        WindowCompat.setDecorFitsSystemWindows(window, false)
+        // Keep the WebView inside the decor's system-bar bounds and let Android resize
+        // its actual viewport for the IME. Do not also add IME padding to the WebView:
+        // that double-adjusts the viewport and can push the chat composer below the keyboard.
+        WindowCompat.setDecorFitsSystemWindows(window, true)
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         requestNotificationPermission()
         webView = WebView(this)
@@ -61,7 +59,6 @@ open class MainActivity : Activity() {
                 super.onPageFinished(view, url)
                 if (Uri.parse(url).host != Uri.parse(siteUrl).host) return
                 pageLoaded = true
-                applySafeAreaTop(view)
                 applyPendingPath(view)
                 deliverPendingQuickReply(view)
             }
@@ -114,23 +111,6 @@ open class MainActivity : Activity() {
         }
         webView.addJavascriptInterface(NativeBridge(), "TigerNative")
         setContentView(webView)
-        ViewCompat.setOnApplyWindowInsetsListener(webView) { view, windowInsets ->
-            val safeInsets = windowInsets.getInsets(
-                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
-            )
-            val imeBottom = windowInsets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-            // With edge-to-edge enabled, explicitly reserve the IME area inside WebView.
-            // This keeps the embedded page's visual viewport above the Android keyboard.
-            val keyboardPadding = (imeBottom - safeInsets.bottom).coerceAtLeast(0)
-            if (view.paddingBottom != keyboardPadding) {
-                view.setPadding(0, 0, 0, keyboardPadding)
-            }
-            safeAreaTopDp = safeInsets.top / resources.displayMetrics.density
-            applySafeAreaTop(webView)
-            // Preserve insets so WebView and the page can also observe viewport changes.
-            windowInsets
-        }
-        ViewCompat.requestApplyInsets(webView)
         pendingPath = safePath(intent?.getStringExtra("path"))
         pendingQuickReply = intent?.getStringExtra(EXTRA_QUICK_REPLY)
         webView.loadUrl(siteUrl + "/")
@@ -214,19 +194,11 @@ open class MainActivity : Activity() {
         }
         if (!::webView.isInitialized) return
         if (pageLoaded) {
-            applySafeAreaTop(webView)
             applyPendingPath(webView)
             deliverPendingQuickReply(webView)
         } else {
             webView.loadUrl(siteUrl + "/")
         }
-    }
-
-    private fun applySafeAreaTop(view: WebView) {
-        view.evaluateJavascript(
-            "document.documentElement.style.setProperty('--tiger-safe-area-top', '${safeAreaTopDp}px')",
-            null,
-        )
     }
 
     private fun requestNotificationPermission() {
@@ -277,7 +249,6 @@ open class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (::webView.isInitialized) ViewCompat.requestApplyInsets(webView)
         warmFirebaseToken()
         syncChatOverlayService()
     }
