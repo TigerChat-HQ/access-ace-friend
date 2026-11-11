@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Image as ImageIcon, X, Loader2, Type } from "lucide-react";
+import { Image as ImageIcon, X, Loader2, Type, RotateCw, Music2, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { renderVideoEdit } from "@/lib/postMediaEditor";
@@ -29,6 +29,13 @@ const Create = () => {
   const [preview, setPreview] = useState<string | null>(null);
   const [filter, setFilter] = useState("none");
   const [overlay, setOverlay] = useState("");
+  const [rotation, setRotation] = useState(0);
+  const [brightness, setBrightness] = useState(100);
+  const [contrast, setContrast] = useState(100);
+  const [saturation, setSaturation] = useState(100);
+  const [aspectRatio, setAspectRatio] = useState("original");
+  const [sticker, setSticker] = useState("");
+  const [musicFile, setMusicFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [videoDuration, setVideoDuration] = useState(0);
   const [trimStart, setTrimStart] = useState(0);
@@ -56,6 +63,13 @@ const Create = () => {
     setFile(f);
     setFilter("none");
     setOverlay("");
+    setRotation(0);
+    setBrightness(100);
+    setContrast(100);
+    setSaturation(100);
+    setAspectRatio("original");
+    setSticker("");
+    setMusicFile(null);
     setVideoDuration(0);
     setTrimStart(0);
     setTrimEnd(0);
@@ -124,7 +138,7 @@ const Create = () => {
   };
 
   const renderEditedImage = async (src: File): Promise<File> => {
-    if (filter === "none" && !overlay.trim()) return src;
+    if (filter === "none" && !overlay.trim() && rotation === 0 && brightness === 100 && contrast === 100 && saturation === 100 && aspectRatio === "original" && !sticker) return src;
     const css = FILTERS.find((f) => f.key === filter)?.css || "";
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const i = new Image();
@@ -134,11 +148,27 @@ const Create = () => {
       i.src = URL.createObjectURL(src);
     });
     const canvas = document.createElement("canvas");
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
+    const rotated = rotation % 180 !== 0;
+    const sourceWidth = rotated ? img.naturalHeight : img.naturalWidth;
+    const sourceHeight = rotated ? img.naturalWidth : img.naturalHeight;
+    let targetWidth = sourceWidth;
+    let targetHeight = sourceHeight;
+    const ratios: Record<string, number> = { square: 1, portrait: 4 / 5, landscape: 16 / 9 };
+    const ratio = ratios[aspectRatio];
+    if (ratio) {
+      if (targetWidth / targetHeight > ratio) targetWidth = targetHeight * ratio;
+      else targetHeight = targetWidth / ratio;
+    }
+    canvas.width = Math.max(1, Math.round(targetWidth));
+    canvas.height = Math.max(1, Math.round(targetHeight));
     const ctx = canvas.getContext("2d")!;
-    if (css) ctx.filter = css;
-    ctx.drawImage(img, 0, 0);
+    ctx.save();
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate((rotation * Math.PI) / 180);
+    ctx.filter = [css, "brightness(" + brightness + "%)", "contrast(" + contrast + "%)", "saturate(" + saturation + "%)"].filter(Boolean).join(" ");
+    const cropScale = Math.max(targetWidth / sourceWidth, targetHeight / sourceHeight);
+    ctx.drawImage(img, -img.naturalWidth * cropScale / 2, -img.naturalHeight * cropScale / 2, img.naturalWidth * cropScale, img.naturalHeight * cropScale);
+    ctx.restore();
     if (overlay.trim()) {
       ctx.filter = "none";
       const fontSize = Math.round(canvas.width / 14);
@@ -155,7 +185,8 @@ const Create = () => {
       ctx.fillStyle = "white";
       ctx.fillText(overlay, x, y);
     }
-    const blob: Blob = await new Promise((res) => canvas.toBlob((b) => res(b!), "image/jpeg", 0.92));
+    if (sticker) { ctx.font = Math.round(canvas.width / 7) + "px sans-serif"; ctx.textAlign = "center"; ctx.fillText(sticker, canvas.width * 0.82, canvas.height * 0.18); }
+    const blob: Blob = await new Promise((res, reject) => canvas.toBlob((b) => b ? res(b) : reject(new Error("Could not export edited image.")), "image/jpeg", 0.92));
     return new File([blob], `edited-${Date.now()}.jpg`, { type: "image/jpeg" });
   };
 
@@ -192,12 +223,22 @@ const Create = () => {
         mediaType = isVideo ? "video" : "image";
       }
 
+      let publishedMusicUrl: string | null = null;
+      if (musicFile && isImage) {
+        const musicPath = user.id + "/post-audio/" + Date.now() + "-" + musicFile.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+        const { error: musicUploadError } = await supabase.storage.from("post-media").upload(musicPath, musicFile);
+        if (musicUploadError) throw musicUploadError;
+        publishedMusicUrl = supabase.storage.from("post-media").getPublicUrl(musicPath).data.publicUrl;
+      }
+
       const { error } = await supabase.from("posts").insert({
         user_id: user.id,
         caption: caption.trim() || null,
         media_url: mediaUrl,
         media_type: mediaType,
         hashtags: extractHashtags(caption),
+        reel_audio_url: publishedMusicUrl,
+        reel_audio_title: musicFile?.name || null,
       });
       if (error) throw error;
       toast({ title: "Posted! 🎉" });
@@ -243,8 +284,9 @@ const Create = () => {
                   src={preview}
                   alt=""
                   className="w-full max-h-[400px] object-contain"
-                  style={{ filter: filterCss }}
+                  style={{ filter: filterCss + " brightness(" + brightness + "%) contrast(" + contrast + "%) saturate(" + saturation + "%)", transform: "rotate(" + rotation + "deg)", aspectRatio: aspectRatio === "original" ? undefined : aspectRatio === "square" ? "1 / 1" : aspectRatio === "portrait" ? "4 / 5" : "16 / 9", objectFit: "cover" }}
                 />
+                {sticker && <span className="absolute right-5 top-5 text-5xl drop-shadow-lg pointer-events-none">{sticker}</span>}
                 {overlay && (
                   <div className="absolute inset-x-0 bottom-[12%] text-center px-4 pointer-events-none">
                     <span className="inline-block bg-black/60 text-white text-lg font-bold px-3 py-1 rounded">
@@ -328,6 +370,15 @@ const Create = () => {
                 </button>
               ))}
             </div>
+            <section className="space-y-3 rounded-xl border border-border p-3">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground"><Sparkles className="h-4 w-4 text-primary" /> Advanced photo editor</h2>
+              <div className="grid grid-cols-4 gap-2">
+                {["original", "square", "portrait", "landscape"].map((ratio) => <button key={ratio} type="button" onClick={() => setAspectRatio(ratio)} className={cn("rounded-lg border px-2 py-2 text-xs capitalize", aspectRatio === ratio ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground")}>{ratio}</button>)}
+              </div>
+              <button type="button" onClick={() => setRotation((value) => (value + 90) % 360)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-border py-2 text-sm"><RotateCw className="h-4 w-4" /> Rotate 90° · {rotation}°</button>
+              {([{label:"Brightness",value:brightness,set:setBrightness},{label:"Contrast",value:contrast,set:setContrast},{label:"Saturation",value:saturation,set:setSaturation}] as const).map((item) => <label key={item.label} className="block text-xs text-muted-foreground">{item.label} · {item.value}%<input type="range" min={0} max={200} value={item.value} onChange={(event) => item.set(Number(event.target.value))} className="w-full" /></label>)}
+              <div className="flex flex-wrap gap-2">{["❤️","🔥","😂","😍","🐯","✨","🎉","🌟","📍","💯"].map((emoji) => <button key={emoji} type="button" onClick={() => setSticker(sticker === emoji ? "" : emoji)} aria-pressed={sticker === emoji} className={cn("rounded-lg border px-2 py-1 text-xl", sticker === emoji ? "border-primary bg-primary/10" : "border-border")}>{emoji}</button>)}</div>
+            </section>
             <div className="flex items-center gap-2">
               <Type className="w-4 h-4 text-primary shrink-0" />
               <input
@@ -339,6 +390,8 @@ const Create = () => {
             </div>
           </>
         )}
+
+        {isImage && <section className="space-y-2 rounded-xl border border-border p-3"><h2 className="flex items-center gap-2 text-sm font-semibold"><Music2 className="h-4 w-4 text-primary" /> Background music</h2><input type="file" accept="audio/*" onChange={(event) => setMusicFile(event.target.files?.[0] || null)} className="block w-full text-xs" />{musicFile && <div className="flex items-center justify-between gap-2 text-xs"><span className="truncate">{musicFile.name}</span><button type="button" onClick={() => setMusicFile(null)} className="text-destructive">Remove</button></div>}<p className="text-[11px] text-muted-foreground">Music is attached to the published photo post.</p></section>}
 
         <textarea
           value={caption}
