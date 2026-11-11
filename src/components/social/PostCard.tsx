@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Flag, UserX, Bookmark, Archive, Pin, Pencil } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -52,6 +52,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const touchStartX = useRef<number | null>(null);
   const [saved, setSaved] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
   const [captionDraft, setCaptionDraft] = useState(post.caption || "");
@@ -172,8 +173,8 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
       </header>
 
       {post.media_url && post.media_type === "image" && (
-        <div className="relative">
-          <img src={activeMedia?.url || post.media_url} alt={activeMedia?.alt_text || post.alt_text || ""} className="w-full max-h-[600px] object-cover bg-muted" loading="lazy" />
+        <div className="relative" onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }} onTouchEnd={(event) => { if (touchStartX.current === null || mediaItems.length < 2) return; const delta = event.changedTouches[0].clientX - touchStartX.current; if (Math.abs(delta) > 45) setCarouselIndex((index) => (index + (delta < 0 ? 1 : -1) + mediaItems.length) % mediaItems.length); touchStartX.current = null; }}>
+          <img src={activeMedia?.url || post.media_url} alt={activeMedia?.alt_text || post.alt_text || ""} onDoubleClick={() => { if (!liked) void handleLike(); }} className="w-full max-h-[600px] object-cover bg-muted" loading="lazy" />
           {mediaItems.length > 1 && <><button type="button" aria-label="Previous photo" onClick={() => setCarouselIndex((index) => (index - 1 + mediaItems.length) % mediaItems.length)} className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/60 px-3 py-2 text-white">‹</button><button type="button" aria-label="Next photo" onClick={() => setCarouselIndex((index) => (index + 1) % mediaItems.length)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/60 px-3 py-2 text-white">›</button><span className="absolute right-3 top-3 rounded-full bg-black/65 px-2 py-1 text-[10px] text-white">{carouselIndex + 1}/{mediaItems.length}</span></>}
           {post.post_audio_url && <div className="absolute bottom-3 left-3 right-3 flex items-center gap-2 rounded-xl bg-black/70 p-2 text-white backdrop-blur"><span className="min-w-0 flex-1 truncate text-xs">{post.post_audio_title || "Post soundtrack"}</span><audio src={post.post_audio_url} controls className="h-8 max-w-[55%]" /></div>}
         </div>
@@ -194,7 +195,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
             className="relative w-full bg-black"
           />
         ) : (
-          <video src={post.media_url} poster={post.post_cover_url || reelPost.reel_cover_url || undefined} controls playsInline className="w-full max-h-[600px] bg-black" />
+          <video src={post.media_url} poster={post.post_cover_url || reelPost.reel_cover_url || undefined} controls playsInline onDoubleClick={() => { if (!liked) void handleLike(); }} className="w-full max-h-[600px] bg-black" />
         )
       )}
 
