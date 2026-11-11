@@ -569,7 +569,7 @@ const Create = () => {
             <input value={altText} onChange={(event) => setAltText(event.target.value)} placeholder="Describe what is in the image" className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground" maxLength={500} />
           </label>}
           <label className="block space-y-1 text-xs text-muted-foreground">Schedule post (optional)
-            <input type="datetime-local" value={scheduledAt} min={new Date(Date.now() + 60000).toISOString().slice(0,16)} onChange={(event) => setScheduledAt(event.target.value)} className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground" />
+            <input type="datetime-local" value={scheduledAt} min={(() => { const local = new Date(Date.now() + 60000); local.setMinutes(local.getMinutes() - local.getTimezoneOffset()); return local.toISOString().slice(0,16); })()} onChange={(event) => setScheduledAt(event.target.value)} className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground" />
           </label>
         </section>
         {isImage && <section className="space-y-2 rounded-xl border border-border p-3"><h2 className="text-sm font-semibold">Carousel photos</h2><input type="file" accept="image/*" multiple onChange={(event) => setExtraImageFiles(Array.from(event.target.files || []).slice(0, 9))} className="block w-full text-xs" /><p className="text-[11px] text-muted-foreground">Add up to 9 extra images after the cover photo. Total: {1 + extraImageFiles.length} / 10</p>{extraImageFiles.length > 0 && <button type="button" onClick={() => setExtraImageFiles([])} className="text-xs text-destructive">Remove extra photos</button>}</section>}
