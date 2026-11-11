@@ -146,12 +146,51 @@ BEGIN
   RETURN v_match;
 END $$;
 
+
+CREATE OR REPLACE FUNCTION public.join_pool_room_by_code(p_room_code text)
+RETURNS public.pool_matches
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $
+DECLARE v_user uuid := (select auth.uid()); v_match public.pool_matches%ROWTYPE;
+BEGIN
+  IF v_user IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF;
+  SELECT * INTO v_match FROM public.pool_matches
+    WHERE room_code=upper(trim(coalesce(p_room_code,''))) AND status='waiting' FOR UPDATE;
+  IF NOT FOUND OR v_match.player_one=v_user THEN RAISE EXCEPTION 'Pool room is unavailable'; END IF;
+  UPDATE public.pool_matches SET player_two=v_user,status='active',current_turn=player_one,
+    clock_started_at=now(),started_at=now(),updated_at=now()
+    WHERE id=v_match.id RETURNING * INTO v_match;
+  RETURN v_match;
+END $;
+
+CREATE OR REPLACE FUNCTION public.list_pool_public_rooms()
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $
+BEGIN
+  IF (select auth.uid()) IS NULL THEN RAISE EXCEPTION 'Sign in required'; END IF;
+  RETURN coalesce((SELECT jsonb_agg(jsonb_build_object(
+    'id',id,'mode',mode,'player_one',player_one,'created_at',created_at,'clock_seconds',clock_seconds
+  ) ORDER BY created_at DESC) FROM (
+    SELECT id,mode,player_one,created_at,clock_seconds FROM public.pool_matches
+    WHERE status='waiting' AND visibility='public' ORDER BY created_at DESC LIMIT 25
+  ) rooms),'[]'::jsonb);
+END $;
+
+DROP POLICY IF EXISTS "Pool participants read matches" ON public.pool_matches;
+CREATE POLICY "Pool participants read matches" ON public.pool_matches
+  FOR SELECT TO authenticated USING (
+    player_one=(select auth.uid()) OR player_two=(select auth.uid())
+    OR (visibility='public' AND status IN ('waiting','active','finished'))
+  );
+
 REVOKE ALL ON FUNCTION public.create_pool_room(text,text,integer) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.join_pool_room_by_code(text) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.list_pool_public_rooms() FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION public.join_pool_room(uuid,text) FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION public.enqueue_pool_match(text,integer,integer) FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION public.cancel_pool_match_queue() FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION public.commit_draft_move(uuid,integer,jsonb,text,jsonb,text,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.create_pool_room(text,text,integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.join_pool_room_by_code(text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.list_pool_public_rooms() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.join_pool_room(uuid,text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.enqueue_pool_match(text,integer,integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.cancel_pool_match_queue() TO authenticated;
