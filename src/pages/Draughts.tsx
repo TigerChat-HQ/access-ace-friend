@@ -24,6 +24,16 @@ type MatchRow = Omit<Tables<"draft_matches">, "board" | "last_move" | "current_t
 
 
 const queueRpc = supabase.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
+const emoteFrom = supabase.from as unknown as (table: string) => {
+  select: (columns: string) => {
+    eq: (column: string, value: string) => {
+      order: (column: string, options: { ascending: boolean }) => {
+        limit: (count: number) => Promise<{ data: unknown[] | null }>;
+      };
+    };
+  };
+  insert: (values: Record<string, string>) => Promise<{ error: { message: string } | null }>;
+};
 const queueTable = supabase.from as unknown as (table: string) => { select: (columns: string) => { eq: (column: string, value: string) => { maybeSingle: () => Promise<{ data: { status: string; match_id: string | null } | null; error: { message: string } | null }> } } };
 
 const Draughts = () => {
@@ -148,7 +158,7 @@ const Draughts = () => {
     if (!match || match.status !== "active" || !user) { setMatchEmotes([]); return; }
     let alive = true;
     const load = async () => {
-      const { data } = await supabase.from("draughts_match_emotes" as any)
+      const { data } = await emoteFrom("draughts_match_emotes")
         .select("id,user_id,emote_key,created_at").eq("match_id", match.id)
         .order("created_at", { ascending: false }).limit(8);
       if (alive) setMatchEmotes((data ?? []) as unknown as typeof matchEmotes);
@@ -163,7 +173,7 @@ const Draughts = () => {
 
   const sendMatchEmote = async (emoteKey: string) => {
     if (!match || !user || match.status !== "active") return;
-    const { error } = await supabase.from("draughts_match_emotes" as any)
+    const { error } = await emoteFrom("draughts_match_emotes")
       .insert({ match_id: match.id, user_id: user.id, emote_key: emoteKey });
     if (error) toast({ title: "Reaction not sent", description: error.message, variant: "destructive" });
   };
