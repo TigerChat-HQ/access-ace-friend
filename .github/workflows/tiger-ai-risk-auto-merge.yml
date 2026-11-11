@@ -42,6 +42,14 @@ jobs:
               if (pr.state !== 'open' || pr.draft || pr.base.ref !== 'main') continue;
               if (sha && pr.head.sha !== sha) continue;
 
+              // Require the dedicated service identity and its reserved branch/body marker.
+              // A manually applied label on an ordinary contributor PR must never authorize a merge.
+              if (pr.user?.login !== 'TigerChat-HQ' || !pr.head.ref.startsWith('tiger-ai/task-') ||
+                  !String(pr.body || '').includes('## Tiger AI proposed fix')) {
+                core.warning(`PR #${number}: missing Tiger AI provenance; refusing auto-merge.`);
+                continue;
+              }
+
               const labels = (pr.labels || []).map(label => label.name);
               const eligible = labels.includes('tiger-ai-auto-merge-low') || labels.includes('tiger-ai-auto-merge-medium');
               if (!eligible) {
@@ -53,10 +61,10 @@ jobs:
               const { data: checks } = await github.rest.checks.listForRef({ owner, repo, ref: pr.head.sha, per_page: 100 });
               const runs = checks.check_runs || [];
               const requiredNames = ['quality', 'tests', 'security'];
-              const completedNames = new Set(runs.filter(r => r.status === 'completed' && ['success','neutral','skipped'].includes(r.conclusion)).map(r => r.name));
+              const completedNames = new Set(runs.filter(r => r.status === 'completed' && r.conclusion === 'success').map(r => r.name));
               const missing = requiredNames.filter(name => !completedNames.has(name));
               const pending = runs.filter(r => r.status !== 'completed');
-              const failed = runs.filter(r => r.status === 'completed' && !['success','neutral','skipped'].includes(r.conclusion));
+              const failed = runs.filter(r => r.status === 'completed' && r.conclusion !== 'success');
               if (runs.length === 0 || missing.length || pending.length || failed.length) {
                 core.info(`PR #${number}: checks not safe to merge. Missing: ${missing.join(', ') || 'none'}; pending: ${pending.length}; failed: ${failed.length}.`);
                 continue;
