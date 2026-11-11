@@ -33,7 +33,11 @@ DROP POLICY IF EXISTS "Participants remove collaboration" ON public.post_collabo
 CREATE POLICY "Participants remove collaboration" ON public.post_collaborators
   FOR DELETE TO authenticated USING (inviter_id = (select auth.uid()) OR invitee_id = (select auth.uid()));
 REVOKE ALL ON public.post_collaborators FROM anon, authenticated, PUBLIC;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.post_collaborators TO authenticated;
+GRANT SELECT, DELETE ON public.post_collaborators TO authenticated;
+
+-- Only the inviter, as checked by RLS, may create a pending invitation.
+-- Column-level INSERT grants prevent clients from inserting an already-accepted row.
+GRANT INSERT (post_id, inviter_id, invitee_id) ON public.post_collaborators TO authenticated;
 
 -- Invitees may only change the response state and its timestamp.
 REVOKE UPDATE ON public.post_collaborators FROM authenticated;
