@@ -392,6 +392,41 @@ open class MainActivity : Activity() {
             }
         }
 
+        @JavascriptInterface
+        fun isChatOverlayEnabled(): Boolean =
+            getSharedPreferences("tiger_overlay", MODE_PRIVATE).getBoolean("enabled", false)
+
+        @JavascriptInterface
+        fun setChatOverlayEnabled(enabled: Boolean) {
+            runOnUiThread {
+                val prefs = getSharedPreferences("tiger_overlay", MODE_PRIVATE)
+                prefs.edit().putBoolean("enabled", enabled).apply()
+                if (!enabled) {
+                    stopService(Intent(this@MainActivity, TigerChatOverlayService::class.java))
+                } else if (!Settings.canDrawOverlays(this@MainActivity)) {
+                    startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun dismissChatNotification() {
+            runOnUiThread { stopService(Intent(this@MainActivity, TigerChatOverlayService::class.java)) }
+        }
+
+        @JavascriptInterface
+        fun showChatNotification(title: String, body: String, path: String, avatarUrl: String) {
+            if (!isChatOverlayEnabled() || !Settings.canDrawOverlays(this@MainActivity)) return
+            val safe = path.takeIf { it.startsWith("/") && !it.startsWith("//") } ?: "/chats"
+            val overlayIntent = Intent(this@MainActivity, TigerChatOverlayService::class.java)
+                .setAction(TigerChatOverlayService.ACTION_SHOW_NOTIFICATION)
+                .putExtra(TigerChatOverlayService.EXTRA_TITLE, title.take(80))
+                .putExtra(TigerChatOverlayService.EXTRA_BODY, body.take(240))
+                .putExtra(TigerChatOverlayService.EXTRA_PATH, safe)
+                .putExtra(TigerChatOverlayService.EXTRA_AVATAR, avatarUrl)
+            ContextCompat.startForegroundService(this@MainActivity, overlayIntent)
+        }
+
     }
 
     @Deprecated("Deprecated in Android API")
