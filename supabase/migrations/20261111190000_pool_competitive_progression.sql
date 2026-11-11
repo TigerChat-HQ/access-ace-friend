@@ -213,7 +213,7 @@ DECLARE
   v_players uuid[]; v_count integer; i integer; v_match public.pool_matches%ROWTYPE;
 BEGIN
   SELECT * INTO v_t FROM public.pool_tournaments WHERE id=p_tournament_id FOR UPDATE;
-  IF NOT FOUND OR v_t.owner_id<>v_user OR v_t.status<>'registration' THEN
+  IF v_user IS NULL OR NOT FOUND OR v_t.owner_id<>v_user OR v_t.status<>'registration' THEN
     RAISE EXCEPTION 'Only tournament owner can start an open tournament'; END IF;
   SELECT array_agg(user_id ORDER BY seed_rating DESC,joined_at) INTO v_players
     FROM public.pool_tournament_entries WHERE tournament_id=p_tournament_id;
