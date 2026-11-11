@@ -670,7 +670,7 @@ const Chats = () => {
                         <Settings className="w-4 h-4 mr-2" /> Group settings
                       </DropdownMenuItem>
                     </>}
-                    <DropdownMenuItem onSelect={() => { const muted = Boolean(chatPrefs.muted_until && new Date(chatPrefs.muted_until).getTime() > Date.now()); void saveChatPrefs({ muted_until: muted ? null : new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString() }); toast({ title: muted ? "Conversation unmuted" : "Conversation muted for 8 hours" }); }}><BellOff className="w-4 h-4 mr-2" /> {chatPrefs.muted_until && new Date(chatPrefs.muted_until).getTime() > Date.now() ? "Unmute notifications" : "Mute for 8 hours"}</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={async () => { const muted = Boolean(chatPrefs.muted_until && new Date(chatPrefs.muted_until).getTime() > Date.now()); const result = await saveChatPrefs({ muted_until: muted ? null : new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString() }); if (result?.error) toast({ title: "Could not update mute setting", description: result.error.message, variant: "destructive" }); else toast({ title: muted ? "Conversation unmuted" : "Conversation muted for 8 hours" }); }}><BellOff className="w-4 h-4 mr-2" /> {chatPrefs.muted_until && new Date(chatPrefs.muted_until).getTime() > Date.now() ? "Unmute notifications" : "Mute for 8 hours"}</DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => setCustomizationOpen(true)}>
                       <Palette className="w-4 h-4 mr-2" /> Chat theme
                     </DropdownMenuItem>
