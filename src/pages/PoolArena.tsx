@@ -21,21 +21,56 @@ const rack = (mode: Mode = "eight"): Ball[] => {
 const pockets=[[.035,.075],[.5,.075],[.965,.075],[.035,.925],[.5,.925],[.965,.925]];
 const clamp=(n:number,a:number,b:number)=>Math.max(a,Math.min(b,n));
 type PoolRoom = { id: string; room_code: string | null; mode: string; status: string; player_one: string; player_two: string | null; current_turn?: string | null; revision?: number; state?: { balls?: Ball[]; ballInHandFor?: string | null; winnerId?: string | null } };
-type PoolServerResponse = { match?: PoolRoom; state?: PoolRoom["state"]; result?: { foul?: boolean; foulReason?: string | null } };
+type PoolTrajectoryFrame = { t: number; balls: Array<{ id:number; x:number; y:number; pocketed:boolean }> };
+type PoolServerResponse = { match?: PoolRoom; state?: PoolRoom["state"]; result?: { foul?: boolean; foulReason?: string | null; trajectory?: PoolTrajectoryFrame[]; progressionPending?: boolean } };
+type PoolRealtimeChannel = { on: (type:"postgres_changes", filter:{event:"UPDATE"|"INSERT";schema:"public";table:"pool_matches"|"pool_match_events";filter:string}, callback:(payload:{new:unknown})=>void) => PoolRealtimeChannel; subscribe:()=>unknown };
+type PoolTournament = { id:string; title:string; mode:string; status:string; max_players:number; entry_fee:number; prize_pool:number; owner_id:string };
 const poolRpc = supabase.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>;
 const poolQueueFrom = supabase.from as unknown as (table: string) => { select: (columns: string) => { eq: (column: string, value: string) => { maybeSingle: () => Promise<{ data: unknown; error: { message: string } | null }> } } };
 const poolRealtime = supabase as unknown as {
- channel: (name: string) => { on: (type: "postgres_changes", filter: { event: "UPDATE"; schema: "public"; table: string; filter: string }, callback: (payload: { new: unknown }) => void) => { subscribe: () => unknown } };
+ channel: (name: string) => PoolRealtimeChannel;
  removeChannel: (channel: unknown) => Promise<unknown>;
 };
+const poolTournamentList = supabase.from as unknown as (table:string)=>{select:(columns:string)=>{order:(column:string,options:{ascending:boolean})=>{limit:(count:number)=>Promise<{data:unknown;error:{message:string}|null}>}}};
 
 
 const playPoolTone=(frequency:number)=>{const AudioContextCtor=window.AudioContext;if(!AudioContextCtor)return;const context=new AudioContextCtor();const oscillator=context.createOscillator();const gain=context.createGain();oscillator.frequency.value=frequency;gain.gain.setValueAtTime(.035,context.currentTime);gain.gain.exponentialRampToValueAtTime(.001,context.currentTime+.12);oscillator.connect(gain);gain.connect(context.destination);oscillator.onended=()=>{void context.close();};oscillator.start();oscillator.stop(context.currentTime+.13);};
 
 export default function PoolArena(){
- const nav=useNavigate(); const {toast}=useToast(); const [onlineRoom,setOnlineRoom]=useState<PoolRoom|null>(null); const [onlinePlayerId,setOnlinePlayerId]=useState<string|null>(null); const [onlineCuePosition,setOnlineCuePosition]=useState<{x:number;y:number}|null>(null); const [onlineBusy,setOnlineBusy]=useState(false); const [joinRoomCode,setJoinRoomCode]=useState(""); const [queueTicket,setQueueTicket]=useState<string|null>(null); const [onlineNotice,setOnlineNotice]=useState(""); const [balls,setBalls]=useState<Ball[]>(rack); const ballsRef=useRef(balls); const [mode,setMode]=useState<Mode>("eight"); const [power,setPower]=useState(48); const [angle,setAngle]=useState(0); const [moving,setMoving]=useState(false);  const [shots,setShots]=useState(0); const [pocketed,setPocketed]=useState<number[]>([]); const [sound,setSound]=useState(true); const [camera,setCamera]=useState<"top"|"angle">("angle"); const [message,setMessage]=useState("Panga cue direction kisha bonyeza SHOOT."); const [aim,setAim]=useState({x:.22,y:.5}); const [showRules,setShowRules]=useState(false); const [ballInHand,setBallInHand]=useState(false); const [opponent,setOpponent]=useState<"practice"|"ai">("practice"); const [playerTurn,setPlayerTurn]=useState(true); const aiShotRef=useRef(false);
+ const nav=useNavigate(); const {toast}=useToast(); const [poolRating,setPoolRating]=useState<{rating:number;wins:number;losses:number;games_played:number}|null>(null); const [poolCoins,setPoolCoins]=useState<number>(0); const [tournaments,setTournaments]=useState<PoolTournament[]>([]); const [tournamentTitle,setTournamentTitle]=useState(""); const [onlineRoom,setOnlineRoom]=useState<PoolRoom|null>(null); const [onlinePlayerId,setOnlinePlayerId]=useState<string|null>(null); const [onlineCuePosition,setOnlineCuePosition]=useState<{x:number;y:number}|null>(null); const [onlineBusy,setOnlineBusy]=useState(false); const [joinRoomCode,setJoinRoomCode]=useState(""); const [queueTicket,setQueueTicket]=useState<string|null>(null); const [onlineNotice,setOnlineNotice]=useState(""); const [balls,setBalls]=useState<Ball[]>(rack); const ballsRef=useRef(balls); const animationRafRef=useRef<number|null>(null); const [mode,setMode]=useState<Mode>("eight"); const [power,setPower]=useState(48); const [angle,setAngle]=useState(0); const [moving,setMoving]=useState(false);  const [shots,setShots]=useState(0); const [pocketed,setPocketed]=useState<number[]>([]); const [sound,setSound]=useState(true); const [camera,setCamera]=useState<"top"|"angle">("angle"); const [message,setMessage]=useState("Panga cue direction kisha bonyeza SHOOT."); const [aim,setAim]=useState({x:.22,y:.5}); const [showRules,setShowRules]=useState(false); const [ballInHand,setBallInHand]=useState(false); const [opponent,setOpponent]=useState<"practice"|"ai">("practice"); const [playerTurn,setPlayerTurn]=useState(true); const aiShotRef=useRef(false);
  useEffect(()=>{ballsRef.current=balls;},[balls]);
- useEffect(()=>{void supabase.auth.getUser().then(({data})=>setOnlinePlayerId(data.user?.id??null));},[]);
+ const animateTrajectory=useCallback((trajectory:PoolTrajectoryFrame[],finalBalls?:Ball[])=>{
+  if(!Array.isArray(trajectory)||trajectory.length===0)return;
+  if(animationRafRef.current!==null)cancelAnimationFrame(animationRafRef.current);
+  setMoving(true);
+  const frames=trajectory,started=performance.now(),duration=Math.max(1,(frames[frames.length-1].t-frames[0].t)*1000);
+  const tick=(now:number)=>{
+   const progress=Math.min(1,(now-started)/duration),targetTime=frames[0].t+progress*(frames[frames.length-1].t-frames[0].t);
+   let right=frames.findIndex(frame=>frame.t>=targetTime);if(right<0)right=frames.length-1;
+   const left=Math.max(0,right-1),a=frames[left],b=frames[right],span=Math.max(.0001,b.t-a.t),mix=Math.max(0,Math.min(1,(targetTime-a.t)/span));
+   const previous=ballsRef.current;
+   const next=previous.map(ball=>{const pa=a.balls.find(item=>item.id===ball.id),pb=b.balls.find(item=>item.id===ball.id);if(!pa||!pb)return ball;return {...ball,x:pa.x+(pb.x-pa.x)*mix,y:pa.y+(pb.y-pa.y)*mix,pocketed:mix>=.98?pb.pocketed:pa.pocketed};});
+   ballsRef.current=next;setBalls(next);
+   if(progress<1){animationRafRef.current=requestAnimationFrame(tick);}
+   else{const final=finalBalls??next;ballsRef.current=final;setBalls(final);animationRafRef.current=null;setMoving(false);}
+  };
+  animationRafRef.current=requestAnimationFrame(tick);
+ },[]);
+ const loadPoolProfile=useCallback(async(userId:string)=>{
+  const [rating,wallet]=await Promise.all([
+   poolQueueFrom("pool_player_ratings").select("rating,wins,losses,games_played").eq("user_id",userId).maybeSingle(),
+   poolQueueFrom("pool_wallets").select("balance").eq("user_id",userId).maybeSingle()
+  ]);
+  setPoolRating((rating.data as {rating:number;wins:number;losses:number;games_played:number}|null)??null);
+  setPoolCoins(Number((wallet.data as {balance?:number}|null)?.balance??0));
+ },[]);
+ const loadTournaments=useCallback(async()=>{
+  const {data,error}=await poolTournamentList("pool_tournaments").select("id,title,mode,status,max_players,entry_fee,prize_pool,owner_id").order("created_at",{ascending:false}).limit(6);
+  if(!error&&Array.isArray(data))setTournaments(data as PoolTournament[]);
+ },[]);
+
+ useEffect(()=>{void supabase.auth.getUser().then(({data})=>{const id=data.user?.id??null;setOnlinePlayerId(id);if(id)void loadPoolProfile(id);});void loadTournaments();},[loadPoolProfile,loadTournaments]);
+ useEffect(()=>{const poll=window.setInterval(()=>void loadTournaments(),15000);return()=>window.clearInterval(poll);},[loadTournaments]);
  const refreshOnlineMatch=useCallback(async(matchId:string)=>{
   const {data,error}=await supabase.functions.invoke<PoolServerResponse>("pool-game",{body:{action:"state",matchId}});
   if(error){setOnlineNotice("Haiwezi kusoma hali ya mechi: "+error.message);return;}
@@ -47,13 +82,17 @@ export default function PoolArena(){
   const channel=poolRealtime.channel("pool-match-"+onlineRoom.id)
    .on("postgres_changes",{event:"UPDATE",schema:"public",table:"pool_matches",filter:"id=eq."+onlineRoom.id},(payload)=>{
     const row=payload.new as PoolRoom;setOnlineRoom(row);
-    if(Array.isArray(row.state?.balls)){ballsRef.current=row.state.balls;setBalls(row.state.balls);setOnlineCuePosition(null);setMoving(false);}
+    if(Array.isArray(row.state?.balls)){if(animationRafRef.current===null){ballsRef.current=row.state.balls;setBalls(row.state.balls);}setOnlineCuePosition(null);}
     if(row.status==="finished")setOnlineNotice(row.state?.winnerId===onlinePlayerId?"Umeshinda mechi!":"Mechi imekamilika.");
     else if(row.status==="active")setOnlineNotice(row.current_turn===onlinePlayerId?"Zamu yako. Panga shot.":"Mpinzani anacheza…");
+   })
+   .on("postgres_changes",{event:"INSERT",schema:"public",table:"pool_match_events",filter:"match_id=eq."+onlineRoom.id},(payload)=>{
+    const event=payload.new as {actor_id?:string;payload?:{trajectory?:PoolTrajectoryFrame[]}};
+    if(event.actor_id!==onlinePlayerId&&Array.isArray(event.payload?.trajectory))animateTrajectory(event.payload.trajectory,undefined);
    }).subscribe();
   const waitingPoll=onlineRoom.status==="waiting"?window.setInterval(()=>{void refreshOnlineMatch(onlineRoom.id);},2500):null;
   return()=>{if(waitingPoll!==null)window.clearInterval(waitingPoll);void poolRealtime.removeChannel(channel);};
- },[onlineRoom?.id,onlineRoom?.status,onlinePlayerId,refreshOnlineMatch]);
+ },[onlineRoom?.id,onlineRoom?.status,onlinePlayerId,refreshOnlineMatch,animateTrajectory]);
  useEffect(()=>{
   if(!queueTicket)return;
   const poll=window.setInterval(async()=>{
@@ -74,8 +113,8 @@ export default function PoolArena(){
   const {data,error}=await supabase.functions.invoke<PoolServerResponse>("pool-game",{body:{action:"shot",matchId:onlineRoom.id,expectedRevision:onlineRoom.revision??0,angle:shotAngle,power:shotPower,requestId,cuePosition:onlineCuePosition??undefined}});
   setOnlineBusy(false);
   if(error){toast({title:"Shot haijakubaliwa",description:error.message,variant:"destructive"});await refreshOnlineMatch(onlineRoom.id);return;}
-  if(data?.match){setOnlineRoom(data.match);if(Array.isArray(data.state?.balls)){ballsRef.current=data.state.balls;setBalls(data.state.balls);}setOnlineCuePosition(null);setMessage(data.result?.foul?"FOUL: "+String(data.result.foulReason):"Shot imethibitishwa na server.");setOnlineNotice(data.result?.foul?"Foul imethibitishwa. Mpinzani ana Ball-in-Hand.":data.match.status==="finished"?"Mechi imekamilika.":"Shot imehesabiwa na server.");}
- },[onlineRoom,onlinePlayerId,onlineBusy,onlineCuePosition,toast,refreshOnlineMatch]);
+  if(data?.match){setOnlineRoom(data.match);if(Array.isArray(data.result?.trajectory))animateTrajectory(data.result.trajectory,data.state?.balls);else if(Array.isArray(data.state?.balls)){ballsRef.current=data.state.balls;setBalls(data.state.balls);}setOnlineCuePosition(null);setMessage(data.result?.foul?"FOUL: "+String(data.result.foulReason):"Shot imethibitishwa na server.");setOnlineNotice(data.result?.foul?"Foul imethibitishwa. Mpinzani ana Ball-in-Hand.":data.match.status==="finished"?"Mechi imekamilika.":"Shot inachezwa kwa usawazishaji wa server.");if(data.result?.progressionPending)setOnlineNotice("Mechi imeisha; zawadi na rating zinasawazishwa tena.");if(data.match.status==="finished"&&onlinePlayerId)void loadPoolProfile(onlinePlayerId);}
+ },[onlineRoom,onlinePlayerId,onlineBusy,onlineCuePosition,toast,refreshOnlineMatch,animateTrajectory,loadPoolProfile]);
  const reset=useCallback((nextMode:Mode=mode)=>{const next=rack(nextMode);ballsRef.current=next;setBalls(next);setMoving(false);setShots(0);setPocketed([]);setAngle(0);setBallInHand(false);setPlayerTurn(true);aiShotRef.current=false;setMessage("Meza imeandaliwa. Wewe unaanza.");},[mode]);
  const shoot=useCallback((shotAngle=angle,shotPower=power,byAI=false)=>{
   if(onlineRoom){if(onlineRoom.status==="active")void submitOnlineShot(shotAngle,shotPower);else setMessage("Subiri mpinzani ajiunge au mechi imalizike.");return;}
@@ -146,6 +185,9 @@ export default function PoolArena(){
   if(result.status==="matched"){setOnlineRoom({id:result.match_id??"",room_code:null,mode,status:"active",player_one:"",player_two:null});setOnlineNotice("Mpinzani amepatikana. Inaunganisha mechi…");}
   else {setQueueTicket(result.queue_id??null);setOnlineNotice("Unatafutiwa mpinzani. Mechi itaanza baada ya kuunganishwa.");}
  };
+ const createPoolTournament=async()=>{const title=tournamentTitle.trim();if(title.length<3){toast({title:"Jina la mashindano liwe na herufi 3 au zaidi",variant:"destructive"});return;}const {error}=await poolRpc("create_pool_tournament",{p_title:title,p_mode:mode==="nine"?"nine_ball":"eight_ball",p_max_players:8,p_entry_fee:0});if(error){toast({title:"Tournament creation failed",description:error.message,variant:"destructive"});return;}setTournamentTitle("");await loadTournaments();toast({title:"Mashindano yameundwa",description:"Mashindano ya wachezaji 8 yako wazi kwa usajili."});};
+ const joinPoolTournament=async(id:string)=>{const {error}=await poolRpc("join_pool_tournament",{p_tournament_id:id});if(error){toast({title:"Usajili umeshindikana",description:error.message,variant:"destructive"});return;}await loadTournaments();toast({title:"Umejisajili kwenye mashindano"});};
+ const startPoolTournament=async(id:string)=>{const {error}=await poolRpc("start_pool_tournament",{p_tournament_id:id});if(error){toast({title:"Mashindano hayajaanza",description:error.message,variant:"destructive"});return;}await loadTournaments();toast({title:"Mashindano yameanza",description:"Ratiba ya hatua ya kwanza imeundwa."});};
  const cancelOnlineQueue=async()=>{
   const {error}=await poolRpc("cancel_pool_match_queue",{});
   if(error){toast({title:"Imeshindikana kusitisha matchmaking",description:error.message,variant:"destructive"});return;}
@@ -163,11 +205,24 @@ export default function PoolArena(){
     {queueTicket&&<Button size="sm" variant="ghost" onClick={()=>void cancelOnlineQueue()}>Cancel matchmaking</Button>}
     {onlineRoom&&<div className="rounded-lg border border-border bg-card p-3"><p className="text-[10px] text-muted-foreground">Server room</p><p className="font-mono text-lg font-black tracking-widest">{onlineRoom.room_code??onlineRoom.id}</p><p className="text-[10px] text-muted-foreground">{onlineRoom.status.toUpperCase()} · {onlineRoom.mode}</p></div>}
     {onlineNotice&&<p className="text-xs text-muted-foreground" aria-live="polite">{onlineNotice}</p>}
-    <p className="text-[10px] text-amber-600">Online PvP inahitaji migration na Edge Function mpya kupelekwa Supabase kabla ya production. Engine ya server huhesabu shot, collisions, fouls na mshindi; zawadi zibaki zimezimwa mpaka deployment na vipimo vipite.</p>
+    <div className="grid grid-cols-3 gap-2 rounded-xl border border-border bg-card p-3 text-center">
+     <div><p className="text-[10px] text-muted-foreground">Elo rating</p><p className="text-lg font-black">{poolRating?.rating??1000}</p></div>
+     <div><p className="text-[10px] text-muted-foreground">W / L</p><p className="text-lg font-black">{poolRating?.wins??0} / {poolRating?.losses??0}</p></div>
+     <div><p className="text-[10px] text-muted-foreground">Pool coins</p><p className="text-lg font-black">{poolCoins}</p></div>
+    </div>
    </div>
    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4"><button onClick={()=>{setMode("practice");reset("practice");}} className={`rounded-xl border p-2 text-xs font-bold ${mode==="practice"?"border-primary bg-primary/10 text-primary":"border-border bg-card"}`}>Practice</button><button onClick={()=>{setMode("eight");reset("eight");}} className={`rounded-xl border p-2 text-xs font-bold ${mode==="eight"?"border-primary bg-primary/10 text-primary":"border-border bg-card"}`}>8-Ball</button><button onClick={()=>{setMode("nine");reset("nine");}} className={`rounded-xl border p-2 text-xs font-bold ${mode==="nine"?"border-primary bg-primary/10 text-primary":"border-border bg-card"}`}>9-Ball</button><button onClick={()=>setCamera(c=>c==="angle"?"top":"angle")} className="rounded-xl border border-border bg-card p-2 text-xs font-bold"><Camera className="mr-1 inline h-3.5 w-3.5"/> {camera==="angle"?"Top view":"3D view"}</button></div>
    <div className="rounded-[28px] border border-amber-900/70 bg-gradient-to-br from-amber-700 via-amber-950 to-black p-3 shadow-2xl sm:p-5">
     <Pool3DTable balls={balls} camera={camera} angle={angle} aim={aim} ballInHand={onlineActive?!!onlineBallInHand:ballInHand} onPointerMove={setAimFromPointer} onClick={setAimFromPointer}/>
+   </div>
+   <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
+    <div><h3 className="text-sm font-bold">Pool tournaments</h3><p className="text-[10px] text-muted-foreground">Single-elimination bracket · 8 players · free entry</p></div>
+    <div className="flex gap-2"><input value={tournamentTitle} onChange={e=>setTournamentTitle(e.target.value.slice(0,64))} placeholder="Tournament name" className="min-w-0 flex-1 rounded-lg border border-input bg-background px-3 py-2 text-xs"/><Button size="sm" onClick={()=>void createPoolTournament()}>Create</Button></div>
+    {tournaments.map(t=><div key={t.id} className="flex items-center justify-between gap-2 rounded-lg border border-border p-2">
+      <div className="min-w-0"><p className="truncate text-xs font-bold">{t.title}</p><p className="text-[10px] text-muted-foreground">{t.mode.replace("_"," ")} · {t.status} · {t.max_players} players · prize {t.prize_pool}</p></div>
+      <div className="flex shrink-0 gap-1">{t.status==="registration"&&<Button size="sm" variant="outline" onClick={()=>void joinPoolTournament(t.id)}>Join</Button>}{t.owner_id===onlinePlayerId&&t.status==="registration"&&<Button size="sm" onClick={()=>void startPoolTournament(t.id)}>Start</Button>}</div>
+    </div>)}
+    {!tournaments.length&&<p className="text-xs text-muted-foreground">Bado hakuna mashindano ya Pool yaliyoundwa.</p>}
    </div>
    <div className="grid grid-cols-3 gap-2"><div className="rounded-xl border border-border bg-card p-3"><p className="text-[10px] text-muted-foreground">Shots</p><p className="text-xl font-black">{shownShots}</p></div><div className="rounded-xl border border-border bg-card p-3"><p className="text-[10px] text-muted-foreground">Balls left</p><p className="text-xl font-black">{remaining}</p></div><div className="rounded-xl border border-border bg-card p-3"><p className="text-[10px] text-muted-foreground">Pocketed</p><p className="text-xl font-black">{shownPocketed}</p></div></div>
    <div className="rounded-2xl border border-border bg-card p-4 space-y-3"><div className="flex items-center justify-between gap-2"><span className="text-sm font-bold">Shot controls</span><span className="text-xs text-muted-foreground">{onlineActive?(onlineMyTurn?"Your online turn":"Opponent turn"):opponent==="ai"?(playerTurn?"Your turn":"Tiger AI turn"):"Practice"} · {Math.round(angle*180/Math.PI)}°</span></div><label className="flex items-center justify-between gap-3 text-xs text-muted-foreground">Opponent<select className="rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground" value={opponent} onChange={e=>{setOpponent(e.target.value as "practice"|"ai");setPlayerTurn(true);aiShotRef.current=false;setMessage(e.target.value==="ai"?"Tiger AI amejiunga. Anacheza baada ya zamu yako.":"Practice mode.");}}><option value="practice">Practice · no opponent</option><option value="ai">Tiger AI · local opponent</option></select></label><label className="block text-xs text-muted-foreground">Power · {power}%<input className="mt-2 w-full accent-primary" type="range" min="5" max="100" value={power} onChange={e=>setPower(Number(e.target.value))} disabled={moving}/></label><div className="grid grid-cols-2 gap-2"><Button onClick={()=>shoot()} disabled={onlineActive?(!onlineMyTurn||onlineBusy||!!onlineBallInHand&&!onlineCuePosition):moving||ballInHand||(opponent==="ai"&&!playerTurn)}><Zap className="mr-2 h-4 w-4"/>SHOOT</Button><Button variant="outline" onClick={() => reset()} disabled={moving}><RotateCcw className="mr-2 h-4 w-4"/>Rack again</Button></div><p className="text-xs text-muted-foreground" aria-live="polite">{message}</p>{ballInHand&&<p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs font-semibold text-amber-600">BALL-IN-HAND: gusa sehemu tupu ya meza kuweka cue ball.</p>}<div className="flex flex-wrap gap-2"><button onClick={()=>setSound(v=>!v)} className="rounded-lg border border-border px-3 py-2 text-xs">{sound?<Volume2 className="mr-1 inline h-3.5 w-3.5"/>:<VolumeX className="mr-1 inline h-3.5 w-3.5"/>}Sound {sound?"On":"Off"}</button><button onClick={()=>setShowRules(v=>!v)} className="rounded-lg border border-border px-3 py-2 text-xs"><Settings2 className="mr-1 inline h-3.5 w-3.5"/>Game rules</button></div></div>
