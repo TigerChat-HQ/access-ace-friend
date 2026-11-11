@@ -182,7 +182,7 @@ const Create = () => {
         filter, overlay, rotation, brightness, contrast, saturation, aspectRatio, sticker,
         audience, allowComments, locationName, altText, scheduledAt,
         taggedUsers, mediaType: isVideo ? "video" : isImage ? "image" : "text", musicPath, primaryMediaPath, extraImagePaths, coverPath,
-        textColor, textScale, textPosition,
+        textColor, textScale, textPosition, trimStart, trimEnd, originalVolume, musicVolume,
       };
       const { error } = await supabase.from("post_drafts").insert({ user_id: user.id, caption, editor_state: editorState, media_paths: mediaPaths });
       if (error) throw error;
@@ -245,6 +245,10 @@ const Create = () => {
       setAltText(typeof state.altText === "string" ? state.altText : "");
       setScheduledAt(typeof state.scheduledAt === "string" ? state.scheduledAt : "");
       setTaggedUsers(Array.isArray(state.taggedUsers) ? state.taggedUsers as typeof taggedUsers : []);
+      setTrimStart(Number(state.trimStart || 0));
+      setTrimEnd(Number(state.trimEnd || 0));
+      setOriginalVolume(Number(state.originalVolume ?? 100));
+      setMusicVolume(Number(state.musicVolume ?? 35));
       const coverPath = typeof state.coverPath === "string" ? state.coverPath : null;
       if (coverPath) {
         const { data, error } = await supabase.storage.from("post-drafts").createSignedUrl(coverPath, 300);
