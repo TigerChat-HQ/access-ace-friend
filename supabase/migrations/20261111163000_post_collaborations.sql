@@ -54,3 +54,36 @@ CREATE POLICY "Accepted collaborators view shared posts" ON public.posts
         AND pc.status = 'accepted'
     )
   );
+
+-- Return only published collaboration IDs visible to the requesting profile viewer.
+-- SECURITY DEFINER avoids exposing the collaboration table broadly or creating RLS recursion.
+CREATE OR REPLACE FUNCTION public.get_profile_collaboration_post_ids(_profile_id uuid)
+RETURNS TABLE(post_id uuid)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+  SELECT pc.post_id
+  FROM public.post_collaborators pc
+  JOIN public.posts p ON p.id = pc.post_id
+  WHERE pc.invitee_id = _profile_id
+    AND pc.status = 'accepted'
+    AND p.is_draft = false
+    AND (p.scheduled_at IS NULL OR p.scheduled_at <= now())
+    AND (
+      auth.uid() = _profile_id
+      OR auth.uid() = p.user_id
+      OR p.audience = 'public'
+      OR (
+        p.audience = 'followers'
+        AND EXISTS (
+          SELECT 1 FROM public.follows f
+          WHERE f.follower_id = auth.uid()
+            AND f.following_id = p.user_id
+        )
+      )
+    );
+$$;
+REVOKE ALL ON FUNCTION public.get_profile_collaboration_post_ids(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_profile_collaboration_post_ids(uuid) TO authenticated;
