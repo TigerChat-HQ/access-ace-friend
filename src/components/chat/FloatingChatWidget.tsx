@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { MessageCircle, X, Maximize2 } from "lucide-react";
+import { MessageCircle, X, Maximize2, Settings, Minus, Plus } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 type BubblePosition = { left: number; top: number };
 
 const BUBBLE_SIZE = 56;
 const EDGE_GAP = 8;
-const POSITION_KEY = "tigerchat-floating-bubble-position";
+const POSITION_KEY = "tigerchat-floating-bubble-position";\nconst PREFS_KEY = "tigerchat-floating-bubble-prefs";\ntype BubblePrefs = { size: "small" | "normal" | "large"; color: "primary" | "blue" | "purple" | "orange"; snap: boolean };\nconst DEFAULT_PREFS: BubblePrefs = { size: "normal", color: "primary", snap: true };\nconst bubbleSizes = { small: 48, normal: 56, large: 66 };\nconst bubbleColors = { primary: "bg-primary", blue: "bg-blue-600", purple: "bg-purple-600", orange: "bg-orange-600" };
 
 const clampPosition = (position: BubblePosition): BubblePosition => ({
   left: Math.max(EDGE_GAP, Math.min(position.left, window.innerWidth - BUBBLE_SIZE - EDGE_GAP)),
@@ -19,7 +19,7 @@ const clampPosition = (position: BubblePosition): BubblePosition => ({
  */
 export const FloatingChatWidget = () => {
   const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState<BubblePosition | null>(null);
+  const [position, setPosition] = useState<BubblePosition | null>(null);\n  const [prefs, setPrefs] = useState<BubblePrefs>(() => { try { return { ...DEFAULT_PREFS, ...JSON.parse(window.localStorage.getItem(PREFS_KEY) || "{}") }; } catch { return DEFAULT_PREFS; } });\n  const [showBubbleSettings, setShowBubbleSettings] = useState(false);\n  const bubbleSize = bubbleSizes[prefs.size];
   const dragRef = useRef<{ pointerId: number; startX: number; startY: number; left: number; top: number; moved: boolean } | null>(null);
   const draggedClickRef = useRef(false);
   const location = useLocation();
@@ -55,7 +55,7 @@ export const FloatingChatWidget = () => {
     }
   }, [position]);
 
-  // The embedded chat route hides this launcher to prevent recursive iframes.
+  useEffect(() => { try { window.localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* storage may be unavailable */ } }, [prefs]);\n\n  // The embedded chat route hides this launcher to prevent recursive iframes.
   if (location.search.includes("bubble=1")) return null;
 
   const openFullChat = () => {
@@ -162,7 +162,7 @@ export const FloatingChatWidget = () => {
         aria-label={open ? "Close TigerChat or drag to move" : "Open TigerChat or drag to move"}
         aria-expanded={open}
         title="Drag to move"
-        className="fixed z-[101] flex h-14 w-14 touch-none select-none items-center justify-center rounded-full border border-primary-foreground/20 bg-primary text-primary-foreground shadow-[0_8px_30px_hsl(var(--primary)/0.4)] transition-transform duration-200 hover:scale-105 active:scale-95"
+        className={`fixed z-[101] flex touch-none select-none items-center justify-center rounded-full border border-primary-foreground/20 ${bubbleColors[prefs.color]} text-white shadow-[0_8px_30px_hsl(var(--primary)/0.4)] transition-transform duration-200 hover:scale-105 active:scale-95`}
         style={position
           ? { left: position.left, top: position.top }
           : {
