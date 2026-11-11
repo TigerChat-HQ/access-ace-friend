@@ -43,7 +43,7 @@ const PublicDraughts = lazy(() => import("./pages/PublicDraughts"));
 import { HelmetProvider } from "react-helmet-async";
 import { TwoFactorGate } from "@/components/TwoFactorSecurity";
 const queryClient = new QueryClient();
-const Spinner = () => <div className="tiger-app-safe-area min-h-screen flex items-center justify-center bg-background"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+const Spinner = () => <div className="tiger-app-safe-area min-h-screen bg-background px-4 py-5" role="status" aria-label="Loading TigerChat"><div className="mx-auto max-w-2xl space-y-4"><div className="flex items-center gap-3 pb-3"><div className="h-10 w-10 animate-pulse rounded-xl bg-primary/20" /><div className="h-4 w-32 animate-pulse rounded bg-muted" /></div><div className="h-36 animate-pulse rounded-2xl bg-muted/80" /><div className="flex gap-3">{[0,1,2,3,4].map((item) => <div key={item} className="h-12 min-w-0 flex-1 animate-pulse rounded-full bg-muted" />)}</div>{[0,1,2].map((item) => <div key={item} className="space-y-3 rounded-2xl border border-border/50 p-4"><div className="h-3 w-28 animate-pulse rounded bg-muted" /><div className="h-3 w-full animate-pulse rounded bg-muted" /><div className="h-32 animate-pulse rounded-xl bg-muted/70" /></div>)}</div><span className="sr-only">TigerChat is loading</span></div>;
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   if (loading) return <Spinner />;
