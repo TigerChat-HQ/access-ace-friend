@@ -266,13 +266,6 @@ open class MainActivity : Activity() {
         }
     }
 
-    private fun syncChatOverlayService() {
-        val enabled = getSharedPreferences("tiger_overlay", MODE_PRIVATE).getBoolean("enabled", false)
-        if (enabled && Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this)) {
-            getSharedPreferences("tiger_overlay", MODE_PRIVATE).edit().putBoolean("enabled", false).apply()
-        }
-    }
-
     private fun warmFirebaseToken() {
         val prefs = getSharedPreferences("tiger_native", MODE_PRIVATE)
         try {
@@ -307,7 +300,6 @@ open class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         warmFirebaseToken()
-        syncChatOverlayService()
     }
 
     override fun onDestroy() {
@@ -353,45 +345,6 @@ open class MainActivity : Activity() {
             }
         }
 
-        @JavascriptInterface
-        fun isChatOverlayEnabled(): Boolean =
-            getSharedPreferences("tiger_overlay", MODE_PRIVATE).getBoolean("enabled", false)
-
-        @JavascriptInterface
-        fun setChatOverlayEnabled(enabled: Boolean) {
-            runOnUiThread {
-                val prefs = getSharedPreferences("tiger_overlay", MODE_PRIVATE)
-                prefs.edit().putBoolean("enabled", enabled).apply()
-                if (!enabled) {
-                    stopService(Intent(this@MainActivity, TigerChatOverlayService::class.java))
-                    return@runOnUiThread
-                }
-                if (!Settings.canDrawOverlays(this@MainActivity)) {
-                    val permissionIntent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
-                    startActivity(permissionIntent)
-                }
-            }
-        }
-
-        @JavascriptInterface
-        fun dismissChatNotification() {
-            runOnUiThread {
-                stopService(Intent(this@MainActivity, TigerChatOverlayService::class.java))
-            }
-        }
-
-        @JavascriptInterface
-        fun showChatNotification(title: String, body: String, path: String, avatarUrl: String) {
-            if (!getSharedPreferences("tiger_overlay", MODE_PRIVATE).getBoolean("enabled", false)) return
-            if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this@MainActivity)) return
-            val intent = Intent(this@MainActivity, TigerChatOverlayService::class.java)
-                .setAction(TigerChatOverlayService.ACTION_SHOW_NOTIFICATION)
-                .putExtra(TigerChatOverlayService.EXTRA_TITLE, title)
-                .putExtra(TigerChatOverlayService.EXTRA_BODY, body)
-                .putExtra(TigerChatOverlayService.EXTRA_PATH, path)
-                .putExtra(TigerChatOverlayService.EXTRA_AVATAR, avatarUrl)
-            ContextCompat.startForegroundService(this@MainActivity, intent)
-        }
     }
 
     @Deprecated("Deprecated in Android API")
