@@ -34,6 +34,8 @@ const Draughts = () => {
   const [aiThinking, setAiThinking] = useState(false);
   const [openMatches, setOpenMatches] = useState<MatchRow[]>([]);
   const [creating, setCreating] = useState(false);
+  const [aiDifficulty, setAiDifficulty] = useState<"easy" | "medium" | "hard" | "expert">("medium");
+  const aiDepth = aiDifficulty === "easy" ? 2 : aiDifficulty === "medium" ? 3 : aiDifficulty === "hard" ? 4 : 5;
   const [flipBoard, setFlipBoard] = useState<boolean | null>(null);
   const [tigerSupervisorEnabled, setTigerSupervisorEnabled] = useState(true);
   useEffect(() => {
@@ -154,7 +156,7 @@ const Draughts = () => {
     const t = setTimeout(async () => {
       if (aiMoveInFlight.current === match.id) return;
       aiMoveInFlight.current = match.id;
-      const aiMove = pickAIMove(match.board, "b", 4);
+      const aiMove = pickAIMove(match.board, "b", aiDepth);
       if (!aiMove) {
         await supabase.rpc("commit_draft_move", {
           p_id: match.id, p_revision: match.revision, p_board: match.board as unknown as Json,
@@ -180,7 +182,7 @@ const Draughts = () => {
       setAiThinking(false);
     }, 350);
     return () => clearTimeout(t);
-  }, [match?.id, match?.current_turn, match?.vs_ai, match?.status, match?.revision, match?.board, soundEnabled, soundVolume]);
+  }, [match?.id, match?.current_turn, match?.vs_ai, match?.status, match?.revision, match?.board, soundEnabled, soundVolume, aiDepth]);
 
   const startAI = async () => {
     if (!user || creating) return;
@@ -217,6 +219,13 @@ const Draughts = () => {
     } finally {
       setCreating(false);
     }
+  };
+
+  const quickMatch = async () => {
+    if (!user || creating) return;
+    const candidate = openMatches.find((item) => item.player_white !== user.id && !item.player_black);
+    if (candidate) { await joinMatch(candidate); return; }
+    await createPvP();
   };
 
   const joinMatch = async (m: MatchRow) => {
@@ -318,7 +327,7 @@ const Draughts = () => {
                 <Bot className="w-7 h-7 text-primary" />
                 <div className="text-left">
                   <p className="font-bold text-foreground">Play vs AI</p>
-                  <p className="text-xs text-muted-foreground">Tiger AI · White moves first</p>
+                  <p className="text-xs text-muted-foreground">Tiger AI · White moves first · {aiDifficulty.toUpperCase()}</p>
                 </div>
               </button>
               <button
@@ -345,7 +354,7 @@ const Draughts = () => {
           )}
           {mode === "pvp" && !match && (
             <>
-              <Button onClick={createPvP} disabled={creating} className="w-full">
+              <Button onClick={quickMatch} disabled={creating} className="w-full">Quick Match · Find opponent</Button>\n              <Button onClick={createPvP} disabled={creating} className="w-full">
                 {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create new match"}
               </Button>
               <div className="flex gap-2">
