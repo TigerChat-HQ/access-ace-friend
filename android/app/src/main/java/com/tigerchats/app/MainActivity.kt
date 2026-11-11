@@ -27,6 +27,7 @@ open class MainActivity : Activity() {
     private val siteUrl = "https://tigerchat-hq.onrender.com"
     private var pendingPath = "/"
     private var pendingQuickReply: String? = null
+    private var pendingNativeCallType: String? = null
     private var pageLoaded = false
     private var pendingMediaPermissionRequest: PermissionRequest? = null
     private var pendingMediaAndroidPermissions: Array<String> = emptyArray()
@@ -63,6 +64,7 @@ open class MainActivity : Activity() {
                 applyNativeViewportHeight(view)
                 applyPendingPath(view)
                 deliverPendingQuickReply(view)
+                deliverPendingNativeCall(view)
             }
         }
         webView.webChromeClient = object : WebChromeClient() {
@@ -119,6 +121,7 @@ open class MainActivity : Activity() {
         }
         pendingPath = safePath(intent?.getStringExtra("path"))
         pendingQuickReply = intent?.getStringExtra(EXTRA_QUICK_REPLY)
+        pendingNativeCallType = intent?.getStringExtra(EXTRA_NATIVE_CALL_TYPE)?.takeIf { it == "voice" || it == "video" }
         webView.loadUrl(siteUrl + "/")
         warmFirebaseToken()
     }
@@ -195,6 +198,21 @@ open class MainActivity : Activity() {
             }
         }
     }
+    private fun deliverPendingNativeCall(view: WebView) {
+        val callType = pendingNativeCallType ?: return
+        val conversationId = Regex("[?&]c=([0-9a-fA-F-]{36})")
+            .find(pendingPath)?.groupValues?.getOrNull(1) ?: return
+        val payload = org.json.JSONObject()
+            .put("callType", callType)
+            .put("conversationId", conversationId)
+        view.evaluateJavascript(
+            "window.__tigerPendingNativeCall = $payload; window.dispatchEvent(new CustomEvent('tiger:native-start-call',{detail:$payload}));",
+            null,
+        )
+        pendingNativeCallType = null
+        intent?.removeExtra(EXTRA_NATIVE_CALL_TYPE)
+    }
+
     private fun deliverPendingQuickReply(view: WebView) {
         val reply = pendingQuickReply?.takeIf { it.isNotBlank() } ?: return
         val conversationId = Regex("[?&]c=([0-9a-fA-F-]{36})")
@@ -228,10 +246,13 @@ open class MainActivity : Activity() {
         intent.getStringExtra(EXTRA_QUICK_REPLY)?.takeIf { it.isNotBlank() }?.let {
             pendingQuickReply = it
         }
+        pendingNativeCallType = intent.getStringExtra(EXTRA_NATIVE_CALL_TYPE)
+            ?.takeIf { it == "voice" || it == "video" }
         if (!::webView.isInitialized) return
         if (pageLoaded) {
             applyPendingPath(webView)
             deliverPendingQuickReply(webView)
+            deliverPendingNativeCall(webView)
         } else {
             webView.loadUrl(siteUrl + "/")
         }
@@ -380,6 +401,7 @@ open class MainActivity : Activity() {
 
     companion object {
         const val EXTRA_QUICK_REPLY = "tiger_quick_reply"
+        const val EXTRA_NATIVE_CALL_TYPE = "tiger_native_call_type"
         private const val MEDIA_PERMISSION_REQUEST_CODE = 7302
     }
 }

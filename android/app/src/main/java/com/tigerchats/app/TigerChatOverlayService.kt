@@ -359,11 +359,50 @@ class TigerChatOverlayService : Service() {
                         "window.__tigerPendingNativePath = $encodedPath; window.dispatchEvent(new CustomEvent('tiger:native-navigate',{detail:$encodedPath}));",
                         null,
                     )
+                    view.evaluateJavascript(
+                        """
+                        (function() {
+                          if (window.__tigerOverlayCallBridgeInstalled) return;
+                          window.__tigerOverlayCallBridgeInstalled = true;
+                          document.addEventListener('click', function(event) {
+                            var target = event.target;
+                            var button = target && target.closest ? target.closest('button') : null;
+                            if (!button) return;
+                            var label = ((button.getAttribute('aria-label') || '') + ' ' + (button.getAttribute('title') || '')).toLowerCase();
+                            var callType = label.includes('video call') ? 'video' : (label.includes('voice call') ? 'voice' : null);
+                            if (!callType) return;
+                            event.preventDefault();
+                            event.stopPropagation();
+                            if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+                            if (window.TigerNative && window.TigerNative.startCallInMainActivity) {
+                              window.TigerNative.startCallInMainActivity(callType);
+                            }
+                          }, true);
+                        })();
+                        """.trimIndent(),
+                        null,
+                    )
                 }
             }
             addJavascriptInterface(object {
                 @JavascriptInterface
                 fun dismissChatNotification() { mainHandler.post { stopSelf() } }
+
+                @JavascriptInterface
+                fun startCallInMainActivity(callType: String) {
+                    if (callType != "voice" && callType != "video") return
+                    mainHandler.post {
+                        val launch = Intent(this@TigerChatOverlayService, MainActivity::class.java)
+                            .putExtra("path", safeChatPath(chatPath))
+                            .putExtra(MainActivity.EXTRA_NATIVE_CALL_TYPE, callType)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        try {
+                            startActivity(launch)
+                        } catch (error: Exception) {
+                            android.util.Log.e("TigerChatOverlay", "Could not open main Activity for call", error)
+                        }
+                    }
+                }
             }, "TigerNative")
             setBackgroundColor(Color.rgb(12, 18, 17))
             loadUrl("https://tigerchat-hq.onrender.com/")
