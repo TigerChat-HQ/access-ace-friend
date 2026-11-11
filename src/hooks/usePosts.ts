@@ -160,8 +160,7 @@ export const useUserPosts = (userId: string | undefined) => {
   const fetch = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
-    const { data: collaborations } = await supabase.from("post_collaborators" as any)
-      .select("post_id").eq("invitee_id", userId).eq("status", "accepted") as any;
+    const { data: collaborations } = await supabase.rpc("get_profile_collaboration_post_ids" as any, { _profile_id: userId } as any) as any;
     const collaborationIds = (collaborations || []).map((row: { post_id: string }) => row.post_id);
     const [ownedResult, collaborativeResult] = await Promise.all([
       supabase.from("posts").select("*").eq("user_id", userId),
