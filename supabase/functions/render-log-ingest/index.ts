@@ -8,10 +8,7 @@ const cors = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
-type RenderLabel = { name: string; value: string };
-type RenderLog = { id: string; message: string; timestamp: string; labels?: RenderLabel[] };
 type RenderEvent = { id: string; timestamp: string; type: string; details?: Record<string, unknown> };
-const labelMap = (log: RenderLog) => Object.fromEntries((log.labels || []).map(({ name, value }) => [name, value]));
 const redact = (value: string) => value
   .replace(/Bearer\s+[^\s]+/gi, "Bearer [REDACTED]")
   .replace(/(password|token|secret|authorization|api[_-]?key)(["']?\s*[:=]\s*["']?)[^&\s,"']+/gi, "$1$2[REDACTED]")
@@ -60,53 +57,27 @@ Deno.serve(async (req: Request) => {
     const minutes = Math.min(60, Math.max(5, Number(requested?.window_minutes) || 15));
     const end = new Date();
     const start = new Date(end.getTime() - minutes * 60_000);
-    const base = new URL("https://api.render.com/v1/logs");
-    base.searchParams.set("ownerId", ownerId);
-    base.searchParams.append("resource", serviceId);
-    base.searchParams.set("startTime", start.toISOString());
-    base.searchParams.set("endTime", end.toISOString());
-    base.searchParams.set("direction", "backward");
-    base.searchParams.set("limit", "100");
-
-    const fetchLogs = async () => {
-      const url = new URL(base);
-      url.searchParams.append("type", "build");
-      const response = await fetch(url, {
-        headers: { Accept: "application/json", Authorization: `Bearer ${renderApiKey}` },
-        signal: AbortSignal.timeout(20_000),
-      });
-      if (!response.ok) {
-        const detail = response.status === 401 || response.status === 403
-          ? "Render API key haina ruhusa ya kusoma logs za workspace hii."
-          : `Render Logs API imerudisha HTTP ${response.status}.`;
-        throw new Error(detail);
-      }
-      const payload = await response.json();
-      return (Array.isArray(payload?.logs) ? payload.logs : []) as RenderLog[];
-    };
-
-    const fetchEvents = async () => {
-      const url = new URL(`https://api.render.com/v1/services/${encodeURIComponent(serviceId)}/events`);
-      url.searchParams.set("startTime", start.toISOString());
-      url.searchParams.set("endTime", end.toISOString());
-      url.searchParams.set("limit", "100");
-      const response = await fetch(url, {
-        headers: { Accept: "application/json", Authorization: `Bearer ${renderApiKey}` },
-        signal: AbortSignal.timeout(20_000),
-      });
-      if (!response.ok) throw new Error(`Render Events API imerudisha HTTP ${response.status}.`);
-      const payload = await response.json();
-      return (Array.isArray(payload) ? payload : [])
-        .map((item: { event?: RenderEvent }) => item.event)
-        .filter((event: RenderEvent | undefined): event is RenderEvent => Boolean(event?.id));
-    };
-
-    const [logs, events] = await Promise.all([fetchLogs(), fetchEvents()]);
-    const problematicLogs = logs.filter((log) => {
-      const labels = labelMap(log);
-      return labels.level && labels.level !== "info"
-        || /\b(error|failed|failure|warning|warn|exception|out of memory|killed)\b|\(!\)/i.test(log.message || "");
+    // Render explicitly does not emit logs for Static Sites. Use its supported
+    // service Events API instead of querying the Logs API with an unsupported resource.
+    const url = new URL(`https://api.render.com/v1/services/${encodeURIComponent(serviceId)}/events`);
+    url.searchParams.set("startTime", start.toISOString());
+    url.searchParams.set("endTime", end.toISOString());
+    url.searchParams.set("limit", "100");
+    const response = await fetch(url, {
+      headers: { Accept: "application/json", Authorization: `Bearer ${renderApiKey}` },
+      signal: AbortSignal.timeout(20_000),
     });
+    if (!response.ok) {
+      const detail = response.status === 401 || response.status === 403
+        ? "Render API key haina ruhusa ya kusoma events za workspace hii."
+        : `Render Events API imerudisha HTTP ${response.status}.`;
+      throw new Error(detail);
+    }
+    const payload = await response.json();
+    const events = (Array.isArray(payload) ? payload : [])
+      .map((item: { event?: RenderEvent }) => item.event)
+      .filter((event: RenderEvent | undefined): event is RenderEvent => Boolean(event?.id));
+
     const failedEvents = events.filter((event) => {
       const details = event.details || {};
       if (event.type === "server_failed" || event.type === "server_hardware_failure" || event.type === "image_pull_failed" || event.type === "artifact_fetch_failed") return true;
@@ -117,11 +88,24 @@ Deno.serve(async (req: Request) => {
 
     let ingested = 0;
     let failed = 0;
-    const save = async (record: Record<string, unknown>, sourceId: string) => {
+    for (const event of failedEvents) {
       try {
-        const signature = await sha256(`render:${sourceId}`);
+        const details = event.details || {};
+        const detailText = redact(JSON.stringify(details));
+        const signature = await sha256(`render:event:${event.id}`);
+        const severity = ["server_failed", "server_hardware_failure"].includes(event.type) ? "critical" : "high";
         const { error } = await adminClient.rpc("ingest_render_server_diagnostic", {
-          p_record: record,
+          p_record: {
+            source: "render_server",
+            severity,
+            category: `render_${event.type}`,
+            title: `Render hosting event failed: ${event.type}`,
+            message: detailText,
+            component_name: "Render deployment / hosting",
+            action_label: event.type,
+            suggestion: "Kagua maelezo ya event na deploy history kwenye Render. Static Site haina runtime logs.",
+            metadata: { platform: "render", renderEventId: event.id, resourceId: serviceId, eventType: event.type, timestamp: event.timestamp, details },
+          },
           p_signature: signature,
         });
         if (error) throw error;
@@ -129,58 +113,22 @@ Deno.serve(async (req: Request) => {
       } catch {
         failed += 1;
       }
-    };
-
-    for (const log of problematicLogs) {
-      const labels = labelMap(log);
-      const level = (labels.level || "warning").toLowerCase();
-      const severity = ["critical", "alert", "emergency", "error"].includes(level) ? "critical" : "medium";
-      const message = redact(log.message || "Render build warning");
-      await save({
-        source: "render_server",
-        severity,
-        category: "render_build_log",
-        title: `Render build ${level}: ${message.slice(0, 170)}`,
-        message,
-        component_name: "Render Static Site build",
-        action_label: "Render build log",
-        suggestion: "Kagua build command, dependency versions, Vite output na deploy iliyokuwa inaendelea wakati wa warning/error.",
-        metadata: { platform: "render", renderLogId: log.id, resourceId: serviceId, level, type: labels.type || "build", timestamp: log.timestamp },
-      }, `log:${log.id}`);
-    }
-
-    for (const event of failedEvents) {
-      const details = event.details || {};
-      const detailText = redact(JSON.stringify(details));
-      const severity = ["server_failed", "server_hardware_failure"].includes(event.type) ? "critical" : "high";
-      await save({
-        source: "render_server",
-        severity,
-        category: `render_${event.type}`,
-        title: `Render hosting event failed: ${event.type}`,
-        message: detailText,
-        component_name: "Render deployment / hosting",
-        action_label: event.type,
-        suggestion: "Kagua maelezo ya event, build logs, deploy history na service health kwenye Render.",
-        metadata: { platform: "render", renderEventId: event.id, resourceId: serviceId, eventType: event.type, timestamp: event.timestamp, details },
-      }, `event:${event.id}`);
     }
 
     return json({
       ok: true,
       serviceType: "static_site",
       runtimeServerLogsAvailable: false,
-      fetchedBuildLogs: logs.length,
-      matchedBuildIssues: problematicLogs.length,
+      buildLogsAvailable: false,
       fetchedHostingEvents: events.length,
       failedHostingEvents: failedEvents.length,
       ingested,
       failed,
       windowMinutes: minutes,
       checkedAt: end.toISOString(),
-      note: "Render Static Sites do not emit runtime server or HTTP request logs; this collector captures build logs and hosting/deploy failure events.",
+      note: "Render Static Sites do not emit runtime or build logs through the Logs API. This collector captures failed build/deploy/hosting events only; deploy log details remain available in the Render Dashboard.",
     });
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Render log collection failed" }, 502);
+    return json({ error: error instanceof Error ? error.message : "Render event collection failed" }, 502);
   }
 });
