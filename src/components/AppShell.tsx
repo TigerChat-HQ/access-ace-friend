@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Home, MessageCircle, Users, User as UserIcon, Trophy, Mail, Settings, Bot, Bell, Crown } from "lucide-react";
+import { Home, MessageCircle, Users, User as UserIcon, Trophy, BookOpen, Mail, Settings, Bot, Bell, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import logo from "@/assets/tigerchats-logo.png";
 import { useAuth } from "@/contexts/AuthContext";
@@ -198,6 +198,7 @@ export const AppShell = () => {
     { to: "/chats", icon: MessageCircle, label: "Chats", badge: unreadMessages },
     { to: "/groups", icon: Users, label: "Groups", badge: 0 },
     { to: "/games", icon: Trophy, label: "Games", badge: 0 },
+    { to: "/books", icon: BookOpen, label: "Books", badge: 0 },
     { to: `/u/${user?.id ?? ""}`, icon: UserIcon, label: "Profile", badge: unreadNotifications },
     ...(!roleLoading && isAdmin ? [{ to: "/admin", icon: Crown, label: "Admin Panel", badge: 0 }] : []),
   ];
