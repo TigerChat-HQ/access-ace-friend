@@ -16,6 +16,9 @@ create index if not exists tiger_ai_social_cards_active_idx
   on public.tiger_ai_social_cards (expires_at desc, created_at desc);
 create index if not exists tiger_ai_social_cards_day_idx
   on public.tiger_ai_social_cards (date_key, created_at desc);
+-- A daily generation run may be retried or overlap; keep one card of each type per Tanzania day.
+create unique index if not exists tiger_ai_social_cards_one_type_per_day_idx
+  on public.tiger_ai_social_cards (date_key, card_type);
 
 alter table public.tiger_ai_social_cards enable row level security;
 revoke all on public.tiger_ai_social_cards from anon, authenticated;
