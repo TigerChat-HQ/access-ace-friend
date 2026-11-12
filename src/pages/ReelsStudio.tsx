@@ -78,6 +78,7 @@ const ReelsStudio = () => {
   const [filterPreset, setFilterPreset] = useState("none");
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [timelineRendered, setTimelineRendered] = useState(false);
+  const [renderedEditsDirty, setRenderedEditsDirty] = useState(false);
   const [renderingTimeline, setRenderingTimeline] = useState(false);
   const [renderProgress, setRenderProgress] = useState(0);
   const [scheduleAt, setScheduleAt] = useState("");
@@ -91,6 +92,8 @@ const ReelsStudio = () => {
   const [scheduledReels, setScheduledReels] = useState<Array<{ id: string; caption: string | null; scheduled_at: string }>>([]);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [recordingCamera, setRecordingCamera] = useState(false);
+
+  const markTimelineDirty = () => { if (timelineRendered) setRenderedEditsDirty(true); setTimelineRendered(false); };
 
   const refreshDrafts = useCallback(async () => {
     if (!user) return;
@@ -308,7 +311,7 @@ const ReelsStudio = () => {
     try {
       const assets = await ensureUploaded();
       if (!assets.nextVideoPath) throw new Error("Choose a video before saving a draft.");
-      if ((timelineFiles.length > 1 || filterPreset !== "none" || playbackSpeed !== 1 || trimStart > 0 || (trimEnd !== null && duration > 0 && trimEnd < duration - 0.1)) && !timelineRendered) throw new Error("Render your timeline and edits before saving the draft.");
+      if (renderedEditsDirty || (timelineFiles.length > 1 || filterPreset !== "none" || playbackSpeed !== 1 || trimStart > 0 || (trimEnd !== null && duration > 0 && trimEnd < duration - 0.1)) && !timelineRendered) throw new Error("Render your timeline and edits before saving the draft.");
       const values = {
         user_id: user.id,
         caption,
@@ -532,6 +535,7 @@ const ReelsStudio = () => {
       setFilterPreset("none");
       setPlaybackSpeed(1);
       setTimelineRendered(true);
+      setRenderedEditsDirty(false);
       toast({ title: "Edited Reel is ready", description: "Your clips, trim, speed, filter and captions are now rendered into one video." });
     } catch (error) {
       toast({ title: "Could not render Reel", description: error instanceof Error ? error.message : "Try a smaller clip or fewer clips.", variant: "destructive" });
@@ -650,6 +654,7 @@ const ReelsStudio = () => {
       if (recordingVoice || listeningCaptions || recordingCamera) throw new Error("Stop camera, voiceover and automatic captions before publishing.");
       if (!videoFile && !videoPath) throw new Error("Choose a video first.");
       if (remixType === "duet" && !duetFile) throw new Error("The original video could not be loaded for this duet. Try again or choose Remix.");
+      if (renderedEditsDirty) throw new Error("Your exported video is out of date. Render your latest edits before publishing.");
       if (timelineFiles.length > 1 && !timelineRendered) throw new Error("Render your multi-clip timeline before publishing.");
       if ((filterPreset !== "none" || playbackSpeed !== 1 || trimStart > 0 || (trimEnd !== null && duration > 0 && trimEnd < duration - 0.1)) && !timelineRendered) throw new Error("Render your trim, speed and filter edits before publishing.");
       if (videoFile && videoFile.size > 150 * 1024 * 1024) throw new Error("Video exceeds the 150 MB upload limit.");
