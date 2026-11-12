@@ -1,4 +1,34 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
+
+type BooksDatabase = {
+  public: {
+    Tables: {
+      books_daily_chapters: {
+        Row: { id: string; story_id: string; episode_number: number; publish_date: string; title: string; body: string; recap: string; created_at: string };
+        Insert: { id?: string; story_id: string; episode_number: number; publish_date: string; title: string; body: string; recap: string; created_at?: string };
+        Update: Partial<{ story_id: string; episode_number: number; publish_date: string; title: string; body: string; recap: string }>;
+        Relationships: [];
+      };
+      tiger_ai_smart_cards: {
+        Row: { id: string; publish_date: string; placement: "post" | "status"; category: "sheria" | "elimu" | "historia" | "afya" | "maarifa"; source_key: string; title: string; hook: string; body: string; source_title: string; source_reference: string | null; source_url: string; jurisdiction: string | null; read_more_url: string; verified: boolean; is_active: boolean; created_at: string };
+        Insert: { id?: string; publish_date: string; placement: "post" | "status"; category: "sheria" | "elimu" | "historia" | "afya" | "maarifa"; source_key: string; title: string; hook: string; body: string; source_title: string; source_reference?: string | null; source_url: string; jurisdiction?: string | null; read_more_url: string; verified?: boolean; is_active?: boolean; created_at?: string };
+        Update: Partial<{ publish_date: string; placement: "post" | "status"; category: "sheria" | "elimu" | "historia" | "afya" | "maarifa"; source_key: string; title: string; hook: string; body: string; source_title: string; source_reference: string | null; source_url: string; jurisdiction: string | null; read_more_url: string; verified: boolean; is_active: boolean }>;
+        Relationships: [];
+      };
+      tiger_books_ai_config: {
+        Row: { id: boolean; cron_token: string; enabled: boolean; updated_at: string };
+        Insert: { id?: boolean; cron_token: string; enabled?: boolean; updated_at?: string };
+        Update: Partial<{ cron_token: string; enabled: boolean; updated_at: string }>;
+        Relationships: [];
+      };
+    };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
+  };
+};
+type AdminClient = SupabaseClient<BooksDatabase, "public", "public">;
 
 type StorySpec = { id: string; title: string; premise: string };
 type ApprovedSource = {
@@ -142,7 +172,7 @@ const dateInTanzania = () => {
 const safeText = (value: unknown, max: number, fallback: string) =>
   String(value ?? "").replace(/[<>]/g, "").trim().slice(0, max) || fallback;
 
-async function generateStoryChapter(admin: ReturnType<typeof createClient>, story: StorySpec, publishDate: string) {
+async function generateStoryChapter(admin: AdminClient, story: StorySpec, publishDate: string) {
   const { data: existing, error: existingError } = await admin
     .from("books_daily_chapters").select("id").eq("story_id", story.id).eq("publish_date", publishDate).maybeSingle();
   if (existingError) throw existingError;
@@ -256,7 +286,7 @@ Deno.serve(async (req: Request) => {
     if (!url || !serviceKey) return json({ error: "Books AI service is not configured." }, 500);
 
     const body = await req.json().catch(() => ({}));
-    const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+    const admin: AdminClient = createClient<BooksDatabase>(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
     const { data: config, error: configError } = await admin
       .from("tiger_books_ai_config").select("cron_token,enabled").eq("id", true).single();
     if (configError || !config?.enabled || !config.cron_token || body?.token !== config.cron_token) {
