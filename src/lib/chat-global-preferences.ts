@@ -31,13 +31,13 @@ const cache = (userId: string, preferences: Partial<ChatPrefs>) => {
 export const loadGlobalChatPreferences = async (userId: string): Promise<Partial<ChatPrefs>> => {
   const fallback = getGlobalChatPreferences(userId);
   const { data, error } = await supabase
-    .from("user_chat_defaults")
-    .select("wallpaper,bubble_color,font_size")
+    .from("profiles")
+    .select("chat_defaults")
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (error || !data) return fallback;
-  const remote = sanitize(data as Partial<ChatPrefs>);
+  if (error || !data?.chat_defaults) return fallback;
+  const remote = sanitize(data.chat_defaults as Partial<ChatPrefs>);
   cache(userId, remote);
   return remote;
 };
@@ -50,12 +50,14 @@ export const saveGlobalChatPreferences = (userId: string, preferences: Partial<C
 
 export const persistGlobalChatPreferences = async (userId: string, preferences: Partial<ChatPrefs>) => {
   const next = saveGlobalChatPreferences(userId, preferences);
-  const { error } = await supabase.from("user_chat_defaults").upsert(
+  const { error } = await supabase.from("profiles").upsert(
     {
       user_id: userId,
-      wallpaper: next.wallpaper ?? "default",
-      bubble_color: next.bubble_color ?? "primary",
-      font_size: next.font_size ?? "medium",
+      chat_defaults: {
+        wallpaper: next.wallpaper ?? "default",
+        bubble_color: next.bubble_color ?? "primary",
+        font_size: next.font_size ?? "medium",
+      },
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id" }
@@ -73,6 +75,9 @@ export const resetGlobalChatPreferences = (userId: string) => {
 
 export const deleteGlobalChatPreferences = async (userId: string) => {
   resetGlobalChatPreferences(userId);
-  const { error } = await supabase.from("user_chat_defaults").delete().eq("user_id", userId);
+  const { error } = await supabase
+    .from("profiles")
+    .update({ chat_defaults: { wallpaper: "default", bubble_color: "primary", font_size: "medium" } })
+    .eq("user_id", userId);
   return { error };
 };
