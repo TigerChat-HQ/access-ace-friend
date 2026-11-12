@@ -61,7 +61,15 @@ const EXPECTED_TABLES = [
   "draughts_tournament_awards","draughts_achievement_catalog","draughts_user_achievements",
   "game_questions","game_attempts","quiz_question_history","tiger_ai_daily_posts",
   "tiger_ai_daily_post_likes","tiger_ai_daily_comments","tiger_ai_daily_comment_likes",
-  "dev_tasks","dev_audit_log","trophies","user_trophies","app_diagnostics","admin_diagnostic_notifications"
+  "dev_tasks","dev_audit_log","trophies","user_trophies","app_diagnostics","admin_diagnostic_notifications",
+  // Tables added by Books, Connect Four, Stories, Posts and Tiger AI features.
+  "books_daily_chapters","books_reading_progress",
+  "connect_four_matches","connect_four_player_stats","connect_four_reward_ledger",
+  "draft_matches","post_collaborators","post_saves",
+  "story_audience_members","story_comments","story_reactions",
+  "tiger_ai_daily_config","tiger_ai_smart_card_comment_likes","tiger_ai_smart_card_comments",
+  "tiger_ai_smart_card_likes","tiger_ai_smart_cards","tiger_ai_social_card_config",
+  "tiger_ai_social_cards","tiger_books_ai_config"
 ];
 
 export const AdminDiagnostics = () => {
