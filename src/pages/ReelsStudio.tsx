@@ -63,7 +63,6 @@ const ReelsStudio = () => {
   const voiceStreamRef = useRef<MediaStream | null>(null);
   const voiceChunksRef = useRef<Blob[]>([]);
   const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const cameraPreviewRef = useRef<HTMLVideoElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cameraRecorderRef = useRef<MediaRecorder | null>(null);
   const cameraChunksRef = useRef<Blob[]>([]);
@@ -468,11 +467,7 @@ const ReelsStudio = () => {
     }
   };
 
-  useEffect(() => {
-    if (!cameraOpen || !cameraPreviewRef.current || !cameraStreamRef.current) return;
-    cameraPreviewRef.current.srcObject = cameraStreamRef.current;
-    void cameraPreviewRef.current.play().catch(() => undefined);
-  }, [cameraOpen]);
+
 
   const stopCameraStream = () => {
     cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
