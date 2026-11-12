@@ -84,6 +84,7 @@ const ReelsStudio = () => {
   const [originalReelId, setOriginalReelId] = useState<string | null>(null);
   const [remixType, setRemixType] = useState<"remix" | "duet" | null>(null);
   const [duetFile, setDuetFile] = useState<File | null>(null);
+  const [scheduledReels, setScheduledReels] = useState<Array<{ id: string; caption: string | null; scheduled_at: string }>>([]);
 
   const refreshDrafts = useCallback(async () => {
     if (!user) return;
@@ -145,6 +146,17 @@ const ReelsStudio = () => {
     })();
     return () => { active = false; };
   }, [searchParams, user, toast]);
+
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    void db.from("posts").select("id,caption,scheduled_at")
+      .eq("user_id", user.id).eq("media_type", "video").eq("is_draft", false)
+      .gt("scheduled_at", new Date().toISOString())
+      .order("scheduled_at", { ascending: true }).limit(20)
+      .then(({ data, error }) => { if (active && !error) setScheduledReels((data || []) as typeof scheduledReels); });
+    return () => { active = false; };
+  }, [user]);
 
   useEffect(() => () => {
     if (voiceRecorderRef.current?.state === "recording") voiceRecorderRef.current.stop();
@@ -315,6 +327,7 @@ const ReelsStudio = () => {
     setCoverPath(draft.cover_path);
     setCoverUrl(await privateUrl(draft.cover_path));
     setAudioPath(draft.audio_path);
+    setAudioLibraryUrl(null);
     setAudioUrl(await privateUrl(draft.audio_path));
     setAudioFile(null);
     setAudioTitle(draft.audio_title || "");
@@ -672,7 +685,7 @@ const ReelsStudio = () => {
           <div className="rounded-2xl border border-border/60 bg-card p-4">
             <div className="mb-3 flex items-center gap-2"><AudioLines className="h-4 w-4 text-primary" /><h2 className="text-sm font-semibold text-foreground">Audio track</h2></div>
             <input value={audioTitle} onChange={(e) => setAudioTitle(e.target.value)} placeholder="Track title (optional)" className="mb-2 w-full rounded-lg bg-background p-2 text-sm text-foreground" />
-            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border p-3 text-sm text-muted-foreground"><Upload className="h-4 w-4" /> Upload your original or licensed audio<input type="file" accept="audio/*" className="hidden" onChange={(e) => { setAudioFile(e.target.files?.[0] || null); setAudioPath(null); setAudioUrl(null); if (e.target.files?.[0] && !audioTitle) setAudioTitle(e.target.files[0].name); }} /></label>
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border p-3 text-sm text-muted-foreground"><Upload className="h-4 w-4" /> Upload your original or licensed audio<input type="file" accept="audio/*" className="hidden" onChange={(e) => { setAudioFile(e.target.files?.[0] || null); setAudioPath(null); setAudioLibraryUrl(null); setAudioUrl(null); if (e.target.files?.[0] && !audioTitle) setAudioTitle(e.target.files[0].name); }} /></label>
             <button type="button" disabled={busy} onClick={() => void toggleVoiceover()} className={`mt-2 flex w-full items-center justify-center gap-2 rounded-xl p-3 text-sm font-semibold ${recordingVoice ? "bg-destructive text-destructive-foreground" : "bg-secondary text-secondary-foreground"}`}>
               <span className={recordingVoice ? "h-2 w-2 animate-pulse rounded-full bg-current" : "h-2 w-2 rounded-full bg-primary"} />
               {recordingVoice ? "Stop voiceover recording" : "Record voiceover"}
@@ -732,6 +745,15 @@ const ReelsStudio = () => {
             </div>
           </div>
 
+          {scheduledReels.length > 0 && <div className="rounded-2xl border border-border/60 bg-card p-4">
+            <h2 className="mb-3 text-sm font-semibold text-foreground">Upcoming scheduled Reels</h2>
+            <div className="space-y-2">
+              {scheduledReels.map((item) => <div key={item.id} className="rounded-lg bg-background p-3">
+                <p className="truncate text-xs font-medium text-foreground">{item.caption || "Untitled Reel"}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">{new Date(item.scheduled_at).toLocaleString()}</p>
+              </div>)}
+            </div>
+          </div>}
           <div className="rounded-2xl border border-border/60 bg-card p-4">
             <h2 className="mb-3 text-sm font-semibold text-foreground">Saved drafts</h2>
             {drafts.length ? drafts.map((draft) => <div key={draft.id} className="mb-2 flex items-center gap-2 rounded-xl bg-background p-2"><button onClick={() => void openDraft(draft).catch((error) => toast({ title: "Could not open draft", description: error instanceof Error ? error.message : "Try again.", variant: "destructive" }))} className="min-w-0 flex-1 text-left"><span className="block truncate text-sm text-foreground">{draft.caption || "Untitled Reel"}</span><span className="text-[11px] text-muted-foreground">Updated {new Date(draft.updated_at).toLocaleString()}</span></button><button onClick={() => void removeDraft(draft.id)} aria-label="Delete draft" className="p-2 text-destructive"><Trash2 className="h-4 w-4" /></button></div>) : <p className="py-4 text-center text-xs text-muted-foreground">Your saved drafts will appear here.</p>}
