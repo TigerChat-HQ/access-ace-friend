@@ -6,6 +6,7 @@ export type ReelTimelineOptions = {
   filter?: string;
   speed?: number;
   musicFile?: File | null;
+  musicStartSeconds?: number;
   originalVolume?: number;
   musicVolume?: number;
   captions?: ReelCaption[];
@@ -89,6 +90,7 @@ export async function renderReelTimeline(options: ReelTimelineOptions): Promise<
       musicElement.loop = true;
       musicElement.preload = "auto";
       await waitFor(musicElement, "loadedmetadata");
+      musicElement.currentTime = Math.max(0, Math.min(options.musicStartSeconds ?? 0, Math.max(0, musicElement.duration - 0.1)));
       const musicSource = audioContext.createMediaElementSource(musicElement);
       const musicGain = audioContext.createGain();
       musicGain.gain.value = Math.max(0, Math.min(options.musicVolume ?? 0.7, 1));
