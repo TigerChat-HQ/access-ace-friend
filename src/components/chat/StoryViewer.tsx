@@ -248,6 +248,19 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId, onS
     };
   }, [story?.musicUrl, currentIndex]);
 
+  // Keep media playback in sync with press-and-hold pause and the replies panel.
+  useEffect(() => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (paused || commentsOpen) {
+      video?.pause();
+      audio?.pause();
+      return;
+    }
+    if (isVideo && video) void video.play().catch(() => undefined);
+    if (story?.musicUrl && audio) void audio.play().catch(() => undefined);
+  }, [paused, commentsOpen, currentIndex, isVideo, story?.musicUrl]);
+
   const toggleSound = async () => {
     const nextMuted = !muted;
     setMuted(nextMuted);
@@ -351,7 +364,14 @@ export const StoryViewer = ({ stories, initialIndex, onClose, currentUserId, onS
         </div>
       </div>
 
-      <div className="w-full h-full flex items-center justify-center">
+      <div
+        className="w-full h-full flex items-center justify-center touch-pan-y"
+        onPointerDown={(event) => { if (event.pointerType !== "mouse" || event.button === 0) setPaused(true); }}
+        onPointerUp={() => setPaused(false)}
+        onPointerCancel={() => setPaused(false)}
+        onPointerLeave={() => setPaused(false)}
+        aria-label="Press and hold to pause status"
+      >
         {isText ? (
           <div className="w-full h-full flex items-center justify-center px-8 text-center text-white font-bold whitespace-pre-wrap" style={{ backgroundColor: story.backgroundColor || "#6D28D9", fontFamily: story.textOverlay?.text_font || "sans-serif", fontSize: (story.textOverlay?.text_size || 30) + "px" }}>
             {story.caption || story.textOverlay?.text || "Status"}
