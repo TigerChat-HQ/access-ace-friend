@@ -177,7 +177,8 @@ BEGIN
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.story_comments;
   END IF;
-END $;
+END;
+$;
 
 DROP POLICY IF EXISTS "Users record views" ON public.story_views;
 CREATE POLICY "Users record views" ON public.story_views
