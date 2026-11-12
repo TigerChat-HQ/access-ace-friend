@@ -83,4 +83,4 @@ GRANT EXECUTE ON FUNCTION public.touch_my_chat_presence() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_chat_presence() TO authenticated;
 
 COMMENT ON TABLE private.chat_presence IS
-  'Private per-user chat presence timestamps; read only through membership-checked RPC.';
+  'Private per-user chat presence timestamps; online is inferred from a heartbeat within 90 seconds and read only through membership-checked RPC.';
