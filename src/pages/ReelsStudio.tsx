@@ -166,9 +166,11 @@ const ReelsStudio = () => {
   const uploadPublishedFile = async (file: File, kind: string) => {
     if (!user) throw new Error("Sign in required");
     const extension = file.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "") || (kind === "video" ? "mp4" : "bin");
-    const publicPath = `${user.id}/reels/published-${kind}-${crypto.randomUUID()}.${extension}`;
     let lastError: Error | null = null;
     for (let attempt = 1; attempt <= 3; attempt += 1) {
+      // A fresh key per attempt avoids a duplicate-object conflict if the
+      // previous request reached Storage but its response was interrupted.
+      const publicPath = `${user.id}/reels/published-${kind}-${crypto.randomUUID()}.${extension}`;
       const { error } = await supabase.storage.from("post-media").upload(publicPath, file, {
         contentType: file.type || undefined,
         cacheControl: "3600",
