@@ -10,8 +10,9 @@ import { BOOK_CONTENT_PHASE_1 } from "@/data/bookContentPhase1";
 import { BOOK_CONTENT_PHASE_2 } from "@/data/bookContentPhase2";
 import { BOOK_CONTENT_PHASE_3 } from "@/data/bookContentPhase3";
 import { BOOK_CONTENT_PHASE_4 } from "@/data/bookContentPhase4";
+import { BOOK_CONTENT_PHASE_5 } from "@/data/bookContentPhase5";
 
-const BOOK_CONTENT = { ...BOOK_CONTENT_PHASE_1, ...BOOK_CONTENT_PHASE_2, ...BOOK_CONTENT_PHASE_3, ...BOOK_CONTENT_PHASE_4 };
+const BOOK_CONTENT = { ...BOOK_CONTENT_PHASE_1, ...BOOK_CONTENT_PHASE_2, ...BOOK_CONTENT_PHASE_3, ...BOOK_CONTENT_PHASE_4, ...BOOK_CONTENT_PHASE_5 };
 
 type Book = {
   id: string;
