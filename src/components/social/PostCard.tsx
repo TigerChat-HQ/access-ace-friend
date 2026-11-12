@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Supabase generated types do not yet include the pending PR migrations; any casts are isolated to the database boundary. */
 import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Flag, UserX, Bookmark, Archive, Pin, Pencil, BarChart3, UserPlus, Images } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -35,6 +36,9 @@ type ReelPost = FeedPost & {
   reel_audio_url?: string | null;
   reel_audio_title?: string | null;
   reel_audio_start_seconds?: number | null;
+  reel_audio_end_seconds?: number | null;
+  reel_original_volume?: number | null;
+  reel_music_volume?: number | null;
   reel_trim_start_seconds?: number | null;
   reel_trim_end_seconds?: number | null;
   reel_captions?: ReelCaption[] | null;
@@ -71,6 +75,20 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
   const [audienceDraft, setAudienceDraft] = useState(post.audience || "public");
   const [editingCaption, setEditingCaption] = useState(false);
   const [postActionBusy, setPostActionBusy] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
+  const queryClient = useQueryClient();
+  const { data: followingIds = [] } = useQuery({
+    queryKey: ["following-ids", user?.id],
+    enabled: Boolean(isReel && user),
+    staleTime: 60_000,
+    queryFn: async () => {
+      if (!user) return [] as string[];
+      const { data, error } = await supabase.from("follows").select("following_id").eq("follower_id", user.id);
+      if (error) throw error;
+      return (data || []).map((row) => row.following_id);
+    },
+  });
+  const followingCreator = followingIds.includes(post.user_id);
 
   useEffect(() => {
     let active = true;
@@ -147,6 +165,23 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
   }, [activeMedia?.url, activeMedia?.type, isReel]);
 
 
+
+  const handleFollowCreator = async () => {
+    if (!user || user.id === post.user_id || followBusy || followingCreator) return;
+    setFollowBusy(true);
+    try {
+      const { error } = await supabase.from("follows").insert({ follower_id: user.id, following_id: post.user_id });
+      if (error && error.code !== "23505") throw error;
+      const { error: attributionError } = await (supabase as any).from("reel_follow_attributions").insert({
+        reel_id: post.id, creator_id: post.user_id, follower_id: user.id,
+      });
+      if (attributionError && attributionError.code !== "23505") console.warn("Reel follow attribution was not recorded", attributionError);
+      queryClient.setQueryData<string[]>(["following-ids", user.id], (previous = []) => previous.includes(post.user_id) ? previous : [...previous, post.user_id]);
+      toast({ title: "You are now following this creator" });
+    } catch (error) {
+      toast({ title: "Could not follow creator", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    } finally { setFollowBusy(false); }
+  };
 
   const handleLike = async () => {
     if (!user) return;
@@ -260,6 +295,9 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
               coverUrl={reelPost.reel_cover_url}
               audioUrl={reelPost.reel_audio_url}
               audioStart={Number(reelPost.reel_audio_start_seconds || 0)}
+              audioEnd={reelPost.reel_audio_end_seconds === null || reelPost.reel_audio_end_seconds === undefined ? null : Number(reelPost.reel_audio_end_seconds)}
+              originalVolume={Number(reelPost.reel_original_volume ?? 1)}
+              musicVolume={Number(reelPost.reel_music_volume ?? 0.75)}
               trimStart={Number(reelPost.reel_trim_start_seconds || 0)}
               trimEnd={reelPost.reel_trim_end_seconds === null || reelPost.reel_trim_end_seconds === undefined ? null : Number(reelPost.reel_trim_end_seconds)}
               captions={reelPost.reel_captions}
@@ -272,7 +310,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
         </div>
       )}
 
-      <div className="flex items-center gap-4 px-4 py-2.5">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-2.5">
         <button onClick={handleLike} className="flex items-center gap-1.5 text-foreground hover:text-primary transition-colors">
           <Heart className={`w-6 h-6 ${liked ? "fill-primary text-primary" : ""}`} />
           {!post.hide_like_count && <span className="text-sm font-medium">{likeCount}</span>}
@@ -281,6 +319,9 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
           <MessageCircle className="w-6 h-6" />
           <span className="text-sm font-medium">{post.comment_count}</span>
         </button>
+        {isReel && user?.id !== post.user_id && <button type="button" onClick={() => void handleFollowCreator()} disabled={followBusy || followingCreator} className="rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-50">{followingCreator ? "Following" : followBusy ? "…" : "Follow"}</button>}
+        {isReel && <Link to={`/reels/studio?remix=${post.id}`} className="rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-foreground">Remix</Link>}
+        {isReel && <Link to={`/reels/studio?duet=${post.id}`} className="rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-foreground">Duet</Link>}
         <button onClick={handleShare} className="text-foreground hover:text-primary transition-colors ml-auto" aria-label="Share post"><Share2 className="w-5 h-5" /></button>
         <button onClick={handleSave} disabled={!user || saveBusy} aria-label={saved ? "Remove saved post" : "Save post"} aria-pressed={saved} className="text-foreground hover:text-primary transition-colors disabled:opacity-40"><Bookmark className={`w-5 h-5 ${saved ? "fill-current text-primary" : ""}`} /></button>
       </div>
