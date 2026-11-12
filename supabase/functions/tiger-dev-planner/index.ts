@@ -95,7 +95,7 @@ async function groqChatCompletion(messages: Array<{role: string; content: string
 
   let { response, payload } = await request(GROQ_MODEL);
   const providerMessage = payload?.error?.message || response.statusText || "Unknown provider error";
-  const blockedToolCall = response.status === 400 && /tool_choice\\s+is\\s+none.*called\\s+a\\s+tool/i.test(providerMessage);
+  const blockedToolCall = response.status === 400 && /tool_choice\s+is\s+none.*called\s+a\s+tool/i.test(providerMessage);
 
   if (jsonMode && blockedToolCall && GROQ_JSON_FALLBACK_MODEL !== GROQ_MODEL) {
     ({ response, payload } = await request(GROQ_JSON_FALLBACK_MODEL));
