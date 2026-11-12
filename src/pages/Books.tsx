@@ -14,8 +14,9 @@ import { BOOK_CONTENT_PHASE_5 } from "@/data/bookContentPhase5";
 import { BOOK_CONTENT_PHASE_6 } from "@/data/bookContentPhase6";
 import { BOOK_CONTENT_PHASE_7 } from "@/data/bookContentPhase7";
 import { BOOK_CONTENT_PHASE_8 } from "@/data/bookContentPhase8";
+import { BOOK_CONTENT_EXTENDED } from "@/data/bookContentExtended";
 
-const BOOK_CONTENT = { ...BOOK_CONTENT_PHASE_1, ...BOOK_CONTENT_PHASE_2, ...BOOK_CONTENT_PHASE_3, ...BOOK_CONTENT_PHASE_4, ...BOOK_CONTENT_PHASE_5, ...BOOK_CONTENT_PHASE_6, ...BOOK_CONTENT_PHASE_7, ...BOOK_CONTENT_PHASE_8 };
+const BOOK_CONTENT_BASE = { ...BOOK_CONTENT_PHASE_1, ...BOOK_CONTENT_PHASE_2, ...BOOK_CONTENT_PHASE_3, ...BOOK_CONTENT_PHASE_4, ...BOOK_CONTENT_PHASE_5, ...BOOK_CONTENT_PHASE_6, ...BOOK_CONTENT_PHASE_7, ...BOOK_CONTENT_PHASE_8 };\nconst BOOK_CONTENT = Object.fromEntries(Object.entries(BOOK_CONTENT_BASE).map(([bookId, chapters]) => [bookId, [...chapters, ...(BOOK_CONTENT_EXTENDED[bookId] ?? [])]]));
 
 type Book = {
   id: string;
