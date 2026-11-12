@@ -36,7 +36,7 @@ const diagnosticSignature = async (record: Record<string, unknown>) => {
 };
 const safeText = (value: string, max = 8000) => value.replace(/(Bearer\s+)[^\s]+/gi, "$1[REDACTED]").replace(/(access_token|refresh_token|password|authorization)(\s*[:=]\s*)[^&\s,]+/gi, "$1$2[REDACTED]").slice(0, max);
 
-export async function reportDiagnostic(input: DiagnosticInput) {
+export async function reportDiagnostic(input: DiagnosticInput): Promise<boolean> {
   try {
     const error = input.error;
     const message = safeText(input.message || (error instanceof Error ? error.message : String((error as { message?: unknown })?.message ?? error ?? "Unknown error")));
@@ -57,11 +57,11 @@ export async function reportDiagnostic(input: DiagnosticInput) {
     const signature = await diagnosticSignature(record);
     const key = signature;
     const now = Date.now();
-    if (now - (recent.get(key) || 0) < 15000) return;
+    if (now - (recent.get(key) || 0) < 15000) return true;
     recent.set(key, now);
     if (recent.size > 250) recent.clear();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) return false;
     // Database-side upsert is atomic across browser tabs and devices.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC is defined by the diagnostics deduplication migration.
     const { data: rows, error: insertError } = await (supabase as any).rpc("report_app_diagnostic", {
@@ -71,6 +71,7 @@ export async function reportDiagnostic(input: DiagnosticInput) {
     const inserted = Array.isArray(rows) ? rows[0] : rows;
     if (insertError) {
       console.warn("Diagnostics report could not be saved:", insertError.message);
+      return false;
     } else if (inserted?.id && inserted.ai_status === "queued") {
       // Supabase Functions returns invocation failures in { error }, not always as a rejected Promise.
       const { data: aiResult, error: automationError } = await supabase.functions.invoke("tiger-dev-planner", {
@@ -80,8 +81,10 @@ export async function reportDiagnostic(input: DiagnosticInput) {
         console.warn("Tiger AI diagnostics handoff failed:", automationError?.message || aiResult?.error || "Unknown Edge Function response");
       }
     }
+    return true;
   } catch (reportError) {
     console.warn("Diagnostics reporter failed:", reportError);
+    return false;
   }
 }
 
@@ -99,13 +102,57 @@ export function installGlobalDiagnostics() {
     lastActionAt = Date.now();
   }, true);
   window.addEventListener("error", (event) => {
-    void reportDiagnostic({
-      source: "browser", severity: "high", category: "javascript",
-      title: event.message || "Uncaught browser error", message: event.message || "Unknown JavaScript error",
-      action: Date.now() - lastActionAt < 10000 ? lastAction : undefined,
-      error: event.error,
-      metadata: { filename: event.filename, line: event.lineno, column: event.colno },
-    });
+    if (event instanceof ErrorEvent) {
+      void reportDiagnostic({
+        source: "website", severity: "high", category: "javascript",
+        title: event.message || "Uncaught browser error", message: event.message || "Unknown JavaScript error",
+        action: Date.now() - lastActionAt < 10000 ? lastAction : undefined,
+        error: event.error,
+        metadata: { filename: event.filename, line: event.lineno, column: event.colno, platform: "web", userAgent: navigator.userAgent },
+      });
+      return;
+    }
+    const target = event.target;
+    if (target instanceof HTMLScriptElement || target instanceof HTMLLinkElement || target instanceof HTMLImageElement || target instanceof HTMLVideoElement || target instanceof HTMLAudioElement) {
+      const resourceUrl = "src" in target ? target.src : target.href;
+      void reportDiagnostic({
+        source: "website", severity: "medium", category: "asset_load",
+        title: "Website resource failed to load", message: `Failed to load ${target.tagName.toLowerCase()} resource`,
+        action: Date.now() - lastActionAt < 10000 ? lastAction : undefined,
+        component: target.tagName.toLowerCase(),
+        metadata: { resourceUrl: resourceUrl ? new URL(resourceUrl, location.href).pathname : null, platform: "web" },
+      });
+    }
+  }, true);
+  window.addEventListener("offline", () => {
+    void reportDiagnostic({ source: "website", severity: "high", category: "network_offline", title: "Device lost network connection", message: "The browser reported that the device is offline.", metadata: { platform: "web" } });
+  });
+  window.addEventListener("online", () => {
+    void reportDiagnostic({ source: "website", severity: "low", category: "network_restored", title: "Network connection restored", message: "The browser reported that the device is online again.", metadata: { platform: "web" } });
+  });
+
+  const flushNativeDiagnostics = async () => {
+    const bridge = (window as Window & { TigerNative?: { getPendingDiagnostics?: () => string; acknowledgeDiagnostic?: (id: string) => void; getAppVersion?: () => string } }).TigerNative;
+    if (!bridge?.getPendingDiagnostics || !bridge.acknowledgeDiagnostic) return;
+    try {
+      const pending = JSON.parse(bridge.getPendingDiagnostics()) as Array<{ id: string; source?: string; category?: string; title?: string; message?: string; severity?: "critical" | "high" | "medium" | "low"; metadata?: Record<string, unknown>; createdAt?: number }>;
+      for (const item of pending) {
+        const saved = await reportDiagnostic({
+          source: item.source || "android_native", severity: item.severity || "high",
+          category: item.category || "android_runtime", title: item.title || "Android app diagnostic",
+          message: item.message || "Android reported a native application error.", component: "Android WebView / Native",
+          metadata: { ...(item.metadata || {}), platform: "android", nativeDiagnosticId: item.id, nativeCreatedAt: item.createdAt, appVersion: bridge.getAppVersion?.() || "unknown" },
+        });
+        if (saved) bridge.acknowledgeDiagnostic(item.id);
+      }
+    } catch (error) {
+      console.warn("Could not transfer Android diagnostics:", error);
+    }
+  };
+  window.addEventListener("tiger:native-diagnostics-ready", () => { void flushNativeDiagnostics(); });
+  void flushNativeDiagnostics();
+  supabase.auth.onAuthStateChange(() => {
+    window.setTimeout(() => { void flushNativeDiagnostics(); }, 0);
   });
   if (navigator.mediaDevices?.getUserMedia) {
     const mediaDevices = navigator.mediaDevices;
