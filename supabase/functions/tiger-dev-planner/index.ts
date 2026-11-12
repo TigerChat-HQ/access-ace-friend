@@ -17,24 +17,18 @@ const GITHUB_REPO = Deno.env.get("GITHUB_REPOSITORY") || "TigerChat-HQ/access-ac
 async function readGitHubChecks(prUrl: string) {
   const match = /^https:\/\/github\.com\/TigerChat-HQ\/access-ace-friend\/pull\/(\d+)(?:\/)?$/.exec(prUrl);
   if (!match) throw new Error("Stored pull request URL is not a valid TIGERCHAT GitHub PR URL");
-  const headers = {
-    Accept: "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
-    "User-Agent": "TIGERCHAT-Command-Center",
-  };
-  const prResponse = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/pulls/${match[1]}`, { headers });
-  if (!prResponse.ok) throw new Error(`GitHub PR lookup failed [${prResponse.status}]`);
-  const pr = await prResponse.json();
+  // Use the same server-side token as PR listing and code creation. Without it,
+  // GitHub returns 404 for private repositories even when the PR exists.
+  const token = Deno.env.get("GITHUB_TOKEN");
+  const pr = await githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/pulls/${match[1]}`, token);
   const sha = pr?.head?.sha;
   if (typeof sha !== "string" || !/^[a-f0-9]{40}$/i.test(sha)) {
     throw new Error("GitHub did not return a valid pull request head commit");
   }
-  const checksResponse = await fetch(
-    `https://api.github.com/repos/${GITHUB_REPO}/commits/${sha}/check-runs?per_page=100`,
-    { headers },
+  const checksData = await githubJson(
+    `${GITHUB_API}/repos/${GITHUB_REPO}/commits/${sha}/check-runs?per_page=100`,
+    token,
   );
-  if (!checksResponse.ok) throw new Error(`GitHub check-runs lookup failed [${checksResponse.status}]`);
-  const checksData = await checksResponse.json();
   const checkRuns = Array.isArray(checksData?.check_runs) ? checksData.check_runs : [];
   const completed = checkRuns.filter((c: { status?: string }) => c.status === "completed");
   const pending = checkRuns.filter((c: { status?: string }) => c.status !== "completed");
