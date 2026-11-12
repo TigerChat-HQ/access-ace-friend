@@ -48,7 +48,7 @@ const EXPECTED_TABLES = [
   "draughts_tournament_awards","draughts_achievement_catalog","draughts_user_achievements",
   "game_questions","game_attempts","quiz_question_history","tiger_ai_daily_posts",
   "tiger_ai_daily_post_likes","tiger_ai_daily_comments","tiger_ai_daily_comment_likes",
-  "dev_tasks","dev_audit_log","trophies","user_trophies"
+  "dev_tasks","dev_audit_log","trophies","user_trophies","app_diagnostics","admin_diagnostic_notifications"
 ];
 
 export const AdminDiagnostics = () => {
@@ -64,7 +64,7 @@ export const AdminDiagnostics = () => {
   const [title, setTitle] = useState("");
   const [suggestion, setSuggestion] = useState("");
   const [statusFilter, setStatusFilter] = useState("active");
-  const [schemaResults, setSchemaResults] = useState<{name:string;status:"ok"|"missing"|"error";detail?:string}[]>([]);
+  const [schemaResults, setSchemaResults] = useState<{name:string;status:"ok"|"missing"|"error"|"unregistered";detail?:string}[]>([]);
   const [mediaBusy, setMediaBusy] = useState<"camera"|"microphone"|null>(null);
   const [mediaResults, setMediaResults] = useState<Record<string, string>>({});
   const [backupBusy, setBackupBusy] = useState(false);
@@ -201,7 +201,7 @@ export const AdminDiagnostics = () => {
     }));
     const expandedResults = [
       ...results,
-      ...unregistered.map(name => ({ name, status: "ok" as const, detail: "Present in database inventory; not yet in the app's expected-table registry." })),
+      ...unregistered.map(name => ({ name, status: "unregistered" as const, detail: "Present in database inventory; not yet in the app's expected-table registry." })),
     ];
     setSchemaResults(expandedResults);
     const missing = results.filter(x => x.status === "missing");
@@ -394,7 +394,7 @@ export const AdminDiagnostics = () => {
       <p className="text-xs text-muted-foreground">Checks the app's registered tables. Permission/RLS failures are reported separately from missing tables.</p>
       <Button size="sm" onClick={() => void runSchemaCheck()} disabled={checking}>{checking ? <Loader2 className="mr-1 h-4 w-4 animate-spin"/> : <Database className="mr-1 h-4 w-4"/>}Scan database tables</Button>
       {schemaResults.length > 0 && <div className="space-y-1 text-xs">
-        <p className="text-muted-foreground">{schemaResults.length-missingCount-schemaResults.filter(x=>x.status==="error").length} passed · {missingCount} missing · {schemaResults.filter(x=>x.status==="error").length} access/errors</p>
+        <p className="text-muted-foreground">{schemaResults.filter(x=>x.status==="ok").length} passed · {missingCount} missing · {schemaResults.filter(x=>x.status==="unregistered").length} unregistered · {schemaResults.filter(x=>x.status==="error").length} access/errors</p>
         {schemaResults.filter(x=>x.status!=="ok").map(x=><div key={x.name} className="rounded border border-border p-2"><div className="flex justify-between gap-2"><span className="font-mono">{x.name}</span><Badge variant={x.status==="missing"?"destructive":"secondary"}>{x.status}</Badge></div>{x.detail && <p className="mt-1 break-words text-muted-foreground">{x.detail}</p>}</div>)}
       </div>}
       {schemaResults.length > 0 && missingCount === 0 && <p className="text-xs text-emerald-600 flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5"/>No missing tables detected in the registered table list.</p>}
