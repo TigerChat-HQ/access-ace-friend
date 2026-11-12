@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     const apiKey = Deno.env.get("GROQ_API_KEY");
-    if (!apiKey) return reply({ error: "Tiger Developer Assistant's Groq connection is not configured. Add GROQ_API_KEY to Supabase Edge Function secrets." }, 503);
+    if (!apiKey) return reply({ error: "Quiz AI Groq connection is not configured. Add GROQ_API_KEY to Supabase Edge Function secrets." }, 503);
 
     const caller = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: req.headers.get("Authorization") || "" } },
@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
         messages: [
           {
             role: "user",
-            content: `You are Tiger Developer Assistant, a careful Tanzanian quiz question writer. Generate accurate, unambiguous educational multiple-choice questions. Never invent facts. Output ONLY one valid JSON object, with no Markdown fences, no commentary, and no text before or after it. The object must have this exact top-level shape: {"questions":[...]}. Generate exactly 10 fresh multiple-choice questions about Tanzania, covering history, culture, geography, sport and science. Use natural Swahili for questions, options and explanations. Every question object must contain exactly these fields: category (string), difficulty (one of easy, medium, hard), question (string), options (array of exactly 4 distinct strings), correct_index (integer 0, 1, 2 or 3), explanation (string). Vary the correct answer position. Do not repeat or paraphrase these previously served questions: ${JSON.stringify(previous)}. Batch seed: ${crypto.randomUUID()}.`,
+            content: `You are TigerChat Quiz AI, a careful Tanzanian quiz question writer. Generate accurate, unambiguous educational multiple-choice questions. Never invent facts. Output ONLY one valid JSON object, with no Markdown fences, no commentary, and no text before or after it. The object must have this exact top-level shape: {"questions":[...]}. Generate exactly 10 fresh multiple-choice questions about Tanzania, covering history, culture, geography, sport and science. Use natural Swahili for questions, options and explanations. Every question object must contain exactly these fields: category (string), difficulty (one of easy, medium, hard), question (string), options (array of exactly 4 distinct strings), correct_index (integer 0, 1, 2 or 3), explanation (string). Vary the correct answer position. Do not repeat or paraphrase these previously served questions: ${JSON.stringify(previous)}. Batch seed: ${crypto.randomUUID()}.`,
           },
         ],
       }),
