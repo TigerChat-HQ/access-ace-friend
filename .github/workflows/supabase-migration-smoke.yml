@@ -63,6 +63,7 @@ jobs:
             media_type text NOT NULL,
             audience text NOT NULL DEFAULT 'public',
             reel_audio_url text,
+            created_at timestamptz NOT NULL DEFAULT now(),
             archived_at timestamptz,
             is_draft boolean NOT NULL DEFAULT false,
             scheduled_at timestamptz
