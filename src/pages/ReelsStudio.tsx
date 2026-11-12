@@ -139,18 +139,40 @@ const ReelsStudio = () => {
     return data.signedUrl;
   };
 
+  const uploadPublishedFile = async (file: File, kind: string) => {
+    if (!user) throw new Error("Sign in required");
+    const extension = file.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "") || (kind === "video" ? "mp4" : "bin");
+    const publicPath = `${user.id}/reels/published-${kind}-${crypto.randomUUID()}.${extension}`;
+    let lastError: Error | null = null;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const { error } = await supabase.storage.from("post-media").upload(publicPath, file, {
+        contentType: file.type || undefined,
+        cacheControl: "3600",
+        upsert: false,
+      });
+      if (!error) return { url: supabase.storage.from("post-media").getPublicUrl(publicPath).data.publicUrl, path: publicPath };
+      lastError = new Error(error.message || `Could not upload ${kind} (attempt ${attempt}/3)`);
+      if (attempt < 3) await new Promise((resolve) => window.setTimeout(resolve, attempt * 900));
+    }
+    throw lastError || new Error(`Could not upload ${kind}`);
+  };
+
+  // Draft assets are private. This fallback is only used when publishing an
+  // already-saved draft; fresh selections are uploaded directly from File to
+  // the public media bucket to avoid fetch -> Blob -> re-upload on mobile.
   const promoteDraftAsset = async (path: string | null, kind: string) => {
     if (!path || !user) return null;
     const signedUrl = await privateUrl(path);
     if (!signedUrl) return null;
     const response = await fetch(signedUrl);
-    if (!response.ok) throw new Error(`Could not read private ${kind} asset`);
+    if (!response.ok) throw new Error(`Could not read private ${kind} asset (HTTP ${response.status})`);
     const blob = await response.blob();
+    if (!blob.size) throw new Error(`The saved ${kind} file is empty. Re-select it and try again.`);
     const extension = path.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "") || "bin";
     const publicPath = `${user.id}/reels/published-${kind}-${crypto.randomUUID()}.${extension}`;
     const { error } = await supabase.storage.from("post-media").upload(publicPath, blob, { contentType: blob.type || undefined, upsert: false });
-    if (error) throw error;
-    return supabase.storage.from("post-media").getPublicUrl(publicPath).data.publicUrl;
+    if (error) throw new Error(`Could not publish saved ${kind}: ${error.message}`);
+    return { url: supabase.storage.from("post-media").getPublicUrl(publicPath).data.publicUrl, path: publicPath };
   };
 
   const saveDraft = async () => {
@@ -213,28 +235,53 @@ const ReelsStudio = () => {
     if (!user) return;
     setBusy(true);
     try {
-      const assets = await ensureUploaded();
-      if (!assets.nextVideoPath) throw new Error("Choose a video first.");
-      const publishedVideoUrl = await promoteDraftAsset(assets.nextVideoPath, "video");
-      if (!publishedVideoUrl) throw new Error("Could not prepare the Reel video for publishing.");
-      const publishedCoverUrl = await promoteDraftAsset(coverPath, "cover");
-      const publishedAudioUrl = await promoteDraftAsset(assets.nextAudioPath, "audio");
-      const { error } = await db.from("posts").insert({
-        user_id: user.id,
-        caption: caption.trim() || null,
-        media_url: publishedVideoUrl,
-        media_type: "video",
-        hashtags: hashtags(caption),
-        reel_cover_url: publishedCoverUrl,
-        reel_audio_url: publishedAudioUrl,
-        reel_audio_title: audioTitle || (audioFile?.name ?? null),
-        reel_audio_start_seconds: audioStart,
-        reel_trim_start_seconds: trimStart,
-        reel_trim_end_seconds: trimEnd,
-        reel_captions: captions,
-      });
-      if (error) throw error;
-      const privatePaths = [assets.nextVideoPath, coverPath, assets.nextAudioPath].filter((path): path is string => Boolean(path));
+      if (!videoFile && !videoPath) throw new Error("Choose a video first.");
+      if (videoFile && videoFile.size > 150 * 1024 * 1024) throw new Error("Video exceeds the 150 MB upload limit.");
+      const uploadedPaths: string[] = [];
+      let publishedVideo: { url: string; path: string } | null = null;
+      let publishedAudio: { url: string; path: string } | null = null;
+      let publishedCover: { url: string; path: string } | null = null;
+      try {
+        // Upload newly selected media directly; do not first upload it to the
+        // private drafts bucket and then download/re-upload the same large file.
+        publishedVideo = videoFile
+          ? await uploadPublishedFile(videoFile, "video")
+          : await promoteDraftAsset(videoPath, "video");
+        if (!publishedVideo?.url) throw new Error("Video upload did not return a public URL.");
+        if (publishedVideo.path) uploadedPaths.push(publishedVideo.path);
+
+        if (coverPath) {
+          publishedCover = await promoteDraftAsset(coverPath, "cover");
+          if (publishedCover?.path) uploadedPaths.push(publishedCover.path);
+        }
+        if (audioFile) {
+          publishedAudio = await uploadPublishedFile(audioFile, "audio");
+          if (publishedAudio.path) uploadedPaths.push(publishedAudio.path);
+        } else if (audioPath) {
+          publishedAudio = await promoteDraftAsset(audioPath, "audio");
+          if (publishedAudio?.path) uploadedPaths.push(publishedAudio.path);
+        }
+
+        const { error } = await db.from("posts").insert({
+          user_id: user.id,
+          caption: caption.trim() || null,
+          media_url: publishedVideo.url,
+          media_type: "video",
+          hashtags: hashtags(caption),
+          reel_cover_url: publishedCover?.url || null,
+          reel_audio_url: publishedAudio?.url || null,
+          reel_audio_title: audioTitle || (audioFile?.name ?? null),
+          reel_audio_start_seconds: audioStart,
+          reel_trim_start_seconds: trimStart,
+          reel_trim_end_seconds: trimEnd,
+          reel_captions: captions,
+        });
+        if (error) throw new Error(`The media uploaded, but saving the Reel post failed: ${error.message} (code ${error.code || "unknown"})`);
+      } catch (publishError) {
+        if (uploadedPaths.length) await supabase.storage.from("post-media").remove(uploadedPaths);
+        throw publishError;
+      }
+      const privatePaths = [videoPath, coverPath, audioPath].filter((path): path is string => Boolean(path));
       if (privatePaths.length) await supabase.storage.from("reel-drafts").remove(privatePaths);
       if (draftId) await db.from("reel_drafts").delete().eq("id", draftId).eq("user_id", user.id);
       toast({ title: "Your Reel is published" });
@@ -280,8 +327,8 @@ const ReelsStudio = () => {
               </div>
             ) : (
               <label className="flex min-h-56 cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-background p-6 text-center">
-                <Video className="h-10 w-10 text-primary" /><span className="font-semibold text-foreground">Choose a video for your Reel</span><span className="text-xs text-muted-foreground">MP4, WebM or another browser-supported video · max 150 MB</span>
-                <input type="file" accept="video/*" className="hidden" onChange={(e) => chooseVideo(e.target.files?.[0])} />
+                <Video className="h-10 w-10 text-primary" /><span className="font-semibold text-foreground">Record with camera or choose a video</span><span className="text-xs text-muted-foreground">Camera capture or gallery · MP4, WebM · max 150 MB</span>
+                <input type="file" accept="video/*" capture="user" className="hidden" onChange={(e) => chooseVideo(e.target.files?.[0])} />
               </label>
             )}
           </div>
