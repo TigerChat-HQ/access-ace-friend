@@ -13,6 +13,7 @@ import android.net.http.SslError
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.provider.ContactsContract
 import android.webkit.JavascriptInterface
 import android.webkit.ConsoleMessage
 import android.webkit.SslErrorHandler
@@ -241,6 +242,12 @@ open class MainActivity : Activity() {
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == CONTACTS_PERMISSION_REQUEST_CODE) {
+            val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
+            publishContactsPermission(granted)
+            return
+        }
         if (requestCode != MEDIA_PERMISSION_REQUEST_CODE) return
         mediaPermissionDialogOpen = false
         val requests = pendingMediaPermissionRequests.toList()
@@ -279,6 +286,14 @@ open class MainActivity : Activity() {
             }
         }
         if (denied) showMediaPermissionSettingsPrompt()
+    }
+
+    private fun publishContactsPermission(granted: Boolean) {
+        if (!::webView.isInitialized) return
+        webView.post {
+            val detail = JSONObject().put("granted", granted)
+            webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('tiger:contacts-permission',{detail:$detail})); document.querySelectorAll('iframe').forEach(function(frame){try{frame.contentWindow.dispatchEvent(new CustomEvent('tiger:contacts-permission',{detail:$detail}))}catch(e){}})", null)
+        }
     }
 
     private fun showMediaPermissionSettingsPrompt() {
@@ -524,6 +539,47 @@ open class MainActivity : Activity() {
 
     inner class NativeBridge {
         @JavascriptInterface
+        fun hasContactsPermission(): Boolean =
+            ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
+
+        @JavascriptInterface
+        fun requestContactsPermission() {
+            runOnUiThread {
+                if (hasContactsPermission()) publishContactsPermission(true)
+                else ActivityCompat.requestPermissions(this@MainActivity, arrayOf(Manifest.permission.READ_CONTACTS), CONTACTS_PERMISSION_REQUEST_CODE)
+            }
+        }
+
+        @JavascriptInterface
+        fun searchContacts(query: String): String {
+            if (!hasContactsPermission()) return "[]"
+            val results = JSONArray()
+            val projection = arrayOf(ContactsContract.CommonDataKinds.Phone.CONTACT_ID, ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER)
+            val normalizedQuery = query.trim()
+            val contactsUri = if (normalizedQuery.isEmpty()) ContactsContract.CommonDataKinds.Phone.CONTENT_URI
+                else ContactsContract.CommonDataKinds.Phone.CONTENT_FILTER_URI.buildUpon().appendPath(normalizedQuery).build()
+            return try {
+                contentResolver.query(contactsUri, projection, null, null, ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " COLLATE NOCASE ASC")?.use { cursor ->
+                    val idIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
+                    val nameIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                    val phoneIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                    val seen = linkedSetOf<String>()
+                    while (cursor.moveToNext() && results.length() < 40) {
+                        val id = cursor.getString(idIndex).orEmpty()
+                        val name = cursor.getString(nameIndex).orEmpty().trim()
+                        val phone = cursor.getString(phoneIndex).orEmpty().trim()
+                        if (name.isBlank() || phone.isBlank() || !seen.add(id + ":" + phone)) continue
+                        results.put(JSONObject().put("id", id).put("name", name).put("phone", phone))
+                    }
+                }
+                results.toString()
+            } catch (error: Exception) {
+                android.util.Log.w(TAG, "Could not search device contacts", error)
+                "[]"
+            }
+        }
+
+        @JavascriptInterface
         fun getPendingDiagnostics(): String = getSharedPreferences(NATIVE_DIAGNOSTICS_PREFS, MODE_PRIVATE)
             .getString(NATIVE_DIAGNOSTICS_QUEUE, "[]") ?: "[]"
 
@@ -639,6 +695,7 @@ open class MainActivity : Activity() {
         const val EXTRA_QUICK_REPLY = "tiger_quick_reply"
         const val EXTRA_NATIVE_CALL_TYPE = "tiger_native_call_type"
         private const val MEDIA_PERMISSION_REQUEST_CODE = 7302
+        private const val CONTACTS_PERMISSION_REQUEST_CODE = 7303
         private const val TAG = "TigerChatMedia"
         private const val NATIVE_DIAGNOSTICS_PREFS = "tiger_native_diagnostics"
         private const val NATIVE_DIAGNOSTICS_QUEUE = "pending_diagnostics"

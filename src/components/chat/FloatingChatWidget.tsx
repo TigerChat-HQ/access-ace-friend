@@ -187,7 +187,7 @@ export const FloatingChatWidget = ({ unreadMessages = 0 }: { unreadMessages?: nu
           </header>
                     <iframe
             title="TigerChat conversations"
-            src="/chats?bubble=1"
+            src="/?bubble=1&path=%2Fchats"
             className="min-h-0 w-full flex-1 border-0 bg-background"
             allow="camera; microphone; display-capture; geolocation"
           />
