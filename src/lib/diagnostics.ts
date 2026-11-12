@@ -124,6 +124,47 @@ export function installGlobalDiagnostics() {
       });
     }
   }, true);
+  // Capture failed API responses (including chat/bubble 404s) even when the UI
+  // handles the rejection and no browser-level exception is emitted.
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const requestUrl = input instanceof Request ? input.url : String(input);
+    const method = (init?.method || (input instanceof Request ? input.method : "GET")).toUpperCase();
+    let response: Response;
+    try {
+      response = await originalFetch(input, init);
+    } catch (error) {
+      const path = (() => { try { return new URL(requestUrl, location.href).pathname; } catch { return "unknown"; } })();
+      void reportDiagnostic({
+        source: "website", severity: "high", category: "api_network",
+        title: /bubble|chat|conversation/i.test(path) || /bubble|chat/i.test(lastAction) ? "Bubble Chat request failed" : "Website API request failed",
+        message: error instanceof Error ? error.message : String(error),
+        action: Date.now() - lastActionAt < 10000 ? lastAction : undefined,
+        component: /bubble|chat|conversation/i.test(path) || /bubble|chat/i.test(lastAction) ? "Bubble Chat" : "fetch",
+        suggestion: "Check the API endpoint, authentication, network connection and server logs for this request.",
+        metadata: { platform: "web", method, endpoint: path, networkFailure: true },
+      });
+      throw error;
+    }
+    if (response.status >= 400) {
+      const path = (() => { try { return new URL(requestUrl, location.href).pathname; } catch { return "unknown"; } })();
+      const isBubbleChat = /bubble|chat|conversation/i.test(path) || /bubble|chat/i.test(lastAction);
+      void reportDiagnostic({
+        source: "website", severity: response.status >= 500 ? "critical" : "high",
+        category: response.status === 404 ? (isBubbleChat ? "bubble_chat_not_found" : "api_not_found") : "api_http",
+        title: isBubbleChat && response.status === 404 ? "Bubble Chat: Not Found (404)" : `Website API returned HTTP ${response.status}`,
+        message: ` ${method} ${path} returned HTTP ${response.status} ${response.statusText}`.trim(),
+        action: Date.now() - lastActionAt < 10000 ? lastAction : undefined,
+        component: isBubbleChat ? "Bubble Chat" : "API request",
+        suggestion: response.status === 404
+          ? "Verify that the chat/bubble API route and requested conversation exist, and that the frontend uses the current endpoint. Check Render server logs for the matching 404."
+          : "Inspect the API response and matching hosting logs; verify authentication, permissions and server health.",
+        metadata: { platform: "web", method, endpoint: path, status: response.status, statusText: response.statusText },
+      });
+    }
+    return response;
+  };
+
   window.addEventListener("offline", () => {
     void reportDiagnostic({ source: "website", severity: "high", category: "network_offline", title: "Device lost network connection", message: "The browser reported that the device is offline.", metadata: { platform: "web" } });
   });
