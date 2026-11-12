@@ -912,15 +912,15 @@ const ReelsStudio = () => {
               {recordingVoice ? "Stop voiceover recording" : "Record voiceover"}
             </button>
             {audioFile && <p className="mt-2 text-xs text-muted-foreground">{audioFile.name}</p>}
-            <label className="mt-3 block text-xs text-muted-foreground">Audio start offset (seconds)<input type="number" min={0} step={0.1} value={audioStart} onChange={(e) => { setAudioStart(Math.max(0, Number(e.target.value))); markTimelineDirty(); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground" /></label>
+            <label className="mt-3 block text-xs text-muted-foreground">Audio start offset (seconds)<input type="number" min={0} step={0.1} value={audioStart} onChange={(e) => { setAudioStart(Math.max(0, Number(e.target.value))); if (audioFile) markTimelineDirty(); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground" /></label>
             <label className="mt-3 block text-xs text-muted-foreground">Original video sound · {Math.round(originalVolume * 100)}%
-              <input type="range" min={0} max={1} step={0.05} value={originalVolume} onChange={(event) => { setOriginalVolume(Number(event.target.value)); markTimelineDirty(); }} className="mt-1 w-full accent-primary" />
+              <input type="range" min={0} max={1} step={0.05} value={originalVolume} onChange={(event) => { setOriginalVolume(Number(event.target.value)); if (audioFile && !shareAudio) markTimelineDirty(); }} className="mt-1 w-full accent-primary" />
             </label>
             <label className="mt-2 block text-xs text-muted-foreground">Background music volume · {Math.round(musicVolume * 100)}%
-              <input type="range" min={0} max={1} step={0.05} value={musicVolume} onChange={(event) => { setMusicVolume(Number(event.target.value)); markTimelineDirty(); }} className="mt-1 w-full accent-primary" />
+              <input type="range" min={0} max={1} step={0.05} value={musicVolume} onChange={(event) => { setMusicVolume(Number(event.target.value)); if (audioFile && !shareAudio) markTimelineDirty(); }} className="mt-1 w-full accent-primary" />
             </label>
             <label className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-              <input type="checkbox" checked={shareAudio} onChange={(event) => setShareAudio(event.target.checked)} />
+              <input type="checkbox" checked={shareAudio} onChange={(event) => { setShareAudio(event.target.checked); if (audioFile) markTimelineDirty(); }} />
               Allow other creators to use this audio in their Reels
             </label>
             {(audioLibrary.length > 0 || savedAudio.length > 0) && (
