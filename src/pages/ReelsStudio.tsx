@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { renderReelTimeline } from "@/lib/reelTimelineEditor";
 
 type TimedCaption = { start: number; end: number; text: string };
 type SpeechRecognitionLike = {
@@ -67,6 +68,13 @@ const ReelsStudio = () => {
   const [busy, setBusy] = useState(false);
   const [recordingVoice, setRecordingVoice] = useState(false);
   const [listeningCaptions, setListeningCaptions] = useState(false);
+  const [timelineFiles, setTimelineFiles] = useState<File[]>([]);
+  const [filterPreset, setFilterPreset] = useState("none");
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [timelineRendered, setTimelineRendered] = useState(false);
+  const [renderingTimeline, setRenderingTimeline] = useState(false);
+  const [renderProgress, setRenderProgress] = useState(0);
+  const [scheduleAt, setScheduleAt] = useState("");
 
   const refreshDrafts = useCallback(async () => {
     if (!user) return;
@@ -104,6 +112,8 @@ const ReelsStudio = () => {
       return;
     }
     setVideoFile(file);
+    setTimelineFiles([file]);
+    setTimelineRendered(false);
     setVideoPath(null);
     setCoverPath(null);
     setCoverUrl(null);
@@ -251,6 +261,84 @@ const ReelsStudio = () => {
     setCaptions(Array.isArray(draft.captions) ? draft.captions : []);
   };
 
+  const addTimelineClips = (files: File[]) => {
+    const valid = files.filter((file) => file.type.startsWith("video/") && file.size <= 150 * 1024 * 1024);
+    if (valid.length !== files.length) toast({ title: "Some clips were skipped", description: "Only videos under 150 MB each can be added.", variant: "destructive" });
+    setTimelineFiles((items) => [...items, ...valid].slice(0, 8));
+    setTimelineRendered(false);
+  };
+
+  const moveTimelineClip = (index: number, delta: number) => {
+    setTimelineFiles((items) => {
+      const target = index + delta;
+      if (target < 0 || target >= items.length) return items;
+      const next = [...items];
+      [next[index], next[target]] = [next[target], next[index]];
+      if (next[0]) {
+        setVideoFile(next[0]);
+        setVideoPath(null);
+        setVideoUrl(URL.createObjectURL(next[0]));
+      }
+      return next;
+    });
+    setTimelineRendered(false);
+  };
+
+  const removeTimelineClip = (index: number) => {
+    setTimelineFiles((items) => {
+      const next = items.filter((_, itemIndex) => itemIndex !== index);
+      if (next[0]) {
+        setVideoFile(next[0]);
+        setVideoPath(null);
+        setVideoUrl(URL.createObjectURL(next[0]));
+      } else {
+        setVideoFile(null);
+        setVideoUrl(null);
+      }
+      return next;
+    });
+    setTimelineRendered(false);
+  };
+
+  const renderTimeline = async () => {
+    if (!timelineFiles.length || renderingTimeline) return;
+    setRenderingTimeline(true);
+    setRenderProgress(0);
+    try {
+      const clips = timelineFiles.map((file, index) => ({
+        file,
+        start: index === 0 ? trimStart : 0,
+        end: index === 0 ? (trimEnd ?? undefined) : undefined,
+      }));
+      const rendered = await renderReelTimeline({
+        clips,
+        filter: filterPreset,
+        speed: playbackSpeed,
+        musicFile: audioFile,
+        originalVolume: 1,
+        musicVolume: 0.75,
+        captions,
+        onProgress: setRenderProgress,
+      });
+      if (rendered.size > 150 * 1024 * 1024) throw new Error("The rendered Reel exceeds 150 MB. Use fewer or shorter clips.");
+      setVideoFile(rendered);
+      setVideoPath(null);
+      setVideoUrl(URL.createObjectURL(rendered));
+      setTimelineFiles([rendered]);
+      setTrimStart(0);
+      setTrimEnd(null);
+      setFilterPreset("none");
+      setPlaybackSpeed(1);
+      setTimelineRendered(true);
+      toast({ title: "Edited Reel is ready", description: "Your clips, trim, speed, filter and captions are now rendered into one video." });
+    } catch (error) {
+      toast({ title: "Could not render Reel", description: error instanceof Error ? error.message : "Try a smaller clip or fewer clips.", variant: "destructive" });
+    } finally {
+      setRenderingTimeline(false);
+      setRenderProgress(0);
+    }
+  };
+
   const toggleVoiceover = async () => {
     if (recordingVoice) {
       voiceRecorderRef.current?.stop();
@@ -355,6 +443,8 @@ const ReelsStudio = () => {
     setBusy(true);
     try {
       if (!videoFile && !videoPath) throw new Error("Choose a video first.");
+      if (timelineFiles.length > 1 && !timelineRendered) throw new Error("Render your multi-clip timeline before publishing.");
+      if ((filterPreset !== "none" || playbackSpeed !== 1 || trimStart > 0 || (trimEnd !== null && duration > 0 && trimEnd < duration - 0.1)) && !timelineRendered) throw new Error("Render your trim, speed and filter edits before publishing.");
       if (videoFile && videoFile.size > 150 * 1024 * 1024) throw new Error("Video exceeds the 150 MB upload limit.");
       const uploadedPaths: string[] = [];
       let publishedVideo: { url: string; path: string } | null = null;
@@ -391,8 +481,10 @@ const ReelsStudio = () => {
           reel_audio_url: publishedAudio?.url || null,
           reel_audio_title: audioTitle || (audioFile?.name ?? null),
           reel_audio_start_seconds: audioStart,
-          reel_trim_start_seconds: trimStart,
-          reel_trim_end_seconds: trimEnd,
+          reel_trim_start_seconds: timelineRendered ? 0 : trimStart,
+          reel_trim_end_seconds: timelineRendered ? null : trimEnd,
+          is_draft: false,
+          scheduled_at: scheduleAt ? new Date(scheduleAt).toISOString() : null,
           reel_captions: captions,
         });
         if (error) throw new Error(`The media uploaded, but saving the Reel post failed: ${error.message} (code ${error.code || "unknown"})`);
@@ -403,7 +495,7 @@ const ReelsStudio = () => {
       const privatePaths = [videoPath, coverPath, audioPath].filter((path): path is string => Boolean(path));
       if (privatePaths.length) await supabase.storage.from("reel-drafts").remove(privatePaths);
       if (draftId) await db.from("reel_drafts").delete().eq("id", draftId).eq("user_id", user.id);
-      toast({ title: "Your Reel is published" });
+      toast({ title: scheduleAt ? "Your Reel is scheduled" : "Your Reel is published" });
       navigate("/reels");
     } catch (error) {
       toast({ title: "Could not publish Reel", description: error instanceof Error ? error.message : "Try again.", variant: "destructive" });
@@ -452,6 +544,50 @@ const ReelsStudio = () => {
             )}
           </div>
 
+          <div className="rounded-2xl border border-border/60 bg-card p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-foreground">Multi-clip timeline</h2>
+              <span className="text-[11px] text-muted-foreground">{timelineFiles.length}/8 clips</span>
+            </div>
+            <div className="space-y-2">
+              {timelineFiles.map((file, index) => (
+                <div key={`${file.name}-${file.size}-${index}`} className="flex items-center gap-2 rounded-lg bg-background p-2">
+                  <span className="w-6 text-xs font-semibold text-muted-foreground">{index + 1}</span>
+                  <span className="min-w-0 flex-1 truncate text-xs text-foreground">{file.name}</span>
+                  <button type="button" onClick={() => moveTimelineClip(index, -1)} disabled={index === 0 || renderingTimeline} aria-label="Move clip up" className="rounded px-2 py-1 text-xs disabled:opacity-30">↑</button>
+                  <button type="button" onClick={() => moveTimelineClip(index, 1)} disabled={index === timelineFiles.length - 1 || renderingTimeline} aria-label="Move clip down" className="rounded px-2 py-1 text-xs disabled:opacity-30">↓</button>
+                  <button type="button" onClick={() => removeTimelineClip(index)} disabled={renderingTimeline} aria-label="Remove clip" className="rounded px-2 py-1 text-xs text-destructive">×</button>
+                </div>
+              ))}
+            </div>
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border p-3 text-sm text-primary">
+              <Plus className="h-4 w-4" /> Add more clips
+              <input type="file" accept="video/*" multiple className="hidden" onChange={(event) => { addTimelineClips(Array.from(event.target.files || [])); event.target.value = ""; }} />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="text-xs text-muted-foreground">Filter / template
+                <select value={filterPreset} onChange={(event) => { setFilterPreset(event.target.value); setTimelineRendered(false); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground">
+                  <option value="none">Original</option>
+                  <option value="contrast(1.12) saturate(1.25)">Tiger Vibrant</option>
+                  <option value="sepia(.55) contrast(1.08)">Vintage</option>
+                  <option value="grayscale(1) contrast(1.12)">Monochrome</option>
+                  <option value="brightness(1.08) saturate(1.35)">Bright Pop</option>
+                  <option value="hue-rotate(24deg) saturate(1.2)">Warm Cinema</option>
+                </select>
+              </label>
+              <label className="text-xs text-muted-foreground">Playback speed
+                <select value={playbackSpeed} onChange={(event) => { setPlaybackSpeed(Number(event.target.value)); setTimelineRendered(false); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground">
+                  <option value={0.5}>0.5× Slow</option><option value={0.75}>0.75×</option><option value={1}>1× Normal</option><option value={1.25}>1.25×</option><option value={1.5}>1.5×</option><option value={2}>2× Fast</option>
+                </select>
+              </label>
+            </div>
+            <button type="button" onClick={() => void renderTimeline()} disabled={!timelineFiles.length || renderingTimeline || busy} className="w-full rounded-xl bg-secondary px-3 py-3 text-sm font-semibold text-secondary-foreground disabled:opacity-50">
+              {renderingTimeline ? `Rendering edits… ${renderProgress}%` : "Render clips, trim, speed, filters & captions"}
+            </button>
+            {timelineRendered && <p className="text-xs text-emerald-600">Edits rendered into the publishable video file.</p>}
+            <p className="text-[11px] text-muted-foreground">Export runs on this device. For large files, use fewer clips to avoid phone memory limits.</p>
+          </div>
+
           <div className="rounded-2xl border border-border/60 bg-card p-4">
             <label className="mb-2 block text-sm font-semibold text-foreground">Caption</label>
             <textarea value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={2200} placeholder="Write a caption and add #hashtags…" className="min-h-28 w-full rounded-xl bg-background p-3 text-sm text-foreground outline-none" />
@@ -495,6 +631,11 @@ const ReelsStudio = () => {
             {drafts.length ? drafts.map((draft) => <div key={draft.id} className="mb-2 flex items-center gap-2 rounded-xl bg-background p-2"><button onClick={() => void openDraft(draft).catch((error) => toast({ title: "Could not open draft", description: error instanceof Error ? error.message : "Try again.", variant: "destructive" }))} className="min-w-0 flex-1 text-left"><span className="block truncate text-sm text-foreground">{draft.caption || "Untitled Reel"}</span><span className="text-[11px] text-muted-foreground">Updated {new Date(draft.updated_at).toLocaleString()}</span></button><button onClick={() => void removeDraft(draft.id)} aria-label="Delete draft" className="p-2 text-destructive"><Trash2 className="h-4 w-4" /></button></div>) : <p className="py-4 text-center text-xs text-muted-foreground">Your saved drafts will appear here.</p>}
           </div>
 
+          <div className="rounded-2xl border border-border/60 bg-card p-4">
+            <label className="mb-2 block text-sm font-semibold text-foreground">Schedule Reel (optional)</label>
+            <input type="datetime-local" value={scheduleAt} min={new Date(Date.now() + 60000).toISOString().slice(0, 16)} onChange={(event) => setScheduleAt(event.target.value)} className="w-full rounded-lg bg-background p-2 text-sm text-foreground" />
+            <p className="mt-2 text-[11px] text-muted-foreground">If set, the Reel is stored privately until the selected time, then becomes visible automatically.</p>
+          </div>
           <button onClick={publish} disabled={busy || !videoUrl} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground disabled:opacity-50">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clapperboard className="h-4 w-4" />} Publish Reel
           </button>
