@@ -163,7 +163,31 @@ VALUES
    'Office of the Attorney General — OAG MIS',
    'Copyright and Neighbouring Rights Act, Cap. 218 R.E. 2023, section 6(1)(a); revised publication 25 Apr 2025',
    'https://oagmis.oag.go.tz/portal/revised-acts/revised/322',
-   'Tanzania', '/books?book=copyright-act', true, true)
+   'Tanzania', '/books?book=copyright-act', true, true),
+  (current_date, 'status', 'historia', 'kilwa-history',
+   'Kilwa ilikuwa kitovu cha biashara ya Bahari ya Hindi',
+   'JE, WAJUA? Miji ya Waswahili iliunganisha Afrika Mashariki na masoko ya mbali.',
+   'UNESCO inaeleza kuwa Kilwa Kisiwani na Songo Mnara zilikuwa miji ya biashara ya Waswahili. Kati ya karne ya 13 na 16, biashara ilihusisha dhahabu, fedha, lulu, manukato na bidhaa kutoka Arabia, Uajemi na China.',
+   'UNESCO World Heritage Centre',
+   'Ruins of Kilwa Kisiwani and Ruins of Songo Mnara, World Heritage List No. 144',
+   'https://whc.unesco.org/en/list/144/',
+   'Lindi, Tanzania', '/books?book=kilwa-history', true, true),
+  (current_date, 'status', 'elimu', 'earth-science',
+   'Dunia huchukua muda gani kujizungusha?',
+   'JE, WAJUA? Siku ya Dunia si saa 24 kamili.',
+   'NASA Science inaeleza kuwa siku ya Dunia ni takribani saa 23.9 na mwaka wake ni siku 365.25. Mwinamo wa mhimili wa Dunia huchangia mabadiliko ya misimu.',
+   'NASA Science',
+   'Facts About Earth — Length of Day, Length of Year and Orbit and Rotation',
+   'https://science.nasa.gov/earth/facts/',
+   NULL, '/books?book=earth-science', true, true),
+  (current_date, 'status', 'maarifa', 'digital-safety',
+   'Simama kwanza kabla ya kubofya link',
+   'JE, WAJUA? Ujumbe unaokuharakisha unaweza kuwa jaribio la ulaghai.',
+   'CISA inashauri kuwa makini na ujumbe unaokuharakisha, unaoomba taarifa binafsi au unaotumia viungo vinavyotiliwa shaka. Hakiki kupitia tovuti au namba rasmi kabla ya kubofya au kutoa taarifa.',
+   'Cybersecurity and Infrastructure Security Agency (CISA)',
+   'Phishing General Security Postcard (2024)',
+   'https://www.cisa.gov/sites/default/files/2024-02/Update%20to%20Phishing%20General%20Security%20Postcard_01.01.2024.pdf',
+   NULL, '/books?book=digital-safety', true, true)
 ON CONFLICT (publish_date, placement, source_key) DO NOTHING;
 
 -- First run at 06:00 Africa/Dar_es_Salaam, then retry at noon and 18:00 if an AI call failed.
