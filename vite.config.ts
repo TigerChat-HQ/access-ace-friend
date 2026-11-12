@@ -20,8 +20,8 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: [
       { find: /^react$/, replacement: localReact },
-      { find: /^react\\/jsx-runtime$/, replacement: localReactJsxRuntime },
-      { find: /^react\\/jsx-dev-runtime$/, replacement: localReactJsxDevRuntime },
+      { find: /^react\/jsx-runtime$/, replacement: localReactJsxRuntime },
+      { find: /^react\/jsx-dev-runtime$/, replacement: localReactJsxDevRuntime },
       { find: "@", replacement: fileURLToPath(new URL("./src", import.meta.url)) },
     ],
     dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core"],
