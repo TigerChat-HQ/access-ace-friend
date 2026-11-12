@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Supabase generated types do not yet include the pending PR migrations; any casts are isolated to the database boundary. */
 import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Flag, UserX, Bookmark, Archive, Pin, Pencil, BarChart3, UserPlus, Images } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -71,8 +72,20 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
   const [audienceDraft, setAudienceDraft] = useState(post.audience || "public");
   const [editingCaption, setEditingCaption] = useState(false);
   const [postActionBusy, setPostActionBusy] = useState(false);
-  const [followingCreator, setFollowingCreator] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
+  const queryClient = useQueryClient();
+  const { data: followingIds = [] } = useQuery({
+    queryKey: ["following-ids", user?.id],
+    enabled: Boolean(isReel && user),
+    staleTime: 60_000,
+    queryFn: async () => {
+      if (!user) return [] as string[];
+      const { data, error } = await supabase.from("follows").select("following_id").eq("follower_id", user.id);
+      if (error) throw error;
+      return (data || []).map((row) => row.following_id);
+    },
+  });
+  const followingCreator = followingIds.includes(post.user_id);
 
   useEffect(() => {
     let active = true;
@@ -150,14 +163,6 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
 
 
 
-  useEffect(() => {
-    if (!isReel || !user || user.id === post.user_id) { setFollowingCreator(false); return; }
-    let active = true;
-    void supabase.from("follows").select("id").eq("follower_id", user.id).eq("following_id", post.user_id).maybeSingle()
-      .then(({ data, error }) => { if (active && !error) setFollowingCreator(Boolean(data)); });
-    return () => { active = false; };
-  }, [isReel, user?.id, post.user_id]);
-
   const handleFollowCreator = async () => {
     if (!user || user.id === post.user_id || followBusy || followingCreator) return;
     setFollowBusy(true);
@@ -168,7 +173,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
         reel_id: post.id, creator_id: post.user_id, follower_id: user.id,
       });
       if (attributionError && attributionError.code !== "23505") console.warn("Reel follow attribution was not recorded", attributionError);
-      setFollowingCreator(true);
+      queryClient.setQueryData<string[]>(["following-ids", user.id], (previous = []) => previous.includes(post.user_id) ? previous : [...previous, post.user_id]);
       toast({ title: "You are now following this creator" });
     } catch (error) {
       toast({ title: "Could not follow creator", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
@@ -299,7 +304,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
         </div>
       )}
 
-      <div className="flex items-center gap-4 px-4 py-2.5">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-2.5">
         <button onClick={handleLike} className="flex items-center gap-1.5 text-foreground hover:text-primary transition-colors">
           <Heart className={`w-6 h-6 ${liked ? "fill-primary text-primary" : ""}`} />
           {!post.hide_like_count && <span className="text-sm font-medium">{likeCount}</span>}
