@@ -475,11 +475,21 @@ const ReelsStudio = () => {
   };
 
   const renderTimeline = async () => {
-    if (!timelineFiles.length || renderingTimeline) return;
+    if (renderingTimeline) return;
     setRenderingTimeline(true);
     setRenderProgress(0);
     try {
-      const clips = timelineFiles.map((file, index) => ({
+      let sourceFiles = timelineFiles;
+      if (!sourceFiles.length && videoPath && videoUrl) {
+        const response = await fetch(videoUrl);
+        if (!response.ok) throw new Error("Could not load the saved draft video for editing.");
+        const blob = await response.blob();
+        if (!blob.size) throw new Error("The saved draft video is empty.");
+        const extension = videoPath.split(".").pop() || "mp4";
+        sourceFiles = [new File([blob], `saved-reel.${extension}`, { type: blob.type || "video/mp4" })];
+      }
+      if (!sourceFiles.length) throw new Error("Choose a video before rendering.");
+      const clips = sourceFiles.map((file, index) => ({
         file,
         start: index === 0 ? trimStart : 0,
         end: index === 0 ? (trimEnd ?? undefined) : undefined,
@@ -717,7 +727,7 @@ const ReelsStudio = () => {
                   <label className="text-xs text-muted-foreground">Trim start (seconds)<input type="number" min={0} max={duration} step={0.1} value={trimStart} onChange={(e) => { setTrimStart(Math.max(0, Number(e.target.value))); setTimelineRendered(false); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground" /></label>
                   <label className="text-xs text-muted-foreground">Trim end (seconds)<input type="number" min={trimStart + 0.1} max={duration} step={0.1} value={trimEnd ?? duration} onChange={(e) => { setTrimEnd(Math.min(duration || Infinity, Number(e.target.value))); setTimelineRendered(false); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground" /></label>
                 </div>
-                <p className="text-[11px] text-muted-foreground">Trim points are saved as playback metadata. Exporting a physically shortened video file is a separate processing step and is not enabled in this release.</p>
+                <p className="text-[11px] text-muted-foreground">Trim, speed, filters, captions and multiple clips are baked into the final file when you use the Render button below.</p>
               </div>
             ) : cameraOpen ? (
               <div className="space-y-3">
@@ -777,7 +787,7 @@ const ReelsStudio = () => {
                 </select>
               </label>
             </div>
-            <button type="button" onClick={() => void renderTimeline()} disabled={!timelineFiles.length || renderingTimeline || busy} className="w-full rounded-xl bg-secondary px-3 py-3 text-sm font-semibold text-secondary-foreground disabled:opacity-50">
+            <button type="button" onClick={() => void renderTimeline()} disabled={(!timelineFiles.length && !videoPath) || renderingTimeline || busy} className="w-full rounded-xl bg-secondary px-3 py-3 text-sm font-semibold text-secondary-foreground disabled:opacity-50">
               {renderingTimeline ? `Rendering edits… ${renderProgress}%` : "Render clips, trim, speed, filters & captions"}
             </button>
             {timelineRendered && <p className="text-xs text-emerald-600">Edits rendered into the publishable video file.</p>}
@@ -799,7 +809,7 @@ const ReelsStudio = () => {
               {recordingVoice ? "Stop voiceover recording" : "Record voiceover"}
             </button>
             {audioFile && <p className="mt-2 text-xs text-muted-foreground">{audioFile.name}</p>}
-            <label className="mt-3 block text-xs text-muted-foreground">Audio start offset (seconds)<input type="number" min={0} step={0.1} value={audioStart} onChange={(e) => setAudioStart(Math.max(0, Number(e.target.value)))} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground" /></label>
+            <label className="mt-3 block text-xs text-muted-foreground">Audio start offset (seconds)<input type="number" min={0} step={0.1} value={audioStart} onChange={(e) => { setAudioStart(Math.max(0, Number(e.target.value))); setTimelineRendered(false); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground" /></label>
             <label className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
               <input type="checkbox" checked={shareAudio} onChange={(event) => setShareAudio(event.target.checked)} />
               Allow other creators to use this audio in their Reels
