@@ -189,7 +189,13 @@ BEGIN
 
   IF v_match.player_white=v_user AND v_match.current_turn='w' THEN v_mover:='w';
   ELSIF v_match.player_black=v_user AND v_match.current_turn='b' THEN v_mover:='b';
-  ELSIF v_match.vs_ai AND v_match.player_white=v_user AND v_match.current_turn='b' THEN v_mover:='b';
+  ELSIF v_match.vs_ai
+    AND v_match.current_turn='b'
+    AND current_setting('request.jwt.claim.role',true)='service_role' THEN
+    -- The Edge Function authenticates the human white player, calculates the
+    -- AI move from the locked persisted board, then commits with service_role.
+    -- Authenticated clients can never impersonate the AI side.
+    v_mover:='b';
   ELSE RAISE EXCEPTION 'Not your turn or not a match participant'; END IF;
 
   IF jsonb_typeof(v_match.board)<>'array' OR jsonb_array_length(v_match.board)<>64 THEN
