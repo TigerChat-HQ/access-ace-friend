@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BookOpen, CheckCircle2, ExternalLink, GraduationCap, Scale, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { TigerSmartCardEngagement } from "@/components/social/TigerSmartCardEngagement";
 
 type SmartCardsQueryResult = { data: unknown; error: { message: string } | null };
 type SmartCardsQuery = PromiseLike<SmartCardsQueryResult> & {
@@ -101,6 +102,7 @@ export const TigerSmartCards = () => {
                 <div className="flex items-center gap-1.5 text-primary">{categoryIcon(card.category)}<span className="text-[9px] font-extrabold uppercase tracking-wider">{categoryLabel[card.category] || "Maarifa"}</span></div>
                 <p className="mt-2 line-clamp-3 text-xs font-bold leading-5 text-foreground">{card.hook}</p>
                 <ReadMore card={card}>Soma zaidi</ReadMore>
+                <TigerSmartCardEngagement cardId={card.id} />
               </div>
             ))}
           </div>
@@ -129,7 +131,8 @@ export const TigerSmartCards = () => {
               <a href={card.source_url} target="_blank" rel="noreferrer" className="inline-flex min-w-0 items-center gap-1 text-[10px] text-muted-foreground hover:text-primary"><BookOpen className="h-3 w-3 shrink-0" /><span className="truncate">Chanzo: {card.source_title}</span><ExternalLink className="h-3 w-3 shrink-0" /></a>
               <ReadMore card={card}>Soma zaidi</ReadMore>
             </div>
-          </div>
+          <TigerSmartCardEngagement cardId={card.id} />
+        </div>
         </article>
       ))}
     </section>
