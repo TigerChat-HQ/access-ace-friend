@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Trophy, Coins, Medal, Gamepad2, Radio, ChevronRight, ChevronDown, Sparkles, Clock3, Users, Swords, Brain, Puzzle, Crown } from "lucide-react";
+import { ArrowLeft, Trophy, Coins, Medal, Gamepad2, Radio, ChevronRight, ChevronDown, Sparkles, Clock3, Users, Crown } from "lucide-react";
 
 const liveGames = [
   { title: "Draughts Arena", subtitle: "Mkakati wa jadi · Tiger AI · PvP", tag: "INACHEZWA", path: "/draughts", art: "from-emerald-950 via-emerald-900 to-slate-950", icon: "♟", accent: "text-emerald-300", players: "AI na marafiki" },
