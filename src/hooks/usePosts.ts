@@ -49,7 +49,7 @@ const getBlockedSet = async (userId: string): Promise<Set<string>> => {
   return set;
 };
 
-export const useFeed = (mode: "following" | "discover" = "following") => {
+export const useFeed = (mode: "following" | "discover" | "reels" = "following") => {
   const { user } = useAuth();
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,6 +70,7 @@ export const useFeed = (mode: "following" | "discover" = "following") => {
     }
 
     let query = supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(100);
+    if (mode === "reels") query = query.eq("media_type", "video").not("media_url", "is", null);
     if (userIdsForFeed) query = query.in("user_id", userIdsForFeed);
 
     const { data: rawPosts } = await query;
@@ -114,7 +115,7 @@ export const useFeed = (mode: "following" | "discover" = "following") => {
     })) as FeedPost[];
 
     // Discover: rank by engagement + recency
-    if (mode === "discover") {
+    if (mode === "discover" || mode === "reels") {
       const now = Date.now();
       enriched = enriched
         .map((p) => {
