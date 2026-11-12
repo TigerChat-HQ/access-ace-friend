@@ -1,0 +1,102 @@
+name: Supabase migration smoke test
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+      - ".github/workflows/supabase-migration-smoke.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+      - ".github/workflows/supabase-migration-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-migration-smoke:
+    name: PostgreSQL migration smoke test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tigerchat_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d tigerchat_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: tigerchat_test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Prepare minimal Supabase auth objects
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE SCHEMA auth;
+          CREATE TABLE auth.users (id uuid PRIMARY KEY);
+          CREATE ROLE authenticated NOLOGIN;
+          CREATE FUNCTION auth.uid() RETURNS uuid
+            LANGUAGE sql STABLE
+            AS 'SELECT NULL::uuid';
+          SQL
+
+      - name: Apply migration twice (idempotency check)
+        run: |
+          migration="supabase/migrations/20261109020000_device_push_tokens.sql"
+          test -s "$migration"
+          psql -v ON_ERROR_STOP=1 -f "$migration"
+          psql -v ON_ERROR_STOP=1 -f "$migration"
+
+      - name: Verify table, RLS, policy, constraint, index and grants
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          BEGIN
+            IF to_regclass('public.device_push_tokens') IS NULL THEN
+              RAISE EXCEPTION 'device_push_tokens table is missing';
+            END IF;
+            IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.device_push_tokens'::regclass) THEN
+              RAISE EXCEPTION 'RLS is not enabled';
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_policies
+              WHERE schemaname = 'public'
+                AND tablename = 'device_push_tokens'
+                AND policyname = 'Users manage their own push tokens'
+            ) THEN
+              RAISE EXCEPTION 'Expected RLS policy is missing';
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint
+              WHERE conrelid = 'public.device_push_tokens'::regclass
+                AND conname = 'device_push_tokens_user_token_key'
+                AND contype = 'u'
+            ) THEN
+              RAISE EXCEPTION 'Unique constraint is missing';
+            END IF;
+            IF to_regclass('public.device_push_tokens_user_id_idx') IS NULL THEN
+              RAISE EXCEPTION 'User ID index is missing';
+            END IF;
+            IF NOT has_table_privilege('authenticated', 'public.device_push_tokens', 'SELECT,INSERT,UPDATE,DELETE') THEN
+              RAISE EXCEPTION 'Expected authenticated table grants are missing';
+            END IF;
+          END;
+          $$;
+          SQL
