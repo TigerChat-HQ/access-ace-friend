@@ -200,7 +200,7 @@ BEGIN
   SELECT jsonb_agg(
     CASE
       WHEN i=17 THEN '{"c":"b","k":false}'::jsonb
-      WHEN i=26 OR i=40 OR i=42 THEN '{"c":"w","k":false}'::jsonb
+      WHEN i=26 OR i=40 THEN '{"c":"w","k":false}'::jsonb
       ELSE 'null'::jsonb
     END ORDER BY i
   ) INTO v_capture_board FROM generate_series(0,63) i;
