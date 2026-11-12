@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 const PREFS_KEY = "tigerchat-floating-bubble-prefs";
 const HIDDEN_KEY = "tigerchat-floating-bubble-hidden";
@@ -31,7 +31,7 @@ export const FloatingBubbleSettings = () => {
   const [prefs, setPrefs] = useState<BubblePrefs>(readPrefs);
   const [overlayPermission, setOverlayPermission] = useState(false);
   const nativeBridge = (window as Window & { TigerNative?: { hasOverlayPermission?: () => boolean; requestOverlayPermission?: () => void; setOverlayBubbleEnabled?: (enabled: boolean) => void } }).TigerNative;
-  const refreshOverlayPermission = () => setOverlayPermission(Boolean(nativeBridge?.hasOverlayPermission?.()));
+  const refreshOverlayPermission = useCallback(() => setOverlayPermission(Boolean(nativeBridge?.hasOverlayPermission?.())), [nativeBridge]);
   useEffect(() => {
     refreshOverlayPermission();
     window.addEventListener("tiger:overlay-permission-returned", refreshOverlayPermission);
@@ -40,7 +40,7 @@ export const FloatingBubbleSettings = () => {
       window.removeEventListener("tiger:overlay-permission-returned", refreshOverlayPermission);
       window.removeEventListener("focus", refreshOverlayPermission);
     };
-  }, []);
+  }, [refreshOverlayPermission]);
 
   useEffect(() => {
     const sync = () => {
