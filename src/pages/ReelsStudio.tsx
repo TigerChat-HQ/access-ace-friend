@@ -652,6 +652,7 @@ const ReelsStudio = () => {
       if (recordingVoice || listeningCaptions || recordingCamera) throw new Error("Stop camera, voiceover and automatic captions before publishing.");
       if (!videoFile && !videoPath) throw new Error("Choose a video first.");
       if (remixType === "duet" && !duetFile) throw new Error("The original video could not be loaded for this duet. Try again or choose Remix.");
+      if (remixType === "duet" && !timelineRendered) throw new Error("Render the split-screen duet before publishing.");
       if (renderedEditsDirty) throw new Error("Your exported video is out of date. Render your latest edits before publishing.");
       if (timelineFiles.length > 1 && !timelineRendered) throw new Error("Render your multi-clip timeline before publishing.");
       if ((filterPreset !== "none" || playbackSpeed !== 1 || trimStart > 0 || (trimEnd !== null && duration > 0 && trimEnd < duration - 0.1)) && !timelineRendered) throw new Error("Render your trim, speed and filter edits before publishing.");
