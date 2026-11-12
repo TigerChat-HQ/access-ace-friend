@@ -10,7 +10,7 @@ import { BoardAppearance, useDraughtsAppearance } from "@/components/draughts/Bo
 import { DraughtsGameEffects, playDraughtsSound } from "@/components/draughts/DraughtsGameEffects";
 import {
   Board, Color, Move, applyMove, initialBoard, isDark, legalMoves,
-  pickAIMove, winner,
+  winner,
 } from "@/lib/draughts";
 
 type Mode = "menu" | "ai" | "pvp";
@@ -220,42 +220,35 @@ const Draughts = () => {
 
 
 
-  // AI move trigger
+  // AI move is calculated and committed by the trusted Edge Function.
+  // The browser never submits an AI-side move or an asserted board.
   useEffect(() => {
-    if (!match || !match.vs_ai) return;
-    if (match.status !== "active") return;
-    if (match.current_turn !== "b") return; // AI plays black
+    if (!match || !match.vs_ai || match.status !== "active" || match.current_turn !== "b" || !user) return;
+    const key = `${match.id}:${match.revision}`;
+    if (aiMoveInFlight.current === key) return;
     setAiThinking(true);
-    const t = setTimeout(async () => {
-      if (aiMoveInFlight.current === match.id) return;
-      aiMoveInFlight.current = match.id;
-      const aiMove = pickAIMove(match.board, "b", aiDepth);
-      if (!aiMove) {
-        await supabase.rpc("commit_draft_move", {
-          p_id: match.id, p_revision: match.revision, p_board: match.board as unknown as Json,
-          p_turn: "b", p_move: null as unknown as Json, p_status: "finished", p_winner: "white",
+    const t = window.setTimeout(async () => {
+      aiMoveInFlight.current = key;
+      try {
+        const { data, error } = await supabase.functions.invoke("draughts-ai-turn", {
+          body: { match_id: match.id, revision: match.revision, difficulty: aiDifficulty },
         });
-        aiMoveInFlight.current = null;
+        if (error) throw error;
+        if (data?.match) {
+          const saved = data.match as MatchRow;
+          setMatch((current) => !current || saved.revision >= current.revision ? saved : current);
+          const move = data.move as Move | null;
+          if (move && soundEnabled) playDraughtsSound(move.promote ? "king" : move.captures?.length ? "capture" : "move", soundVolume);
+        }
+      } catch (error) {
+        toast({ title: "AI move could not be completed", description: error instanceof Error ? error.message : "Please retry.", variant: "destructive" });
+      } finally {
+        if (aiMoveInFlight.current === key) aiMoveInFlight.current = null;
         setAiThinking(false);
-        return;
       }
-      const newBoard = applyMove(match.board, aiMove);
-      const w = winner(newBoard, "w");
-      const { data: aiSaved } = await supabase.rpc("commit_draft_move", {
-        p_id: match.id, p_revision: match.revision, p_board: newBoard as unknown as Json,
-        p_turn: "w", p_move: aiMove as unknown as Json,
-        p_status: w ? "finished" : "active",
-        p_winner: (w === "w" ? "white" : w === "b" ? "black" : null) as string,
-      });
-      if (aiSaved) {
-        if (soundEnabled && !w) playDraughtsSound(aiMove.promote ? "king" : aiMove.captures.length > 0 ? "capture" : "move", soundVolume);
-        setMatch(aiSaved as unknown as MatchRow);
-      }
-      aiMoveInFlight.current = null;
-      setAiThinking(false);
     }, 350);
-    return () => clearTimeout(t);
-  }, [match?.id, match?.current_turn, match?.vs_ai, match?.status, match?.revision, match?.board, soundEnabled, soundVolume, aiDepth]);
+    return () => window.clearTimeout(t);
+  }, [match?.id, match?.current_turn, match?.vs_ai, match?.status, match?.revision, user?.id, aiDifficulty, soundEnabled, soundVolume, toast]);
 
   const startAI = async () => {
     if (!user || creating) return;
