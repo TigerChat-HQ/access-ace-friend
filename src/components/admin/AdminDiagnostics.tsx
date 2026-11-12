@@ -217,7 +217,7 @@ export const AdminDiagnostics = () => {
       category: kind === "camera" ? "camera_permission" : "microphone_permission",
       title: `${kind === "camera" ? "Camera" : "Microphone"} permission test ${outcome}`,
       message: detail, route: window.location.pathname, component: "AdminDiagnostics",
-      suggestion: outcome === "passed" ? "Media capture ilifanya kazi kwenye WebView hii wakati wa test." : "Kagua Android runtime permission, WebView PermissionRequest grant, origin salama, MainActivity na kama floating/overlay WebView inajaribu media capture.",
+      suggestion: outcome === "passed" ? "Media capture ilifanya kazi kwenye WebView hii wakati wa test." : fixSteps.join(" "),
       metadata: { permissionState, deviceCount, userAgent: navigator.userAgent, secureContext: window.isSecureContext, mediaDevicesAvailable: Boolean(navigator.mediaDevices), webView: /; wv\)|Android.*Version\//i.test(navigator.userAgent) },
     });
     setMediaBusy(null);
@@ -329,7 +329,7 @@ export const AdminDiagnostics = () => {
         <Button size="sm" variant="outline" onClick={() => void testMediaPermission("microphone")} disabled={mediaBusy !== null}>{mediaBusy === "microphone" ? <Loader2 className="mr-1 h-4 w-4 animate-spin"/> : <Mic className="mr-1 h-4 w-4"/>}Test microphone</Button>
         <Button size="sm" variant="outline" onClick={() => void testMediaPermission("camera")} disabled={mediaBusy !== null}>{mediaBusy === "camera" ? <Loader2 className="mr-1 h-4 w-4 animate-spin"/> : <Camera className="mr-1 h-4 w-4"/>}Test camera</Button>
       </div>
-      {Object.entries(mediaResults).map(([kind, result]) => <p key={kind} className="break-words rounded border border-border p-2 text-xs"><strong className="capitalize">{kind}:</strong> {result}</p>)}
+      {Object.entries(mediaResults).map(([kind, result]) => <p key={kind} className="whitespace-pre-wrap break-words rounded border border-border p-2 text-xs"><strong className="capitalize">{kind}:</strong> {result}</p>)}
       <p className="text-[11px] text-muted-foreground">Matokeo yanarekodiwa kwenye Diagnostics Center pamoja na Android/WebView context. Jaribu ukiwa ndani ya app kuu; floating chat inaweza kutumia WebView tofauti.</p>
     </div>
     <div className="rounded-lg border border-border bg-card p-3 space-y-2">
