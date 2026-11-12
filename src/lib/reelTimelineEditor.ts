@@ -1,5 +1,7 @@
 export type ReelTimelineClip = { file: File; start?: number; end?: number | null };
 export type ReelCaption = { start: number; end: number; text: string };
+import { drawFaceEffect, loadFaceLandmarker, type FaceEffect, type FaceLandmarkerLike } from "@/lib/reelFaceTracking";
+
 export type ReelTimelineOptions = {
   clips: ReelTimelineClip[];
   duetFile?: File | null;
@@ -11,6 +13,7 @@ export type ReelTimelineOptions = {
   musicVolume?: number;
   captions?: ReelCaption[];
   effect?: "none" | "hearts" | "sparkles" | "neon-frame" | "vhs" | "soft-glow";
+  faceEffect?: FaceEffect;
   onProgress?: (progress: number) => void;
 };
 
@@ -51,6 +54,7 @@ export async function renderReelTimeline(options: ReelTimelineOptions): Promise<
   let musicElement: HTMLAudioElement | null = null;
   let musicUrl: string | null = null;
   let duetVideo: HTMLVideoElement | null = null;
+  let faceLandmarker: FaceLandmarkerLike | null = null;
   let duetUrl: string | null = null;
   let recorder: MediaRecorder | null = null;
   let stream: MediaStream | null = null;
@@ -64,6 +68,7 @@ export async function renderReelTimeline(options: ReelTimelineOptions): Promise<
       loaded.push({ ...item, start, end });
     }
     const first = loaded[0].video;
+    if (options.faceEffect && options.faceEffect !== "none") faceLandmarker = await loadFaceLandmarker();
     if (options.duetFile) {
       const duet = await loadVideo(options.duetFile);
       duetVideo = duet.video;
@@ -197,6 +202,10 @@ export async function renderReelTimeline(options: ReelTimelineOptions): Promise<
             context.fillText("● REC", 32, 54);
             context.restore();
           }
+          if (faceLandmarker && options.faceEffect && options.faceEffect !== "none") {
+            const faceResult = faceLandmarker.detectForVideo(video, performance.now());
+            drawFaceEffect(context, faceResult.faceLandmarks?.[0], canvas.width, canvas.height, options.faceEffect);
+          }
           const activeCaption = options.captions?.find((caption) => globalTime >= caption.start && globalTime <= caption.end);
           if (activeCaption?.text) {
             context.font = "bold 38px sans-serif";
@@ -232,6 +241,7 @@ export async function renderReelTimeline(options: ReelTimelineOptions): Promise<
   } finally {
     cancelAnimationFrame(raf);
     loaded.forEach((item) => { item.video.pause(); URL.revokeObjectURL(item.url); });
+    faceLandmarker?.close();
     duetVideo?.pause();
     if (duetUrl) URL.revokeObjectURL(duetUrl);
     musicElement?.pause();
