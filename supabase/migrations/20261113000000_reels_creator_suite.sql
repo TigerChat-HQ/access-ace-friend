@@ -113,7 +113,7 @@ ALTER TABLE public.post_analytics_events
   ));
 
 -- Preserve the selected music clip range in saved drafts as well as published Reels.
-ALTER TABLE public.reel_drafts
+ALTER TABLE IF EXISTS public.reel_drafts
   ADD COLUMN IF NOT EXISTS audio_end_seconds numeric(10,3),
   ADD COLUMN IF NOT EXISTS original_volume numeric(3,2) NOT NULL DEFAULT 1,
   ADD COLUMN IF NOT EXISTS music_volume numeric(3,2) NOT NULL DEFAULT 0.75;
