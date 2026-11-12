@@ -208,6 +208,7 @@ const ReelsStudio = () => {
     setVideoFile(file);
     setTimelineFiles([file]);
     setTimelineRendered(false);
+    setRenderedEditsDirty(false);
     setVideoPath(null);
     setCoverPath(null);
     setCoverUrl(null);
@@ -378,6 +379,7 @@ const ReelsStudio = () => {
     } else setDuetFile(null);
     setTimelineFiles([]);
     setTimelineRendered(false);
+    setRenderedEditsDirty(false);
   };
 
   const openCamera = async () => {
@@ -458,7 +460,7 @@ const ReelsStudio = () => {
     const valid = files.filter((file) => file.type.startsWith("video/") && file.size <= 150 * 1024 * 1024);
     if (valid.length !== files.length) toast({ title: "Some clips were skipped", description: "Only videos under 150 MB each can be added.", variant: "destructive" });
     setTimelineFiles((items) => [...items, ...valid].slice(0, 8));
-    setTimelineRendered(false);
+    markTimelineDirty();
   };
 
   const moveTimelineClip = (index: number, delta: number) => {
@@ -474,7 +476,7 @@ const ReelsStudio = () => {
       }
       return next;
     });
-    setTimelineRendered(false);
+    markTimelineDirty();
   };
 
   const removeTimelineClip = (index: number) => {
@@ -490,7 +492,7 @@ const ReelsStudio = () => {
       }
       return next;
     });
-    setTimelineRendered(false);
+    markTimelineDirty();
   };
 
   const renderTimeline = async () => {
@@ -579,7 +581,7 @@ const ReelsStudio = () => {
           setAudioFile(file);
           setAudioPath(null);
           setAudioLibraryUrl(null);
-          setTimelineRendered(false);
+          markTimelineDirty();
           setAudioUrl(URL.createObjectURL(file));
           setAudioTitle("My voiceover");
           setAudioStart(0);
@@ -622,7 +624,7 @@ const ReelsStudio = () => {
         const transcript = result?.[0]?.transcript?.trim();
         if (result?.isFinal && transcript) additions.push({ start: videoTime, end: Math.min(duration || videoTime + 4, videoTime + 4), text: transcript });
       }
-      if (additions.length) { setCaptions((items) => [...items, ...additions].sort((a, b) => a.start - b.start)); setTimelineRendered(false); }
+      if (additions.length) { setCaptions((items) => [...items, ...additions].sort((a, b) => a.start - b.start)); markTimelineDirty(); }
     };
     recognition.onerror = () => {
       setListeningCaptions(false);
@@ -643,7 +645,7 @@ const ReelsStudio = () => {
   const addCaption = () => {
     if (!captionText.trim() || captionEnd <= captionStart) return;
     setCaptions((items) => [...items, { start: captionStart, end: captionEnd, text: captionText.trim() }].sort((a, b) => a.start - b.start));
-    setTimelineRendered(false);
+    markTimelineDirty();
     setCaptionText("");
   };
 
@@ -746,8 +748,8 @@ const ReelsStudio = () => {
                 </div>
                 {coverUrl && <img src={coverUrl} alt="Selected Reel cover" className="h-24 w-16 rounded-lg object-cover" />}
                 <div className="grid grid-cols-2 gap-3">
-                  <label className="text-xs text-muted-foreground">Trim start (seconds)<input type="number" min={0} max={duration} step={0.1} value={trimStart} onChange={(e) => { setTrimStart(Math.max(0, Number(e.target.value))); setTimelineRendered(false); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground" /></label>
-                  <label className="text-xs text-muted-foreground">Trim end (seconds)<input type="number" min={trimStart + 0.1} max={duration} step={0.1} value={trimEnd ?? duration} onChange={(e) => { setTrimEnd(Math.min(duration || Infinity, Number(e.target.value))); setTimelineRendered(false); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground" /></label>
+                  <label className="text-xs text-muted-foreground">Trim start (seconds)<input type="number" min={0} max={duration} step={0.1} value={trimStart} onChange={(e) => { setTrimStart(Math.max(0, Number(e.target.value))); markTimelineDirty(); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground" /></label>
+                  <label className="text-xs text-muted-foreground">Trim end (seconds)<input type="number" min={trimStart + 0.1} max={duration} step={0.1} value={trimEnd ?? duration} onChange={(e) => { setTrimEnd(Math.min(duration || Infinity, Number(e.target.value))); markTimelineDirty(); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground" /></label>
                 </div>
                 <p className="text-[11px] text-muted-foreground">Trim, speed, filters, captions and multiple clips are baked into the final file when you use the Render button below.</p>
               </div>
@@ -794,7 +796,7 @@ const ReelsStudio = () => {
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="text-xs text-muted-foreground">Filter / template
-                <select value={filterPreset} onChange={(event) => { setFilterPreset(event.target.value); setTimelineRendered(false); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground">
+                <select value={filterPreset} onChange={(event) => { setFilterPreset(event.target.value); markTimelineDirty(); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground">
                   <option value="none">Original</option>
                   <option value="contrast(1.12) saturate(1.25)">Tiger Vibrant</option>
                   <option value="sepia(.55) contrast(1.08)">Vintage</option>
@@ -804,7 +806,7 @@ const ReelsStudio = () => {
                 </select>
               </label>
               <label className="text-xs text-muted-foreground">Playback speed
-                <select value={playbackSpeed} onChange={(event) => { setPlaybackSpeed(Number(event.target.value)); setTimelineRendered(false); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground">
+                <select value={playbackSpeed} onChange={(event) => { setPlaybackSpeed(Number(event.target.value)); markTimelineDirty(); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground">
                   <option value={0.5}>0.5× Slow</option><option value={0.75}>0.75×</option><option value={1}>1× Normal</option><option value={1.25}>1.25×</option><option value={1.5}>1.5×</option><option value={2}>2× Fast</option>
                 </select>
               </label>
@@ -825,13 +827,13 @@ const ReelsStudio = () => {
           <div className="rounded-2xl border border-border/60 bg-card p-4">
             <div className="mb-3 flex items-center gap-2"><AudioLines className="h-4 w-4 text-primary" /><h2 className="text-sm font-semibold text-foreground">Audio track</h2></div>
             <input value={audioTitle} onChange={(e) => setAudioTitle(e.target.value)} placeholder="Track title (optional)" className="mb-2 w-full rounded-lg bg-background p-2 text-sm text-foreground" />
-            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border p-3 text-sm text-muted-foreground"><Upload className="h-4 w-4" /> Upload your original or licensed audio<input type="file" accept="audio/*" className="hidden" onChange={(e) => { setAudioFile(e.target.files?.[0] || null); setAudioPath(null); setAudioLibraryUrl(null); setAudioUrl(null); setTimelineRendered(false); if (e.target.files?.[0] && !audioTitle) setAudioTitle(e.target.files[0].name); }} /></label>
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border p-3 text-sm text-muted-foreground"><Upload className="h-4 w-4" /> Upload your original or licensed audio<input type="file" accept="audio/*" className="hidden" onChange={(e) => { setAudioFile(e.target.files?.[0] || null); setAudioPath(null); setAudioLibraryUrl(null); setAudioUrl(null); markTimelineDirty(); if (e.target.files?.[0] && !audioTitle) setAudioTitle(e.target.files[0].name); }} /></label>
             <button type="button" disabled={busy} onClick={() => void toggleVoiceover()} className={`mt-2 flex w-full items-center justify-center gap-2 rounded-xl p-3 text-sm font-semibold ${recordingVoice ? "bg-destructive text-destructive-foreground" : "bg-secondary text-secondary-foreground"}`}>
               <span className={recordingVoice ? "h-2 w-2 animate-pulse rounded-full bg-current" : "h-2 w-2 rounded-full bg-primary"} />
               {recordingVoice ? "Stop voiceover recording" : "Record voiceover"}
             </button>
             {audioFile && <p className="mt-2 text-xs text-muted-foreground">{audioFile.name}</p>}
-            <label className="mt-3 block text-xs text-muted-foreground">Audio start offset (seconds)<input type="number" min={0} step={0.1} value={audioStart} onChange={(e) => { setAudioStart(Math.max(0, Number(e.target.value))); setTimelineRendered(false); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground" /></label>
+            <label className="mt-3 block text-xs text-muted-foreground">Audio start offset (seconds)<input type="number" min={0} step={0.1} value={audioStart} onChange={(e) => { setAudioStart(Math.max(0, Number(e.target.value))); markTimelineDirty(); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground" /></label>
             <label className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
               <input type="checkbox" checked={shareAudio} onChange={(event) => setShareAudio(event.target.checked)} />
               Allow other creators to use this audio in their Reels
@@ -880,7 +882,7 @@ const ReelsStudio = () => {
             </button>
             <button onClick={addCaption} disabled={!captionText.trim() || captionEnd <= captionStart} className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg bg-secondary p-2 text-sm text-secondary-foreground disabled:opacity-40"><Plus className="h-4 w-4" /> Add timed caption</button>
             <div className="mt-3 space-y-2">
-              {captions.map((item, index) => <div key={index} className="flex items-center gap-2 rounded-lg bg-background p-2 text-xs"><span className="shrink-0 text-muted-foreground">{item.start}s–{item.end}s</span><span className="min-w-0 flex-1 truncate text-foreground">{item.text}</span><button onClick={() => { setCaptions((all) => all.filter((_, i) => i !== index)); setTimelineRendered(false); }} aria-label="Remove caption" className="text-destructive"><Trash2 className="h-4 w-4" /></button></div>)}
+              {captions.map((item, index) => <div key={index} className="flex items-center gap-2 rounded-lg bg-background p-2 text-xs"><span className="shrink-0 text-muted-foreground">{item.start}s–{item.end}s</span><span className="min-w-0 flex-1 truncate text-foreground">{item.text}</span><button onClick={() => { setCaptions((all) => all.filter((_, i) => i !== index)); markTimelineDirty(); }} aria-label="Remove caption" className="text-destructive"><Trash2 className="h-4 w-4" /></button></div>)}
               {!captions.length && <p className="py-4 text-center text-xs text-muted-foreground">No timed captions added yet.</p>}
             </div>
           </div>
