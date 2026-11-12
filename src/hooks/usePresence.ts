@@ -1,114 +1,71 @@
 import { useEffect, useState } from "react";
-import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
+export type ChatPresence = {
+  user_id: string;
+  is_online: boolean;
+  last_seen_at: string | null;
+  show_last_seen: boolean;
+  show_online_status: boolean;
+};
+
 /**
- * One shared presence channel per signed-in user. Supabase returns the same
- * channel object for a repeated topic, so callbacks must be registered once
- * before subscribe(); every hook instance listens through this shared hub.
+ * Presence is read only through an authenticated RPC. The database returns
+ * only users who share a conversation with the current user; no global
+ * Realtime Presence topic exposes the full user directory.
  */
-type Hub = {
-  userId: string;
-  channel: RealtimeChannel;
-  listeners: Set<(ids: string[]) => void>;
-  trackers: number;
-  subscribed: boolean;
-  ids: string[];
-};
-
-let hub: Hub | null = null;
-
-const payload = (userId: string) => ({ userId, onlineAt: new Date().toISOString() });
-
-const updateTracking = (h: Hub) => {
-  if (!h.subscribed) return;
-  if (h.trackers > 0 && !document.hidden) void h.channel.track(payload(h.userId));
-  else void h.channel.untrack();
-};
-
-const onVisibility = () => { if (hub) updateTracking(hub); };
-
-const getHub = (userId: string): Hub => {
-  if (hub && hub.userId === userId) return hub;
-  if (hub) {
-    document.removeEventListener("visibilitychange", onVisibility);
-    void supabase.removeChannel(hub.channel);
-  }
-  const channel = supabase.channel("global-presence", { config: { presence: { key: userId } } });
-  const h: Hub = { userId, channel, listeners: new Set(), trackers: 0, subscribed: false, ids: [] };
-  const sync = () => {
-    const state = channel.presenceState<{ userId?: string }>();
-    h.ids = [...new Set(Object.values(state).flat().map((p) => p.userId).filter((id): id is string => Boolean(id)))].sort();
-    h.listeners.forEach((l) => l(h.ids));
-  };
-  channel
-    .on("presence", { event: "sync" }, sync)
-    .on("presence", { event: "join" }, sync)
-    .on("presence", { event: "leave" }, sync)
-    .subscribe((status) => {
-      if (status !== "SUBSCRIBED") return;
-      h.subscribed = true;
-      updateTracking(h);
-      sync();
-    });
-  document.addEventListener("visibilitychange", onVisibility);
-  hub = h;
-  return h;
-};
-
-const release = (h: Hub) => {
-  if (h.listeners.size > 0 || hub !== h) return;
-  document.removeEventListener("visibilitychange", onVisibility);
-  void supabase.removeChannel(h.channel);
-  hub = null;
-};
-
-/** Tracks authenticated sessions over Supabase Realtime Presence. */
 export const usePresence = (trackSelf = false) => {
   const { user } = useAuth();
-  const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
+  const [presence, setPresence] = useState<ChatPresence[]>([]);
 
   useEffect(() => {
     if (!user) {
-      setOnlineUserIds([]);
+      setPresence([]);
       return;
     }
-    const h = getHub(user.id);
-    const listener = (ids: string[]) => setOnlineUserIds(ids);
-    h.listeners.add(listener);
-    setOnlineUserIds(h.ids);
+
+    let active = true;
+    const refresh = async () => {
+      const { data, error } = await (supabase as any).rpc("get_chat_presence");
+      if (active && !error && Array.isArray(data)) setPresence(data as ChatPresence[]);
+    };
+    const touch = async () => {
+      if (!document.hidden) {
+        await (supabase as any).rpc("touch_my_chat_presence");
+      }
+    };
+
+    void refresh();
+    const refreshTimer = window.setInterval(() => { void refresh(); }, 30_000);
+    let heartbeat: number | undefined;
+    const onVisibilityChange = () => {
+      if (document.hidden) return;
+      if (trackSelf) void touch();
+      void refresh();
+    };
+    const onPageHide = () => { if (trackSelf) void (supabase as any).rpc("touch_my_chat_presence"); };
+
     if (trackSelf) {
-      h.trackers += 1;
-      updateTracking(h);
-      const touchLastSeen = () => {
-        void supabase.from("profiles").update({ last_seen: new Date().toISOString() }).eq("user_id", user.id);
-      };
-      touchLastSeen();
-      const heartbeat = window.setInterval(() => {
-        if (!document.hidden) touchLastSeen();
-      }, 60_000);
-      const onVisibilityChange = () => touchLastSeen();
-      const onPageHide = () => touchLastSeen();
+      void touch();
+      heartbeat = window.setInterval(() => { void touch(); }, 60_000);
       document.addEventListener("visibilitychange", onVisibilityChange);
       window.addEventListener("pagehide", onPageHide);
-      return () => {
-        window.clearInterval(heartbeat);
-        document.removeEventListener("visibilitychange", onVisibilityChange);
-        window.removeEventListener("pagehide", onPageHide);
-        h.listeners.delete(listener);
-        h.trackers -= 1;
-        updateTracking(h);
-        release(h);
-      };
     }
 
     return () => {
-      h.listeners.delete(listener);
-      if (trackSelf) { h.trackers -= 1; updateTracking(h); }
-      release(h);
+      active = false;
+      window.clearInterval(refreshTimer);
+      if (heartbeat !== undefined) window.clearInterval(heartbeat);
+      if (trackSelf) {
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+        window.removeEventListener("pagehide", onPageHide);
+      }
     };
   }, [user, trackSelf]);
 
-  return { onlineUserIds: new Set(onlineUserIds) };
+  const presenceByUserId = new Map(presence.map((entry) => [entry.user_id, entry]));
+  const onlineUserIds = new Set(presence.filter((entry) => entry.is_online && entry.show_online_status).map((entry) => entry.user_id));
+
+  return { onlineUserIds, presenceByUserId };
 };
