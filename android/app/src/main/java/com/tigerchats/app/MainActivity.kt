@@ -8,6 +8,7 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.media.AudioManager
 import android.net.http.SslError
 import android.os.Build
 import android.os.Bundle
@@ -538,6 +539,47 @@ open class MainActivity : Activity() {
                     if (item.optString("id") != id) remaining.put(item)
                 }
                 prefs.edit().putString(NATIVE_DIAGNOSTICS_QUEUE, remaining.toString()).apply()
+            }
+        }
+
+        @JavascriptInterface
+        fun getActiveAudioRecordingApps(): String {
+            val result = JSONObject()
+                .put("available", Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                .put("checkedAt", System.currentTimeMillis())
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                result.put("reason", "Android 10+ inahitajika ili kutambua package ya app inayorekodi sauti.")
+                return result.toString()
+            }
+            if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                result.put("permission", "denied").put("recordings", JSONArray())
+                return result.toString()
+            }
+            return try {
+                val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+                val recordings = JSONArray()
+                audioManager.activeRecordingConfigurations.forEach { config ->
+                    val clientUid = try {
+                        config.javaClass.getMethod("getClientUid").invoke(config) as? Int
+                    } catch (_: Exception) { null }
+                    val packages = clientUid?.let { packageManager.getPackagesForUid(it).orEmpty() }.orEmpty()
+                    val packageName = packages.firstOrNull() ?: clientUid?.let { "uid:$it" } ?: "unknown-app"
+                    val appName = try {
+                        val appInfo = packageManager.getApplicationInfo(packageName, 0)
+                        packageManager.getApplicationLabel(appInfo).toString()
+                    } catch (_: Exception) { packageName }
+                    val recording = JSONObject()
+                        .put("packageName", packageName)
+                        .put("appName", appName)
+                        .put("clientAudioSource", config.clientAudioSource)
+                        .put("silenced", config.isClientSilenced)
+                    recordings.put(recording)
+                }
+                result.put("permission", "granted").put("recordings", recordings)
+                result.toString()
+            } catch (error: Exception) {
+                result.put("error", error.javaClass.simpleName + ": " + (error.message ?: "unknown"))
+                    .put("recordings", JSONArray()).toString()
             }
         }
 

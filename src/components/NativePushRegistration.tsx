@@ -9,6 +9,7 @@ declare global {
       getFcmStatus?: () => string;
       refreshFcmToken?: () => void;
       getAppVersion?: () => string;
+      getActiveAudioRecordingApps?: () => string;
       areNotificationsEnabled?: () => boolean;
       openNotificationSettings?: () => void;
       openMessageBubbleSettings?: () => void;
