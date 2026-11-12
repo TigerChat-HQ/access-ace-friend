@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { BoardAppearance, useDraughtsAppearance } from "@/components/draughts/BoardAppearance";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { Crown, RotateCcw, Users, Mail } from "lucide-react";
+import { ArrowLeft, Crown, RotateCcw, Users, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { initialBoard, legalMoves, applyMove, pickAIMove, winner, isDark } from "@/lib/draughts";
 import logo from "@/assets/tigerchats-logo.png";
 
 export default function PublicDraughts() {
+  const navigate = useNavigate();
   const { theme, setTheme, pieceStyle, setPieceStyle, scale, setScale, depth, setDepth, boardStyle, boardSizeStyle, board3dStyle } = useDraughtsAppearance();
   const [board, setBoard] = useState(initialBoard);
   const [selected, setSelected] = useState<number | null>(null);
@@ -35,7 +36,7 @@ export default function PublicDraughts() {
   };
   return <div className="tiger-app-safe-area min-h-screen bg-background text-foreground">
     <Helmet><title>Tanzanian Draft Game — Play Draughts | TIGERCHATS</title><meta name="description" content="Play Tanzanian Draft Game with flying kings against Tiger AI. Sign in for online player-versus-player draughts and invite friends with a match code." /><link rel="canonical" href="https://access-ace-friend.lovable.app/tanzanian-draft-game" /><meta property="og:title" content="Tanzanian Draft Game | TIGERCHATS" /><meta property="og:url" content="https://access-ace-friend.lovable.app/tanzanian-draft-game" /></Helmet>
-    <header className="border-b border-border px-5 py-3 flex justify-between items-center max-w-6xl mx-auto"><Link to="/" className="flex gap-2 items-center font-bold"><img src={logo} alt="" className="w-9 h-9" />TIGERCHATS</Link><Button asChild variant="ghost"><Link to="/contact"><Mail className="w-4 h-4 mr-2" />Contact</Link></Button></header>
+    <header className="border-b border-border px-5 py-3 flex justify-between items-center max-w-6xl mx-auto"><div className="flex min-w-0 items-center gap-3"><button onClick={() => navigate(-1)} aria-label="Go back" className="rounded-xl border border-border p-2 transition hover:bg-muted"><ArrowLeft className="h-5 w-5" /></button><Link to="/" className="flex gap-2 items-center font-bold"><img src={logo} alt="" className="w-9 h-9" />TIGERCHATS</Link></div><Button asChild variant="ghost"><Link to="/contact"><Mail className="w-4 h-4 mr-2" />Contact</Link></Button></header>
     <main className="max-w-5xl mx-auto px-5 py-8"><h1 className="text-3xl font-bold">Tanzanian Draft Game</h1><div className="grid md:grid-cols-[1fr_320px] gap-8 mt-6 items-start">
       <div><div className="flex items-center justify-between mb-3 mt-1"><p className="text-xs text-muted-foreground">Live game board</p><BoardAppearance theme={theme} setTheme={setTheme} pieceStyle={pieceStyle} setPieceStyle={setPieceStyle} scale={scale} setScale={setScale} depth={depth} setDepth={setDepth} soundEnabled={soundEnabled} setSoundEnabled={setSoundEnabled} soundVolume={soundVolume} setSoundVolume={setSoundVolume} reactionVolume={reactionVolume} setReactionVolume={setReactionVolume} /></div><div className="flex items-center justify-between mb-3 mt-4"><p className="text-primary font-medium" role="status">{result || (thinking ? "Tiger AI thinking…" : "Your turn · White")}</p><Button variant="ghost" size="icon" aria-label="New game" title="New game" disabled={thinking} onClick={() => { setBoard(initialBoard()); setSelected(null); setResult(""); }}><RotateCcw className="w-5 h-5" /></Button></div>
       <div style={{ ...boardStyle, ...boardSizeStyle, ...board3dStyle }} className="grid grid-cols-8 aspect-square mx-auto overflow-hidden rounded-lg ring-1 ring-border shadow-2xl">{board.map((p, i) => <button key={i} aria-label={`Square ${i + 1}${p ? ` ${p.c === "w" ? "white" : "black"}${p.k ? " king" : " piece"}` : " empty"}`} onClick={() => play(i)} className={`relative aspect-square flex items-center justify-center ${isDark(Math.floor(i / 8), i % 8) ? "draught-dark" : "draught-light"} ${selected === i ? "ring-2 ring-primary ring-inset" : ""}`}>
