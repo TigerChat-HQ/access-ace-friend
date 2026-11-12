@@ -83,6 +83,7 @@ export const CreatorReelAnalytics = () => {
       impressions: impressions.length,
       reach: new Set(impressions.map((event) => event.viewer_id)).size,
       watchMinutes: Math.round(watchSeconds / 60),
+      replays: events.filter((event) => event.event_type === "replay").length,
       completionRate: plays ? Math.round(completions / plays * 100) : 0,
       retention25: retention("retention_25"),
       retention50: retention("retention_50"),
