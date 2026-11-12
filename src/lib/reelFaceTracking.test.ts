@@ -10,14 +10,14 @@ const makeContext = () => ({
 
 const landmarks = (): FacePoint[] => {
   const points = Array.from({ length: 468 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
-  points[33] = { x: 0.35, y: 0.4 };
-  points[263] = { x: 0.65, y: 0.4 };
-  points[1] = { x: 0.5, y: 0.52 };
-  points[10] = { x: 0.5, y: 0.25 };
-  points[152] = { x: 0.5, y: 0.75 };
-  points[234] = { x: 0.3, y: 0.5 };
-  points[454] = { x: 0.7, y: 0.5 };
-  points[172] = { x: 0.4, y: 0.7 };
+  points[33] = { x: 0.35, y: 0.4, z: 0 };
+  points[263] = { x: 0.65, y: 0.4, z: 0 };
+  points[1] = { x: 0.5, y: 0.52, z: 0 };
+  points[10] = { x: 0.5, y: 0.25, z: 0 };
+  points[152] = { x: 0.5, y: 0.75, z: 0 };
+  points[234] = { x: 0.3, y: 0.5, z: 0 };
+  points[454] = { x: 0.7, y: 0.5, z: 0 };
+  points[172] = { x: 0.4, y: 0.7, z: 0 };
   return points;
 };
 
