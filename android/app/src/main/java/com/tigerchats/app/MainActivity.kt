@@ -6,10 +6,14 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.net.http.SslError
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.webkit.JavascriptInterface
+import android.webkit.ConsoleMessage
+import android.webkit.SslErrorHandler
+import android.webkit.WebResourceError
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebView
@@ -21,6 +25,9 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.UUID
 
 open class MainActivity : Activity() {
     protected lateinit var webView: WebView
@@ -35,6 +42,7 @@ open class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        installNativeCrashCapture()
         // Keep the WebView inside the decor's system-bar bounds and let Android resize
         // its actual viewport for the IME. Do not also add IME padding to the WebView:
         // that double-adjusts the viewport and can push the chat composer below the keyboard.
@@ -47,6 +55,52 @@ open class MainActivity : Activity() {
         webView.settings.databaseEnabled = true
         webView.settings.mediaPlaybackRequiresUserGesture = false
         webView.webViewClient = object : WebViewClient() {
+            override fun onReceivedError(view: WebView, request: android.webkit.WebResourceRequest, error: WebResourceError) {
+                super.onReceivedError(view, request, error)
+                if (error.errorCode == android.webkit.WebViewClient.ERROR_ABORTED) return
+                val url = request.url
+                recordNativeDiagnostic(
+                    source = "android_webview",
+                    category = if (request.isForMainFrame) "webview_page_load" else "webview_resource_load",
+                    title = if (request.isForMainFrame) "TigerChat page failed to load" else "Website resource failed to load",
+                    message = "WebView error ${error.errorCode}: ${error.description}",
+                    severity = if (request.isForMainFrame) "critical" else "medium",
+                    metadata = JSONObject().put("errorCode", error.errorCode).put("failingUrl", safeDiagnosticUrl(url)).put("mainFrame", request.isForMainFrame)
+                )
+            }
+
+            override fun onReceivedHttpError(view: WebView, request: android.webkit.WebResourceRequest, response: android.webkit.WebResourceResponse) {
+                super.onReceivedHttpError(view, request, response)
+                if (response.statusCode < 400) return
+                recordNativeDiagnostic(
+                    source = "android_webview",
+                    category = if (request.isForMainFrame) "webview_http" else "webview_resource_http",
+                    title = "Website returned HTTP ${response.statusCode}",
+                    message = "WebView request failed with HTTP ${response.statusCode} ${response.reasonPhrase}",
+                    severity = if (response.statusCode >= 500) "critical" else "high",
+                    metadata = JSONObject().put("statusCode", response.statusCode).put("url", safeDiagnosticUrl(request.url)).put("mainFrame", request.isForMainFrame)
+                )
+            }
+
+            override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
+                recordNativeDiagnostic(
+                    source = "android_webview", category = "webview_ssl", title = "Website SSL certificate error",
+                    message = "Android WebView rejected the website certificate (primary error ${error.primaryError}).",
+                    severity = "critical", metadata = JSONObject().put("primaryError", error.primaryError).put("url", safeDiagnosticUrl(error.url))
+                )
+                handler.cancel()
+            }
+
+            override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {
+                recordNativeDiagnostic(
+                    source = "android_webview", category = "webview_renderer_crash", title = "TigerChat WebView renderer stopped",
+                    message = "Android WebView renderer process exited unexpectedly.", severity = "critical",
+                    metadata = JSONObject().put("didCrash", detail.didCrash()).put("priorityAtExit", detail.rendererPriorityAtExit())
+                )
+                runOnUiThread { if (!isFinishing) finish() }
+                return true
+            }
+
             override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest): Boolean {
                 val uri = request.url
                 if (uri.scheme == "https" && uri.host == "tigerchat-hq.onrender.com") return false
@@ -66,9 +120,21 @@ open class MainActivity : Activity() {
                 applyPendingPath(view)
                 deliverPendingQuickReply(view)
                 deliverPendingNativeCall(view)
+                view.evaluateJavascript("window.dispatchEvent(new CustomEvent('tiger:native-diagnostics-ready'))", null)
             }
         }
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(message: ConsoleMessage): Boolean {
+                if (message.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                    recordNativeDiagnostic(
+                        source = "android_webview", category = "webview_console", title = "Website JavaScript console error",
+                        message = message.message().take(1200), severity = "high",
+                        metadata = JSONObject().put("sourceId", safeDiagnosticUrl(message.sourceId())).put("lineNumber", message.lineNumber())
+                    )
+                }
+                return true
+            }
+
             override fun onPermissionRequest(request: PermissionRequest) {
                 runOnUiThread {
                     val origin = request.origin
@@ -355,6 +421,59 @@ open class MainActivity : Activity() {
         super.onDestroy()
     }
 
+    private fun safeDiagnosticUrl(raw: String): String = try {
+        val uri = Uri.parse(raw)
+        (uri.host ?: "unknown") + (uri.path ?: "/")
+    } catch (_: Exception) { "unknown" }
+
+    @Synchronized
+    private fun recordNativeDiagnostic(
+        source: String,
+        category: String,
+        title: String,
+        message: String,
+        severity: String,
+        metadata: JSONObject = JSONObject(),
+    ) {
+        try {
+            val prefs = getSharedPreferences(NATIVE_DIAGNOSTICS_PREFS, MODE_PRIVATE)
+            val current = try { JSONArray(prefs.getString(NATIVE_DIAGNOSTICS_QUEUE, "[]") ?: "[]") } catch (_: Exception) { JSONArray() }
+            val entry = JSONObject()
+                .put("id", UUID.randomUUID().toString())
+                .put("source", source)
+                .put("category", category)
+                .put("title", title.take(240))
+                .put("message", message.replace(Regex("(?i)(token|password|authorization)(\\\\s*[:=]\\\\s*)[^&\\\\s,]+"), "$1$2[REDACTED]").take(1800))
+                .put("severity", severity)
+                .put("createdAt", System.currentTimeMillis())
+                .put("metadata", metadata)
+            val next = JSONArray()
+            val start = (current.length() - 49).coerceAtLeast(0)
+            for (index in start until current.length()) next.put(current.getJSONObject(index))
+            next.put(entry)
+            prefs.edit().putString(NATIVE_DIAGNOSTICS_QUEUE, next.toString()).apply()
+            android.util.Log.w(TAG, "Diagnostic captured: $category / $title")
+        } catch (error: Exception) {
+            android.util.Log.e(TAG, "Could not persist native diagnostic", error)
+        }
+    }
+
+    private fun installNativeCrashCapture() {
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            recordNativeDiagnostic(
+                source = "android_native", category = "native_crash", title = "TigerChat Android app crashed",
+                message = "${error.javaClass.simpleName}: ${error.message ?: "No crash message"}", severity = "critical",
+                metadata = JSONObject().put("thread", thread.name).put("stack", error.stackTraceToString().take(5000)).put("appVersion", try { packageManager.getPackageInfo(packageName, 0).versionName } catch (_: Exception) { "unknown" })
+            )
+            if (previous != null) previous.uncaughtException(thread, error)
+            else {
+                android.os.Process.killProcess(android.os.Process.myPid())
+                kotlin.system.exitProcess(10)
+            }
+        }
+    }
+
     private fun publishTokenToWeb(token: String) {
         if (!::webView.isInitialized) return
         val encoded = org.json.JSONObject.quote(token)
@@ -362,6 +481,25 @@ open class MainActivity : Activity() {
     }
 
     inner class NativeBridge {
+        @JavascriptInterface
+        fun getPendingDiagnostics(): String = getSharedPreferences(NATIVE_DIAGNOSTICS_PREFS, MODE_PRIVATE)
+            .getString(NATIVE_DIAGNOSTICS_QUEUE, "[]") ?: "[]"
+
+        @JavascriptInterface
+        fun acknowledgeDiagnostic(id: String) {
+            if (id.isBlank()) return
+            synchronized(this@MainActivity) {
+                val prefs = getSharedPreferences(NATIVE_DIAGNOSTICS_PREFS, MODE_PRIVATE)
+                val current = try { JSONArray(prefs.getString(NATIVE_DIAGNOSTICS_QUEUE, "[]") ?: "[]") } catch (_: Exception) { JSONArray() }
+                val remaining = JSONArray()
+                for (index in 0 until current.length()) {
+                    val item = current.optJSONObject(index) ?: continue
+                    if (item.optString("id") != id) remaining.put(item)
+                }
+                prefs.edit().putString(NATIVE_DIAGNOSTICS_QUEUE, remaining.toString()).apply()
+            }
+        }
+
         @JavascriptInterface
         fun getFcmToken(): String = getSharedPreferences("tiger_native", MODE_PRIVATE).getString("fcm_token", "") ?: ""
 
@@ -419,5 +557,7 @@ open class MainActivity : Activity() {
         const val EXTRA_NATIVE_CALL_TYPE = "tiger_native_call_type"
         private const val MEDIA_PERMISSION_REQUEST_CODE = 7302
         private const val TAG = "TigerChatMedia"
+        private const val NATIVE_DIAGNOSTICS_PREFS = "tiger_native_diagnostics"
+        private const val NATIVE_DIAGNOSTICS_QUEUE = "pending_diagnostics"
     }
 }
