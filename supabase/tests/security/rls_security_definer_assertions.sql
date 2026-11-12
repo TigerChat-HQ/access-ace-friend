@@ -117,7 +117,7 @@ BEGIN
 
   SELECT jsonb_agg(
     CASE
-      WHEN (i/8+i%8)%2=0 THEN 'null'::jsonb
+      WHEN (i/8+i%8)%2=1 THEN 'null'::jsonb
       WHEN i/8<3 THEN jsonb_build_object('c','b','k',false)
       WHEN i/8>4 THEN jsonb_build_object('c','w','k',false)
       ELSE 'null'::jsonb
