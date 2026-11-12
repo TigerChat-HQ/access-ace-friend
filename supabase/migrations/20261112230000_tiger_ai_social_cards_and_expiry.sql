@@ -19,6 +19,7 @@ create index if not exists tiger_ai_social_cards_day_idx
 
 alter table public.tiger_ai_social_cards enable row level security;
 revoke all on public.tiger_ai_social_cards from anon, authenticated;
+grant all on public.tiger_ai_social_cards to service_role;
 grant select on public.tiger_ai_social_cards to authenticated;
 drop policy if exists "Signed in users can read active Tiger AI cards" on public.tiger_ai_social_cards;
 create policy "Signed in users can read active Tiger AI cards"
@@ -33,6 +34,7 @@ create table if not exists public.tiger_ai_social_card_config (
 );
 alter table public.tiger_ai_social_card_config enable row level security;
 revoke all on public.tiger_ai_social_card_config from anon, authenticated;
+grant all on public.tiger_ai_social_card_config to service_role;
 insert into public.tiger_ai_social_card_config (id, cron_token, enabled)
 values (true, encode(gen_random_bytes(32), 'hex'), true)
 on conflict (id) do nothing;
@@ -50,7 +52,8 @@ begin
   perform pg_advisory_xact_lock(hashtext('tiger-ai-social-cards'), new.date_key - date '2000-01-01');
   select count(*) into current_count
   from public.tiger_ai_social_cards
-  where created_at >= day_start and created_at < day_end;
+  where created_at >= day_start and created_at < day_end
+    and expires_at > now();
   if current_count >= 4 then
     raise exception 'Tiger AI daily publishing limit reached (4 posts per Tanzania day).';
   end if;
@@ -59,6 +62,7 @@ begin
 end;
 $$;
 drop trigger if exists tiger_ai_social_cards_daily_limit on public.tiger_ai_social_cards;
+revoke all on function public.enforce_tiger_ai_social_card_daily_limit() from public, anon, authenticated;
 create trigger tiger_ai_social_cards_daily_limit
 before insert on public.tiger_ai_social_cards
 for each row execute function public.enforce_tiger_ai_social_card_daily_limit();
