@@ -15,8 +15,6 @@ interface Profile {
   display_name: string | null;
   avatar_url: string | null;
   bio: string | null;
-  show_last_seen: boolean;
-  show_online_status: boolean;
 }
 
 interface NewDmDialogProps {
