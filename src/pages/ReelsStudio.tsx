@@ -480,7 +480,12 @@ const ReelsStudio = () => {
     }
     if (accepted.length !== files.length) toast({ title: "Some clips were skipped", description: "The timeline supports up to 5 clips, 150 MB per clip and 300 MB total.", variant: "destructive" });
     if (accepted.length) {
-      setTimelineFiles([...baseFiles, ...accepted]);
+      const next = [...baseFiles, ...accepted];
+      setTimelineFiles(next);
+      if (!videoFile && !videoPath && next[0]) {
+        setVideoFile(next[0]);
+        setVideoUrl(URL.createObjectURL(next[0]));
+      }
       markTimelineDirty();
     }
   };
