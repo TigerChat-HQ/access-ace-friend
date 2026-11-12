@@ -398,11 +398,21 @@ Deno.serve(async (req) => {
       const githubToken = Deno.env.get("GITHUB_TOKEN");
       if (!githubToken) return json({ error: "GITHUB_TOKEN haijawekwa." }, 503);
       const prData = await githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/pulls/${match[1]}`, githubToken);
+      if (prData.state !== "open") return json({ error: "PR haiko open tena; sasisha orodha ya PR." }, 409);
+      if (prData.base?.ref !== "main") return json({ error: "PR lazima ilenge main." }, 409);
       if (prData.draft) return json({ error: "PR bado ni draft. Badilisha iwe ready for review na uikague kabla ya kuunganisha." }, 409);
-      const merged = await githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/pulls/${match[1]}/merge`, githubToken, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sha: checks.sha, merge_method: "squash" }),
-      });
+      if (prData.mergeable === false) return json({ error: "PR ina merge conflicts. Fungua PR kwenye GitHub, rekebisha conflicts dhidi ya main, kisha kagua CI upya." }, 409);
+      if (prData.head?.sha !== checks.sha) return json({ error: "PR imebadilika baada ya CI kukaguliwa. Kagua CI upya kabla ya kuunganisha." }, 409);
+      let merged: { merged?: boolean; sha?: string };
+      try {
+        merged = await githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/pulls/${match[1]}/merge`, githubToken, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sha: checks.sha, merge_method: "squash" }),
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "GitHub merge failed";
+        return json({ error: `GitHub imekataa merge: ${message}` }, 409);
+      }
       if (!merged.merged) return json({ error: "GitHub haikukubali kuunganisha PR." }, 502);
       const diagnosticId = task.plan.diagnostic_id;
       if (typeof diagnosticId === "string") {

@@ -35,6 +35,16 @@ const mediaFixInstructions = (kind: "camera" | "microphone", errorName: string, 
   if (errorName === "AbortError") return [`${device} ilikatiza kuanza. Funga app zinazotumia ${device.toLowerCase()}, subiri sekunde chache, kisha jaribu tena.`];
   return [`Hitilafu: ${errorName || "haijabainishwa"}. Kagua Settings → Apps → TigerChats → Permissions → ${device} → Allow.`, "Ikiwa ruhusa tayari iko Allow, funga app kabisa na uifungue tena; kisha jaribu kifaa kwenye app ya simu kuthibitisha hardware."];
 };
+const functionErrorMessage = async (error: unknown, fallback: string) => {
+  const context = (error as { context?: unknown } | null)?.context;
+  if (context instanceof Response) {
+    try {
+      const payload = await context.clone().json() as { error?: string; message?: string };
+      if (payload.error || payload.message) return payload.error || payload.message || fallback;
+    } catch { /* response may not contain JSON */ }
+  }
+  return error instanceof Error ? error.message : fallback;
+};
 const EXPECTED_TABLES = [
   "profiles","conversations","conversation_members","messages","stories","story_views",
   "posts","post_likes","post_comments","post_drafts","follows","reports","user_roles",
@@ -417,7 +427,7 @@ export const AdminDiagnostics = () => {
     const { data, error } = await supabase.functions.invoke("tiger-dev-planner", { body: { action: "check_pr_status", pr_number: prNumber } });
     setCheckingPR(null);
     if (error || data?.error) {
-      toast({ title: "CI haijakaguliwa", description: data?.error || error?.message || "GitHub check failed", variant: "destructive" });
+      toast({ title: "CI haijakaguliwa", description: data?.error || (await functionErrorMessage(error, "GitHub check failed")), variant: "destructive" });
       return;
     }
     setGithubPRs(current => current.map(pr => pr.number === prNumber ? { ...pr, checks: data.checks } : pr));
@@ -429,7 +439,7 @@ export const AdminDiagnostics = () => {
     const { data, error } = await supabase.functions.invoke("tiger-dev-planner", { body: { action: "merge_github_pr", pr_number: pr.number } });
     setMergingPR(null);
     if (error || data?.error) {
-      toast({ title: "Merge imezuiwa", description: data?.error || error?.message || "GitHub merge failed", variant: "destructive" });
+      toast({ title: "Merge imezuiwa", description: data?.error || (await functionErrorMessage(error, "GitHub merge failed")), variant: "destructive" });
       return;
     }
     toast({ title: "PR imeunganishwa main", description: `PR #${pr.number} imeunganishwa. Commit: ${String(data.sha || "").slice(0, 8)}` });
@@ -443,7 +453,7 @@ export const AdminDiagnostics = () => {
     const { data, error } = await supabase.functions.invoke("tiger-dev-planner", { body: { action: "merge_diagnostic_pr", task_id: notice.task_id, notification_id: notice.id } });
     setMergingTask(null);
     if (error || data?.error) {
-      toast({ title: "Merge imezuiwa", description: data?.error || error?.message || "GitHub merge failed", variant: "destructive" });
+      toast({ title: "Merge imezuiwa", description: data?.error || (await functionErrorMessage(error, "GitHub merge failed")), variant: "destructive" });
       return;
     }
     toast({ title: "Mabadiliko yameunganishwa", description: "Tiger AI PR imepita ukaguzi na kuunganishwa main." });

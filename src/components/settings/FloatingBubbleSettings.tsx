@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 const PREFS_KEY = "tigerchat-floating-bubble-prefs";
 const HIDDEN_KEY = "tigerchat-floating-bubble-hidden";
@@ -29,6 +29,18 @@ export const FloatingBubbleSettings = () => {
     try { return localStorage.getItem(HIDDEN_KEY) === "true"; } catch { return false; }
   });
   const [prefs, setPrefs] = useState<BubblePrefs>(readPrefs);
+  const [overlayPermission, setOverlayPermission] = useState(false);
+  const nativeBridge = (window as Window & { TigerNative?: { hasOverlayPermission?: () => boolean; requestOverlayPermission?: () => void; setOverlayBubbleEnabled?: (enabled: boolean) => void } }).TigerNative;
+  const refreshOverlayPermission = useCallback(() => setOverlayPermission(Boolean(nativeBridge?.hasOverlayPermission?.())), [nativeBridge]);
+  useEffect(() => {
+    refreshOverlayPermission();
+    window.addEventListener("tiger:overlay-permission-returned", refreshOverlayPermission);
+    window.addEventListener("focus", refreshOverlayPermission);
+    return () => {
+      window.removeEventListener("tiger:overlay-permission-returned", refreshOverlayPermission);
+      window.removeEventListener("focus", refreshOverlayPermission);
+    };
+  }, [refreshOverlayPermission]);
 
   useEffect(() => {
     const sync = () => {
@@ -112,6 +124,12 @@ export const FloatingBubbleSettings = () => {
         Snap to nearest screen edge after dragging
       </label>
       {typeof window !== "undefined" && typeof window.TigerNative?.openMessageBubbleSettings === "function" && <button type="button" onClick={() => window.TigerNative?.openMessageBubbleSettings?.()} className="w-full rounded-lg border border-border px-3 py-2 text-left text-xs font-medium text-foreground hover:bg-muted">Manage Android system notification bubbles…</button>}
+      {nativeBridge && <div className="rounded-lg border border-border p-3 space-y-2">
+        <div><p className="text-sm font-medium text-foreground">Android overlay bubble</p><p className="text-xs text-muted-foreground">Huonekana juu ya programu nyingine baada ya kuruhusu Display over other apps kwenye Android Settings.</p></div>
+        <p className={`text-xs ${overlayPermission ? "text-emerald-600" : "text-amber-600"}`}>{overlayPermission ? "Ruhusa ya overlay imeruhusiwa." : "Ruhusa ya overlay bado haijatolewa."}</p>
+        <button type="button" onClick={() => { if (overlayPermission) nativeBridge.setOverlayBubbleEnabled?.(true); else nativeBridge.requestOverlayPermission?.(); }} className="w-full rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground">{overlayPermission ? "Washa bubble juu ya programu nyingine" : "Ruhusu Display over other apps"}</button>
+        {overlayPermission && <button type="button" onClick={() => nativeBridge.setOverlayBubbleEnabled?.(false)} className="w-full rounded-lg border border-border px-3 py-2 text-xs font-medium text-foreground">Zima Android overlay bubble</button>}
+      </div>}
       <button type="button" onClick={reset} className="rounded-lg border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-muted">Reset bubble settings</button>
     </section>
   );

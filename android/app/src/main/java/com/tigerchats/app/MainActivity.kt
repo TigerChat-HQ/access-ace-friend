@@ -427,6 +427,11 @@ open class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         warmFirebaseToken()
+        if (::webView.isInitialized && pageLoaded) {
+            webView.post {
+                webView.evaluateJavascript("window.dispatchEvent(new Event('tiger:overlay-permission-returned'))", null)
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -538,6 +543,38 @@ open class MainActivity : Activity() {
     }
 
     inner class NativeBridge {
+        @JavascriptInterface
+        fun hasOverlayPermission(): Boolean =
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this@MainActivity)
+
+        @JavascriptInterface
+        fun requestOverlayPermission() {
+            runOnUiThread {
+                if (hasOverlayPermission()) {
+                    startService(Intent(this@MainActivity, TigerOverlayService::class.java))
+                } else {
+                    try {
+                        startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+                    } catch (error: Exception) {
+                        android.util.Log.e(TAG, "Could not open overlay permission settings", error)
+                    }
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun setOverlayBubbleEnabled(enabled: Boolean) {
+            runOnUiThread {
+                if (!enabled) {
+                    stopService(Intent(this@MainActivity, TigerOverlayService::class.java))
+                } else if (hasOverlayPermission()) {
+                    startService(Intent(this@MainActivity, TigerOverlayService::class.java))
+                } else {
+                    requestOverlayPermission()
+                }
+            }
+        }
+
         @JavascriptInterface
         fun hasContactsPermission(): Boolean =
             ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
