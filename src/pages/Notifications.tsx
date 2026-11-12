@@ -80,7 +80,7 @@ const Notifications = () => {
                     }`}
                   >
                     <div className="relative">
-                      {n.actor?.avatar_url ? (
+                      {n.type !== "tiger_ai_reply" && n.actor?.avatar_url ? (
                         <img src={n.actor.avatar_url} alt="" className="w-11 h-11 rounded-full object-cover" />
                       ) : (
                         <div className="w-11 h-11 rounded-full bg-secondary flex items-center justify-center text-xs font-semibold text-secondary-foreground">
