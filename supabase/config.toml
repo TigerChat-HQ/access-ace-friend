@@ -2,3 +2,6 @@ project_id = "dngilyoyhmgazhuuaxfh"
 
 [functions.turn-credentials]
 verify_jwt = true
+
+[functions.tiger-books-ai]
+verify_jwt = false
