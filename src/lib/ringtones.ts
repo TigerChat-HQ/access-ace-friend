@@ -84,3 +84,36 @@ export const playRingtone = (kind: RingtoneKind): (() => void) => {
     void context.close().catch(() => {});
   };
 };
+
+
+// Caller-side ringback tone: the familiar paired low/high "duuuuh" sound.
+export const playRingbackTone = (): (() => void) => {
+  if (typeof window === "undefined") return () => {};
+  const AudioContextConstructor =
+    window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioContextConstructor) return () => {};
+  let context: AudioContext;
+  try { context = new AudioContextConstructor(); } catch { return () => {}; }
+  void context.resume().catch(() => {});
+  const startAt = context.currentTime + 0.04;
+  const gain = context.createGain();
+  gain.gain.setValueAtTime(0.0001, startAt);
+  gain.gain.exponentialRampToValueAtTime(0.10, startAt + 0.08);
+  gain.gain.setValueAtTime(0.10, startAt + 1.05);
+  gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 1.25);
+  gain.connect(context.destination);
+  [440, 480].forEach((frequency) => {
+    const oscillator = context.createOscillator();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(frequency, startAt);
+    oscillator.connect(gain);
+    oscillator.start(startAt);
+    oscillator.stop(startAt + 1.27);
+  });
+  let stopped = false;
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    void context.close().catch(() => {});
+  };
+};

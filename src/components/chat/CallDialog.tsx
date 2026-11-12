@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, Volume2, VolumeX, SwitchCamera } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { playRingtone } from "@/lib/ringtones";
+import { playRingtone, playRingbackTone } from "@/lib/ringtones";
 import type { CallInfo, CallStatus } from "@/hooks/useWebRTC";
 
 interface CallDialogProps {
@@ -22,19 +22,20 @@ interface CallDialogProps {
   onSwitchCamera: () => void;
 }
 
-const useCallRingtone = (shouldPlay: boolean) => {
+const useCallRingtone = (mode: "incoming" | "outgoing" | null) => {
   useEffect(() => {
-    if (!shouldPlay) return;
-    let stopCurrent = playRingtone("incoming_call");
+    if (!mode) return;
+    const play = () => mode === "incoming" ? playRingtone("incoming_call") : playRingbackTone();
+    let stopCurrent = play();
     const interval = window.setInterval(() => {
       stopCurrent();
-      stopCurrent = playRingtone("incoming_call");
-    }, 1900);
+      stopCurrent = play();
+    }, mode === "incoming" ? 1900 : 3000);
     return () => {
       window.clearInterval(interval);
       stopCurrent();
     };
-  }, [shouldPlay]);
+  }, [mode]);
 };
 
 export const CallDialog = ({
@@ -56,10 +57,11 @@ export const CallDialog = ({
 }: CallDialogProps) => {
   const isVideo = callInfo.callType === "video";
   const isIncoming = callStatus === "incoming";
+  const isOutgoing = callStatus === "outgoing" || callStatus === "ringing";
   const contactName = callInfo.callerName || "Unknown";
   const contactAvatar = callInfo.callerAvatar || "??";
 
-  useCallRingtone(callStatus === "incoming");
+  useCallRingtone(callStatus === "incoming" ? "incoming" : callStatus === "ringing" ? "outgoing" : null);
 
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const [soundOn, setSoundOn] = useState(true);
@@ -93,6 +95,7 @@ export const CallDialog = ({
   const statusText = () => {
     switch (callStatus) {
       case "outgoing": return isVideo ? "Video calling..." : "Calling...";
+      case "ringing": return "Ringing...";
       case "incoming": return isVideo ? "Incoming video call..." : "Incoming call...";
       case "connecting": return "Connecting...";
       case "connected": return formatDuration(duration);
@@ -117,7 +120,7 @@ export const CallDialog = ({
       )}
 
       {/* Local video preview (small pip) */}
-      {isVideo && isVideoOn && (callStatus === "connected" || callStatus === "connecting" || callStatus === "outgoing") && (
+      {isVideo && isVideoOn && (callStatus === "connected" || callStatus === "connecting" || isOutgoing) && (
         <video
           ref={localVideoRef}
           autoPlay
@@ -130,7 +133,7 @@ export const CallDialog = ({
       {/* Top section - avatar & status */}
       <div className={`relative z-10 text-center ${isVideo && callStatus === "connected" ? "bg-background/70 rounded-lg px-4 py-2 max-w-[60%]" : ""}`}>
         <div className={`relative mx-auto w-32 h-32 mb-6 ${isVideo && callStatus === "connected" ? "hidden" : ""}`}>
-          {(callStatus === "outgoing" || callStatus === "incoming") && (
+          {(isOutgoing || callStatus === "incoming") && (
             <>
               <div className="absolute inset-0 rounded-full border-2 border-primary/40 animate-ping" />
               <div className="absolute -inset-3 rounded-full border border-primary/20 animate-ping" style={{ animationDelay: "0.5s" }} />
@@ -139,7 +142,7 @@ export const CallDialog = ({
           {callStatus === "connecting" && (
             <div className="absolute inset-0 rounded-full border-2 border-primary/60 animate-spin" style={{ borderTopColor: "transparent" }} />
           )}
-          <div className={`relative w-32 h-32 rounded-full bg-secondary flex items-center justify-center text-4xl font-bold text-secondary-foreground ${callStatus === "outgoing" || callStatus === "incoming" ? "animate-pulse" : ""}`}>
+          <div className={`relative w-32 h-32 rounded-full bg-secondary flex items-center justify-center text-4xl font-bold text-secondary-foreground ${isOutgoing || callStatus === "incoming" ? "animate-pulse" : ""}`}>
             {contactAvatar}
           </div>
           {callStatus === "connected" && (
@@ -150,6 +153,7 @@ export const CallDialog = ({
         <h2 className="text-2xl font-bold text-foreground break-words">{contactName}</h2>
         <p className="text-sm text-muted-foreground mt-2 min-h-[20px]">
           {callStatus === "outgoing" && <span className="animate-pulse">{statusText()}</span>}
+          {callStatus === "ringing" && <span className="animate-pulse text-primary font-semibold">{statusText()}</span>}
           {callStatus === "incoming" && <span className="animate-pulse text-primary">{statusText()}</span>}
           {callStatus === "connecting" && <span className="text-primary">{statusText()}</span>}
           {callStatus === "connected" && <span className="text-primary font-mono">{statusText()}</span>}

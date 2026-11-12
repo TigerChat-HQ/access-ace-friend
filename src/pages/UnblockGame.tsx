@@ -33,6 +33,31 @@ const occupied=(vehicles:Vehicle[],ignore?:string)=>{const cells=new Set<string>
 const valid=(vehicles:Vehicle[],v:Vehicle)=>{if(v.row<0||v.col<0||v.row+(v.axis==="v"?v.length:1)>6||v.col+(v.axis==="h"?v.length:1)>6)return false;const used=occupied(vehicles,v.id);for(let i=0;i<v.length;i++)if(used.has((v.row+(v.axis==="v"?i:0))+":"+(v.col+(v.axis==="h"?i:0))))return false;return true;};
 const solved=(vehicles:Vehicle[])=>{const x=vehicles.find(v=>v.target);return !!x&&x.col+x.length===6;};
 const stateKey=(v:Vehicle[])=>v.map(x=>x.axis==="h"?x.col:x.row).join(",");
+function difficultyScore(vehicles:Vehicle[]):number{
+ const target=vehicles.find(v=>v.target);
+ if(!target)return 0;
+ const blockers=new Set<string>();
+ const queue=[target];
+ while(queue.length){
+  const current=queue.shift()!;
+  const directions=current.target?[1]:[-1,1];
+  for(const direction of directions){
+   for(let distance=1;distance<=6;distance++){
+    const row=current.row+(current.axis==="v"?(direction<0?-distance:current.length-1+distance):0);
+    const col=current.col+(current.axis==="h"?(direction<0?-distance:current.length-1+distance):0);
+    if(row<0||row>5||col<0||col>5)break;
+    const blocker=vehicles.find(other=>other.id!==current.id&&
+      row>=other.row&&row<other.row+(other.axis==="v"?other.length:1)&&
+      col>=other.col&&col<other.col+(other.axis==="h"?other.length:1));
+    if(blocker){
+     if(!blockers.has(blocker.id)){blockers.add(blocker.id);queue.push(blocker);}
+     break;
+    }
+   }
+  }
+ }
+ return blockers.size;
+}
 function buildLevels():Puzzle[]{
  const levels:Puzzle[]=[];
  const used=new Set<string>();
@@ -41,22 +66,27 @@ function buildLevels():Puzzle[]{
  for(let level=0;level<100;level++){
   const base=puzzles[level%puzzles.length];
   let chosen:Vehicle[]|null=null;
-  for(let attempt=0;attempt<500&&!chosen;attempt++){
+  let chosenScore=-1;
+  const targetScore=Math.min(5,1+Math.floor(level/20));
+  for(let attempt=0;attempt<800;attempt++){
    const candidate=copy(base.vehicles);
-   const steps=3+level+attempt%7;
+   const steps=8+(level*3)+(attempt%19);
    for(let step=0;step<steps;step++){
     const vehicle=candidate[Math.floor(random()*candidate.length)];
     const delta=random()<.5?-1:1;
-    const trial=copy(candidate);
-    const moving=trial.find(v=>v.id===vehicle.id)!;
+    const moving={...vehicle};
     if(moving.axis==="h")moving.col+=delta;else moving.row+=delta;
     if(valid(candidate,moving)){vehicle.row=moving.row;vehicle.col=moving.col;}
    }
    const key=stateKey(candidate);
-   if(!used.has(key)&&!solved(candidate)){used.add(key);chosen=candidate;}
+   if(used.has(key)||solved(candidate))continue;
+   const score=difficultyScore(candidate);
+   if(score>chosenScore){chosen=copy(candidate);chosenScore=score;}
+   if(score>=targetScore)break;
   }
-  const source=chosen??copy(puzzles[level%puzzles.length].vehicles);
-  levels.push({name:level<20?"Mwanzo wa mbao":level<45?"Njia za kati":level<75?"Mtego wa mbao":"Changamoto ya bingwa",par:base.par+3+level,vehicles:source});
+  if(!chosen)throw new Error("Could not generate 100 unique playable Unblock levels.");
+  used.add(stateKey(chosen));
+  levels.push({name:level<20?"Mwanzo wa mbao":level<45?"Njia za kati":level<75?"Mtego wa mbao":"Changamoto ya bingwa",par:base.par+Math.max(1,chosenScore),vehicles:chosen});
  }
  return levels;
 }
