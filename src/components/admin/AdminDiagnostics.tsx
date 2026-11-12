@@ -171,11 +171,11 @@ export const AdminDiagnostics = () => {
         body: { window_minutes: 15 },
       });
       if (error || data?.error || data?.ok !== true) {
-        throw new Error(data?.error || error?.message || "Render logs hazikupatikana.");
+        throw new Error(data?.error || error?.message || "Render hosting events hazikupatikana.");
       }
-      setRenderLogsSummary(`Ukaguzi wa mwisho: ${new Date(data.checkedAt).toLocaleString()} · build logs ${data.fetchedBuildLogs} · hosting events ${data.fetchedHostingEvents} · diagnostics ${data.ingested} · zilizoshindwa ${data.failed}. ${data.runtimeServerLogsAvailable ? "" : "Runtime server logs hazipatikani kwa Static Site."}`);
+      setRenderLogsSummary(`Ukaguzi wa mwisho: ${new Date(data.checkedAt).toLocaleString()} · hosting events ${data.fetchedHostingEvents} · zilizofeli ${data.failedHostingEvents} · diagnostics ${data.ingested} · zilizoshindwa kuhifadhi ${data.failed}. Build/runtime logs hazipatikani kupitia API kwa Static Site.`);
       await load();
-      if (!silent) toast({ title: "Render logs zimekusanywa", description: `${data.ingested} diagnostics zimehifadhiwa; ${data.failed} zimehitaji ukaguzi.`, variant: data.failed > 0 ? "destructive" : "default" });
+      if (!silent) toast({ title: "Render events zimekusanywa", description: `${data.ingested} diagnostics zimehifadhiwa; ${data.failed} zimehitaji ukaguzi.`, variant: data.failed > 0 ? "destructive" : "default" });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Render log collection failed";
       setRenderLogsSummary(message);
@@ -426,7 +426,7 @@ export const AdminDiagnostics = () => {
       <p className="text-[11px] text-muted-foreground">Matokeo yanarekodiwa kwenye Diagnostics Center pamoja na Android/WebView context. Jaribu ukiwa ndani ya app kuu; floating chat inaweza kutumia WebView tofauti.</p>
     </div>
     <div className="rounded-lg border border-border bg-card p-3 space-y-2">
-      <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">02 · Hosting</p><h4 className="text-sm font-semibold">Render server logs</h4><p className="text-xs text-muted-foreground">Kusanya build warnings/errors na matukio ya deployment kutoka Render; ukaguzi hujirudia kila dakika 5 Diagnostics ikiwa wazi. Render hii ni Static Site, hivyo haina runtime server/request logs.</p></div>
+      <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">02 · Hosting</p><h4 className="text-sm font-semibold">Render hosting events</h4><p className="text-xs text-muted-foreground">Kusanya matukio ya build/deploy yaliyofeli kutoka Render; ukaguzi hujirudia kila dakika 5 Diagnostics ikiwa wazi. Static Site haitoi build/runtime logs kupitia API; maelezo ya build log yapo kwenye Render Dashboard.</p></div>
       <Button size="sm" variant="outline" onClick={() => void collectRenderLogs(false)} disabled={renderLogsBusy}>{renderLogsBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-1 h-4 w-4"/>}Collect Render logs now</Button>
       {renderLogsSummary && <p className="break-words text-xs text-muted-foreground">{renderLogsSummary}</p>}
     </div>
