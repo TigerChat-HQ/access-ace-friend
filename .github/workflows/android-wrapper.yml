@@ -28,8 +28,8 @@ jobs:
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       # Official first release in the existing APK series; next release starts at 1.0.27.
-      TIGER_VERSION_CODE: 26
-      TIGER_VERSION_NAME: 1.0.26
+      TIGER_VERSION_CODE: 27
+      TIGER_VERSION_NAME: 1.0.27
     steps:
       - uses: actions/checkout@v4
         with:
