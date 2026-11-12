@@ -69,6 +69,9 @@ export const AdminDiagnostics = () => {
   const [mediaBusy, setMediaBusy] = useState<"camera"|"microphone"|null>(null);
   const [mediaResults, setMediaResults] = useState<Record<string, string>>({});
   const [backupBusy, setBackupBusy] = useState(false);
+  const [renderLogsBusy, setRenderLogsBusy] = useState(false);
+  const [renderLogsSummary, setRenderLogsSummary] = useState("");
+  const renderLogsBusyRef = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -158,6 +161,38 @@ export const AdminDiagnostics = () => {
     });
     if (error) console.error("Could not save diagnostic event:", error.message);
   }, []);
+
+  const collectRenderLogs = useCallback(async (silent = false) => {
+    if (renderLogsBusyRef.current) return;
+    renderLogsBusyRef.current = true;
+    setRenderLogsBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("render-log-ingest", {
+        body: { window_minutes: 15 },
+      });
+      if (error || data?.error || data?.ok !== true) {
+        throw new Error(data?.error || error?.message || "Render logs hazikupatikana.");
+      }
+      setRenderLogsSummary(`Ukaguzi wa mwisho: ${new Date(data.checkedAt).toLocaleString()} · ${data.fetched} zimechukuliwa · ${data.ingested} zimehifadhiwa · ${data.failed} zimekataa.`);
+      await load();
+      if (!silent) toast({ title: "Render logs zimekusanywa", description: `${data.ingested} diagnostics zimehifadhiwa; ${data.failed} zimehitaji ukaguzi.`, variant: data.failed > 0 ? "destructive" : "default" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Render log collection failed";
+      setRenderLogsSummary(message);
+      if (!silent) toast({ title: "Render logs hazijakusanywa", description: message, variant: "destructive" });
+    } finally {
+      renderLogsBusyRef.current = false;
+      setRenderLogsBusy(false);
+    }
+  }, [load, toast]);
+
+  // Pull a short, deduplicated Render log window while an admin has Diagnostics open.
+  // The Edge Function validates the admin session and keeps the Render API key server-side.
+  useEffect(() => {
+    void collectRenderLogs(true);
+    const interval = window.setInterval(() => { void collectRenderLogs(true); }, 5 * 60 * 1000);
+    return () => window.clearInterval(interval);
+  }, [collectRenderLogs]);
 
   useEffect(() => { void load(); }, [load]);
   
@@ -389,6 +424,11 @@ export const AdminDiagnostics = () => {
       </div>
       {Object.entries(mediaResults).map(([kind, result]) => <p key={kind} className="whitespace-pre-wrap break-words rounded border border-border p-2 text-xs"><strong className="capitalize">{kind}:</strong> {result}</p>)}
       <p className="text-[11px] text-muted-foreground">Matokeo yanarekodiwa kwenye Diagnostics Center pamoja na Android/WebView context. Jaribu ukiwa ndani ya app kuu; floating chat inaweza kutumia WebView tofauti.</p>
+    </div>
+    <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+      <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">02 · Hosting</p><h4 className="text-sm font-semibold">Render server logs</h4><p className="text-xs text-muted-foreground">Kusanya makosa ya server na HTTP 4xx/5xx kutoka Render; ukaguzi hujirudia kila dakika 5 Diagnostics ikiwa wazi.</p></div>
+      <Button size="sm" variant="outline" onClick={() => void collectRenderLogs(false)} disabled={renderLogsBusy}>{renderLogsBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-1 h-4 w-4"/>}Collect Render logs now</Button>
+      {renderLogsSummary && <p className="break-words text-xs text-muted-foreground">{renderLogsSummary}</p>}
     </div>
     <div className="rounded-lg border border-border bg-card p-3 space-y-2">
       <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">02 · Hifadhi</p><h4 className="text-sm font-semibold">Diagnostics backup</h4></div>
