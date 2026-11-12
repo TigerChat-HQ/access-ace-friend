@@ -1,4 +1,5 @@
 -- Engagement for Tiger AI-generated Books Smart Cards (posts and statuses).
+ALTER TABLE public.tiger_ai_daily_comments ADD COLUMN IF NOT EXISTS mentioned_user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL;
 CREATE TABLE IF NOT EXISTS public.tiger_ai_smart_card_likes (
   card_id uuid NOT NULL REFERENCES public.tiger_ai_smart_cards(id) ON DELETE CASCADE,
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
