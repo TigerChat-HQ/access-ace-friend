@@ -173,7 +173,7 @@ export const AdminDiagnostics = () => {
       if (error || data?.error || data?.ok !== true) {
         throw new Error(data?.error || error?.message || "Render logs hazikupatikana.");
       }
-      setRenderLogsSummary(`Ukaguzi wa mwisho: ${new Date(data.checkedAt).toLocaleString()} · ${data.fetched} zimechukuliwa · ${data.ingested} zimehifadhiwa · ${data.failed} zimekataa.`);
+      setRenderLogsSummary(`Ukaguzi wa mwisho: ${new Date(data.checkedAt).toLocaleString()} · build logs ${data.fetchedBuildLogs} · hosting events ${data.fetchedHostingEvents} · diagnostics ${data.ingested} · zilizoshindwa ${data.failed}. ${data.runtimeServerLogsAvailable ? "" : "Runtime server logs hazipatikani kwa Static Site."}`);
       await load();
       if (!silent) toast({ title: "Render logs zimekusanywa", description: `${data.ingested} diagnostics zimehifadhiwa; ${data.failed} zimehitaji ukaguzi.`, variant: data.failed > 0 ? "destructive" : "default" });
     } catch (error) {
@@ -426,7 +426,7 @@ export const AdminDiagnostics = () => {
       <p className="text-[11px] text-muted-foreground">Matokeo yanarekodiwa kwenye Diagnostics Center pamoja na Android/WebView context. Jaribu ukiwa ndani ya app kuu; floating chat inaweza kutumia WebView tofauti.</p>
     </div>
     <div className="rounded-lg border border-border bg-card p-3 space-y-2">
-      <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">02 · Hosting</p><h4 className="text-sm font-semibold">Render server logs</h4><p className="text-xs text-muted-foreground">Kusanya makosa ya server na HTTP 4xx/5xx kutoka Render; ukaguzi hujirudia kila dakika 5 Diagnostics ikiwa wazi.</p></div>
+      <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">02 · Hosting</p><h4 className="text-sm font-semibold">Render server logs</h4><p className="text-xs text-muted-foreground">Kusanya build warnings/errors na matukio ya deployment kutoka Render; ukaguzi hujirudia kila dakika 5 Diagnostics ikiwa wazi. Render hii ni Static Site, hivyo haina runtime server/request logs.</p></div>
       <Button size="sm" variant="outline" onClick={() => void collectRenderLogs(false)} disabled={renderLogsBusy}>{renderLogsBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin"/> : <RefreshCw className="mr-1 h-4 w-4"/>}Collect Render logs now</Button>
       {renderLogsSummary && <p className="break-words text-xs text-muted-foreground">{renderLogsSummary}</p>}
     </div>
