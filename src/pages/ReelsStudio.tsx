@@ -28,6 +28,9 @@ const ReelsStudio = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const voiceRecorderRef = useRef<MediaRecorder | null>(null);
+  const voiceStreamRef = useRef<MediaStream | null>(null);
+  const voiceChunksRef = useRef<Blob[]>([]);
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
@@ -49,6 +52,7 @@ const ReelsStudio = () => {
   const [captionStart, setCaptionStart] = useState(0);
   const [captionEnd, setCaptionEnd] = useState(3);
   const [busy, setBusy] = useState(false);
+  const [recordingVoice, setRecordingVoice] = useState(false);
 
   const refreshDrafts = useCallback(async () => {
     if (!user) return;
@@ -225,6 +229,52 @@ const ReelsStudio = () => {
     setCaptions(Array.isArray(draft.captions) ? draft.captions : []);
   };
 
+  const toggleVoiceover = async () => {
+    if (recordingVoice) {
+      voiceRecorderRef.current?.stop();
+      setRecordingVoice(false);
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      toast({ title: "Voiceover is not supported", description: "Use a browser that supports microphone recording.", variant: "destructive" });
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      voiceStreamRef.current = stream;
+      voiceChunksRef.current = [];
+      const preferredType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(stream, preferredType ? { mimeType: preferredType } : undefined);
+      voiceRecorderRef.current = recorder;
+      recorder.ondataavailable = (event) => { if (event.data.size) voiceChunksRef.current.push(event.data); };
+      recorder.onerror = () => {
+        setRecordingVoice(false);
+        stream.getTracks().forEach((track) => track.stop());
+        toast({ title: "Voiceover recording failed", description: "Check microphone permission and try again.", variant: "destructive" });
+      };
+      recorder.onstop = () => {
+        const type = recorder.mimeType || "audio/webm";
+        const blob = new Blob(voiceChunksRef.current, { type });
+        stream.getTracks().forEach((track) => track.stop());
+        voiceStreamRef.current = null;
+        if (blob.size) {
+          const extension = type.includes("mp4") ? "m4a" : "webm";
+          const file = new File([blob], `tiger-voiceover-${Date.now()}.${extension}`, { type });
+          setAudioFile(file);
+          setAudioPath(null);
+          setAudioUrl(URL.createObjectURL(file));
+          setAudioTitle("My voiceover");
+          setAudioStart(0);
+          toast({ title: "Voiceover ready", description: "Your recording is selected as the Reel audio track." });
+        }
+      };
+      recorder.start(500);
+      setRecordingVoice(true);
+    } catch (error) {
+      toast({ title: "Microphone unavailable", description: error instanceof Error ? error.message : "Allow microphone access and try again.", variant: "destructive" });
+    }
+  };
+
   const addCaption = () => {
     if (!captionText.trim() || captionEnd <= captionStart) return;
     setCaptions((items) => [...items, { start: captionStart, end: captionEnd, text: captionText.trim() }].sort((a, b) => a.start - b.start));
@@ -343,9 +393,13 @@ const ReelsStudio = () => {
             <div className="mb-3 flex items-center gap-2"><AudioLines className="h-4 w-4 text-primary" /><h2 className="text-sm font-semibold text-foreground">Audio track</h2></div>
             <input value={audioTitle} onChange={(e) => setAudioTitle(e.target.value)} placeholder="Track title (optional)" className="mb-2 w-full rounded-lg bg-background p-2 text-sm text-foreground" />
             <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border p-3 text-sm text-muted-foreground"><Upload className="h-4 w-4" /> Upload your original or licensed audio<input type="file" accept="audio/*" className="hidden" onChange={(e) => { setAudioFile(e.target.files?.[0] || null); setAudioPath(null); setAudioUrl(null); if (e.target.files?.[0] && !audioTitle) setAudioTitle(e.target.files[0].name); }} /></label>
+            <button type="button" onClick={() => void toggleVoiceover()} className={`mt-2 flex w-full items-center justify-center gap-2 rounded-xl p-3 text-sm font-semibold ${recordingVoice ? "bg-destructive text-destructive-foreground" : "bg-secondary text-secondary-foreground"}`}>
+              <span className={recordingVoice ? "h-2 w-2 animate-pulse rounded-full bg-current" : "h-2 w-2 rounded-full bg-primary"} />
+              {recordingVoice ? "Stop voiceover recording" : "Record voiceover"}
+            </button>
             {audioFile && <p className="mt-2 text-xs text-muted-foreground">{audioFile.name}</p>}
             <label className="mt-3 block text-xs text-muted-foreground">Audio start offset (seconds)<input type="number" min={0} step={0.1} value={audioStart} onChange={(e) => setAudioStart(Math.max(0, Number(e.target.value)))} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground" /></label>
-            <p className="mt-2 text-[11px] text-muted-foreground">Only upload audio you own or have permission to use. A licensed commercial music catalogue is not connected yet.</p>
+            <p className="mt-2 text-[11px] text-muted-foreground">Use original or licensed audio only. Voiceover recordings are saved as the Reel audio track. A commercial music catalogue still requires a licensed provider.</p>
           </div>
         </section>
 
