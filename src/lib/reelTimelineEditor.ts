@@ -10,6 +10,7 @@ export type ReelTimelineOptions = {
   originalVolume?: number;
   musicVolume?: number;
   captions?: ReelCaption[];
+  effect?: "none" | "hearts" | "sparkles" | "neon-frame" | "vhs" | "soft-glow";
   onProgress?: (progress: number) => void;
 };
 
@@ -157,6 +158,44 @@ export async function renderReelTimeline(options: ReelTimelineOptions): Promise<
           }
           context.filter = "none";
           const globalTime = elapsed + (video.currentTime - item.start) / speed;
+          const effect = options.effect || "none";
+          if (effect === "neon-frame") {
+            context.save();
+            context.lineWidth = Math.max(8, canvas.width * 0.012);
+            context.strokeStyle = "rgba(0, 220, 255, .9)";
+            context.shadowColor = "#00d9ff";
+            context.shadowBlur = 28;
+            context.strokeRect(18, 18, canvas.width - 36, canvas.height - 36);
+            context.restore();
+          } else if (effect === "soft-glow") {
+            const glow = context.createRadialGradient(canvas.width / 2, canvas.height / 2, canvas.width * 0.08, canvas.width / 2, canvas.height / 2, canvas.width * 0.8);
+            glow.addColorStop(0, "rgba(255,255,255,0)");
+            glow.addColorStop(1, "rgba(255,220,180,.22)");
+            context.fillStyle = glow;
+            context.fillRect(0, 0, canvas.width, canvas.height);
+          } else if (effect === "hearts" || effect === "sparkles") {
+            context.save();
+            context.textAlign = "center";
+            context.shadowBlur = 14;
+            for (let i = 0; i < 9; i += 1) {
+              const x = ((i * 173 + 61) % Math.max(1, canvas.width - 80)) + 40;
+              const y = ((i * 239 + Math.floor(globalTime * 55)) % Math.max(1, canvas.height - 100)) + 40;
+              context.font = `bold ${Math.round(canvas.width * (effect === "hearts" ? 0.045 : 0.035))}px sans-serif`;
+              context.fillStyle = effect === "hearts" ? "rgba(255,80,145,.9)" : "rgba(255,255,220,.95)";
+              context.shadowColor = context.fillStyle;
+              context.fillText(effect === "hearts" ? "♥" : "✦", x, y);
+            }
+            context.restore();
+          } else if (effect === "vhs") {
+            context.save();
+            context.fillStyle = "rgba(10,20,40,.12)";
+            for (let y = 0; y < canvas.height; y += 8) context.fillRect(0, y, canvas.width, 2);
+            context.fillStyle = "rgba(255,70,70,.9)";
+            context.font = `bold ${Math.max(18, Math.round(canvas.width * .025))}px sans-serif`;
+            context.textAlign = "left";
+            context.fillText("● REC", 32, 54);
+            context.restore();
+          }
           const activeCaption = options.captions?.find((caption) => globalTime >= caption.start && globalTime <= caption.end);
           if (activeCaption?.text) {
             context.font = "bold 38px sans-serif";
