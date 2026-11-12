@@ -80,6 +80,41 @@ const dailyLines: Record<string, string[]> = {
   ],
 };
 
+const dailyDetails = [
+  "kifurushi kidogo kilionekana chini ya jiwe lililopasuka, kikiwa na alama ileile ya kwenye ramani.",
+  "mgeni aliuliza swali moja tu, lakini jibu lake lilibadilisha walichodhani kuhusu safari yao.",
+  "ukurasa uliokuwa umekunjwa ulifichua jina ambalo halikutajwa kwenye kumbukumbu za familia.",
+  "taa tatu ziliwaka mbali kwa mpangilio, kana kwamba mtu alikuwa akituma ujumbe wa siri.",
+  "sauti ya hatua ilisikika nyuma yao, kisha ikanyamaza waliposimama kusikiliza.",
+  "ufunguo wa shaba ulipatikana ndani ya sanduku ambalo lilikuwa limefungwa kwa miaka mingi.",
+  "barua ya zamani ilionyesha kuwa tukio hilo lilishawahi kutokea kwa kizazi kilichopita.",
+  "rafiki wa zamani alijitokeza na kuonya kuwa muda wa kufanya uamuzi ulikuwa unakwisha.",
+  "alama kwenye ukuta ilibadilika baada ya mwanga wa mwezi kuingia dirishani.",
+  "waligundua kuwa mtu aliyekuwa akiwasaidia alikuwa anajua siri nyingi kuliko alivyosema.",
+  "ramani ilionyesha njia ya pili iliyokuwa imefichwa chini ya alama ya kwanza.",
+  "kitu walichokuwa wakikitafuta kilikuwa karibu zaidi, lakini mtu mwingine alikuwa amekifikia kwanza.",
+];
+const dailyCliffhangers = [
+  "Ghafla, ujumbe mpya ukaonekana: 'Hii ilikuwa jaribio la kwanza tu.'",
+  "Kabla hawajazungumza, mlango mwingine ukafungwa kwa kishindo kutoka upande wa pili.",
+  "Walipotazama nyuma, alama zote walizokuwa wameacha zilikuwa zimetoweka.",
+  "Sauti ileile ikarudi, safari hii ikitamka jina ambalo hawakuwahi kumwambia mtu.",
+  "Kwenye ukurasa wa mwisho kulikuwa na tarehe ya kesho na sahihi yao wenyewe.",
+  "Safari ilionekana kuisha, lakini kivuli kipya kikajitokeza mwisho wa njia.",
+  "Simu ikaita tena. Safari hii sauti ikasema: 'Ninaweza kueleza kila kitu, lakini si hapa.'",
+  "Walifungua kifurushi na kukuta picha yao wenyewe, ikiwa imepigwa dakika chache zilizopita.",
+  "Mwangaza ulizimika, na waliposikia hatua zikikaribia hawakuwa tena watatu.",
+  "Jibu lilikuwa mbele yao muda wote, lakini swali kubwa zaidi lilikuwa nani aliyewaongoza hapo.",
+];
+const makeDailyChapter = (storyId: string) => {
+  const episode = dayNumber() + 1;
+  const storyIndex = Math.max(0, serials.findIndex((story) => story.id === storyId));
+  const opening = dailyLines[storyId][(episode - 1) % dailyLines[storyId].length];
+  const detail = dailyDetails[(episode * 7 + storyIndex * 3) % dailyDetails.length];
+  const cliffhanger = dailyCliffhangers[(episode * 11 + storyIndex * 5) % dailyCliffhangers.length];
+  return [opening, \`Katika sehemu ya \${episode}, \${detail}\`, cliffhanger];
+};
+
 const dayNumber = () => Math.max(0, Math.floor((new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime() - new Date(2026, 10, 12).getTime()) / 86400000));
 
 type ReaderTheme = "parchment" | "midnight" | "forest" | "rose";
@@ -197,7 +232,7 @@ export default function BooksPage() {
         <section className="p-4">
           <Button variant="ghost" onClick={() => setSelectedSerial(null)} className="mb-3 -ml-2"><ArrowLeft className="mr-2 h-4 w-4" />Rudi maktabani</Button>
           <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${activeSerial.cover} p-6 text-white shadow-xl`}><span className="text-5xl">{activeSerial.symbol}</span><p className="mt-4 text-[10px] font-bold uppercase tracking-[.2em] text-white/60">Hadithi ya kubuni · Inaendelea</p><h1 className="mt-2 text-2xl font-black">{activeSerial.title}</h1><p className="mt-2 text-sm leading-6 text-white/75">{activeSerial.hook}</p></div>
-          <div className={`mt-4 rounded-2xl p-5 ${activeTheme.page}`}><div className="mb-4 flex items-center justify-between gap-2"><div><p className="text-[10px] font-bold uppercase tracking-widest opacity-60">Sehemu ya leo · {today}</p><h2 className="mt-1 text-lg font-black">Sura ya {dayNumber() + 1}</h2></div><CalendarDays className="h-5 w-5 opacity-60" /></div><div className="space-y-4" style={{ fontSize: `${fontSize}px`, fontFamily: font === "serif" ? "Georgia, serif" : font === "mono" ? "ui-monospace, monospace" : "Arial, sans-serif" }}><p className="leading-[1.9]">{dailyLines[activeSerial.id][dayNumber() % 4]}</p><p className="leading-[1.9]">Alichukua muda kutafakari. Kila kidokezo kilimkaribisha kwenye swali jipya, lakini pia kilimpa sababu ya kuendelea. Aliandika alichogundua kwenye daftari lake na kuahidi kurudi kesho akiwa na ujasiri zaidi.</p><p className="border-t border-current/15 pt-4 text-sm font-bold italic">Je, siri itafichuka katika sehemu inayofuata? Rudi kesho kuendelea na safari.</p></div></div>
+          <div className={`mt-4 rounded-2xl p-5 ${activeTheme.page}`}><div className="mb-4 flex items-center justify-between gap-2"><div><p className="text-[10px] font-bold uppercase tracking-widest opacity-60">Sehemu ya leo · {today}</p><h2 className="mt-1 text-lg font-black">Sura ya {dayNumber() + 1}</h2></div><CalendarDays className="h-5 w-5 opacity-60" /></div><div className="space-y-4" style={{ fontSize: `${fontSize}px`, fontFamily: font === "serif" ? "Georgia, serif" : font === "mono" ? "ui-monospace, monospace" : "Arial, sans-serif" }}>{makeDailyChapter(activeSerial.id).map((paragraph, index) => <p key={index} className={index === 2 ? "border-t border-current/15 pt-4 text-sm font-bold italic" : "leading-[1.9]"}>{paragraph}</p>)}</div></div>
           <div className="mt-4 flex items-center justify-between rounded-xl border border-border bg-card p-3"><div><p className="text-sm font-bold">Usikose sehemu inayofuata</p><p className="text-[10px] text-muted-foreground">Sehemu mpya hufunguliwa kila siku kwenye ratiba ya maktaba.</p></div><Sparkles className="h-5 w-5 text-primary" /></div>
         </section>
       )}
