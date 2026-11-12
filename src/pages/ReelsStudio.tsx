@@ -83,7 +83,7 @@ const ReelsStudio = () => {
   const [scheduleAt, setScheduleAt] = useState("");
   const [shareAudio, setShareAudio] = useState(false);
   const [audioLibraryUrl, setAudioLibraryUrl] = useState<string | null>(null);
-  const [audioLibrary, setAudioLibrary] = useState<Array<{ id: string; user_id: string; reel_audio_url: string; reel_audio_title: string | null }>>([]);
+  const [audioLibrary, setAudioLibrary] = useState<Array<{ id: string; user_id: string; reel_audio_url: string; reel_audio_title: string | null; usage_count?: number }>>([]);
   const [savedAudio, setSavedAudio] = useState<Array<{ id: string; source_post_id: string; audio_url: string; audio_title: string }>>([]);
   const [originalReelId, setOriginalReelId] = useState<string | null>(null);
   const [remixType, setRemixType] = useState<"remix" | "duet" | null>(null);
@@ -104,15 +104,25 @@ const ReelsStudio = () => {
     if (!user) return;
     let active = true;
     void (async () => {
-      const [{ data: tracks }, { data: saved }] = await Promise.all([
+      const [{ data: tracks }, { data: remixes }, { data: saved }] = await Promise.all([
         db.from("posts").select("id,user_id,reel_audio_url,reel_audio_title")
           .eq("media_type", "video").eq("reel_audio_shareable", true).eq("audience", "public")
-          .not("reel_audio_url", "is", null).order("created_at", { ascending: false }).limit(20),
+          .not("reel_audio_url", "is", null).order("created_at", { ascending: false }).limit(30),
+        db.from("posts").select("reel_original_post_id")
+          .eq("reel_remix_type", "remix").not("reel_original_post_id", "is", null)
+          .gte("created_at", new Date(Date.now() - 30 * 86400000).toISOString()).limit(5000),
         db.from("reel_audio_saves").select("id,source_post_id,audio_url,audio_title")
           .eq("user_id", user.id).order("created_at", { ascending: false }).limit(30),
       ]);
       if (!active) return;
-      setAudioLibrary((tracks || []) as typeof audioLibrary);
+      const remixCounts = new Map<string, number>();
+      (remixes || []).forEach((row: { reel_original_post_id: string | null }) => {
+        if (row.reel_original_post_id) remixCounts.set(row.reel_original_post_id, (remixCounts.get(row.reel_original_post_id) || 0) + 1);
+      });
+      const rankedTracks = (tracks || []).map((track: { id: string; user_id: string; reel_audio_url: string; reel_audio_title: string | null }) => ({
+        ...track, usage_count: remixCounts.get(track.id) || 0,
+      })).sort((a, b) => b.usage_count - a.usage_count);
+      setAudioLibrary(rankedTracks as typeof audioLibrary);
       setSavedAudio((saved || []) as typeof savedAudio);
     })();
     return () => { active = false; };
@@ -796,7 +806,7 @@ const ReelsStudio = () => {
             </label>
             {(audioLibrary.length > 0 || savedAudio.length > 0) && (
               <div className="mt-3 space-y-2">
-                <p className="text-xs font-semibold text-foreground">Community audio · shared by creators</p>
+                <p className="text-xs font-semibold text-foreground">Trending community audio · ranked by recent remixes</p>
                 {savedAudio.length > 0 && <p className="text-[11px] text-muted-foreground">Your saved tracks</p>}
                 {savedAudio.slice(0, 5).map((track) => (
                   <div key={track.id} className="flex items-center gap-2 rounded-lg bg-background p-2">
@@ -806,7 +816,7 @@ const ReelsStudio = () => {
                 ))}
                 {audioLibrary.slice(0, 8).map((track) => (
                   <div key={track.id} className="flex items-center gap-2 rounded-lg bg-background p-2">
-                    <span className="min-w-0 flex-1 truncate text-xs text-foreground">{track.reel_audio_title || "Original audio"}</span>
+                    <span className="min-w-0 flex-1 truncate text-xs text-foreground">{track.reel_audio_title || "Original audio"} · {track.usage_count || 0} remixes</span>
                     <button type="button" onClick={() => { setAudioLibraryUrl(track.reel_audio_url); setAudioUrl(track.reel_audio_url); setAudioFile(null); setAudioPath(null); setAudioTitle(track.reel_audio_title || "Original audio"); }} className="text-xs font-semibold text-primary">Use</button>
                     <button type="button" onClick={async () => {
                       const { error } = await db.from("reel_audio_saves").insert({ user_id: user?.id, source_post_id: track.id, creator_id: track.user_id, audio_url: track.reel_audio_url, audio_title: track.reel_audio_title || "Original audio" });
