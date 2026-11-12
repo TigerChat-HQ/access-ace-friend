@@ -83,3 +83,4 @@ jobs:
               });
               if (!result.data.merged) throw new Error(`GitHub refused to merge PR #${number}`);
               core.notice(`Merged eligible Tiger AI PR #${number} (${pr.head.sha}) to main.`);
+            }
