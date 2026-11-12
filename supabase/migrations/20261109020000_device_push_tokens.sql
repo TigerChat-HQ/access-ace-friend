@@ -16,7 +16,7 @@ create policy "Users manage their own push tokens"
   using ((select auth.uid()) = user_id)
   with check ((select auth.uid()) = user_id);
 
-do $
+DO $$
 begin
   if not exists (
     select 1 from pg_constraint
@@ -27,8 +27,7 @@ begin
       add constraint device_push_tokens_user_token_key unique (user_id, token);
   end if;
 end;
-$;
-
+$$;
 create index if not exists device_push_tokens_user_id_idx
   on public.device_push_tokens(user_id);
 
