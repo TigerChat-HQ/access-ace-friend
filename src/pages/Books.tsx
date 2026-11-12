@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { BOOK_CONTENT_PHASE_1 } from "@/data/bookContentPhase1";
+import { BOOK_CONTENT_PHASE_2 } from "@/data/bookContentPhase2";
+
+const BOOK_CONTENT = { ...BOOK_CONTENT_PHASE_1, ...BOOK_CONTENT_PHASE_2 };
 
 type Book = {
   id: string;
@@ -331,7 +334,7 @@ export default function BooksPage() {
             {selectedBook.category === "sheria" && <p className="mt-2 rounded-lg border border-amber-500/25 bg-amber-500/5 p-3 text-[10px] leading-4 text-muted-foreground">Maelezo ya maktaba ni kwa Kiswahili; hati rasmi nyingi za OAG zimechapishwa kwa Kiingereza. Rejea hati na marekebisho yake kabla ya kutumia kifungu. Hii si ushauri wa kisheria; baadhi ya sheria zinatumika Tanzania Bara pekee.</p>}
             <div className="mt-4 flex flex-wrap gap-2 text-[10px] text-muted-foreground"><span className="rounded-full bg-muted px-3 py-1">{selectedBook.readTime}</span><span className="rounded-full bg-muted px-3 py-1">{categories.find((item) => item.id === selectedBook.category)?.label}</span>{(readIds.includes(selectedBook.id) || (readingProgress[selectedBook.id]?.progress_percent ?? 0) >= 100) && <span className="rounded-full bg-primary/10 px-3 py-1 text-primary">Umesoma</span>}</div>
             {(() => {
-              const chapters = BOOK_CONTENT_PHASE_1[selectedBook.id] || [];
+              const chapters = BOOK_CONTENT[selectedBook.id] || [];
               const chapter = chapters[activeChapterIndex];
               return chapters.length ? (
                 <div className={`mt-5 rounded-2xl p-5 ${activeTheme.page}`}>
