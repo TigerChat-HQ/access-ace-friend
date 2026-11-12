@@ -57,6 +57,33 @@ jobs:
           CREATE ROLE authenticated NOLOGIN;
           CREATE ROLE service_role NOLOGIN BYPASSRLS;
           CREATE TABLE auth.users (id uuid PRIMARY KEY);
+          CREATE TABLE public.posts (
+            id uuid PRIMARY KEY,
+            user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+            media_type text NOT NULL,
+            audience text NOT NULL DEFAULT 'public',
+            is_draft boolean NOT NULL DEFAULT false,
+            scheduled_at timestamptz
+          );
+          ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
+          CREATE TABLE public.follows (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            follower_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+            following_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+            CONSTRAINT follows_check CHECK (follower_id <> following_id),
+            CONSTRAINT follows_follower_id_following_id_key UNIQUE (follower_id, following_id)
+          );
+          CREATE TABLE public.post_analytics_events (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            post_id uuid NOT NULL REFERENCES public.posts(id) ON DELETE CASCADE,
+            creator_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+            viewer_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+            event_type text NOT NULL CHECK (event_type = ANY (ARRAY['impression','play','watch','retention_25','retention_50','retention_75','retention_100'])),
+            watch_seconds numeric NOT NULL DEFAULT 0 CHECK (watch_seconds >= 0 AND watch_seconds <= 3600),
+            occurred_at timestamptz NOT NULL DEFAULT now(),
+            CONSTRAINT post_analytics_watch_only CHECK (event_type = 'watch' OR watch_seconds = 0)
+          );
+          ALTER TABLE public.post_analytics_events ENABLE ROW LEVEL SECURITY;
           CREATE FUNCTION auth.uid() RETURNS uuid
             LANGUAGE sql STABLE
             AS $$
@@ -100,7 +127,8 @@ jobs:
             supabase/migrations/20261109020000_device_push_tokens.sql \
             supabase/migrations/20261112140000_harden_service_managed_table_rls.sql \
             supabase/migrations/20261112150000_scope_security_definer_helpers_to_caller.sql \
-            supabase/migrations/20261112160000_validate_draughts_moves_server_side.sql; do
+            supabase/migrations/20261112160000_validate_draughts_moves_server_side.sql \
+            supabase/migrations/20261113000000_reels_creator_suite.sql; do
             test -s "$migration"
             psql -v ON_ERROR_STOP=1 -f "$migration"
             psql -v ON_ERROR_STOP=1 -f "$migration"
@@ -112,6 +140,46 @@ jobs:
           psql -v ON_ERROR_STOP=1 <<'SQL'
           DO $$
           BEGIN
+            IF to_regclass('public.reel_audio_saves') IS NULL THEN
+              RAISE EXCEPTION 'reel_audio_saves table is missing';
+            END IF;
+            IF to_regclass('public.reel_follow_attributions') IS NULL THEN
+              RAISE EXCEPTION 'reel_follow_attributions table is missing';
+            END IF;
+            IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.reel_audio_saves'::regclass) THEN
+              RAISE EXCEPTION 'reel_audio_saves RLS is not enabled';
+            END IF;
+            IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.reel_follow_attributions'::regclass) THEN
+              RAISE EXCEPTION 'reel_follow_attributions RLS is not enabled';
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'posts'
+                AND column_name = 'reel_audio_shareable'
+            ) THEN
+              RAISE EXCEPTION 'posts.reel_audio_shareable column is missing';
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint
+              WHERE conrelid = 'public.post_analytics_events'::regclass
+                AND conname = 'post_analytics_events_event_type_check'
+                AND pg_get_constraintdef(oid) LIKE '%replay%'
+            ) THEN
+              RAISE EXCEPTION 'Reel replay analytics event constraint is missing';
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_policies
+              WHERE schemaname = 'public' AND tablename = 'posts'
+                AND policyname = 'Creators read their own scheduled reels'
+            ) THEN
+              RAISE EXCEPTION 'Scheduled Reel owner policy is missing';
+            END IF;
+            IF NOT has_table_privilege('authenticated', 'public.reel_audio_saves', 'SELECT,INSERT,DELETE') THEN
+              RAISE EXCEPTION 'Expected saved audio grants are missing';
+            END IF;
+            IF NOT has_table_privilege('authenticated', 'public.reel_follow_attributions', 'SELECT,INSERT') THEN
+              RAISE EXCEPTION 'Expected Reel follow attribution grants are missing';
+            END IF;
             IF to_regclass('public.device_push_tokens') IS NULL THEN
               RAISE EXCEPTION 'device_push_tokens table is missing';
             END IF;
