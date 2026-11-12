@@ -56,7 +56,6 @@ const Draughts = () => {
   const [queueSearching, setQueueSearching] = useState(false);
   const [creating, setCreating] = useState(false);
   const [aiDifficulty, setAiDifficulty] = useState<"easy" | "medium" | "hard" | "expert">("medium");
-  const aiDepth = aiDifficulty === "easy" ? 2 : aiDifficulty === "medium" ? 3 : aiDifficulty === "hard" ? 4 : 5;
   const [flipBoard, setFlipBoard] = useState<boolean | null>(null);
   const [tigerSupervisorEnabled, setTigerSupervisorEnabled] = useState(true);
   const [matchEmotes, setMatchEmotes] = useState<Array<{id:string;user_id:string;emote_key:string;created_at:string}>>([]);
