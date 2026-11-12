@@ -214,7 +214,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
             return (
               <button key={item.url + index} type="button" onClick={() => setCarouselIndex(imageIndex)} aria-label={index === 4 && extraCount > 0 ? `Fungua picha ${imageIndex + 1}, na picha nyingine ${extraCount}` : `Fungua picha ${imageIndex + 1}`} className={`relative aspect-square overflow-hidden rounded-lg border-2 bg-muted ${carouselIndex === imageIndex ? "border-primary" : "border-transparent"}`}>
                 <img src={item.url} alt={item.alt_text || ""} loading="lazy" className="h-full w-full object-cover" />
-                {index === 4 && extraCount > 0 && <span className="absolute inset-0 flex items-center justify-center bg-black/65 text-sm font-black text-white">+${extraCount}</span>}
+                {index === 4 && extraCount > 0 && <span className="absolute inset-0 flex items-center justify-center bg-black/65 text-sm font-black text-white">{`+${extraCount}`}</span>}
               </button>
             );
           })}
