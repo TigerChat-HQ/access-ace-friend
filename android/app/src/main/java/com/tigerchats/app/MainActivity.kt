@@ -3,6 +3,7 @@ package com.tigerchats.app
 import android.Manifest
 import android.app.Activity
 import android.app.ActivityManager
+import android.app.ApplicationExitInfo
 import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -59,7 +60,7 @@ open class MainActivity : Activity() {
         webView.webViewClient = object : WebViewClient() {
             override fun onReceivedError(view: WebView, request: android.webkit.WebResourceRequest, error: WebResourceError) {
                 super.onReceivedError(view, request, error)
-                if (error.errorCode == android.webkit.WebViewClient.ERROR_ABORTED) return
+                if (error.errorCode == -3) return
                 val url = request.url
                 recordNativeDiagnostic(
                     source = "android_webview",
@@ -67,7 +68,7 @@ open class MainActivity : Activity() {
                     title = if (request.isForMainFrame) "TigerChat page failed to load" else "Website resource failed to load",
                     message = "WebView error ${error.errorCode}: ${error.description}",
                     severity = if (request.isForMainFrame) "critical" else "medium",
-                    metadata = JSONObject().put("errorCode", error.errorCode).put("failingUrl", safeDiagnosticUrl(url)).put("mainFrame", request.isForMainFrame)
+                    metadata = JSONObject().put("errorCode", error.errorCode).put("failingUrl", safeDiagnosticUrl(url.toString())).put("mainFrame", request.isForMainFrame)
                 )
             }
 
@@ -80,7 +81,7 @@ open class MainActivity : Activity() {
                     title = "Website returned HTTP ${response.statusCode}",
                     message = "WebView request failed with HTTP ${response.statusCode} ${response.reasonPhrase}",
                     severity = if (response.statusCode >= 500) "critical" else "high",
-                    metadata = JSONObject().put("statusCode", response.statusCode).put("url", safeDiagnosticUrl(request.url)).put("mainFrame", request.isForMainFrame)
+                    metadata = JSONObject().put("statusCode", response.statusCode).put("url", safeDiagnosticUrl(request.url.toString())).put("mainFrame", request.isForMainFrame)
                 )
             }
 
@@ -472,7 +473,7 @@ open class MainActivity : Activity() {
             var newestTimestamp = lastSeen
             exits.forEach { exit ->
                 val reason = when (exit.reason) {
-                    ActivityManager.ProcessExitInfo.REASON_ANR -> "ANR / app not responding"
+                    ApplicationExitInfo.REASON_ANR -> "ANR / app not responding"
                     ActivityManager.ProcessExitInfo.REASON_CRASH -> "Java/Kotlin crash"
                     ActivityManager.ProcessExitInfo.REASON_CRASH_NATIVE -> "Native Android crash"
                     ActivityManager.ProcessExitInfo.REASON_LOW_MEMORY -> "Android killed app due to low memory"
