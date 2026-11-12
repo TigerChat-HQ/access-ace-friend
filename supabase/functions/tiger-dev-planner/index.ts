@@ -71,20 +71,36 @@ type GroqChatResponse = {
   };
 };
 const GROQ_MODEL = Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-20b";
+// GPT-OSS can occasionally emit a built-in tool call during JSON-only tasks.
+// Llama 3.3 supports Groq JSON Object Mode and is used only as a targeted fallback.
+const GROQ_JSON_FALLBACK_MODEL = Deno.env.get("GROQ_FALLBACK_MODEL") || "llama-3.3-70b-versatile";
 
 async function groqChatCompletion(messages: Array<{role: string; content: string}>, jsonMode = false): Promise<GroqChatResponse> {
   const apiKey = Deno.env.get("GROQ_API_KEY");
   if (!apiKey) throw new Error("Tiger AI Free Plan haijaunganishwa. Hakikisha GROQ_API_KEY ipo kwenye Supabase Edge Function Secrets.");
-  const response = await fetch(GROQ_API_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: GROQ_MODEL,
-      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
-      messages,
-    }),
-  });
-  const payload = await response.json().catch(() => ({})) as GroqChatResponse;
+
+  const request = async (model: string) => {
+    const response = await fetch(GROQ_API_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        ...(jsonMode ? { response_format: { type: "json_object" }, tool_choice: "none" } : {}),
+        messages,
+      }),
+    });
+    const payload = await response.json().catch(() => ({})) as GroqChatResponse;
+    return { response, payload };
+  };
+
+  let { response, payload } = await request(GROQ_MODEL);
+  const providerMessage = payload?.error?.message || response.statusText || "Unknown provider error";
+  const blockedToolCall = response.status === 400 && /tool_choice\s+is\s+none.*called\s+a\s+tool/i.test(providerMessage);
+
+  if (jsonMode && blockedToolCall && GROQ_JSON_FALLBACK_MODEL !== GROQ_MODEL) {
+    ({ response, payload } = await request(GROQ_JSON_FALLBACK_MODEL));
+  }
+
   if (!response.ok) {
     const message = payload?.error?.message || response.statusText || "Unknown provider error";
     if (response.status === 429) throw new Error("Groq Free Plan imefikia kikomo cha matumizi kwa sasa. Subiri kikomo kijirejeshe kisha jaribu tena.");
