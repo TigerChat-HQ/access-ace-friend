@@ -4,8 +4,8 @@ import { useFeed } from "@/hooks/usePosts";
 import { PostCard } from "@/components/social/PostCard";
 
 const Reels = () => {
-  const { posts, loading, refetch } = useFeed("discover");
-  const videos = posts.filter((post) => post.media_type === "video" && !!post.media_url);
+  const { posts, loading, refetch } = useFeed("reels");
+  const videos = posts;
 
   return (
     <div className="h-full flex flex-col bg-background">
