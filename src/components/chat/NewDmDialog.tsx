@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePresence } from "@/hooks/usePresence";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { formatLastSeen } from "@/lib/chat-presence";
 import { useCreateConversation, useConversations } from "@/hooks/useChat";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -13,6 +16,9 @@ interface Profile {
   avatar_url: string | null;
   bio: string | null;
   is_online: boolean | null;
+  last_seen: string | null;
+  show_last_seen: boolean;
+  show_online_status: boolean;
 }
 
 interface NewDmDialogProps {
@@ -22,6 +28,8 @@ interface NewDmDialogProps {
 export const NewDmDialog = ({ onStarted }: NewDmDialogProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { onlineUserIds } = usePresence(false);
+  const { language } = useLanguage();
   const { createDirectConversation } = useCreateConversation();
   const { conversations } = useConversations();
   const [open, setOpen] = useState(false);
@@ -34,7 +42,7 @@ export const NewDmDialog = ({ onStarted }: NewDmDialogProps) => {
     const fetch = async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("user_id, display_name, avatar_url, bio, is_online")
+        .select("user_id, display_name, avatar_url, bio, is_online, last_seen, show_last_seen, show_online_status")
         .neq("user_id", user.id);
       if (data) setProfiles(data);
     };
@@ -101,13 +109,14 @@ export const NewDmDialog = ({ onStarted }: NewDmDialogProps) => {
                   <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-xs font-semibold text-secondary-foreground">
                     {(p.display_name || "U").slice(0, 2).toUpperCase()}
                   </div>
-                  {p.is_online && (
-                    <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-primary border-2 border-card" />
+                  {onlineUserIds.has(p.user_id) && p.show_online_status !== false && (
+                    <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-card" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{p.display_name || "User"}</p>
                   {p.bio && <p className="text-[11px] text-muted-foreground truncate">{p.bio}</p>}
+                  <p className={onlineUserIds.has(p.user_id) && p.show_online_status !== false ? "text-[10px] font-medium text-emerald-500" : "text-[10px] text-muted-foreground"}>{onlineUserIds.has(p.user_id) && p.show_online_status !== false ? (language === "sw" ? "Mtandaoni" : "Online") : p.show_last_seen !== false ? formatLastSeen(p.last_seen, language) : (language === "sw" ? "Hajapatikana" : "Offline")}</p>
                 </div>
               </button>
             ))}
