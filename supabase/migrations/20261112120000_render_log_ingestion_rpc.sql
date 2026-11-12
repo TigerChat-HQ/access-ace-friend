@@ -10,7 +10,7 @@ SECURITY DEFINER
 SET search_path = pg_catalog, auth
 AS $$
 BEGIN
-  IF auth.role() <> 'service_role' THEN
+  IF coalesce(auth.jwt()->>'role', '') <> 'service_role' THEN
     RAISE EXCEPTION 'Service role required' USING ERRCODE = '42501';
   END IF;
   IF p_record IS NULL OR jsonb_typeof(p_record) <> 'object'
