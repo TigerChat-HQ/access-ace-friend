@@ -121,7 +121,7 @@ export const TigerSmartCards = () => {
           <div className="space-y-3 p-4">
             <p className="text-sm leading-6 text-foreground">{card.body}</p>
             <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
-              {card.verified && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 font-bold text-emerald-600"><CheckCircle2 className="h-3 w-3" />Chanzo kimethibitishwa</span>}
+              {card.verified && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 font-bold text-emerald-600"><CheckCircle2 className="h-3 w-3" />Chanzo cha mada kimethibitishwa</span>}
               {card.jurisdiction && <span className="rounded-full bg-muted px-2 py-1">{card.jurisdiction}</span>}
             </div>
             {card.source_reference && <p className="text-[10px] leading-4 text-muted-foreground">{card.source_reference}</p>}
