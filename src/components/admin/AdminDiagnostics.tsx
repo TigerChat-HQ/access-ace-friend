@@ -339,7 +339,8 @@ export const AdminDiagnostics = () => {
       <Button size="sm" variant="outline" onClick={() => void exportDiagnosticsBackup()} disabled={backupBusy}>{backupBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin"/> : <Download className="mr-1 h-4 w-4"/>}Download diagnostics backup</Button>
       <p className="text-[11px] text-muted-foreground">Hii ni backup ya diagnostics pekee, si full database/media backup ya watumiaji. Full database backups na point-in-time recovery husimamiwa kupitia mipangilio ya Supabase project.</p>
     </div>
-      <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">03 · Database</p><h4 className="text-sm font-semibold">Ukaguzi wa jedwali (Schema)</h4></div>\n      <h4 className="text-sm font-semibold flex items-center gap-2"><Database className="h-4 w-4"/> Database schema check</h4>
+      <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">03 · Database</p><h4 className="text-sm font-semibold">Ukaguzi wa jedwali (Schema)</h4></div>
+      <h4 className="text-sm font-semibold flex items-center gap-2"><Database className="h-4 w-4"/> Database schema check</h4>
       <p className="text-xs text-muted-foreground">Checks the app's registered tables. Permission/RLS failures are reported separately from missing tables.</p>
       <Button size="sm" onClick={() => void runSchemaCheck()} disabled={checking}>{checking ? <Loader2 className="mr-1 h-4 w-4 animate-spin"/> : <Database className="mr-1 h-4 w-4"/>}Scan database tables</Button>
       {schemaResults.length > 0 && <div className="space-y-1 text-xs">
@@ -393,6 +394,7 @@ export const AdminDiagnostics = () => {
       <div className="flex flex-wrap gap-1">{["new","investigating","fixed","ignored"].filter(s=>s!==item.status).map(s=><Button key={s} size="sm" variant="outline" onClick={()=>void updateStatus(item.id,s)}>{s}</Button>)}</div>
     </article>)}
     {visible.length===0 && <p className="text-xs text-muted-foreground">{loading?"Loading diagnostics…":"No issues recorded for this filter."}</p>}
-    </div>\n    <p className="text-[11px] text-muted-foreground flex items-start gap-1"><AlertTriangle className="h-3.5 w-3.5 shrink-0"/>Global browser errors, rejected promises, and explicitly reported feature/API failures are collected across the app. Copy all errors exports the loaded diagnostics, including stack traces and safe metadata.</p>
+    </div>
+    <p className="text-[11px] text-muted-foreground flex items-start gap-1"><AlertTriangle className="h-3.5 w-3.5 shrink-0"/>Global browser errors, rejected promises, and explicitly reported feature/API failures are collected across the app. Copy all errors exports the loaded diagnostics, including stack traces and safe metadata.</p>
   </section>;
 };
