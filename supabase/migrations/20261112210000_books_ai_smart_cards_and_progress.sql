@@ -76,6 +76,11 @@ CREATE TABLE IF NOT EXISTS public.tiger_ai_smart_cards (
 CREATE INDEX IF NOT EXISTS tiger_ai_smart_cards_feed_idx
   ON public.tiger_ai_smart_cards (publish_date DESC, created_at DESC)
   WHERE is_active = true;
+
+-- Enable the realtime subscriptions used by the reader and Feed Smart Cards.
+ALTER PUBLICATION supabase_realtime ADD TABLE public.books_daily_chapters;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.books_reading_progress;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.tiger_ai_smart_cards;
 ALTER TABLE public.tiger_ai_smart_cards ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.tiger_ai_smart_cards FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.tiger_ai_smart_cards TO authenticated;
