@@ -435,6 +435,7 @@ const Draughts = () => {
   };
 
   const exitMatch = () => {
+    if (match && match.status !== "finished" && !window.confirm("Una uhakika unataka kutoka kwenye mechi ya Draughts? Chagua Cancel ili uendelee na mechi.")) return;
     if (channelRef.current) supabase.removeChannel(channelRef.current);
     setMatch(null);
     setSelected(null);
@@ -447,7 +448,7 @@ const Draughts = () => {
     return (
       <div className="h-full flex flex-col bg-background">
         <header className="tiger-page-header">
-          <button onClick={() => nav(-1)} className="tiger-header-action hover:bg-surface-hover" aria-label="Back">
+          <button onClick={() => nav("/games")} className="tiger-header-action hover:bg-surface-hover" aria-label="Back to Games Arena">
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
           <h1 className="min-w-0 flex-1 truncate text-base font-bold text-foreground">Draughts Arena</h1>

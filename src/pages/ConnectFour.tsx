@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Supabase generated table types are not yet available in this client. */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { ArrowLeft, RotateCcw, Bot, Users, Copy, Trophy, Zap, Volume2, VolumeX, Undo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,6 +15,7 @@ const won=(b:Board,r:number,c:number,p:Cell)=>directions.some(([dr,dc])=>{let n=
 function aiColumn(b:Board){const order=[3,2,4,1,5,0,6];for(const c of order){const x=drop(b,c,2);if(x&&won(x.board,x.row,c,2))return c;}for(const c of order){const x=drop(b,c,1);if(x&&won(x.board,x.row,c,1))return c;}let best=3,score=-1e9;for(const c of order){const x=drop(b,c,2);if(!x)continue;let s=10-Math.abs(3-c)*2;for(let r=0;r<6;r++)for(let k=0;k<7;k++)if(x.board[r][k]===2)s+=Math.max(0,4-Math.abs(3-k));if(s>score){score=s;best=c;}}return best;}
 const db=supabase as any;
 export default function ConnectFour(){
+ const navigate=useNavigate();
  const {user}=useAuth();const {toast}=useToast();
  const [mode,setMode]=useState<Mode>("menu");const [board,setBoard]=useState<Board>(empty);const [turn,setTurn]=useState<Cell>(1);const [winner,setWinner]=useState<Cell>(0);const [draw,setDraw]=useState(false);const [moves,setMoves]=useState(0);
  const [match,setMatch]=useState<Match|null>(null);const [roomCode,setRoomCode]=useState("");const [busy,setBusy]=useState(false);const [sound,setSound]=useState(true);const [undoStack,setUndoStack]=useState<Board[]>([]);const [aiBusy,setAiBusy]=useState(false);
@@ -38,8 +39,9 @@ export default function ConnectFour(){
  const undo=()=>{if(mode!=="ai"||!undoStack.length||winner||draw)return;setBoard(undoStack[undoStack.length-1]);setUndoStack(s=>s.slice(0,-1));setMoves(n=>Math.max(0,n-1));setTurn(1);};
  const online=mode==="online";const shown=online?(match?.board??board):board;const activeTurn=online?(match?.current_turn??1):turn;const ended=online?match?.status==="finished":!!winner||draw;const wonBy=online?(match?.winner_id?(match.winner_id===match.player_one?1:2):0):winner;const slot=online&&user?.id===match?.player_one?1:online&&user?.id===match?.player_two?2:0;
  const message=online&&match?.status==="waiting"?"Subiri rafiki ajiunge":ended?(wonBy?"Mchezaji "+wonBy+" ameshinda!":"Mchezo umeisha kwa sare!"):(mode==="ai"&&aiBusy?"Tiger AI anafikiria…":"Zamu ya Mchezaji "+activeTurn);
+ const backToGames=()=>{if(mode!=="menu"&&!ended&&!window.confirm("Una uhakika unataka kutoka kwenye Connect Four? Maendeleo ya mchezo huu wa sasa yanaweza kupotea."))return;navigate("/games");};
  return <main className="min-h-full overflow-y-auto bg-background px-3 pb-24 pt-4"><div className="mx-auto max-w-lg space-y-4">
- <header className="flex items-center justify-between"><Link to="/games" className="inline-flex items-center gap-2 text-sm font-semibold"><ArrowLeft className="h-4 w-4"/> Games Arena</Link><button onClick={()=>setSound(v=>!v)} className="rounded-xl border border-border p-2" aria-label="Toggle sound">{sound?<Volume2 className="h-4 w-4"/>:<VolumeX className="h-4 w-4"/>}</button></header>
+ <header className="flex items-center justify-between"><button onClick={backToGames} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card/70 px-3 py-2 text-sm font-semibold transition hover:border-primary/40" aria-label="Back to Games Arena"><ArrowLeft className="h-4 w-4"/> Games Arena</button><button onClick={()=>setSound(v=>!v)} className="rounded-xl border border-border p-2" aria-label="Toggle sound">{sound?<Volume2 className="h-4 w-4"/>:<VolumeX className="h-4 w-4"/>}</button></header>
  <section className="rounded-3xl border border-rose-500/20 bg-gradient-to-br from-rose-500/10 to-card p-4 text-center"><p className="text-xs font-bold uppercase tracking-widest text-rose-500">TigerChat Arena</p><h1 className="mt-1 text-3xl font-black">Connect Four</h1><p className="mt-2 text-sm text-muted-foreground">Unganisha diski nne mlalo, wima au diagonal. Cheza dhidi ya Tiger AI au marafiki.</p></section>
  {mode==="menu"?<div className="space-y-3">
  <div className="grid grid-cols-2 gap-2"><button onClick={()=>start("ai")} className="rounded-2xl border border-border bg-card p-4 text-left"><Bot className="h-6 w-6 text-primary"/><p className="mt-2 font-bold">Tiger AI</p><p className="text-xs text-muted-foreground">Cheza dhidi ya AI</p></button><button onClick={()=>start("local")} className="rounded-2xl border border-border bg-card p-4 text-left"><Users className="h-6 w-6 text-primary"/><p className="mt-2 font-bold">Kifaa kimoja</p><p className="text-xs text-muted-foreground">Wachezaji wawili</p></button></div>
