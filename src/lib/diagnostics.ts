@@ -228,11 +228,20 @@ export function installGlobalDiagnostics() {
     };
   }
   window.addEventListener("unhandledrejection", (event) => {
+    const rejectionMessage = event.reason instanceof Error ? event.reason.message : String(event.reason ?? "Unknown rejection");
+    const isBubbleNotFound = /not found|404|does not exist/i.test(rejectionMessage) && /bubble|chat|conversation/i.test(lastAction);
     void reportDiagnostic({
-      source: "browser", severity: "high", category: "promise",
-      title: "Unhandled promise rejection", error: event.reason,
-      message: event.reason instanceof Error ? event.reason.message : String(event.reason ?? "Unknown rejection"),
+      source: "website", severity: "high",
+      category: isBubbleNotFound ? "bubble_chat_not_found" : "promise",
+      title: isBubbleNotFound ? "Bubble Chat: Not Found" : "Unhandled promise rejection",
+      error: event.reason,
+      message: rejectionMessage,
+      component: isBubbleNotFound ? "Bubble Chat" : "Promise handler",
+      suggestion: isBubbleNotFound
+        ? "Thibitisha chat/conversation ID, API endpoint, ruhusa za mtumiaji na rekodi ya mazungumzo. Linganisha muda wa hitilafu na Render server logs."
+        : undefined,
       action: Date.now() - lastActionAt < 10000 ? lastAction : undefined,
+      metadata: { platform: "web", action: lastAction || null, notFound: /not found|404|does not exist/i.test(rejectionMessage) },
     });
   });
 }
