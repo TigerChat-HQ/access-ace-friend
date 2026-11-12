@@ -28,7 +28,7 @@ type BooksDatabase = {
     CompositeTypes: Record<string, never>;
   };
 };
-type AdminClient = SupabaseClient<BooksDatabase, "public", "public">;
+type AdminClient = SupabaseClient<BooksDatabase, "public">;
 
 type StorySpec = { id: string; title: string; premise: string };
 type ApprovedSource = {
@@ -220,7 +220,7 @@ async function generateStoryChapter(admin: AdminClient, story: StorySpec, publis
   return { story_id: story.id, episode_number: episode, published: !insertError };
 }
 
-async function generateSmartCards(admin: ReturnType<typeof createClient>, publishDate: string) {
+async function generateSmartCards(admin: AdminClient, publishDate: string) {
   const { count, error: countError } = await admin
     .from("tiger_ai_smart_cards").select("id", { count: "exact", head: true }).eq("publish_date", publishDate);
   if (countError) throw countError;
@@ -252,7 +252,7 @@ async function generateSmartCards(admin: ReturnType<typeof createClient>, publis
     const fallback = `JE, WAJUA? ${source.shortTitle}`;
     return {
       publish_date: publishDate,
-      placement: index === 0 ? "post" : "status",
+      placement: (index === 0 ? "post" : "status") as "post" | "status",
       category: source.category,
       source_key: source.key,
       title: safeText(match?.title, 140, source.shortTitle),
