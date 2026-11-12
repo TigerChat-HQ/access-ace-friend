@@ -464,34 +464,30 @@ const ReelsStudio = () => {
   };
 
   const moveTimelineClip = (index: number, delta: number) => {
-    setTimelineFiles((items) => {
-      const target = index + delta;
-      if (target < 0 || target >= items.length) return items;
-      const next = [...items];
-      [next[index], next[target]] = [next[target], next[index]];
-      if (next[0]) {
-        setVideoFile(next[0]);
-        setVideoPath(null);
-        setVideoUrl(URL.createObjectURL(next[0]));
-      }
-      return next;
-    });
+    const target = index + delta;
+    if (target < 0 || target >= timelineFiles.length) return;
+    const next = [...timelineFiles];
+    [next[index], next[target]] = [next[target], next[index]];
+    setTimelineFiles(next);
+    if (next[0]) {
+      setVideoFile(next[0]);
+      setVideoPath(null);
+      setVideoUrl(URL.createObjectURL(next[0]));
+    }
     markTimelineDirty();
   };
 
   const removeTimelineClip = (index: number) => {
-    setTimelineFiles((items) => {
-      const next = items.filter((_, itemIndex) => itemIndex !== index);
-      if (next[0]) {
-        setVideoFile(next[0]);
-        setVideoPath(null);
-        setVideoUrl(URL.createObjectURL(next[0]));
-      } else {
-        setVideoFile(null);
-        setVideoUrl(null);
-      }
-      return next;
-    });
+    const next = timelineFiles.filter((_, itemIndex) => itemIndex !== index);
+    setTimelineFiles(next);
+    if (next[0]) {
+      setVideoFile(next[0]);
+      setVideoPath(null);
+      setVideoUrl(URL.createObjectURL(next[0]));
+    } else {
+      setVideoFile(null);
+      setVideoUrl(null);
+    }
     markTimelineDirty();
   };
 
