@@ -125,7 +125,7 @@ BEGIN
   ) INTO v_board FROM generate_series(0,63) i;
   v_next:=jsonb_set(jsonb_set(v_board,'{17}','null'::jsonb),'{24}', '{"c":"b","k":false}'::jsonb);
 
-  INSERT INTO public.draft_matches(id,player_white,current_turn,revision,status,board,vs_ai)
+  INSERT INTO public.draft_matches(id,player_white,player_black,current_turn,revision,status,board,vs_ai)
   VALUES(v_match_id,v_other,v_user,'b',0,'active',v_board,false);
 
   -- Client cannot submit a made-up board even when its move coordinates look valid.
@@ -205,7 +205,7 @@ BEGIN
     END ORDER BY i
   ) INTO v_capture_board FROM generate_series(0,63) i;
   v_capture_next:=jsonb_set(jsonb_set(jsonb_set(v_capture_board,'{17}','null'::jsonb),'{26}','null'::jsonb),'{35}','{"c":"b","k":false}'::jsonb);
-  INSERT INTO public.draft_matches(id,player_white,current_turn,revision,status,board,vs_ai)
+  INSERT INTO public.draft_matches(id,player_white,player_black,current_turn,revision,status,board,vs_ai)
   VALUES(v_capture_id,v_other,v_user,'b',0,'active',v_capture_board,false);
 
   BEGIN
