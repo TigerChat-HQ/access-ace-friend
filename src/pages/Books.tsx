@@ -177,29 +177,37 @@ export default function BooksPage() {
   useEffect(() => {
     if (!user) return;
     let active = true;
-    void (async () => {
+    const loadProgress = async () => {
       const { data, error } = await supabase.from("books_reading_progress" as any).select("book_id,progress_percent,last_chapter").eq("user_id", user.id);
       if (error) { console.warn("Books progress sync unavailable:", error.message); return; }
       if (!active) return;
       const merged: Record<string, { progress_percent: number; last_chapter: number }> = {};
       ((data || []) as unknown as Array<{ book_id: string; progress_percent: number; last_chapter: number }>).forEach((row) => { merged[row.book_id] = { progress_percent: Number(row.progress_percent) || 0, last_chapter: row.last_chapter || 0 }; });
       setReadingProgress((current) => ({ ...current, ...merged }));
-    })();
-    return () => { active = false; };
+    };
+    void loadProgress();
+    const channel = supabase.channel(`books-progress-${user.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "books_reading_progress", filter: `user_id=eq.${user.id}` }, () => void loadProgress())
+      .subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
   }, [user?.id]);
 
   useEffect(() => {
     let active = true;
     const dateKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Dar_es_Salaam" }).format(new Date());
-    void (async () => {
+    const loadChapters = async () => {
       const { data, error } = await supabase.from("books_daily_chapters" as any).select("story_id,episode_number,title,body,recap").eq("publish_date", dateKey);
       if (error) { console.warn("Daily AI chapters not available yet:", error.message); return; }
       if (!active) return;
       const next: Record<string, { episode_number: number; title: string; body: string; recap: string }> = {};
       ((data || []) as unknown as Array<{ story_id: string; episode_number: number; title: string; body: string; recap: string }>).forEach((row) => { next[row.story_id] = row; });
       setDailyChapters(next);
-    })();
-    return () => { active = false; };
+    };
+    void loadChapters();
+    const channel = supabase.channel("books-daily-chapters-feed")
+      .on("postgres_changes", { event: "*", schema: "public", table: "books_daily_chapters" }, () => void loadChapters())
+      .subscribe();
+    return () => { active = false; void supabase.removeChannel(channel); };
   }, [user?.id]);
 
   useEffect(() => {
