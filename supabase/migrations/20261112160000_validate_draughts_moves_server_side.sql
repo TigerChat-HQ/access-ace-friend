@@ -318,7 +318,7 @@ BEGIN
     clock_started_at=CASE WHEN v_expected_status='active' THEN now() ELSE NULL END
   WHERE id=p_id RETURNING * INTO v_match;
   RETURN v_match;
-END
+END;
 $function$;
 
 REVOKE ALL ON FUNCTION public.commit_draft_move(uuid,integer,jsonb,text,jsonb,text,text) FROM PUBLIC,anon;
