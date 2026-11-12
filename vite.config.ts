@@ -20,12 +20,37 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: [
       { find: /^react$/, replacement: localReact },
-      { find: /^react\/jsx-runtime$/, replacement: localReactJsxRuntime },
-      { find: /^react\/jsx-dev-runtime$/, replacement: localReactJsxDevRuntime },
+      { find: /^react\\/jsx-runtime$/, replacement: localReactJsxRuntime },
+      { find: /^react\\/jsx-dev-runtime$/, replacement: localReactJsxDevRuntime },
       { find: "@", replacement: fileURLToPath(new URL("./src", import.meta.url)) },
     ],
     dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core"],
     preserveSymlinks: false,
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        // Keep heavyweight, feature-specific libraries out of the initial app bundle.
+        // Routes are already lazy-loaded in App.tsx; these groups keep their vendor
+        // dependencies isolated and reusable when the related feature is opened.
+        manualChunks(id) {
+          if (
+            id.includes("/node_modules/recharts/") ||
+            id.includes("/node_modules/d3-") ||
+            id.includes("/node_modules/victory-vendor/") ||
+            id.includes("/node_modules/internmap/")
+          ) {
+            return "charts";
+          }
+          if (
+            id.includes("/node_modules/firebase/") ||
+            id.includes("/node_modules/@firebase/")
+          ) {
+            return "firebase";
+          }
+        },
+      },
+    },
   },
   optimizeDeps: {
     include: ["react", "react-dom/client", "@tanstack/react-query"],
