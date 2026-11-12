@@ -101,14 +101,15 @@ export function installGlobalDiagnostics() {
     lastAction = (control.getAttribute("aria-label") || control.getAttribute("title") || control.innerText || control.textContent || control.tagName).trim().slice(0, 160);
     lastActionAt = Date.now();
   }, true);
-  window.addEventListener("error", (event) => {
-    if (event instanceof ErrorEvent) {
+  window.addEventListener("error", (event: Event) => {
+    const errorEvent = event as ErrorEvent;
+    if (typeof errorEvent.message === "string" && errorEvent.message.length > 0) {
       void reportDiagnostic({
         source: "website", severity: "high", category: "javascript",
-        title: event.message || "Uncaught browser error", message: event.message || "Unknown JavaScript error",
+        title: errorEvent.message || "Uncaught browser error", message: errorEvent.message || "Unknown JavaScript error",
         action: Date.now() - lastActionAt < 10000 ? lastAction : undefined,
-        error: event.error,
-        metadata: { filename: event.filename, line: event.lineno, column: event.colno, platform: "web", userAgent: navigator.userAgent },
+        error: errorEvent.error,
+        metadata: { filename: errorEvent.filename, line: errorEvent.lineno, column: errorEvent.colno, platform: "web", userAgent: navigator.userAgent },
       });
       return;
     }
