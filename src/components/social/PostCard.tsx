@@ -71,6 +71,8 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
   const [audienceDraft, setAudienceDraft] = useState(post.audience || "public");
   const [editingCaption, setEditingCaption] = useState(false);
   const [postActionBusy, setPostActionBusy] = useState(false);
+  const [followingCreator, setFollowingCreator] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -147,6 +149,31 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
   }, [activeMedia?.url, activeMedia?.type, isReel]);
 
 
+
+  useEffect(() => {
+    if (!isReel || !user || user.id === post.user_id) { setFollowingCreator(false); return; }
+    let active = true;
+    void supabase.from("follows").select("id").eq("follower_id", user.id).eq("following_id", post.user_id).maybeSingle()
+      .then(({ data, error }) => { if (active && !error) setFollowingCreator(Boolean(data)); });
+    return () => { active = false; };
+  }, [isReel, user?.id, post.user_id]);
+
+  const handleFollowCreator = async () => {
+    if (!user || user.id === post.user_id || followBusy || followingCreator) return;
+    setFollowBusy(true);
+    try {
+      const { error } = await supabase.from("follows").insert({ follower_id: user.id, following_id: post.user_id });
+      if (error && error.code !== "23505") throw error;
+      const { error: attributionError } = await (supabase as any).from("reel_follow_attributions").insert({
+        reel_id: post.id, creator_id: post.user_id, follower_id: user.id,
+      });
+      if (attributionError && attributionError.code !== "23505") console.warn("Reel follow attribution was not recorded", attributionError);
+      setFollowingCreator(true);
+      toast({ title: "You are now following this creator" });
+    } catch (error) {
+      toast({ title: "Could not follow creator", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    } finally { setFollowBusy(false); }
+  };
 
   const handleLike = async () => {
     if (!user) return;
@@ -281,6 +308,9 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
           <MessageCircle className="w-6 h-6" />
           <span className="text-sm font-medium">{post.comment_count}</span>
         </button>
+        {isReel && user?.id !== post.user_id && <button type="button" onClick={() => void handleFollowCreator()} disabled={followBusy || followingCreator} className="rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-50">{followingCreator ? "Following" : followBusy ? "…" : "Follow"}</button>}
+        {isReel && <Link to={`/reels/studio?remix=${post.id}`} className="rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-foreground">Remix</Link>}
+        {isReel && <Link to={`/reels/studio?duet=${post.id}`} className="rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-foreground">Duet</Link>}
         <button onClick={handleShare} className="text-foreground hover:text-primary transition-colors ml-auto" aria-label="Share post"><Share2 className="w-5 h-5" /></button>
         <button onClick={handleSave} disabled={!user || saveBusy} aria-label={saved ? "Remove saved post" : "Save post"} aria-pressed={saved} className="text-foreground hover:text-primary transition-colors disabled:opacity-40"><Bookmark className={`w-5 h-5 ${saved ? "fill-current text-primary" : ""}`} /></button>
       </div>
