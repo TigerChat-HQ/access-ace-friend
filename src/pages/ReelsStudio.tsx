@@ -30,6 +30,8 @@ type DraftRow = {
   audio_title: string | null;
   audio_start_seconds: number;
   audio_end_seconds: number | null;
+  original_volume: number;
+  music_volume: number;
   trim_start_seconds: number;
   trim_end_seconds: number | null;
   captions: TimedCaption[];
@@ -70,6 +72,8 @@ const ReelsStudio = () => {
   const [audioTitle, setAudioTitle] = useState("");
   const [audioStart, setAudioStart] = useState(0);
   const [audioEnd, setAudioEnd] = useState<number | null>(null);
+  const [originalVolume, setOriginalVolume] = useState(1);
+  const [musicVolume, setMusicVolume] = useState(0.75);
   const [captions, setCaptions] = useState<TimedCaption[]>([]);
   const [captionText, setCaptionText] = useState("");
   const [captionStart, setCaptionStart] = useState(0);
@@ -104,6 +108,7 @@ const ReelsStudio = () => {
     setAudioFile(null);
     setAudioPath(null);
     setAudioTitle(track.title);
+    if (!audioUrl) setOriginalVolume(0.35);
     setAudioStart(Math.max(0, track.start || 0));
     setAudioEnd(track.end ?? null);
     markTimelineDirty();
@@ -118,6 +123,7 @@ const ReelsStudio = () => {
       setAudioTitle("");
       setAudioStart(0);
       setAudioEnd(null);
+      setOriginalVolume(1);
       markTimelineDirty();
       return;
     }
@@ -351,6 +357,8 @@ const ReelsStudio = () => {
         audio_title: audioTitle || (audioFile?.name ?? null),
         audio_start_seconds: audioStart,
         audio_end_seconds: audioEnd,
+        original_volume: originalVolume,
+        music_volume: musicVolume,
         trim_start_seconds: trimStart,
         trim_end_seconds: trimEnd,
         captions,
@@ -385,6 +393,8 @@ const ReelsStudio = () => {
     setAudioTitle(draft.audio_title || "");
     setAudioStart(Number(draft.audio_start_seconds || 0));
     setAudioEnd(draft.audio_end_seconds === null || draft.audio_end_seconds === undefined ? null : Number(draft.audio_end_seconds));
+    setOriginalVolume(Number(draft.original_volume ?? 1));
+    setMusicVolume(Number(draft.music_volume ?? 0.75));
     setTrimStart(Number(draft.trim_start_seconds || 0));
     setTrimEnd(draft.trim_end_seconds === null ? null : Number(draft.trim_end_seconds));
     setCaptions(Array.isArray(draft.captions) ? draft.captions : []);
@@ -582,8 +592,8 @@ const ReelsStudio = () => {
         speed: playbackSpeed,
         musicFile: audioFile,
         musicStartSeconds: audioStart,
-        originalVolume: 1,
-        musicVolume: 0.75,
+        originalVolume,
+        musicVolume,
         captions,
         onProgress: setRenderProgress,
       });
@@ -646,6 +656,7 @@ const ReelsStudio = () => {
           setAudioTitle("My voiceover");
           setAudioStart(0);
           setAudioEnd(null);
+          setOriginalVolume(0.35);
           toast({ title: "Voiceover ready", description: "Your recording is selected as the Reel audio track." });
         }
       };
@@ -761,6 +772,8 @@ const ReelsStudio = () => {
           reel_remix_type: remixType,
           reel_audio_start_seconds: audioStart,
           reel_audio_end_seconds: audioEnd,
+          reel_original_volume: originalVolume,
+          reel_music_volume: musicVolume,
           reel_trim_start_seconds: timelineRendered ? 0 : trimStart,
           reel_trim_end_seconds: timelineRendered ? null : trimEnd,
           is_draft: false,
@@ -892,13 +905,19 @@ const ReelsStudio = () => {
             <p className="mb-2 text-xs text-muted-foreground">Choose from the 20 background tracks already available in TigerChat (CC0), or add your own recording.</p>
             <MusicPicker maxClip={90} value={audioLibraryUrl ? { url: audioLibraryUrl, title: audioTitle || "TigerChat music", start: audioStart, end: audioEnd ?? audioStart + 90 } : null} onChange={handleBuiltInMusicChange} />
             {audioUrl && <div className="mt-2 rounded-lg bg-background p-2"><p className="mb-1 truncate text-xs text-foreground">{audioTitle || "Selected background music"}</p><audio src={audioUrl} controls preload="none" className="h-9 w-full" /></div>}
-            <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border p-3 text-sm text-muted-foreground"><Upload className="h-4 w-4" /> Upload your own audio instead<input type="file" accept="audio/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0] || null; setAudioFile(file); setAudioPath(null); setAudioLibraryUrl(null); setAudioUrl(file ? URL.createObjectURL(file) : null); setAudioEnd(null); markTimelineDirty(); if (file && !audioTitle) setAudioTitle(file.name); }} /></label>
+            <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border p-3 text-sm text-muted-foreground"><Upload className="h-4 w-4" /> Upload your own audio instead<input type="file" accept="audio/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0] || null; setAudioFile(file); setAudioPath(null); setAudioLibraryUrl(null); setAudioUrl(file ? URL.createObjectURL(file) : null); setAudioEnd(null); if (!audioUrl) setOriginalVolume(0.35); markTimelineDirty(); if (file && !audioTitle) setAudioTitle(file.name); }} /></label>
             <button type="button" disabled={busy} onClick={() => void toggleVoiceover()} className={`mt-2 flex w-full items-center justify-center gap-2 rounded-xl p-3 text-sm font-semibold ${recordingVoice ? "bg-destructive text-destructive-foreground" : "bg-secondary text-secondary-foreground"}`}>
               <span className={recordingVoice ? "h-2 w-2 animate-pulse rounded-full bg-current" : "h-2 w-2 rounded-full bg-primary"} />
               {recordingVoice ? "Stop voiceover recording" : "Record voiceover"}
             </button>
             {audioFile && <p className="mt-2 text-xs text-muted-foreground">{audioFile.name}</p>}
             <label className="mt-3 block text-xs text-muted-foreground">Audio start offset (seconds)<input type="number" min={0} step={0.1} value={audioStart} onChange={(e) => { setAudioStart(Math.max(0, Number(e.target.value))); markTimelineDirty(); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground" /></label>
+            <label className="mt-3 block text-xs text-muted-foreground">Original video sound · {Math.round(originalVolume * 100)}%
+              <input type="range" min={0} max={1} step={0.05} value={originalVolume} onChange={(event) => { setOriginalVolume(Number(event.target.value)); markTimelineDirty(); }} className="mt-1 w-full accent-primary" />
+            </label>
+            <label className="mt-2 block text-xs text-muted-foreground">Background music volume · {Math.round(musicVolume * 100)}%
+              <input type="range" min={0} max={1} step={0.05} value={musicVolume} onChange={(event) => { setMusicVolume(Number(event.target.value)); markTimelineDirty(); }} className="mt-1 w-full accent-primary" />
+            </label>
             <label className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
               <input type="checkbox" checked={shareAudio} onChange={(event) => setShareAudio(event.target.checked)} />
               Allow other creators to use this audio in their Reels
