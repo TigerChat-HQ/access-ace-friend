@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Trophy, Coins, Medal, Gamepad2, Radio, ChevronRight, Sparkles, Clock3, Users, Crown, Search, Zap, Puzzle, Brain, Star, LockKeyhole } from "lucide-react";
+import { ArrowLeft, Trophy, Coins, Medal, Gamepad2, Radio, ChevronRight, Clock3, Users, Crown, Search, Star } from "lucide-react";
 
 const liveGames = [
   { title: "Draughts Arena", subtitle: "Strategy · AI / PvP", detail: "Mkakati wa jadi · Tiger AI · PvP", tag: "ONLINE", path: "/draughts", icon: "♟", players: "AI na marafiki", category: "Strategy", art: "from-blue-600/50 via-indigo-950 to-[#080d1b]", accent: "text-cyan-200", artwork: "♟" },
