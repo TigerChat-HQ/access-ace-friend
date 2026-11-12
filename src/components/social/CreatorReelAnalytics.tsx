@@ -18,6 +18,7 @@ export const CreatorReelAnalytics = () => {
   const [events, setEvents] = useState<EventRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [available, setAvailable] = useState(true);
+  const [followerConversions, setFollowerConversions] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -25,15 +26,21 @@ export const CreatorReelAnalytics = () => {
       if (!user) return;
       setLoading(true);
       const since = new Date(Date.now() - 30 * 86400000).toISOString();
-      const { data, error } = await db
-        .from("post_analytics_events")
-        .select("event_type, viewer_id, watch_seconds, occurred_at")
-        .eq("creator_id", user.id)
-        .gte("occurred_at", since)
-        .order("occurred_at", { ascending: false })
-        .limit(10000);
+      const [{ data, error }, { count, error: followError }] = await Promise.all([
+        db.from("post_analytics_events")
+          .select("event_type, viewer_id, watch_seconds, occurred_at")
+          .eq("creator_id", user.id)
+          .gte("occurred_at", since)
+          .order("occurred_at", { ascending: false })
+          .limit(10000),
+        db.from("reel_follow_attributions")
+          .select("id", { count: "exact", head: true })
+          .eq("creator_id", user.id)
+          .gte("attributed_at", since),
+      ]);
       if (!active) return;
-      setAvailable(!error);
+      setAvailable(!error && !followError);
+      setFollowerConversions(count || 0);
       setEvents((data || []) as EventRow[]);
       setLoading(false);
     };
@@ -104,6 +111,8 @@ export const CreatorReelAnalytics = () => {
             <Metric icon={<Eye className="h-4 w-4" />} label="Impressions" value={metrics.impressions.toLocaleString()} />
             <Metric icon={<Users className="h-4 w-4" />} label="Unique reach" value={metrics.reach.toLocaleString()} />
             <Metric icon={<Clock3 className="h-4 w-4" />} label="Watch time" value={`${metrics.watchMinutes} min`} />
+            <Metric icon={<Target className="h-4 w-4" />} label="Replays" value={metrics.replays.toLocaleString()} />
+            <Metric icon={<Users className="h-4 w-4" />} label="Followers from Reels" value={followerConversions.toLocaleString()} />
             <Metric icon={<Target className="h-4 w-4" />} label="Completion rate" value={`${metrics.completionRate}%`} />
           </div>
           <div className="rounded-xl bg-background/70 p-3">
@@ -138,7 +147,7 @@ export const CreatorReelAnalytics = () => {
               </div>
             ))}
           </div>
-          <p className="text-[11px] text-muted-foreground">Metrics are collected from this release onward; historical views and watch time are not backfilled. Self-views are excluded.</p>
+          <p className="text-[11px] text-muted-foreground">Metrics are collected from this release onward; historical views and watch time are not backfilled. Self-views are excluded. Follower conversions count follows made directly from a Reel.</p>
         </>
       )}
     </section>
