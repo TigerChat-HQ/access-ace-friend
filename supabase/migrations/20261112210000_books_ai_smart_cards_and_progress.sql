@@ -18,6 +18,7 @@ CREATE INDEX IF NOT EXISTS books_daily_chapters_latest_idx
 ALTER TABLE public.books_daily_chapters ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.books_daily_chapters FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.books_daily_chapters TO authenticated;
+GRANT SELECT, INSERT ON public.books_daily_chapters TO service_role;
 DROP POLICY IF EXISTS "Signed-in users can read daily book chapters" ON public.books_daily_chapters;
 CREATE POLICY "Signed-in users can read daily book chapters"
   ON public.books_daily_chapters FOR SELECT TO authenticated USING (true);
@@ -33,7 +34,7 @@ CREATE TABLE IF NOT EXISTS public.books_reading_progress (
 CREATE INDEX IF NOT EXISTS books_reading_progress_updated_idx
   ON public.books_reading_progress (user_id, updated_at DESC);
 ALTER TABLE public.books_reading_progress ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON public.books_reading_progress FROM PUBLIC, anon;
+REVOKE ALL ON public.books_reading_progress FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.books_reading_progress TO authenticated;
 DROP POLICY IF EXISTS "Users read their own book progress" ON public.books_reading_progress;
 CREATE POLICY "Users read their own book progress"
@@ -76,8 +77,9 @@ CREATE INDEX IF NOT EXISTS tiger_ai_smart_cards_feed_idx
   ON public.tiger_ai_smart_cards (publish_date DESC, created_at DESC)
   WHERE is_active = true;
 ALTER TABLE public.tiger_ai_smart_cards ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON public.tiger_ai_smart_cards FROM PUBLIC, anon;
+REVOKE ALL ON public.tiger_ai_smart_cards FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.tiger_ai_smart_cards TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.tiger_ai_smart_cards TO service_role;
 DROP POLICY IF EXISTS "Signed-in users can read published Tiger AI Smart Cards" ON public.tiger_ai_smart_cards;
 CREATE POLICY "Signed-in users can read published Tiger AI Smart Cards"
   ON public.tiger_ai_smart_cards FOR SELECT TO authenticated
@@ -151,11 +153,12 @@ VALUES
    NULL, '/books?book=learning-science', true, true)
 ON CONFLICT (publish_date, placement, source_key) DO NOTHING;
 
--- Run at 06:00 Africa/Dar_es_Salaam (03:00 UTC). The function is idempotent per story/date.
+-- First run at 06:00 Africa/Dar_es_Salaam, then retry at noon and 18:00 if an AI call failed.
+-- The function is idempotent per story/date, so retries never create duplicate chapters.
 SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = 'tiger-books-ai-daily';
 SELECT cron.schedule(
   'tiger-books-ai-daily',
-  '0 3 * * *',
+  '0 3,9,15 * * *',
   $job$
     SELECT net.http_post(
       url := 'https://dngilyoyhmgazhuuaxfh.supabase.co/functions/v1/tiger-books-ai',
