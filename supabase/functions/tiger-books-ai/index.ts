@@ -69,6 +69,14 @@ const approvedSources: ApprovedSource[] = [
     jurisdiction: null, readMoreUrl: "/books?book=learning-science",
   },
   {
+    key: "copyright-act", category: "sheria", shortTitle: "Haki za tafsiri za vitabu",
+    claim: "Kifungu 6(1)(a) cha Copyright and Neighbouring Rights Act, Cap. 218 R.E. 2023, kinataja tafsiri na marekebisho ya kazi za fasihi na sanaa kuwa kazi zinazoweza kulindwa kama kazi asilia. Hivyo, haki za tafsiri zinapaswa kuchunguzwa tofauti na haki za kitabu cha asili.",
+    sourceTitle: "Office of the Attorney General — OAG MIS",
+    reference: "Copyright and Neighbouring Rights Act, Cap. 218 R.E. 2023, section 6(1)(a); revised publication 25 Apr 2025",
+    sourceUrl: "https://oagmis.oag.go.tz/portal/revised-acts/revised/322",
+    jurisdiction: "Tanzania", readMoreUrl: "/books?book=copyright-act",
+  },
+  {
     key: "learning-retrieval", category: "elimu", shortTitle: "Jipime kwa kukumbuka",
     claim: "Mwongozo wa Australian Education Research Organisation unaeleza kuwa kuomba mwanafunzi akumbuke alichojifunza na kurudia mazoezi kwa vipindi kunaweza kusaidia taarifa kubaki kwenye kumbukumbu kwa muda mrefu.",
     sourceTitle: "Australian Education Research Organisation",
