@@ -71,7 +71,7 @@ BEGIN
     RAISE EXCEPTION 'A non-admin caller probed another user admin role';
   END IF;
   IF public.is_conversation_member(v_conversation, v_admin) THEN
-    RAISE EXCEPTION 'A caller probed another user's conversation membership';
+    RAISE EXCEPTION 'A caller probed another user''s conversation membership';
   END IF;
   IF public.is_story_audience_member(v_story, v_admin, 'include') THEN
     RAISE EXCEPTION 'A caller probed another user's story audience membership';
