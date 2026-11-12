@@ -33,7 +33,7 @@ type AdminClient = SupabaseClient<BooksDatabase, "public">;
 type StorySpec = { id: string; title: string; premise: string };
 type ApprovedSource = {
   key: string;
-  category: "sheria" | "elimu";
+  category: "sheria" | "elimu" | "historia" | "maarifa";
   shortTitle: string;
   claim: string;
   sourceTitle: string;
