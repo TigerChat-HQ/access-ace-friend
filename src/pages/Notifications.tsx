@@ -8,11 +8,12 @@ const iconFor = (type: AppNotification["type"]) => {
   if (type === "comment" || type === "reply") return <MessageCircle className="w-4 h-4 text-primary" />;
   if (type === "follow" || type === "collaboration_invite" || type === "collaboration_accepted") return <UserPlus className="w-4 h-4 text-primary" />;
   if (type === "report_reply") return <ShieldCheck className="w-4 h-4 text-primary" />;
+  if (type === "tiger_ai_reply") return <MessageCircle className="w-4 h-4 text-primary" />;
   return <Bell className="w-4 h-4 text-primary" />;
 };
 
 const textFor = (n: AppNotification) => {
-  const name = n.actor?.display_name || n.actor?.username || "Someone";
+  const name = n.type === "tiger_ai_reply" ? "Tiger AI 🐯" : n.actor?.display_name || n.actor?.username || "Someone";
   if (n.type === "like") return `${name} liked your post`;
   if (n.type === "comment") return `${name} commented on your post`;
   if (n.type === "reply") return `${name} replied to your comment`;
@@ -21,6 +22,7 @@ const textFor = (n: AppNotification) => {
   if (n.type === "collaboration_invite") return `${name} invited you to collaborate on a post`;
   if (n.type === "collaboration_accepted") return `${name} accepted your post collaboration invitation`;
   if (n.type === "report_reply") return `An admin replied to your message or report`;
+  if (n.type === "tiger_ai_reply") return "Tiger AI amekujibu kwenye maoni yako";
   return `${name} mentioned you`;
 };
 
@@ -67,8 +69,8 @@ const Notifications = () => {
         ) : (
           <ul>
             {items.map((n) => {
-              const initials = (n.actor?.display_name || n.actor?.username || "U").slice(0, 2).toUpperCase();
-              const target = n.type === "report_reply" ? `/contact${n.report_id ? `?report=${n.report_id}` : ""}` : n.type === "collaboration_invite" ? "/collaborations" : n.post_id ? `/post/${n.post_id}` : `/u/${n.actor_id}`;
+              const initials = n.type === "tiger_ai_reply" ? "AI" : (n.actor?.display_name || n.actor?.username || "U").slice(0, 2).toUpperCase();
+              const target = n.type === "tiger_ai_reply" ? "/" : n.type === "report_reply" ? `/contact${n.report_id ? `?report=${n.report_id}` : ""}` : n.type === "collaboration_invite" ? "/collaborations" : n.post_id ? `/post/${n.post_id}` : `/u/${n.actor_id}`;
               return (
                 <li key={n.id}>
                   <Link
