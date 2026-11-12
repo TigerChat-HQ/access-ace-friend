@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, BookOpen, Bookmark, CalendarDays, Check, ChevronRight, Clock3, Filter, Heart, Library, Search, Settings2, Sparkles, Sun, Moon, Type, X } from "lucide-react";
+import { ArrowLeft, BookOpen, Bookmark, CalendarDays, Check, ChevronRight, Clock3, Filter, Heart, Library, Search, Settings2, Sparkles, Type, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
