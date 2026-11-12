@@ -93,11 +93,10 @@ export const ReelAnalyticsVideo = ({
     const video = videoRef.current;
     const audio = audioRef.current;
     if (!video || !audio || !audioUrl) return;
-    const targetTime = Math.max(0, audioStart + video.currentTime - trimStart);
-    if (Number.isFinite(audio.duration) && targetTime >= audio.duration) {
-      audio.pause();
-      return;
-    }
+    const elapsedTrackTime = Math.max(0, audioStart + video.currentTime - trimStart);
+    const targetTime = Number.isFinite(audio.duration) && audio.duration > 0
+      ? elapsedTrackTime % audio.duration
+      : elapsedTrackTime;
     if (Math.abs(audio.currentTime - targetTime) > 0.45) audio.currentTime = targetTime;
     void audio.play().catch(() => undefined);
   };
@@ -141,7 +140,8 @@ export const ReelAnalyticsVideo = ({
         if (pendingWatch.current >= 10) flushWatch();
       }
       if (audioUrl && audioRef.current && !audioRef.current.paused) {
-        const expected = Math.max(0, audioStart + now - trimStart);
+        const elapsedTrackTime = Math.max(0, audioStart + now - trimStart);
+        const expected = Number.isFinite(audioRef.current.duration) && audioRef.current.duration > 0 ? elapsedTrackTime % audioRef.current.duration : elapsedTrackTime;
         if (Math.abs(audioRef.current.currentTime - expected) > 0.8) audioRef.current.currentTime = expected;
       }
     }
@@ -169,7 +169,7 @@ export const ReelAnalyticsVideo = ({
         onPause={() => { audioRef.current?.pause(); flushWatch(); }}
         onEnded={() => { ended.current = true; audioRef.current?.pause(); flushWatch(); }}
       />
-      {audioUrl && <audio ref={audioRef} src={audioUrl} preload="metadata" />}
+      {audioUrl && <audio ref={audioRef} src={audioUrl} preload="metadata" loop /> }
       {audioUrl && <button type="button" aria-label={muted ? "Unmute video" : "Mute video"} onClick={() => { const next = !muted; setMuted(next); setFeedMuted(next); if (audioRef.current) audioRef.current.muted = next; if (!next && videoRef.current && !videoRef.current.paused) syncAudio(); }} className="absolute right-3 bottom-3 z-10 rounded-full bg-black/70 p-2 text-white" >{muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}</button>}
       {activeCaption?.text && (
         <div aria-live="off" className="pointer-events-none absolute inset-x-4 bottom-16 mx-auto max-w-[90%] text-center">
