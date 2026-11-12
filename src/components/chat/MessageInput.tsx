@@ -55,16 +55,18 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
   }, []);
 
   useEffect(() => {
-    if (!contactOpen || !contactsPermissionGranted) { setPhoneContacts([]); return; }
+    const inlineContactSearch = !contactOpen && text.startsWith("@");
+    if ((!contactOpen && !inlineContactSearch) || !contactsPermissionGranted) { setPhoneContacts([]); return; }
     const bridge = (window as ContactsBridgeWindow).TigerNative;
     if (!bridge?.searchContacts) return;
     try {
-      const parsed: unknown = JSON.parse(bridge.searchContacts(contactSearch));
+      const query = contactOpen ? contactSearch : text.slice(1).trim();
+      const parsed: unknown = JSON.parse(bridge.searchContacts(query));
       setPhoneContacts(Array.isArray(parsed) ? parsed.filter((item): item is DeviceContact =>
         item && typeof item.id === "string" && typeof item.name === "string" && typeof item.phone === "string"
       ) : []);
     } catch { setPhoneContacts([]); }
-  }, [contactOpen, contactSearch, contactsPermissionGranted]);
+  }, [contactOpen, contactSearch, contactsPermissionGranted, text]);
 
   const openContactPicker = () => {
     setContactOpen(true);
@@ -141,7 +143,18 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
   };
 
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setText(e.target.value);
+    const value = e.target.value;
+    setText(value);
+    if (value.startsWith("@") && !nativeContactsAvailable) {
+      const bridge = (window as ContactsBridgeWindow).TigerNative;
+      const available = Boolean(bridge?.searchContacts && bridge?.requestContactsPermission);
+      setNativeContactsAvailable(available);
+      if (available) {
+        const granted = bridge?.hasContactsPermission?.() ?? false;
+        setContactsPermissionGranted(granted);
+        if (!granted) bridge?.requestContactsPermission?.();
+      }
+    }
     onTyping?.();
   };
 
@@ -208,6 +221,12 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
           <div className="grid grid-cols-8 gap-2">{CHAT_EMOJIS.map((emoji) => <button key={emoji} type="button" onClick={() => insertEmoji(emoji)} className="chat-emoji-picker-item rounded-lg p-1 text-2xl hover:bg-surface-hover" aria-label={`Insert ${emoji}`}>{emoji}</button>)}</div>
         </div>
       )}
+      {!contactOpen && nativeContactsAvailable && text.startsWith("@") && contactsPermissionGranted && (
+        <div className="mb-2 max-h-48 overflow-y-auto rounded-xl border border-border/60 bg-card shadow-lg">
+          <p className="px-3 py-2 text-[11px] text-muted-foreground">Phone contacts · select one to insert it into your message</p>
+          {phoneContacts.length ? phoneContacts.map(contact => <button key={contact.id + contact.phone} type="button" onClick={() => choosePhoneContact(contact)} className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-muted"><span className="min-w-0"><span className="block truncate text-sm font-medium">{contact.name}</span><span className="block text-xs text-muted-foreground">{contact.phone}</span></span><Contact className="h-4 w-4 shrink-0 text-primary" /></button>) : <p className="px-3 py-4 text-center text-xs text-muted-foreground">No matching contacts found.</p>}
+        </div>
+      )}
       <div className="flex items-center gap-2">
         <button type="button" onClick={() => setEmojiOpen((open) => !open)} aria-label="Open emoji picker" aria-expanded={emojiOpen} className={cn("p-2 rounded-full transition-colors", emojiOpen ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-surface-hover hover:text-foreground")}>
           <Smile className="w-5 h-5" />
@@ -221,7 +240,7 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
           value={text}
           onChange={handleTextChange}
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
-          placeholder={editingMessage ? "Edit your message..." : "Type a message..."}
+          placeholder={editingMessage ? "Edit your message..." : "Type a message or @contact..."}
           className="min-w-0 flex-1 bg-surface rounded-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary/50 transition-all"
         />
         {text.trim() || attachedFile ? (
