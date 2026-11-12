@@ -2,6 +2,7 @@ export type ReelTimelineClip = { file: File; start?: number; end?: number | null
 export type ReelCaption = { start: number; end: number; text: string };
 export type ReelTimelineOptions = {
   clips: ReelTimelineClip[];
+  duetFile?: File | null;
   filter?: string;
   speed?: number;
   musicFile?: File | null;
@@ -46,6 +47,8 @@ export async function renderReelTimeline(options: ReelTimelineOptions): Promise<
   let audioContext: AudioContext | null = null;
   let musicElement: HTMLAudioElement | null = null;
   let musicUrl: string | null = null;
+  let duetVideo: HTMLVideoElement | null = null;
+  let duetUrl: string | null = null;
   let recorder: MediaRecorder | null = null;
   let stream: MediaStream | null = null;
   let raf = 0;
@@ -58,6 +61,13 @@ export async function renderReelTimeline(options: ReelTimelineOptions): Promise<
       loaded.push({ ...item, start, end });
     }
     const first = loaded[0].video;
+    if (options.duetFile) {
+      const duet = await loadVideo(options.duetFile);
+      duetVideo = duet.video;
+      duetUrl = duet.url;
+      duetVideo.muted = true;
+      duetVideo.loop = true;
+    }
     const ratio = first.videoWidth / Math.max(1, first.videoHeight);
     const height = ratio < 0.8 ? 1280 : Math.round(1280 / Math.max(0.5, ratio));
     canvas.width = Math.min(1920, Math.max(480, Math.round(height * ratio)));
@@ -111,6 +121,8 @@ export async function renderReelTimeline(options: ReelTimelineOptions): Promise<
         video.addEventListener("error", onError, { once: true });
         if (Math.abs(video.currentTime - item.start) < 0.03) onSeeked();
       });
+      if (duetVideo && !duetVideo.paused) duetVideo.currentTime = 0;
+      if (duetVideo && duetVideo.paused) await duetVideo.play();
       await video.play();
       await new Promise<void>((resolve) => {
         const draw = () => {
@@ -121,7 +133,25 @@ export async function renderReelTimeline(options: ReelTimelineOptions): Promise<
           const scale = Math.max(canvas.width / video.videoWidth, canvas.height / video.videoHeight);
           const width = video.videoWidth * scale;
           const height = video.videoHeight * scale;
-          context.drawImage(video, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+          if (duetVideo) {
+            const halfWidth = canvas.width / 2;
+            const duetScale = Math.max(halfWidth / duetVideo.videoWidth, canvas.height / duetVideo.videoHeight);
+            const duetWidth = duetVideo.videoWidth * duetScale;
+            const duetHeight = duetVideo.videoHeight * duetScale;
+            context.save();
+            context.beginPath(); context.rect(0, 0, halfWidth, canvas.height); context.clip();
+            context.drawImage(duetVideo, (halfWidth - duetWidth) / 2, (canvas.height - duetHeight) / 2, duetWidth, duetHeight);
+            context.restore();
+            context.save();
+            context.beginPath(); context.rect(halfWidth, 0, halfWidth, canvas.height); context.clip();
+            const ownScale = Math.max(halfWidth / video.videoWidth, canvas.height / video.videoHeight);
+            const ownWidth = video.videoWidth * ownScale;
+            const ownHeight = video.videoHeight * ownScale;
+            context.drawImage(video, halfWidth + (halfWidth - ownWidth) / 2, (canvas.height - ownHeight) / 2, ownWidth, ownHeight);
+            context.restore();
+          } else {
+            context.drawImage(video, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+          }
           context.filter = "none";
           const globalTime = elapsed + (video.currentTime - item.start) / speed;
           const activeCaption = options.captions?.find((caption) => globalTime >= caption.start && globalTime <= caption.end);
@@ -159,6 +189,8 @@ export async function renderReelTimeline(options: ReelTimelineOptions): Promise<
   } finally {
     cancelAnimationFrame(raf);
     loaded.forEach((item) => { item.video.pause(); URL.revokeObjectURL(item.url); });
+    duetVideo?.pause();
+    if (duetUrl) URL.revokeObjectURL(duetUrl);
     musicElement?.pause();
     if (musicUrl) URL.revokeObjectURL(musicUrl);
     stream?.getTracks().forEach((track) => track.stop());
