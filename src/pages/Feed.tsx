@@ -5,6 +5,7 @@ import { PostCard } from "@/components/social/PostCard";
 import { TrendingRail } from "@/components/social/TrendingRail";
 import { TigerDailyHistory } from "@/components/social/TigerDailyHistory";
 import { TigerSmartCards } from "@/components/social/TigerSmartCards";
+import { TigerAiDailyCards } from "@/components/social/TigerAiDailyCards";
 import { StoryFeedRail } from "@/components/social/StoryFeedRail";
 import { Link } from "react-router-dom";
 import { BarChart3, Bell, Bookmark, Clapperboard, PlusSquare, Search, Settings as SettingsIcon, Sparkles } from "lucide-react";
@@ -59,6 +60,7 @@ const Feed = () => {
       </div>
       <div className="flex-1 overflow-y-auto scrollbar-thin">
         <StoryFeedRail />
+        <TigerAiDailyCards />
         <TigerSmartCards />
         <TigerDailyHistory />
         <TrendingRail />
