@@ -214,8 +214,11 @@ export default function BooksPage() {
   useEffect(() => {
     const bookId = new URLSearchParams(window.location.search).get("book");
     const match = bookId ? books.find((book) => book.id === bookId) : undefined;
-    if (match) { setSelectedBook(match); setReadingPercent(readingProgress[match.id]?.progress_percent ?? 0); }
-  }, []);
+    if (match && selectedBook?.id !== match.id) {
+      setSelectedBook(match);
+      setReadingPercent(readingProgress[match.id]?.progress_percent ?? 0);
+    }
+  }, [readingProgress, selectedBook?.id]);
 
   const saveProgress = async (bookId: string, percent: number, lastChapter = 0) => {
     const row = { progress_percent: Math.max(0, Math.min(100, Math.round(percent))), last_chapter: Math.max(0, lastChapter) };
