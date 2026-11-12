@@ -21,6 +21,7 @@ const aiStatusLabel: Record<string, string> = {
 };
 const mediaFixInstructions = (kind: "camera" | "microphone", errorName: string, permissionState: string) => {
   const device = kind === "microphone" ? "Microphone" : "Camera";
+  if (errorName === "UnknownError" && permissionState === "unsupported") return ["WebView/browser hii haijatoa mediaDevices.getUserMedia. Fungua TigerChats kwenye app kuu au Chrome iliyosasishwa; usitumie floating/overlay WebView.", "Hakikisha link inatumia HTTPS, kisha sasisha Android System WebView na Google Chrome kupitia Play Store na uanze upya simu."];
   if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError" || permissionState === "denied") return kind === "microphone"
     ? ["Simu: Settings → Apps → TigerChats → Permissions → Microphone → Allow (ruhusu wakati app inatumika).", "Kama unatumia Chrome/PWA: fungua Site settings za tigerchat-hq.onrender.com → Microphone → Allow.", "Funga TigerChats kabisa kisha ifungue tena na bonyeza Allow kwenye ombi la ruhusa."]
     : ["Simu: Settings → Apps → TigerChats → Permissions → Camera → Allow (ruhusu wakati app inatumika).", "Kama unatumia Chrome/PWA: Site settings za tigerchat-hq.onrender.com → Camera → Allow.", "Funga na fungua TigerChats tena; ruhusu Camera kwenye popup."];
@@ -358,7 +359,7 @@ export const AdminDiagnostics = () => {
     <div className="rounded-lg border border-primary/30 bg-card p-3 space-y-3">
       <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">05 · Tiger AI</p><h4 className="text-sm font-semibold">Foleni ya kazi na hali za uchakataji</h4><p className="text-xs text-muted-foreground">Orodha ya matatizo yaliyotumwa kwa Tiger AI, hali yake na kazi zinazosubiri idhini.</p></div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {(["queued","processing","needs_review","pr_open","failed","fixed"] as const).map(status => <div key={status} className="rounded-md border border-border p-2"><p className="text-[10px] text-muted-foreground">{aiStatusLabel[status]}</p><p className="text-lg font-bold">{aiQueue.filter(item => item.ai_status === status).length}</p></div>)}
+        {(["queued","processing","needs_review","pr_open","failed","fixed","ignored"] as const).map(status => <div key={status} className="rounded-md border border-border p-2"><p className="text-[10px] text-muted-foreground">{aiStatusLabel[status]}</p><p className="text-lg font-bold">{aiQueue.filter(item => item.ai_status === status).length}</p></div>)}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold">Kazi zote za AI ({aiQueue.length})</p><Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw className={`mr-1 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}/>Sasisha foleni</Button></div>
       {aiQueue.length === 0 ? <p className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">Hakuna kazi ya Tiger AI kwenye rekodi zilizopakiwa.</p> : aiQueue.map(item => <div key={item.id} className="rounded-md border border-border p-3 space-y-2">
