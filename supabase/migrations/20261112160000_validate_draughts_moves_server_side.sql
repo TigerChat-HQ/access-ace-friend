@@ -81,7 +81,7 @@ BEGIN
 
       IF v_has_further THEN
         RETURN QUERY SELECT cp.to_index,cp.captures,cp.promoted
-          FROM private.draughts_capture_paths(v_next_board,v_to,v_next_piece,v_next_caps) cp;
+          FROM private.draughts_capture_paths(v_next_board,v_to,v_next_piece,v_next_caps,v_next_promoted) cp;
       ELSE
         to_index := v_to;
         captures := v_next_caps;
