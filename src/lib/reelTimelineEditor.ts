@@ -241,7 +241,6 @@ export async function renderReelTimeline(options: ReelTimelineOptions): Promise<
   } finally {
     cancelAnimationFrame(raf);
     loaded.forEach((item) => { item.video.pause(); URL.revokeObjectURL(item.url); });
-    faceLandmarker?.close();
     duetVideo?.pause();
     if (duetUrl) URL.revokeObjectURL(duetUrl);
     musicElement?.pause();
