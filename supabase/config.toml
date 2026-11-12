@@ -11,3 +11,6 @@ verify_jwt = true
 
 [functions.draughts-ai-turn]
 verify_jwt = true
+
+[functions.tiger-ai-daily-social-posts]
+verify_jwt = false
