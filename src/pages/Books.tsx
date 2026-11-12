@@ -6,6 +6,18 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
+import { BOOK_CONTENT_PHASE_1 } from "@/data/bookContentPhase1";
+import { BOOK_CONTENT_PHASE_2 } from "@/data/bookContentPhase2";
+import { BOOK_CONTENT_PHASE_3 } from "@/data/bookContentPhase3";
+import { BOOK_CONTENT_PHASE_4 } from "@/data/bookContentPhase4";
+import { BOOK_CONTENT_PHASE_5 } from "@/data/bookContentPhase5";
+import { BOOK_CONTENT_PHASE_6 } from "@/data/bookContentPhase6";
+import { BOOK_CONTENT_PHASE_7 } from "@/data/bookContentPhase7";
+import { BOOK_CONTENT_PHASE_8 } from "@/data/bookContentPhase8";
+import { BOOK_CONTENT_EXTENDED } from "@/data/bookContentExtended";
+
+const BOOK_CONTENT_BASE = { ...BOOK_CONTENT_PHASE_1, ...BOOK_CONTENT_PHASE_2, ...BOOK_CONTENT_PHASE_3, ...BOOK_CONTENT_PHASE_4, ...BOOK_CONTENT_PHASE_5, ...BOOK_CONTENT_PHASE_6, ...BOOK_CONTENT_PHASE_7, ...BOOK_CONTENT_PHASE_8 };
+const BOOK_CONTENT = Object.fromEntries(Object.entries(BOOK_CONTENT_BASE).map(([bookId, chapters]) => [bookId, [...chapters, ...(BOOK_CONTENT_EXTENDED[bookId] ?? [])]]));
 
 type Book = {
   id: string;
@@ -168,6 +180,7 @@ export default function BooksPage() {
   const [category, setCategory] = useState("all");
   const [query, setQuery] = useState("");
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  const [activeChapterIndex, setActiveChapterIndex] = useState(0);
   const [selectedSerial, setSelectedSerial] = useState<string | null>(null);
   const [saved, setSaved] = useState<string[]>(() => readStored("tiger-books-saved", []));
   const [theme, setTheme] = useState<ReaderTheme>(() => readStored("tiger-books-theme", "parchment"));
@@ -247,7 +260,7 @@ export default function BooksPage() {
     toast({ title: "Maendeleo yamesawazishwa kwenye akaunti yako" });
   };
 
-  const openBook = (book: Book) => { setSelectedBook(book); setSelectedSerial(null); setReadingPercent(readingProgress[book.id]?.progress_percent ?? 0); };
+  const openBook = (book: Book) => { setSelectedBook(book); setSelectedSerial(null); setActiveChapterIndex(0); setReadingPercent(readingProgress[book.id]?.progress_percent ?? 0); };
   const openSerial = (id: string) => { setSelectedSerial(id); setSelectedBook(null); setReadingPercent(readingProgress[id]?.progress_percent ?? 0); };
 
   const toggleSaved = (id: string) => setSaved((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
@@ -328,9 +341,30 @@ export default function BooksPage() {
             {selectedBook.fullTextUrl?.includes("gutenberg.org") && <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Toleo la chanzo ni la Kiingereza. Haki za tafsiri na matumizi hutofautiana kwa nchi; hapa tunakuunganisha na chanzo badala ya kunakili kitabu bila ukaguzi wa haki.</p>}
             {selectedBook.category === "sheria" && <p className="mt-2 rounded-lg border border-amber-500/25 bg-amber-500/5 p-3 text-[10px] leading-4 text-muted-foreground">Maelezo ya maktaba ni kwa Kiswahili; hati rasmi nyingi za OAG zimechapishwa kwa Kiingereza. Rejea hati na marekebisho yake kabla ya kutumia kifungu. Hii si ushauri wa kisheria; baadhi ya sheria zinatumika Tanzania Bara pekee.</p>}
             <div className="mt-4 flex flex-wrap gap-2 text-[10px] text-muted-foreground"><span className="rounded-full bg-muted px-3 py-1">{selectedBook.readTime}</span><span className="rounded-full bg-muted px-3 py-1">{categories.find((item) => item.id === selectedBook.category)?.label}</span>{(readIds.includes(selectedBook.id) || (readingProgress[selectedBook.id]?.progress_percent ?? 0) >= 100) && <span className="rounded-full bg-primary/10 px-3 py-1 text-primary">Umesoma</span>}</div>
-            <div className={`mt-5 rounded-2xl p-5 ${activeTheme.page}`}><p className="mb-3 text-[10px] font-bold uppercase tracking-widest opacity-60">Sampuli ya usomaji kwa Kiswahili</p><p style={{ fontSize: `${fontSize}px`, fontFamily: font === "serif" ? "Georgia, serif" : font === "mono" ? "ui-monospace, monospace" : "Arial, sans-serif" }} className="leading-[1.9]">{selectedBook.sample}</p></div>
-            {selectedBook.kind === "guide" ? <p className="mt-4 rounded-xl border border-border bg-card p-3 text-xs leading-5 text-muted-foreground">Huu ni mwongozo wa mada, si nakala kamili ya Biblia au Qurani. Fungua tafsiri unayoamini kwa matini kamili; tunaweza kuongeza viungo vya matoleo yaliyoidhinishwa.</p> : <p className="mt-4 rounded-xl border border-border bg-card p-3 text-xs leading-5 text-muted-foreground">Kwa sasa hapa kuna maelezo na sampuli ya Kiswahili. Nakala kamili hufunguliwa kupitia chanzo kilichoonyeshwa juu. Vitabu vilivyo kwenye chanzo cha nje vinaweza kuwa katika lugha ya asili; haki za nakala na tafsiri hukaguliwa kulingana na nchi.</p>}
-            <div className="mt-4 rounded-xl border border-border bg-card p-3"><div className="mb-2 flex items-center justify-between text-xs"><span className="font-semibold">Maendeleo ya usomaji</span><span className="font-bold tabular-nums text-primary">{readingPercent}%</span></div><Slider min={0} max={100} step={5} value={[readingPercent]} onValueChange={(value) => setReadingPercent(value[0] ?? 0)} /><Button className="mt-3 w-full" onClick={() => { void saveProgress(selectedBook.id, readingPercent, readingProgress[selectedBook.id]?.last_chapter || 0); if (readingPercent >= 100) markRead(selectedBook.id); }}><Check className="mr-2 h-4 w-4" />Hifadhi maendeleo kwenye akaunti</Button></div>
+            {(() => {
+              const chapters = BOOK_CONTENT[selectedBook.id] || [];
+              const chapter = chapters[activeChapterIndex];
+              return chapters.length ? (
+                <div className={`mt-5 rounded-2xl p-5 ${activeTheme.page}`}>
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div><p className="text-[10px] font-bold uppercase tracking-widest opacity-60">Mwongozo wa kusoma · Sura kwa sura</p><h2 className="mt-1 text-lg font-black">Sura {activeChapterIndex + 1}: {chapter.title}</h2></div>
+                    <span className="shrink-0 rounded-full bg-black/5 px-3 py-1 text-[10px] font-bold">{activeChapterIndex + 1}/{chapters.length}</span>
+                  </div>
+                  <div className="space-y-4" style={{ fontSize: `${fontSize}px`, fontFamily: font === "serif" ? "Georgia, serif" : font === "mono" ? "ui-monospace, monospace" : "Arial, sans-serif" }}>
+                    {chapter.paragraphs.map((paragraph, index) => <p key={index} className="leading-[1.9]">{paragraph}</p>)}
+                  </div>
+                  <div className="mt-5 rounded-xl border border-current/10 bg-black/[.03] p-4"><p className="text-[10px] font-bold uppercase tracking-widest opacity-60">Tafakari</p><p className="mt-2 text-sm leading-6">{chapter.reflection}</p></div>
+                  <div className="mt-5 flex items-center gap-2">
+                    <Button variant="outline" size="sm" disabled={activeChapterIndex === 0} onClick={() => { const previous = Math.max(0, activeChapterIndex - 1); setActiveChapterIndex(previous); setReadingPercent(Math.round(((previous + 1) / chapters.length) * 100)); }}>Sura iliyopita</Button>
+                    <Button size="sm" className="ml-auto" disabled={activeChapterIndex === chapters.length - 1} onClick={() => { const next = Math.min(chapters.length - 1, activeChapterIndex + 1); setActiveChapterIndex(next); setReadingPercent(Math.round(((next + 1) / chapters.length) * 100)); }}>Sura inayofuata <ChevronRight className="ml-1 h-4 w-4" /></Button>
+                  </div>
+                </div>
+              ) : (
+                <div className={`mt-5 rounded-2xl p-5 ${activeTheme.page}`}><p className="mb-3 text-[10px] font-bold uppercase tracking-widest opacity-60">Sampuli ya usomaji kwa Kiswahili</p><p style={{ fontSize: `${fontSize}px`, fontFamily: font === "serif" ? "Georgia, serif" : font === "mono" ? "ui-monospace, monospace" : "Arial, sans-serif" }} className="leading-[1.9]">{selectedBook.sample}</p><p className="mt-4 rounded-lg border border-current/10 bg-black/[.03] p-3 text-xs leading-5">Maudhui ya sura za kitabu hiki bado hayajaingizwa. Kimeorodheshwa katika mpango wa awamu zinazofuata; hakijaondolewa kwenye maktaba.</p></div>
+              );
+            })()}
+            {selectedBook.kind === "guide" ? <p className="mt-4 rounded-xl border border-border bg-card p-3 text-xs leading-5 text-muted-foreground">Huu ni mwongozo wa mada, si nakala kamili ya Biblia au Qurani. Fungua tafsiri unayoamini kwa matini kamili; tunaweza kuongeza viungo vya matoleo yaliyoidhinishwa.</p> : <p className="mt-4 rounded-xl border border-border bg-card p-3 text-xs leading-5 text-muted-foreground">Maudhui ya sura hapa ni mwongozo na usimulizi wa Kiswahili uliotayarishwa kwa ajili ya kujifunza. Kwa kazi za fasihi, chanzo cha asili kinaweza kufunguliwa kupitia kiungo kilichoonyeshwa juu; haki za nakala na tafsiri hutegemea toleo na nchi.</p>}
+            <div className="mt-4 rounded-xl border border-border bg-card p-3"><div className="mb-2 flex items-center justify-between text-xs"><span className="font-semibold">Maendeleo ya usomaji</span><span className="font-bold tabular-nums text-primary">{readingPercent}%</span></div><Slider min={0} max={100} step={5} value={[readingPercent]} onValueChange={(value) => setReadingPercent(value[0] ?? 0)} /><Button className="mt-3 w-full" onClick={() => { void saveProgress(selectedBook.id, readingPercent, activeChapterIndex); if (readingPercent >= 100) markRead(selectedBook.id); }}><Check className="mr-2 h-4 w-4" />Hifadhi maendeleo kwenye akaunti</Button></div>
           </div>
         </section>
       )}
