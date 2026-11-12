@@ -35,20 +35,29 @@ export const StoryFeedRail = () => {
     duration: s.duration || null, backgroundColor: s.background_color || "#6D28D9",
   }));
   return <>
-    <section aria-label="Active stories" className="border-b border-border/50 bg-card/40 px-3 py-3">
-      <div className="flex items-start gap-3 overflow-x-auto scrollbar-thin">
-        <div className="flex w-16 shrink-0 flex-col items-center gap-1">
+    <section aria-label="Discover stories" className="border-b border-border/50 bg-card/40 px-3 py-3">
+      <div className="flex items-stretch gap-3">
+        <div className="flex w-[68px] shrink-0 flex-col items-center justify-center gap-1 border-r border-border/70 pr-3">
           <div className="relative flex h-14 w-14 items-center justify-center rounded-full border-2 border-dashed border-primary/70 bg-background"><StoryUploadDialog onUploaded={load} /><span className="pointer-events-none absolute bottom-0 right-0 flex h-5 w-5 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground"><Plus className="h-3 w-3" /></span></div>
-          <span className="max-w-16 truncate text-[10px] text-muted-foreground">Your story</span>
+          <span className="w-full text-center text-[10px] font-semibold leading-tight text-foreground">Add Status</span>
         </div>
-        {groups.filter((group) => group.userId !== user?.id).map((group) => {
-          const profile = group.items[0]?.profile;
-          const name = profile?.display_name || profile?.username || "User";
-          return <button key={group.userId} type="button" onClick={() => setSelected(group.userId)} className="flex w-16 shrink-0 flex-col items-center gap-1">
-            <span className="rounded-full bg-gradient-to-tr from-amber-400 via-rose-500 to-fuchsia-600 p-[2px]"><span className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-2 border-background bg-secondary text-sm font-semibold text-secondary-foreground">{profile?.avatar_url ? <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" /> : name.slice(0,2).toUpperCase()}</span></span>
-            <span className="max-w-16 truncate text-[10px] text-foreground">{name}</span>
-          </button>;
-        })}
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex items-center justify-between px-0.5">
+            <h2 className="text-sm font-bold text-foreground">Discover</h2>
+            <span className="text-[10px] text-muted-foreground">Stories</span>
+          </div>
+          <div className="flex items-start gap-3 overflow-x-auto scrollbar-thin pb-1">
+            {groups.filter((group) => group.userId !== user?.id).map((group) => {
+              const profile = group.items[0]?.profile;
+              const name = profile?.display_name || profile?.username || "User";
+              return <button key={group.userId} type="button" onClick={() => setSelected(group.userId)} className="flex w-16 shrink-0 flex-col items-center gap-1">
+                <span className="rounded-full bg-gradient-to-tr from-amber-400 via-rose-500 to-fuchsia-600 p-[2px]"><span className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-2 border-background bg-secondary text-sm font-semibold text-secondary-foreground">{profile?.avatar_url ? <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" /> : name.slice(0,2).toUpperCase()}</span></span>
+                <span className="max-w-16 truncate text-[10px] text-foreground">{name}</span>
+              </button>;
+            })}
+            {groups.filter((group) => group.userId !== user?.id).length === 0 && <p className="py-5 text-xs text-muted-foreground">No new stories yet. Be the first to add a status.</p>}
+          </div>
+        </div>
       </div>
     </section>
     {selected && current && <StoryViewer stories={viewerData} initialIndex={0} onClose={() => setSelected(null)} currentUserId={user?.id} onStoryDeleted={(id) => setStories((items) => items.filter((item) => item.id !== id))} />}

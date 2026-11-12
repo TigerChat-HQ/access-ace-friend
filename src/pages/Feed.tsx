@@ -86,9 +86,10 @@ const Feed = () => {
             <TigerDailyHistory />
           </div>}
         </section>
+        <StoryFeedRail />
         {loading ? <div className="flex justify-center py-20"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
-          : display.length === 0 ? <><StoryFeedRail /><div className="text-center py-16 px-6"><Sparkles className="w-12 h-12 text-muted-foreground mx-auto mb-3" /><p className="text-foreground font-semibold mb-1">No posts yet</p><p className="text-sm text-muted-foreground mb-4">{tab === "following" ? "Follow people or create your first post." : "Be the first to share something."}</p><Link to="/create" className="inline-block bg-primary text-primary-foreground px-5 py-2 rounded-full text-sm font-semibold">Create a post</Link></div></>
-          : <>{display.map((p, index) => <div key={p.id}><PostCard post={p} onChanged={refetch} />{index === 0 && <StoryFeedRail />}</div>)}<TrendingRail /></>}
+          : display.length === 0 ? <div className="text-center py-16 px-6"><Sparkles className="w-12 h-12 text-muted-foreground mx-auto mb-3" /><p className="text-foreground font-semibold mb-1">No posts yet</p><p className="text-sm text-muted-foreground mb-4">{tab === "following" ? "Follow people or create your first post." : "Be the first to share something."}</p><Link to="/create" className="inline-block bg-primary text-primary-foreground px-5 py-2 rounded-full text-sm font-semibold">Create a post</Link></div>
+          : <>{display.map((p) => <div key={p.id}><PostCard post={p} onChanged={refetch} /></div>)}<TrendingRail /></>}
       </div>
       <Link to="/tiger-ai" state={{ from: "/" }} className="fixed bottom-20 right-4 z-20 w-14 h-14 rounded-full bg-gradient-to-br from-primary to-accent shadow-lg shadow-primary/40 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform" aria-label="Fungua Tiger AI — msaidizi wa app nzima" title="Tiger AI — Msaada wa TigerChats">
         <img src={tigerAI} alt="" className="w-10 h-10" /><span className="absolute inset-0 rounded-full animate-pulse-ring border-2 border-primary" />
