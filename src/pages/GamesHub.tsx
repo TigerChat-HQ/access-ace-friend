@@ -4,6 +4,8 @@ import { ArrowLeft, Trophy, Coins, Medal, Gamepad2, Radio, ChevronRight, Chevron
 const liveGames = [
   { title: "Draughts Arena", subtitle: "Mkakati wa jadi · Tiger AI · PvP", tag: "INACHEZWA", path: "/draughts", art: "from-emerald-950 via-emerald-900 to-slate-950", icon: "♟", accent: "text-emerald-300", players: "AI na marafiki" },
   { title: "Tiger Quiz Arena", subtitle: "Maswali · Raundi za muda · Trophies", tag: "QUIZ", path: "/game", art: "from-amber-950 via-orange-950 to-slate-950", icon: "🧠", accent: "text-amber-300", players: "Jipime maarifa" },
+  { title: "Connect Four", subtitle: "Unganisha nne · Online PvP · Tiger AI", tag: "NEW", path: "/games/connect-four", art: "from-rose-950 via-red-900 to-slate-950", icon: "🔴", accent: "text-rose-300", players: "AI na marafiki" },
+  { title: "Block Puzzle", subtitle: "Panga blocks · Pata alama nyingi", tag: "PUZZLE", path: "/games/block-puzzle", art: "from-violet-950 via-indigo-900 to-slate-950", icon: "🧩", accent: "text-violet-300", players: "Single player" },
   { title: "Unblock Wooden Puzzle", subtitle: "Telezesha vipande vya mbao · Fungua njia", tag: "PUZZLE", path: "/games/unblock", art: "from-amber-950 via-yellow-900 to-stone-950", icon: "🪵", accent: "text-amber-300", players: "Puzzle ya akili" },
 ];
 
