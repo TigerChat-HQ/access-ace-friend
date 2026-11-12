@@ -10,6 +10,7 @@ const json = (body: unknown, status = 200) =>
 
 type RenderLabel = { name: string; value: string };
 type RenderLog = { id: string; message: string; timestamp: string; labels?: RenderLabel[] };
+type RenderEvent = { id: string; timestamp: string; type: string; details?: Record<string, unknown> };
 const labelMap = (log: RenderLog) => Object.fromEntries((log.labels || []).map(({ name, value }) => [name, value]));
 const redact = (value: string) => value
   .replace(/Bearer\s+[^\s]+/gi, "Bearer [REDACTED]")
@@ -67,9 +68,9 @@ Deno.serve(async (req: Request) => {
     base.searchParams.set("direction", "backward");
     base.searchParams.set("limit", "100");
 
-    const fetchLogs = async (filters: Record<string, string[]>) => {
+    const fetchLogs = async () => {
       const url = new URL(base);
-      for (const [key, values] of Object.entries(filters)) for (const value of values) url.searchParams.append(key, value);
+      url.searchParams.append("type", "build");
       const response = await fetch(url, {
         headers: { Accept: "application/json", Authorization: `Bearer ${renderApiKey}` },
         signal: AbortSignal.timeout(20_000),
@@ -84,61 +85,41 @@ Deno.serve(async (req: Request) => {
       return (Array.isArray(payload?.logs) ? payload.logs : []) as RenderLog[];
     };
 
-    const [appLogs, requestLogs] = await Promise.all([
-      fetchLogs({ type: ["app"], level: ["warning", "error", "critical", "alert", "emergency"] }),
-      fetchLogs({ type: ["request"], statusCode: ["400", "401", "403", "404", "429", "500", "502", "503", "504"] }),
-    ]);
-    const unique = new Map<string, RenderLog>();
-    for (const log of [...appLogs, ...requestLogs]) if (log?.id && log.message) unique.set(log.id, log);
+    const fetchEvents = async () => {
+      const url = new URL(`https://api.render.com/v1/services/${encodeURIComponent(serviceId)}/events`);
+      url.searchParams.set("startTime", start.toISOString());
+      url.searchParams.set("endTime", end.toISOString());
+      url.searchParams.set("limit", "100");
+      const response = await fetch(url, {
+        headers: { Accept: "application/json", Authorization: `Bearer ${renderApiKey}` },
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!response.ok) throw new Error(`Render Events API imerudisha HTTP ${response.status}.`);
+      const payload = await response.json();
+      return (Array.isArray(payload) ? payload : [])
+        .map((item: { event?: RenderEvent }) => item.event)
+        .filter((event: RenderEvent | undefined): event is RenderEvent => Boolean(event?.id));
+    };
+
+    const [logs, events] = await Promise.all([fetchLogs(), fetchEvents()]);
+    const problematicLogs = logs.filter((log) => {
+      const labels = labelMap(log);
+      return labels.level && labels.level !== "info"
+        || /\b(error|failed|failure|warning|warn|exception|out of memory|killed)\b|\(!\)/i.test(log.message || "");
+    });
+    const failedEvents = events.filter((event) => {
+      const details = event.details || {};
+      if (event.type === "server_failed" || event.type === "server_hardware_failure" || event.type === "image_pull_failed" || event.type === "artifact_fetch_failed") return true;
+      if (event.type === "build_ended") return String(details.buildStatus || "").toLowerCase() !== "succeeded";
+      if (event.type === "deploy_ended") return String(details.deployStatus || "").toLowerCase() !== "succeeded";
+      return false;
+    });
 
     let ingested = 0;
     let failed = 0;
-    for (const log of unique.values()) {
-      const labels = labelMap(log);
-      const status = Number(labels.statusCode || 0);
-      const level = (labels.level || "error").toLowerCase();
-      const path = (labels.path || "").split("?")[0].slice(0, 500);
-      const method = (labels.method || "").slice(0, 12);
-      const isHttpFailure = status >= 400;
-      const severity = status >= 500 || ["critical", "alert", "emergency"].includes(level)
-        ? "critical" : status >= 400 || level === "error" ? "high" : "medium";
-      const category = status === 404 ? "render_http_404" : status >= 500
-        ? "render_http_5xx" : isHttpFailure ? "render_http_4xx" : "render_application_log";
-      const title = status
-        ? `Render HTTP ${status}: ${method || "REQUEST"} ${path || "request"}`.slice(0, 240)
-        : `Render server ${level}: ${redact(log.message).slice(0, 170)}`;
-      const record = {
-        source: "render_server",
-        severity,
-        category,
-        title,
-        message: redact(log.message),
-        route: path || null,
-        component_name: "Render web service",
-        action_label: status ? `${method} ${path} → HTTP ${status}`.slice(0, 240) : "Render runtime log",
-        suggestion: status === 404
-          ? "Kagua API route, frontend endpoint na resource ID. Linganisha request hii na Browser/Bubble Chat diagnostic."
-          : status >= 500
-          ? "Kagua Render application logs, stack trace, service health, database connectivity na deploy iliyokuwa active wakati wa request."
-          : isHttpFailure
-          ? "Kagua route, authentication, authorization na request parameters."
-          : "Chunguza stack trace na mazingira ya Render service ili kubaini chanzo cha runtime warning/error.",
-        metadata: {
-          platform: "render",
-          renderLogId: log.id,
-          resourceId: serviceId,
-          instance: labels.instance || null,
-          level,
-          type: labels.type || null,
-          statusCode: status || null,
-          method: method || null,
-          path: path || null,
-          host: labels.host || null,
-          timestamp: log.timestamp,
-        },
-      };
+    const save = async (record: Record<string, unknown>, sourceId: string) => {
       try {
-        const signature = await sha256(`render:${log.id}`);
+        const signature = await sha256(`render:${sourceId}`);
         const { error } = await adminClient.rpc("ingest_render_server_diagnostic", {
           p_record: record,
           p_signature: signature,
@@ -148,16 +129,56 @@ Deno.serve(async (req: Request) => {
       } catch {
         failed += 1;
       }
+    };
+
+    for (const log of problematicLogs) {
+      const labels = labelMap(log);
+      const level = (labels.level || "warning").toLowerCase();
+      const severity = ["critical", "alert", "emergency", "error"].includes(level) ? "critical" : "medium";
+      const message = redact(log.message || "Render build warning");
+      await save({
+        source: "render_server",
+        severity,
+        category: "render_build_log",
+        title: `Render build ${level}: ${message.slice(0, 170)}`,
+        message,
+        component_name: "Render Static Site build",
+        action_label: "Render build log",
+        suggestion: "Kagua build command, dependency versions, Vite output na deploy iliyokuwa inaendelea wakati wa warning/error.",
+        metadata: { platform: "render", renderLogId: log.id, resourceId: serviceId, level, type: labels.type || "build", timestamp: log.timestamp },
+      }, `log:${log.id}`);
+    }
+
+    for (const event of failedEvents) {
+      const details = event.details || {};
+      const detailText = redact(JSON.stringify(details));
+      const severity = ["server_failed", "server_hardware_failure"].includes(event.type) ? "critical" : "high";
+      await save({
+        source: "render_server",
+        severity,
+        category: `render_${event.type}`,
+        title: `Render hosting event failed: ${event.type}`,
+        message: detailText,
+        component_name: "Render deployment / hosting",
+        action_label: event.type,
+        suggestion: "Kagua maelezo ya event, build logs, deploy history na service health kwenye Render.",
+        metadata: { platform: "render", renderEventId: event.id, resourceId: serviceId, eventType: event.type, timestamp: event.timestamp, details },
+      }, `event:${event.id}`);
     }
 
     return json({
       ok: true,
-      fetched: unique.size,
+      serviceType: "static_site",
+      runtimeServerLogsAvailable: false,
+      fetchedBuildLogs: logs.length,
+      matchedBuildIssues: problematicLogs.length,
+      fetchedHostingEvents: events.length,
+      failedHostingEvents: failedEvents.length,
       ingested,
       failed,
       windowMinutes: minutes,
       checkedAt: end.toISOString(),
-      source: "Render Logs API",
+      note: "Render Static Sites do not emit runtime server or HTTP request logs; this collector captures build logs and hosting/deploy failure events.",
     });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Render log collection failed" }, 502);
