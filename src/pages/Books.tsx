@@ -182,7 +182,7 @@ export default function BooksPage() {
       if (error) { console.warn("Books progress sync unavailable:", error.message); return; }
       if (!active) return;
       const merged: Record<string, { progress_percent: number; last_chapter: number }> = {};
-      ((data || []) as Array<{ book_id: string; progress_percent: number; last_chapter: number }>).forEach((row) => { merged[row.book_id] = { progress_percent: Number(row.progress_percent) || 0, last_chapter: row.last_chapter || 0 }; });
+      ((data || []) as unknown as Array<{ book_id: string; progress_percent: number; last_chapter: number }>).forEach((row) => { merged[row.book_id] = { progress_percent: Number(row.progress_percent) || 0, last_chapter: row.last_chapter || 0 }; });
       setReadingProgress((current) => ({ ...current, ...merged }));
     })();
     return () => { active = false; };
@@ -196,7 +196,7 @@ export default function BooksPage() {
       if (error) { console.warn("Daily AI chapters not available yet:", error.message); return; }
       if (!active) return;
       const next: Record<string, { episode_number: number; title: string; body: string; recap: string }> = {};
-      ((data || []) as Array<{ story_id: string; episode_number: number; title: string; body: string; recap: string }>).forEach((row) => { next[row.story_id] = row; });
+      ((data || []) as unknown as Array<{ story_id: string; episode_number: number; title: string; body: string; recap: string }>).forEach((row) => { next[row.story_id] = row; });
       setDailyChapters(next);
     })();
     return () => { active = false; };
