@@ -1,4 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+const db = supabase as unknown as SupabaseClient;
 import type { ChatPrefs } from "@/hooks/useChatPreferences";
 
 export const globalChatPreferencesKey = (userId: string) =>
@@ -30,7 +33,7 @@ const cache = (userId: string, preferences: Partial<ChatPrefs>) => {
 
 export const loadGlobalChatPreferences = async (userId: string): Promise<Partial<ChatPrefs>> => {
   const fallback = getGlobalChatPreferences(userId);
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("profiles")
     .select("chat_defaults")
     .eq("user_id", userId)
@@ -50,7 +53,7 @@ export const saveGlobalChatPreferences = (userId: string, preferences: Partial<C
 
 export const persistGlobalChatPreferences = async (userId: string, preferences: Partial<ChatPrefs>) => {
   const next = saveGlobalChatPreferences(userId, preferences);
-  const { error } = await supabase.from("profiles").upsert(
+  const { error } = await db.from("profiles").upsert(
     {
       user_id: userId,
       chat_defaults: {
@@ -75,7 +78,7 @@ export const resetGlobalChatPreferences = (userId: string) => {
 
 export const deleteGlobalChatPreferences = async (userId: string) => {
   resetGlobalChatPreferences(userId);
-  const { error } = await supabase
+  const { error } = await db
     .from("profiles")
     .update({ chat_defaults: { wallpaper: "default", bubble_color: "primary", font_size: "medium" } })
     .eq("user_id", userId);
