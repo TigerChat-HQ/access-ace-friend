@@ -169,7 +169,7 @@ END; $$;
 REVOKE ALL ON FUNCTION public.reply_to_status(uuid,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.reply_to_status(uuid,text) TO authenticated;
 
-DO $
+DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_publication_tables
@@ -177,7 +177,8 @@ BEGIN
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.story_comments;
   END IF;
-END $;
+END;
+$$;
 
 DROP POLICY IF EXISTS "Users record views" ON public.story_views;
 CREATE POLICY "Users record views" ON public.story_views

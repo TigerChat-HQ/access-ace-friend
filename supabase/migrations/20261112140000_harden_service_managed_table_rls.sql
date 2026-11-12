@@ -9,7 +9,7 @@ BEGIN
      OR to_regclass('public.tiger_books_ai_config') IS NULL THEN
     RAISE EXCEPTION 'Expected security tables are missing; refusing partial hardening';
   END IF;
-END
+END;
 $$;
 
 DROP POLICY IF EXISTS chat_presence_service_role_only ON private.chat_presence;
