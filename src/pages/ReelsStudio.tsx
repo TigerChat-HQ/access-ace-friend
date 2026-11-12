@@ -754,7 +754,7 @@ const ReelsStudio = () => {
                 <video ref={cameraPreviewRef} autoPlay playsInline muted className="max-h-[55dvh] w-full rounded-xl bg-black" />
                 <div className="grid grid-cols-2 gap-2">
                   {!recordingCamera ? <button type="button" onClick={startCameraRecording} className="rounded-xl bg-primary px-3 py-3 text-sm font-semibold text-primary-foreground">Start recording</button> : <button type="button" onClick={finishCameraRecording} className="rounded-xl bg-destructive px-3 py-3 text-sm font-semibold text-destructive-foreground">Stop & use video</button>}
-                  <button type="button" onClick={closeCamera} className="rounded-xl border border-border px-3 py-3 text-sm text-foreground">Close camera</button>
+                  {!recordingCamera && <button type="button" onClick={closeCamera} className="rounded-xl border border-border px-3 py-3 text-sm text-foreground">Close camera</button>}
                 </div>
               </div>
             ) : (
