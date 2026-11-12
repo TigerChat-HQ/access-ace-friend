@@ -31,6 +31,7 @@ type DraftRow = {
   trim_start_seconds: number;
   trim_end_seconds: number | null;
   captions: TimedCaption[];
+  editor_state?: { filter?: string; speed?: number; shareAudio?: boolean; originalReelId?: string | null; remixType?: "remix" | "duet" | null };
   updated_at: string;
 };
 const db = supabase as unknown as SupabaseClient;
@@ -278,6 +279,7 @@ const ReelsStudio = () => {
     try {
       const assets = await ensureUploaded();
       if (!assets.nextVideoPath) throw new Error("Choose a video before saving a draft.");
+      if ((timelineFiles.length > 1 || filterPreset !== "none" || playbackSpeed !== 1 || trimStart > 0 || (trimEnd !== null && duration > 0 && trimEnd < duration - 0.1)) && !timelineRendered) throw new Error("Render your timeline and edits before saving the draft.");
       const values = {
         user_id: user.id,
         caption,
@@ -289,7 +291,7 @@ const ReelsStudio = () => {
         trim_start_seconds: trimStart,
         trim_end_seconds: trimEnd,
         captions,
-        editor_state: { version: 1 },
+        editor_state: { version: 2, filter: filterPreset, speed: playbackSpeed, shareAudio, originalReelId, remixType },
         updated_at: new Date().toISOString(),
       };
       const result = draftId
@@ -320,6 +322,11 @@ const ReelsStudio = () => {
     setTrimStart(Number(draft.trim_start_seconds || 0));
     setTrimEnd(draft.trim_end_seconds === null ? null : Number(draft.trim_end_seconds));
     setCaptions(Array.isArray(draft.captions) ? draft.captions : []);
+    setFilterPreset(draft.editor_state?.filter || "none");
+    setPlaybackSpeed(Number(draft.editor_state?.speed || 1));
+    setShareAudio(Boolean(draft.editor_state?.shareAudio));
+    setOriginalReelId(draft.editor_state?.originalReelId || null);
+    setRemixType(draft.editor_state?.remixType || null);
     setTimelineFiles([]);
     setTimelineRendered(false);
   };
@@ -507,6 +514,7 @@ const ReelsStudio = () => {
     setBusy(true);
     try {
       if (!videoFile && !videoPath) throw new Error("Choose a video first.");
+      if (remixType === "duet" && !duetFile) throw new Error("The original video could not be loaded for this duet. Try again or choose Remix.");
       if (timelineFiles.length > 1 && !timelineRendered) throw new Error("Render your multi-clip timeline before publishing.");
       if ((filterPreset !== "none" || playbackSpeed !== 1 || trimStart > 0 || (trimEnd !== null && duration > 0 && trimEnd < duration - 0.1)) && !timelineRendered) throw new Error("Render your trim, speed and filter edits before publishing.");
       if (videoFile && videoFile.size > 150 * 1024 * 1024) throw new Error("Video exceeds the 150 MB upload limit.");
@@ -552,7 +560,7 @@ const ReelsStudio = () => {
           reel_trim_end_seconds: timelineRendered ? null : trimEnd,
           is_draft: false,
           scheduled_at: scheduleAt ? new Date(scheduleAt).toISOString() : null,
-          reel_captions: captions,
+          reel_captions: timelineRendered ? [] : captions,
         });
         if (error) throw new Error(`The media uploaded, but saving the Reel post failed: ${error.message} (code ${error.code || "unknown"})`);
       } catch (publishError) {
@@ -732,7 +740,7 @@ const ReelsStudio = () => {
           {remixType && <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs text-foreground">Creating a {remixType === "duet" ? "split-screen duet" : "remix"} from the original Reel. {duetFile ? "Original video loaded." : ""}</div>}
           <div className="rounded-2xl border border-border/60 bg-card p-4">
             <label className="mb-2 block text-sm font-semibold text-foreground">Schedule Reel (optional)</label>
-            <input type="datetime-local" value={scheduleAt} min={new Date(Date.now() + 60000).toISOString().slice(0, 16)} onChange={(event) => setScheduleAt(event.target.value)} className="w-full rounded-lg bg-background p-2 text-sm text-foreground" />
+            <input type="datetime-local" value={scheduleAt} min={new Date(Date.now() + 60000 - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} onChange={(event) => setScheduleAt(event.target.value)} className="w-full rounded-lg bg-background p-2 text-sm text-foreground" />
             <p className="mt-2 text-[11px] text-muted-foreground">If set, the Reel is stored privately until the selected time, then becomes visible automatically.</p>
           </div>
           <button onClick={publish} disabled={busy || !videoUrl} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground disabled:opacity-50">
