@@ -37,6 +37,8 @@ type ReelPost = FeedPost & {
   reel_audio_title?: string | null;
   reel_audio_start_seconds?: number | null;
   reel_audio_end_seconds?: number | null;
+  reel_original_volume?: number | null;
+  reel_music_volume?: number | null;
   reel_trim_start_seconds?: number | null;
   reel_trim_end_seconds?: number | null;
   reel_captions?: ReelCaption[] | null;
@@ -294,6 +296,8 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
               audioUrl={reelPost.reel_audio_url}
               audioStart={Number(reelPost.reel_audio_start_seconds || 0)}
               audioEnd={reelPost.reel_audio_end_seconds === null || reelPost.reel_audio_end_seconds === undefined ? null : Number(reelPost.reel_audio_end_seconds)}
+              originalVolume={Number(reelPost.reel_original_volume ?? 1)}
+              musicVolume={Number(reelPost.reel_music_volume ?? 0.75)}
               trimStart={Number(reelPost.reel_trim_start_seconds || 0)}
               trimEnd={reelPost.reel_trim_end_seconds === null || reelPost.reel_trim_end_seconds === undefined ? null : Number(reelPost.reel_trim_end_seconds)}
               captions={reelPost.reel_captions}
