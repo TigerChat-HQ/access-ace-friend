@@ -456,18 +456,33 @@ const ReelsStudio = () => {
     stopCameraStream();
   };
 
-  const addTimelineClips = (files: File[]) => {
-    let totalBytes = timelineFiles.reduce((sum, file) => sum + file.size, 0);
+  const addTimelineClips = async (files: File[]) => {
+    let baseFiles = timelineFiles;
+    if (!baseFiles.length && videoPath && videoUrl) {
+      try {
+        const response = await fetch(videoUrl);
+        if (!response.ok) throw new Error("Could not load the saved draft as the first timeline clip.");
+        const blob = await response.blob();
+        const extension = videoPath.split(".").pop() || "mp4";
+        baseFiles = [new File([blob], `saved-reel.${extension}`, { type: blob.type || "video/mp4" })];
+      } catch (error) {
+        toast({ title: "Could not add clips", description: error instanceof Error ? error.message : "Try again.", variant: "destructive" });
+        return;
+      }
+    }
+    let totalBytes = baseFiles.reduce((sum, file) => sum + file.size, 0);
     const accepted: File[] = [];
     for (const file of files) {
       if (!file.type.startsWith("video/") || file.size > 150 * 1024 * 1024) continue;
-      if (timelineFiles.length + accepted.length >= 5 || totalBytes + file.size > 300 * 1024 * 1024) continue;
+      if (baseFiles.length + accepted.length >= 5 || totalBytes + file.size > 300 * 1024 * 1024) continue;
       accepted.push(file);
       totalBytes += file.size;
     }
     if (accepted.length !== files.length) toast({ title: "Some clips were skipped", description: "The timeline supports up to 5 clips, 150 MB per clip and 300 MB total.", variant: "destructive" });
-    setTimelineFiles((items) => [...items, ...accepted]);
-    markTimelineDirty();
+    if (accepted.length) {
+      setTimelineFiles([...baseFiles, ...accepted]);
+      markTimelineDirty();
+    }
   };
 
   const moveTimelineClip = (index: number, delta: number) => {
@@ -796,7 +811,7 @@ const ReelsStudio = () => {
             </div>
             <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border p-3 text-sm text-primary">
               <Plus className="h-4 w-4" /> Add more clips
-              <input type="file" accept="video/*" multiple className="hidden" onChange={(event) => { addTimelineClips(Array.from(event.target.files || [])); event.target.value = ""; }} />
+              <input type="file" accept="video/*" multiple className="hidden" onChange={(event) => { void addTimelineClips(Array.from(event.target.files || [])); event.target.value = ""; }} />
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="text-xs text-muted-foreground">Filter / template
