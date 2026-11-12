@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Bug, RefreshCw, Loader2, Send, Database, CheckCircle2, AlertTriangle, Copy, Bell, GitPullRequest, Check, Camera, Mic, Download } from "lucide-react";
 
+type ActiveAudioApp = { packageName: string; appName: string; clientAudioSource?: number; silenced?: boolean };
+type AudioInspection = { available?: boolean; recordings?: ActiveAudioApp[]; permission?: string; reason?: string; error?: string };
 type AdminDiagnosticNotice = { id: string; diagnostic_id: string | null; task_id: string | null; notification_type: string; title: string; message: string; pr_url: string | null; is_read: boolean; created_at: string };
 type Diagnostic = {
   id: string; source: string; severity: string; category: string; title: string;
@@ -262,12 +264,12 @@ export const AdminDiagnostics = () => {
     let detail = "";
     let failureName = "";
     let fixSteps: string[] = [];
-    let activeAudioApps: Array<{packageName:string;appName:string;clientAudioSource?:number;silenced?:boolean}> = [];
-    let audioInspection: Record<string, unknown> = { available: false, reason: "Native Android bridge haipatikani." };
+    let activeAudioApps: ActiveAudioApp[] = [];
+    let audioInspection: AudioInspection = { available: false, reason: "Native Android bridge haipatikani." };
     if (kind === "microphone" && window.TigerNative?.getActiveAudioRecordingApps) {
       try {
-        audioInspection = JSON.parse(window.TigerNative.getActiveAudioRecordingApps());
-        activeAudioApps = Array.isArray((audioInspection as any).recordings) ? (audioInspection as any).recordings : [];
+        audioInspection = JSON.parse(window.TigerNative.getActiveAudioRecordingApps()) as AudioInspection;
+        activeAudioApps = Array.isArray(audioInspection.recordings) ? audioInspection.recordings : [];
       } catch (inspectionError) {
         audioInspection = { available: false, error: String(inspectionError) };
       }
@@ -296,7 +298,7 @@ export const AdminDiagnostics = () => {
             "Fungua Recent Apps na uzifunge kabisa; kisha rudia kipimo cha microphone.",
             "Ikiwa app hiyo inahitaji microphone, maliza simu/rekodi inayoendelea ndani yake kabla ya kutumia TigerChat."
           ];
-        } else if ((audioInspection as any).available === true) {
+        } else if (audioInspection.available === true) {
           detail += "; Android haijaonyesha app nyingine inayorekodi sauti wakati wa ukaguzi. Chanzo kinaweza kuwa audio service, kifaa, au session iliyokwama; hakuna app iliyothibitishwa kuizuia.";
           fixSteps = [
             "Hakuna app nyingine iliyothibitishwa. Funga programu zote za simu/rekodi kisha jaribu tena.",
