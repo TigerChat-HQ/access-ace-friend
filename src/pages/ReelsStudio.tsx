@@ -21,6 +21,16 @@ type SpeechRecognitionLike = {
 };
 type SpeechWindow = Window & { SpeechRecognition?: new () => SpeechRecognitionLike; webkitSpeechRecognition?: new () => SpeechRecognitionLike };
 
+type ReelEffect = "none" | "hearts" | "sparkles" | "neon-frame" | "vhs" | "soft-glow";
+const REEL_TEMPLATES = [
+  { id: "tiger", name: "Tiger Energy", filter: "contrast(1.12) saturate(1.25)", speed: 1, effect: "neon-frame" as ReelEffect },
+  { id: "cinema", name: "Cinematic", filter: "contrast(1.16) saturate(.88)", speed: 0.75, effect: "soft-glow" as ReelEffect },
+  { id: "memory", name: "Memory", filter: "sepia(.55) contrast(1.08)", speed: 1, effect: "sparkles" as ReelEffect },
+  { id: "party", name: "Party", filter: "brightness(1.08) saturate(1.35)", speed: 1.25, effect: "hearts" as ReelEffect },
+  { id: "retro", name: "Retro VHS", filter: "hue-rotate(24deg) saturate(1.2)", speed: 1, effect: "vhs" as ReelEffect },
+  { id: "clean", name: "Clean", filter: "none", speed: 1, effect: "none" as ReelEffect },
+] as const;
+
 type DraftRow = {
   id: string;
   caption: string;
@@ -35,7 +45,7 @@ type DraftRow = {
   trim_start_seconds: number;
   trim_end_seconds: number | null;
   captions: TimedCaption[];
-  editor_state?: { filter?: string; speed?: number; shareAudio?: boolean; audioLibraryUrl?: string | null; originalReelId?: string | null; remixType?: "remix" | "duet" | null };
+  editor_state?: { filter?: string; speed?: number; effect?: ReelEffect; template?: string; shareAudio?: boolean; audioLibraryUrl?: string | null; originalReelId?: string | null; remixType?: "remix" | "duet" | null };
   updated_at: string;
 };
 const db = supabase as unknown as SupabaseClient;
@@ -84,6 +94,8 @@ const ReelsStudio = () => {
   const [timelineFiles, setTimelineFiles] = useState<File[]>([]);
   const [filterPreset, setFilterPreset] = useState("none");
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [effectPreset, setEffectPreset] = useState<ReelEffect>("none");
+  const [templatePreset, setTemplatePreset] = useState("clean");
   const [timelineRendered, setTimelineRendered] = useState(false);
   const [renderedEditsDirty, setRenderedEditsDirty] = useState(false);
   const [renderingTimeline, setRenderingTimeline] = useState(false);
@@ -101,6 +113,16 @@ const ReelsStudio = () => {
   const [recordingCamera, setRecordingCamera] = useState(false);
 
   const markTimelineDirty = () => { if (timelineRendered) setRenderedEditsDirty(true); setTimelineRendered(false); };
+
+  const applyReelTemplate = (templateId: string) => {
+    const template = REEL_TEMPLATES.find((item) => item.id === templateId);
+    if (!template) return;
+    setTemplatePreset(template.id);
+    setFilterPreset(template.filter);
+    setPlaybackSpeed(template.speed);
+    setEffectPreset(template.effect);
+    markTimelineDirty();
+  };
 
   const selectAudioTrack = (track: { url: string; title: string; start?: number; end?: number | null }) => {
     setAudioLibraryUrl(track.url);
@@ -247,8 +269,7 @@ const ReelsStudio = () => {
     setVideoPath(null);
     setCoverPath(null);
     setCoverUrl(null);
-    setTrimStart(0);
-    setTrimEnd(null);
+    setTrimStart(0);    setTrimEnd(null);
     setVideoUrl(URL.createObjectURL(file));
   };
 
@@ -362,7 +383,7 @@ const ReelsStudio = () => {
         trim_start_seconds: trimStart,
         trim_end_seconds: trimEnd,
         captions,
-        editor_state: { version: 2, filter: filterPreset, speed: playbackSpeed, shareAudio, audioLibraryUrl, originalReelId, remixType },
+        editor_state: { version: 3, filter: filterPreset, speed: playbackSpeed, effect: effectPreset, template: templatePreset, shareAudio, audioLibraryUrl, originalReelId, remixType },
         updated_at: new Date().toISOString(),
       };
       const result = draftId
@@ -400,6 +421,8 @@ const ReelsStudio = () => {
     setCaptions(Array.isArray(draft.captions) ? draft.captions : []);
     setFilterPreset(draft.editor_state?.filter || "none");
     setPlaybackSpeed(Number(draft.editor_state?.speed || 1));
+    setEffectPreset(draft.editor_state?.effect || "none");
+    setTemplatePreset(draft.editor_state?.template || "clean");
     setShareAudio(Boolean(draft.editor_state?.shareAudio));
     setOriginalReelId(draft.editor_state?.originalReelId || null);
     setRemixType(draft.editor_state?.remixType || null);
@@ -497,8 +520,7 @@ const ReelsStudio = () => {
     stopCameraStream();
   };
 
-  const addTimelineClips = async (files: File[]) => {
-    let baseFiles = timelineFiles;
+  const addTimelineClips = async (files: File[]) => {    let baseFiles = timelineFiles;
     if (!baseFiles.length && videoPath && videoUrl) {
       try {
         const response = await fetch(videoUrl);
@@ -590,6 +612,7 @@ const ReelsStudio = () => {
         duetFile,
         filter: filterPreset,
         speed: playbackSpeed,
+        effect: effectPreset,
         musicFile: audioFile && !shareAudio ? audioFile : null,
         musicStartSeconds: audioStart,
         originalVolume: audioFile && !shareAudio ? originalVolume : 1,
@@ -606,6 +629,8 @@ const ReelsStudio = () => {
       setTrimEnd(null);
       setFilterPreset("none");
       setPlaybackSpeed(1);
+      setEffectPreset("none");
+      setTemplatePreset("clean");
       setTimelineRendered(true);
       setRenderedEditsDirty(false);
       toast({ title: "Edited Reel is ready", description: "Your clips, trim, speed, filter and captions are now rendered into one video." });
@@ -747,8 +772,7 @@ const ReelsStudio = () => {
         if (!publishedVideo?.url) throw new Error("Video upload did not return a public URL.");
         if (publishedVideo.path) uploadedPaths.push(publishedVideo.path);
 
-        if (coverPath) {
-          publishedCover = await promoteDraftAsset(coverPath, "cover");
+        if (coverPath) {          publishedCover = await promoteDraftAsset(coverPath, "cover");
           if (publishedCover?.path) uploadedPaths.push(publishedCover.path);
         }
         if (audioFile && (!timelineRendered || shareAudio)) {
@@ -818,7 +842,7 @@ const ReelsStudio = () => {
           <div className="rounded-2xl border border-border/60 bg-card p-4">
             {videoUrl ? (
               <div className="space-y-3">
-                <video ref={videoRef} src={videoUrl} controls playsInline className="max-h-[55dvh] w-full rounded-xl bg-black" onLoadedMetadata={(e) => { const videoDuration = e.currentTarget.duration; setDuration(videoDuration); setTrimEnd((v) => v ?? videoDuration); }} />
+                <video ref={videoRef} src={videoUrl} controls playsInline style={{ filter: filterPreset }} className="max-h-[55dvh] w-full rounded-xl bg-black" onLoadedMetadata={(e) => { const videoDuration = e.currentTarget.duration; setDuration(videoDuration); setTrimEnd((v) => v ?? videoDuration); }} />
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs text-muted-foreground">Video length: {duration.toFixed(1)}s</span>
                   <button onClick={captureCover} disabled={busy} className="flex items-center gap-1 rounded-lg bg-secondary px-3 py-2 text-xs text-secondary-foreground"><Camera className="h-4 w-4" /> Use current frame as cover</button>
@@ -871,8 +895,20 @@ const ReelsStudio = () => {
               <Plus className="h-4 w-4" /> Add more clips
               <input type="file" accept="video/*" multiple className="hidden" onChange={(event) => { void addTimelineClips(Array.from(event.target.files || [])); event.target.value = ""; }} />
             </label>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-foreground">Reel templates</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {REEL_TEMPLATES.map((template) => (
+                  <button key={template.id} type="button" onClick={() => applyReelTemplate(template.id)} aria-pressed={templatePreset === template.id}
+                    className={`rounded-xl border p-3 text-left text-xs transition ${templatePreset === template.id ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-foreground"}`}>
+                    <span className="block font-semibold">{template.name}</span>
+                    <span className="mt-1 block text-[10px] text-muted-foreground">{template.speed}× · {template.effect === "none" ? "No overlay" : template.effect.replace("-", " ")}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-3">
-              <label className="text-xs text-muted-foreground">Filter / template
+              <label className="text-xs text-muted-foreground">Color filter
                 <select value={filterPreset} onChange={(event) => { setFilterPreset(event.target.value); markTimelineDirty(); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground">
                   <option value="none">Original</option>
                   <option value="contrast(1.12) saturate(1.25)">Tiger Vibrant</option>
@@ -880,6 +916,16 @@ const ReelsStudio = () => {
                   <option value="grayscale(1) contrast(1.12)">Monochrome</option>
                   <option value="brightness(1.08) saturate(1.35)">Bright Pop</option>
                   <option value="hue-rotate(24deg) saturate(1.2)">Warm Cinema</option>
+                </select>
+              </label>
+              <label className="text-xs text-muted-foreground">Effects / AR-style overlay
+                <select value={effectPreset} onChange={(event) => { setEffectPreset(event.target.value as ReelEffect); setTemplatePreset("custom"); markTimelineDirty(); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground">
+                  <option value="none">None</option>
+                  <option value="hearts">Floating hearts</option>
+                  <option value="sparkles">Sparkle particles</option>
+                  <option value="neon-frame">Neon frame</option>
+                  <option value="vhs">VHS / scanlines</option>
+                  <option value="soft-glow">Soft glow</option>
                 </select>
               </label>
               <label className="text-xs text-muted-foreground">Playback speed
@@ -892,6 +938,7 @@ const ReelsStudio = () => {
               {renderingTimeline ? `Rendering edits… ${renderProgress}%` : "Render clips, trim, speed, filters & captions"}
             </button>
             {timelineRendered && <p className="text-xs text-emerald-600">Edits rendered into the publishable video file.</p>}
+            <p className="text-[11px] text-muted-foreground">Effects and templates are baked into the final video when you press Render. These are AR-inspired visual overlays; face tracking / live face masks are not included.</p>
             <p className="text-[11px] text-muted-foreground">Export runs on this device. For large files, use fewer clips to avoid phone memory limits.</p>
           </div>
 
