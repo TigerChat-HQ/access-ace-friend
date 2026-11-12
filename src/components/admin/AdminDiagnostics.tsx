@@ -322,7 +322,7 @@ export const AdminDiagnostics = () => {
       <div className="rounded-lg border border-border bg-card p-3"><p className="text-xs text-muted-foreground">Open issues</p><p className="text-xl font-bold">{items.filter(x=>x.status==="new"||x.status==="investigating").length}</p></div>
     </div>
     <div className="rounded-lg border border-border bg-card p-3 space-y-2">
-    <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+      <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">01 · Vipimo vya vifaa</p><h4 className="text-sm font-semibold">Sauti na Kamera</h4><p className="text-xs text-muted-foreground">Kagua ruhusa na upate hatua mahsusi za kurekebisha hitilafu.</p></div>
       <h4 className="text-sm font-semibold flex items-center gap-2"><Camera className="h-4 w-4"/> Full Voice & Camera diagnostics</h4>
       <p className="text-xs text-muted-foreground">Vipimo huanzishwa tu ukibonyeza. Mfumo hukagua permission state na kujaribu kufungua kifaa ndani ya WebView; stream hufungwa mara moja baada ya test.</p>
       <div className="flex flex-wrap gap-2">
@@ -333,6 +333,7 @@ export const AdminDiagnostics = () => {
       <p className="text-[11px] text-muted-foreground">Matokeo yanarekodiwa kwenye Diagnostics Center pamoja na Android/WebView context. Jaribu ukiwa ndani ya app kuu; floating chat inaweza kutumia WebView tofauti.</p>
     </div>
     <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+      <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">02 · Hifadhi</p><h4 className="text-sm font-semibold">Diagnostics backup</h4></div>
       <h4 className="text-sm font-semibold flex items-center gap-2"><Download className="h-4 w-4"/> Diagnostics backup</h4>
       <p className="text-xs text-muted-foreground">Pakua nakala ya rekodi zote za diagnostics zinazoonekana kwa admin kama JSON ili ziweze kuhifadhiwa nje ya app.</p>
       <Button size="sm" variant="outline" onClick={() => void exportDiagnosticsBackup()} disabled={backupBusy}>{backupBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin"/> : <Download className="mr-1 h-4 w-4"/>}Download diagnostics backup</Button>
@@ -353,7 +354,22 @@ export const AdminDiagnostics = () => {
       <Textarea value={suggestion} onChange={e=>setSuggestion(e.target.value)} placeholder="Describe the problem or suggested fix..." rows={3}/>
       <Button size="sm" onClick={() => void submitSuggestion()} disabled={!title.trim()}><Send className="mr-1 h-3.5 w-3.5"/>Save report</Button>
     </div>
+    <div className="rounded-lg border border-primary/30 bg-card p-3 space-y-3">
+      <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">05 · Tiger AI</p><h4 className="text-sm font-semibold">Foleni ya kazi na hali za uchakataji</h4><p className="text-xs text-muted-foreground">Orodha ya matatizo yaliyotumwa kwa Tiger AI, hali yake na kazi zinazosubiri idhini.</p></div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {(["queued","processing","needs_review","pr_open","failed","fixed"] as const).map(status => <div key={status} className="rounded-md border border-border p-2"><p className="text-[10px] text-muted-foreground">{aiStatusLabel[status]}</p><p className="text-lg font-bold">{aiQueue.filter(item => item.ai_status === status).length}</p></div>)}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold">Kazi zote za AI ({aiQueue.length})</p><Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw className={`mr-1 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}/>Sasisha foleni</Button></div>
+      {aiQueue.length === 0 ? <p className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">Hakuna kazi ya Tiger AI kwenye rekodi zilizopakiwa.</p> : aiQueue.map(item => <div key={item.id} className="rounded-md border border-border p-3 space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold">{item.title}</p><Badge variant={item.ai_status === "failed" ? "destructive" : item.ai_status === "needs_review" ? "default" : "secondary"}>{aiStatusLabel[item.ai_status || ""] || item.ai_status}</Badge></div>
+        {item.message && <p className="text-xs text-muted-foreground break-words">{item.message}</p>}
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground"><span>Hitilafu: {item.status}</span><span>AI task: {item.ai_task_id || "Bado haijatengenezwa"}</span><span>{new Date(item.created_at).toLocaleString()}</span></div>
+        {item.ai_status === "needs_review" && <p className="text-xs font-semibold text-amber-600">Inasubiri ukaguzi wa Admin. Tumia arifa ya repair_ready hapa chini kuona PR na kitufe cha idhini.</p>}
+        {item.ai_status === "failed" && <p className="text-xs text-destructive">Imeshindwa; soma sababu kwenye Admin Notification Box hapa chini.</p>}
+      </div>)}
+    </div>
     <div className="rounded-lg border border-primary/30 bg-card p-3 space-y-2">
+      <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">06 · Idhini na arifa</p><h4 className="text-sm font-semibold">Admin Notification Box</h4><p className="text-xs text-muted-foreground">Kagua PR na tumia vitufe vya idhini au retry kulingana na hali ya kazi.</p></div>
       <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-sm font-semibold flex items-center gap-2"><Bell className="h-4 w-4 text-primary"/> Admin Notification Box <Badge>{adminNotices.filter(n => !n.is_read).length} mpya</Badge></h4><Button size="sm" variant="outline" onClick={() => void retryQueuedDiagnostics(true)} disabled={retryingQueue}>{retryingQueue ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin"/> : <RefreshCw className="mr-1 h-3.5 w-3.5"/>}Retry Tiger AI queue</Button></div>
       {adminNotices.length === 0 ? <p className="text-xs text-muted-foreground">Hakuna taarifa mpya za Tiger AI kwa sasa.</p> : adminNotices.map(notice => <div key={notice.id} className="rounded-md border border-border p-2 space-y-1">
         <div className="flex items-start gap-2"><span className="mt-1 h-2 w-2 rounded-full bg-emerald-500 shrink-0"/><div className="min-w-0 flex-1"><p className="text-sm font-bold">{notice.title}</p><p className="text-xs text-muted-foreground">{notice.message}</p><p className="text-[10px] text-muted-foreground">{new Date(notice.created_at).toLocaleString()}</p></div>{!notice.is_read && <Button size="sm" variant="ghost" onClick={() => void markNoticeRead(notice.id)}>Read</Button>}</div>
@@ -361,6 +377,8 @@ export const AdminDiagnostics = () => {
         {notice.notification_type === "repair_ready" && notice.task_id && <Button size="sm" onClick={() => void approveMerge(notice)} disabled={mergingTask !== null}><Check className="mr-1 h-3.5 w-3.5"/>{mergingTask === notice.task_id ? "Inakagua..." : "Thibitisha na unganisha main"}</Button>}
       </div>)}
     </div>
+    <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+    <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">07 · Historia</p><h4 className="text-sm font-semibold">Rekodi za makosa</h4><p className="text-xs text-muted-foreground">Chuja, fuatilia, nakili au badilisha hali ya kila kosa.</p></div>
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex flex-wrap items-center gap-2"><h4 className="text-sm font-semibold">Issue log ({visible.length})</h4><Button size="sm" variant="outline" onClick={() => void copyAllErrors()} disabled={items.length === 0}><Copy className="mr-1 h-3.5 w-3.5"/>Copy all errors ({items.length})</Button></div>
       <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="rounded-md border border-border bg-background px-2 py-1 text-xs"><option value="active">Active errors</option><option value="all">All / history</option><option value="new">New</option><option value="investigating">Investigating</option><option value="fixed">Fixed</option><option value="ignored">Ignored</option></select>
