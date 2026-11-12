@@ -32,7 +32,7 @@ export const usePresence = (trackSelf = false) => {
     };
     const touch = async () => {
       if (!document.hidden) {
-        await (supabase as any).rpc("touch_my_chat_presence");
+        await supabase.rpc("touch_my_chat_presence");
       }
     };
 
@@ -44,7 +44,7 @@ export const usePresence = (trackSelf = false) => {
       if (trackSelf) void touch();
       void refresh();
     };
-    const onPageHide = () => { if (trackSelf) void (supabase as any).rpc("touch_my_chat_presence"); };
+    const onPageHide = () => { if (trackSelf) void supabase.rpc("touch_my_chat_presence"); };
 
     if (trackSelf) {
       void touch();
