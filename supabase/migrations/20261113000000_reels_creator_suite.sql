@@ -1,5 +1,6 @@
 -- Tiger Reels creator suite: reusable audio, remix attribution and scheduled Reel visibility.
 ALTER TABLE public.posts
+  ADD COLUMN IF NOT EXISTS reel_audio_end_seconds numeric(10,3),
   ADD COLUMN IF NOT EXISTS reel_audio_shareable boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS reel_original_post_id uuid REFERENCES public.posts(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS reel_remix_type text;
@@ -108,3 +109,7 @@ ALTER TABLE public.post_analytics_events
     'impression', 'play', 'replay', 'watch',
     'retention_25', 'retention_50', 'retention_75', 'retention_100'
   ));
+
+-- Preserve the selected music clip range in saved drafts as well as published Reels.
+ALTER TABLE public.reel_drafts
+  ADD COLUMN IF NOT EXISTS audio_end_seconds numeric(10,3);
