@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { reportDiagnostic } from "@/lib/diagnostics";
 import { useAuth } from "@/contexts/AuthContext";
 import { Image as ImageIcon, X, Loader2, Type, RotateCw, Music2, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -350,7 +349,6 @@ const Create = () => {
       toast({ title: "Draft copied to Reels Studio", description: "Video, cover, audio and caption have been transferred. Review before publishing." });
       navigate("/reels/studio");
     } catch (error) {
-      void reportDiagnostic({ title: "Post to Reel conversion failed", error, component: "Create", action: "Convert to Reel", category: "media_transfer" });
       toast({ title: "Could not convert to Reel", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
     } finally {
       setLoading(false);
