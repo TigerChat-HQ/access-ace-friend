@@ -181,8 +181,9 @@ export async function renderReelTimeline(options: ReelTimelineOptions): Promise<
               const x = ((i * 173 + 61) % Math.max(1, canvas.width - 80)) + 40;
               const y = ((i * 239 + Math.floor(globalTime * 55)) % Math.max(1, canvas.height - 100)) + 40;
               context.font = `bold ${Math.round(canvas.width * (effect === "hearts" ? 0.045 : 0.035))}px sans-serif`;
-              context.fillStyle = effect === "hearts" ? "rgba(255,80,145,.9)" : "rgba(255,255,220,.95)";
-              context.shadowColor = context.fillStyle;
+              const particleColor = effect === "hearts" ? "rgba(255,80,145,.9)" : "rgba(255,255,220,.95)";
+              context.fillStyle = particleColor;
+              context.shadowColor = particleColor;
               context.fillText(effect === "hearts" ? "♥" : "✦", x, y);
             }
             context.restore();
