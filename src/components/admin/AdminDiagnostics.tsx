@@ -14,6 +14,23 @@ type Diagnostic = {
   action_label: string | null; suggestion: string | null; status: string; created_at: string;
   stack?: string | null; metadata?: Record<string, unknown> | null; ai_status?: string; ai_task_id?: string | null;
 };
+
+const aiStatusLabel: Record<string, string> = {
+  queued: "Inasubiri Tiger AI", processing: "Tiger AI anachambua", needs_review: "Inahitaji idhini ya Admin",
+  pr_open: "PR imefunguliwa", failed: "Imeshindwa — kagua sababu", fixed: "Imerekebishwa", ignored: "Imepuuzwa",
+};
+const mediaFixInstructions = (kind: "camera" | "microphone", errorName: string, permissionState: string) => {
+  const device = kind === "microphone" ? "Microphone" : "Camera";
+  if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError" || permissionState === "denied") return kind === "microphone"
+    ? ["Simu: Settings → Apps → TigerChats → Permissions → Microphone → Allow (ruhusu wakati app inatumika).", "Kama unatumia Chrome/PWA: fungua Site settings za tigerchat-hq.onrender.com → Microphone → Allow.", "Funga TigerChats kabisa kisha ifungue tena na bonyeza Allow kwenye ombi la ruhusa."]
+    : ["Simu: Settings → Apps → TigerChats → Permissions → Camera → Allow (ruhusu wakati app inatumika).", "Kama unatumia Chrome/PWA: Site settings za tigerchat-hq.onrender.com → Camera → Allow.", "Funga na fungua TigerChats tena; ruhusu Camera kwenye popup."];
+  if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") return [`Hakuna ${device.toLowerCase()} iliyotambuliwa. Hakikisha simu ina ${device.toLowerCase()} inayofanya kazi; kwa vifaa vya USB/Bluetooth, viunganishe kwanza.`, "Jaribu app ya Recorder/Camera ya simu kuthibitisha kifaa chenyewe kinafanya kazi."];
+  if (errorName === "NotReadableError" || errorName === "TrackStartError") return [`${device} ipo lakini inashikiliwa au imeshindwa kuanza. Funga WhatsApp, Recorder, Camera, Meet na app nyingine zinazoweza kuitumia.`, "Zima na washa tena simu ikiwa bado imekwama, kisha jaribu tena ndani ya TigerChats."];
+  if (errorName === "SecurityError" || !window.isSecureContext) return ["Fungua TigerChats kupitia HTTPS (https://tigerchat-hq.onrender.com); usitumie HTTP au ukurasa usio salama.", "Ikiwa uko ndani ya Android WebView, hakikisha app imesasishwa na uanze tena app baada ya kufungua link salama."];
+  if (errorName === "OverconstrainedError") return [`Mipangilio ya ${device.toLowerCase()} haikubaliani na kifaa. Ondoa filters/effects za kamera au sauti, kisha jaribu tena.`];
+  if (errorName === "AbortError") return [`${device} ilikatiza kuanza. Funga app zinazotumia ${device.toLowerCase()}, subiri sekunde chache, kisha jaribu tena.`];
+  return [`Hitilafu: ${errorName || "haijabainishwa"}. Kagua Settings → Apps → TigerChats → Permissions → ${device} → Allow.`, "Ikiwa ruhusa tayari iko Allow, funga app kabisa na uifungue tena; kisha jaribu kifaa kwenye app ya simu kuthibitisha hardware."];
+};
 const EXPECTED_TABLES = [
   "profiles","conversations","conversation_members","messages","stories","story_views",
   "posts","post_likes","post_comments","post_drafts","follows","reports","user_roles",
@@ -36,6 +53,7 @@ const EXPECTED_TABLES = [
 export const AdminDiagnostics = () => {
   const { toast } = useToast();
   const [items, setItems] = useState<Diagnostic[]>([]);
+  const [aiQueue, setAiQueue] = useState<Diagnostic[]>([]);
   const [adminNotices, setAdminNotices] = useState<AdminDiagnosticNotice[]>([]);
   const [mergingTask, setMergingTask] = useState<string | null>(null);
   const [retryingQueue, setRetryingQueue] = useState(false);
@@ -68,6 +86,7 @@ export const AdminDiagnostics = () => {
       if (page.length < pageSize) break;
       offset += pageSize;
     }
+    setAiQueue(allItems.filter(item => Boolean(item.ai_status)).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
     setItems(allItems.sort((a, b) => {
       const activeA = a.status === "new" || a.status === "investigating" ? 1 : 0;
       const activeB = b.status === "new" || b.status === "investigating" ? 1 : 0;
@@ -173,6 +192,8 @@ export const AdminDiagnostics = () => {
     let deviceCount = 0;
     let outcome = "failed";
     let detail = "";
+    let failureName = "";
+    let fixSteps: string[] = [];
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error("MediaDevices.getUserMedia haipatikani kwenye WebView/browser hii.");
       try {
@@ -185,10 +206,12 @@ export const AdminDiagnostics = () => {
       outcome = "passed";
       detail = `${kind} imefunguka na track ${deviceCount}; permission kabla ya test: ${permissionState}`;
     } catch (error) {
-      const name = error instanceof DOMException ? error.name : "UnknownError";
-      detail = `${name}: ${error instanceof Error ? error.message : String(error)}; permission: ${permissionState}`;
+      failureName = error instanceof DOMException ? error.name : "UnknownError";
+      detail = `${failureName}: ${error instanceof Error ? error.message : String(error)}; permission: ${permissionState}`;
+      fixSteps = mediaFixInstructions(kind, failureName, permissionState);
     }
-    setMediaResults(current => ({ ...current, [kind]: `${outcome.toUpperCase()} — ${detail}` }));
+    const fixText = fixSteps.length ? `\nHatua za kurekebisha:\n${fixSteps.map((step, index) => `${index + 1}. ${step}`).join("\n")}` : "";
+    setMediaResults(current => ({ ...current, [kind]: `${outcome.toUpperCase()} — ${detail}${fixText}` }));
     await record({
       source: "media_permission_diagnostics", severity: outcome === "passed" ? "low" : "high",
       category: kind === "camera" ? "camera_permission" : "microphone_permission",
@@ -315,7 +338,7 @@ export const AdminDiagnostics = () => {
       <Button size="sm" variant="outline" onClick={() => void exportDiagnosticsBackup()} disabled={backupBusy}>{backupBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin"/> : <Download className="mr-1 h-4 w-4"/>}Download diagnostics backup</Button>
       <p className="text-[11px] text-muted-foreground">Hii ni backup ya diagnostics pekee, si full database/media backup ya watumiaji. Full database backups na point-in-time recovery husimamiwa kupitia mipangilio ya Supabase project.</p>
     </div>
-      <h4 className="text-sm font-semibold flex items-center gap-2"><Database className="h-4 w-4"/> Database schema check</h4>
+      <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">03 · Database</p><h4 className="text-sm font-semibold">Ukaguzi wa jedwali (Schema)</h4></div>\n      <h4 className="text-sm font-semibold flex items-center gap-2"><Database className="h-4 w-4"/> Database schema check</h4>
       <p className="text-xs text-muted-foreground">Checks the app's registered tables. Permission/RLS failures are reported separately from missing tables.</p>
       <Button size="sm" onClick={() => void runSchemaCheck()} disabled={checking}>{checking ? <Loader2 className="mr-1 h-4 w-4 animate-spin"/> : <Database className="mr-1 h-4 w-4"/>}Scan database tables</Button>
       {schemaResults.length > 0 && <div className="space-y-1 text-xs">
@@ -325,7 +348,7 @@ export const AdminDiagnostics = () => {
       {schemaResults.length > 0 && missingCount === 0 && <p className="text-xs text-emerald-600 flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5"/>No missing tables detected in the registered table list.</p>}
     </div>
     <div className="rounded-lg border border-border bg-card p-3 space-y-2">
-      <h4 className="text-sm font-semibold">Add recommendation / report an issue</h4>
+      <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">04 · Ripoti</p><h4 className="text-sm font-semibold">Pendekezo au ripoti ya tatizo</h4></div>
       <Input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Issue or recommendation title"/>
       <Textarea value={suggestion} onChange={e=>setSuggestion(e.target.value)} placeholder="Describe the problem or suggested fix..." rows={3}/>
       <Button size="sm" onClick={() => void submitSuggestion()} disabled={!title.trim()}><Send className="mr-1 h-3.5 w-3.5"/>Save report</Button>
@@ -352,6 +375,6 @@ export const AdminDiagnostics = () => {
       <div className="flex flex-wrap gap-1">{["new","investigating","fixed","ignored"].filter(s=>s!==item.status).map(s=><Button key={s} size="sm" variant="outline" onClick={()=>void updateStatus(item.id,s)}>{s}</Button>)}</div>
     </article>)}
     {visible.length===0 && <p className="text-xs text-muted-foreground">{loading?"Loading diagnostics…":"No issues recorded for this filter."}</p>}
-    <p className="text-[11px] text-muted-foreground flex items-start gap-1"><AlertTriangle className="h-3.5 w-3.5 shrink-0"/>Global browser errors, rejected promises, and explicitly reported feature/API failures are collected across the app. Copy all errors exports the loaded diagnostics, including stack traces and safe metadata.</p>
+    </div>\n    <p className="text-[11px] text-muted-foreground flex items-start gap-1"><AlertTriangle className="h-3.5 w-3.5 shrink-0"/>Global browser errors, rejected promises, and explicitly reported feature/API failures are collected across the app. Copy all errors exports the loaded diagnostics, including stack traces and safe metadata.</p>
   </section>;
 };
