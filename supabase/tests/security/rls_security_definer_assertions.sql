@@ -126,7 +126,7 @@ BEGIN
   v_next:=jsonb_set(jsonb_set(v_board,'{17}','null'::jsonb),'{24}', '{"c":"b","k":false}'::jsonb);
 
   INSERT INTO public.draft_matches(id,player_white,current_turn,revision,status,board,vs_ai)
-  VALUES(v_match_id,v_user,'b',0,'active',v_board,true);
+  VALUES(v_match_id,v_other,v_user,'b',0,'active',v_board,false);
 
   -- Client cannot submit a made-up board even when its move coordinates look valid.
   BEGIN
@@ -206,7 +206,7 @@ BEGIN
   ) INTO v_capture_board FROM generate_series(0,63) i;
   v_capture_next:=jsonb_set(jsonb_set(jsonb_set(v_capture_board,'{17}','null'::jsonb),'{26}','null'::jsonb),'{35}','{"c":"b","k":false}'::jsonb);
   INSERT INTO public.draft_matches(id,player_white,current_turn,revision,status,board,vs_ai)
-  VALUES(v_capture_id,v_user,'b',0,'active',v_capture_board,true);
+  VALUES(v_capture_id,v_other,v_user,'b',0,'active',v_capture_board,false);
 
   BEGIN
     PERFORM public.commit_draft_move(v_capture_id,0,v_capture_board,'w',
@@ -265,6 +265,50 @@ BEGIN
      OR v_result.winner<>'white' OR v_result.status<>'finished'
      OR v_result.board->21->>'k'<>'true' THEN
     RAISE EXCEPTION 'Promotion during a multi-capture was not validated and persisted correctly';
+  END IF;
+END
+$$;
+
+
+-- PvAI security: authenticated clients cannot submit the black/AI turn.
+-- Only the trusted service-role path used by draughts-ai-turn may commit it.
+DO $$
+DECLARE
+  v_user uuid := '00000000-0000-0000-0000-000000000001';
+  v_match_id uuid := '00000000-0000-0000-0000-000000000304';
+  v_board jsonb;
+  v_next jsonb;
+  v_result public.draft_matches;
+BEGIN
+  SELECT jsonb_agg(
+    CASE
+      WHEN (i/8+i%8)%2=0 THEN 'null'::jsonb
+      WHEN i/8<3 THEN jsonb_build_object('c','b','k',false)
+      WHEN i/8>4 THEN jsonb_build_object('c','w','k',false)
+      ELSE 'null'::jsonb
+    END ORDER BY i
+  ) INTO v_board FROM generate_series(0,63) i;
+  v_next:=jsonb_set(jsonb_set(v_board,'{17}','null'::jsonb),'{24}','{"c":"b","k":false}'::jsonb);
+  INSERT INTO public.draft_matches(id,player_white,current_turn,revision,status,board,vs_ai)
+  VALUES(v_match_id,v_user,'b',0,'active',v_board,true);
+
+  PERFORM set_config('request.jwt.claim.sub',v_user::text,true);
+  PERFORM set_config('request.jwt.claim.role','authenticated',true);
+  BEGIN
+    PERFORM public.commit_draft_move(v_match_id,0,v_next,'w',
+      '{"from":17,"to":24,"captures":[],"promote":false}'::jsonb,'active',NULL);
+    RAISE EXCEPTION 'Authenticated client impersonated the Draughts AI';
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM='Authenticated client impersonated the Draughts AI' THEN RAISE; END IF;
+    IF SQLERRM NOT LIKE 'Not your turn or not a match participant%' THEN RAISE; END IF;
+  END;
+
+  PERFORM set_config('request.jwt.claim.sub','',true);
+  PERFORM set_config('request.jwt.claim.role','service_role',true);
+  SELECT * INTO v_result FROM public.commit_draft_move(v_match_id,0,v_next,'w',
+    '{"from":17,"to":24,"captures":[],"promote":false}'::jsonb,'active',NULL);
+  IF v_result.revision<>1 OR v_result.board<>v_next OR v_result.current_turn<>'w' THEN
+    RAISE EXCEPTION 'Trusted AI-side move was not committed correctly';
   END IF;
 END
 $$;
