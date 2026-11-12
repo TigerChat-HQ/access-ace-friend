@@ -1,8 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { ChatPrefs } from "@/hooks/useChatPreferences";
 
 const db = supabase as unknown as SupabaseClient;
-import type { ChatPrefs } from "@/hooks/useChatPreferences";
 
 export const globalChatPreferencesKey = (userId: string) =>
   `tigerchats:chat-defaults:${userId}`;
@@ -53,19 +53,27 @@ export const saveGlobalChatPreferences = (userId: string, preferences: Partial<C
 
 export const persistGlobalChatPreferences = async (userId: string, preferences: Partial<ChatPrefs>) => {
   const next = saveGlobalChatPreferences(userId, preferences);
-  const { error } = await db.from("profiles").upsert(
-    {
+  const chatDefaults = {
+    wallpaper: next.wallpaper ?? "default",
+    bubble_color: next.bubble_color ?? "primary",
+    font_size: next.font_size ?? "medium",
+  };
+  const { data, error: updateError } = await db
+    .from("profiles")
+    .update({ chat_defaults: chatDefaults, updated_at: new Date().toISOString() })
+    .eq("user_id", userId)
+    .select("user_id")
+    .maybeSingle();
+
+  if (updateError) return { error: updateError, preferences: next };
+  if (!data) {
+    const { error: insertError } = await db.from("profiles").insert({
       user_id: userId,
-      chat_defaults: {
-        wallpaper: next.wallpaper ?? "default",
-        bubble_color: next.bubble_color ?? "primary",
-        font_size: next.font_size ?? "medium",
-      },
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id" }
-  );
-  return { error, preferences: next };
+      chat_defaults: chatDefaults,
+    });
+    return { error: insertError, preferences: next };
+  }
+  return { error: null, preferences: next };
 };
 
 export const resetGlobalChatPreferences = (userId: string) => {
