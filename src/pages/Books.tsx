@@ -133,6 +133,16 @@ const makeDailyChapter = (storyId: string) => {
 
 const dayNumber = () => Math.max(0, Math.floor((new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime() - new Date(2026, 10, 12).getTime()) / 86400000));
 
+type BooksDbResult = { data: unknown; error: { message: string } | null };
+type BooksSelectQuery = PromiseLike<BooksDbResult> & { eq: (column: string, value: string) => BooksSelectQuery };
+type BooksDataClient = {
+  from: (table: "books_reading_progress" | "books_daily_chapters") => {
+    select: (columns: string) => BooksSelectQuery;
+    upsert: (values: Record<string, unknown>, options: { onConflict: string }) => PromiseLike<{ error: { message: string } | null }>;
+  };
+};
+const booksDb = supabase as unknown as BooksDataClient;
+
 type ReaderTheme = "parchment" | "midnight" | "forest" | "rose";
 const readerThemes: { id: ReaderTheme; label: string; swatch: string; page: string; ink: string }[] = [
   { id: "parchment", label: "Karatasi ya kale", swatch: "bg-[#ead9b5]", page: "bg-[#f3e7ce] text-[#49351f]", ink: "text-[#49351f]" },
@@ -180,7 +190,7 @@ export default function BooksPage() {
     if (!userId) return;
     let active = true;
     const loadProgress = async () => {
-      const { data, error } = await supabase.from("books_reading_progress" as any).select("book_id,progress_percent,last_chapter").eq("user_id", userId);
+      const { data, error } = await booksDb.from("books_reading_progress").select("book_id,progress_percent,last_chapter").eq("user_id", userId);
       if (error) { console.warn("Books progress sync unavailable:", error.message); return; }
       if (!active) return;
       const merged: Record<string, { progress_percent: number; last_chapter: number }> = {};
@@ -198,7 +208,7 @@ export default function BooksPage() {
     let active = true;
     const dateKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Dar_es_Salaam" }).format(new Date());
     const loadChapters = async () => {
-      const { data, error } = await supabase.from("books_daily_chapters" as any).select("story_id,episode_number,title,body,recap").eq("publish_date", dateKey);
+      const { data, error } = await booksDb.from("books_daily_chapters").select("story_id,episode_number,title,body,recap").eq("publish_date", dateKey);
       if (error) { console.warn("Daily AI chapters not available yet:", error.message); return; }
       if (!active) return;
       const next: Record<string, { episode_number: number; title: string; body: string; recap: string }> = {};
@@ -236,10 +246,12 @@ export default function BooksPage() {
   const toggleSaved = (id: string) => setSaved((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   const markRead = (id: string) => setReadIds((current) => current.includes(id) ? current : [...current, id]);
   const activeSerial = serials.find((item) => item.id === selectedSerial);
+  const selectedBookId = selectedBook?.id;
+  const activeSerialId = activeSerial?.id;
   useEffect(() => {
-    if (selectedBook) setReadingPercent(readingProgress[selectedBook.id]?.progress_percent ?? 0);
-    else if (activeSerial) setReadingPercent(readingProgress[activeSerial.id]?.progress_percent ?? 0);
-  }, [selectedBook?.id, activeSerial?.id, readingProgress]);
+    const currentId = selectedBookId || activeSerialId;
+    if (currentId) setReadingPercent(readingProgress[currentId]?.progress_percent ?? 0);
+  }, [selectedBookId, activeSerialId, readingProgress]);
   const today = new Date().toLocaleDateString("sw-TZ", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
   return (
