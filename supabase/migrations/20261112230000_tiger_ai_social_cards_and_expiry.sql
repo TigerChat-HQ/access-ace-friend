@@ -36,7 +36,7 @@ alter table public.tiger_ai_social_card_config enable row level security;
 revoke all on public.tiger_ai_social_card_config from anon, authenticated;
 grant all on public.tiger_ai_social_card_config to service_role;
 insert into public.tiger_ai_social_card_config (id, cron_token, enabled)
-values (true, encode(gen_random_bytes(32), 'hex'), true)
+values (true, replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''), true)
 on conflict (id) do nothing;
 
 create or replace function public.enforce_tiger_ai_social_card_daily_limit()
