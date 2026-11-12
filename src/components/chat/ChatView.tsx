@@ -23,7 +23,7 @@ export const ChatView = ({ contact, messages, onBack, onSend }: ChatViewProps) =
             {contact.avatar}
           </div>
           {contact.online && (
-            <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background" />
+            <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-background" />
           )}
         </div>
         <div className="flex-1 min-w-0">
@@ -33,9 +33,9 @@ export const ChatView = ({ contact, messages, onBack, onSend }: ChatViewProps) =
               <span className="text-primary">typing...</span>
             ) : contact.online ? (
               <span className="text-primary">online</span>
-            ) : (
-              "last seen recently"
-            )}
+            ) : contact.statusLabel ? (
+              <span className={contact.online ? "font-medium text-emerald-500" : "text-muted-foreground"}>{contact.statusLabel}</span>
+            ) : null}
           </p>
         </div>
         <div className="flex items-center gap-1">

@@ -1069,9 +1069,9 @@ export type Database = {
           created_at: string | null
           display_name: string | null
           id: string
-          is_online: boolean | null
           is_private: boolean
-          last_seen: string | null
+          show_last_seen: boolean
+          show_online_status: boolean
           updated_at: string | null
           user_id: string
           username: string | null
@@ -1082,9 +1082,9 @@ export type Database = {
           created_at?: string | null
           display_name?: string | null
           id?: string
-          is_online?: boolean | null
           is_private?: boolean
-          last_seen?: string | null
+          show_last_seen?: boolean
+          show_online_status?: boolean
           updated_at?: string | null
           user_id: string
           username?: string | null
@@ -1095,9 +1095,9 @@ export type Database = {
           created_at?: string | null
           display_name?: string | null
           id?: string
-          is_online?: boolean | null
           is_private?: boolean
-          last_seen?: string | null
+          show_last_seen?: boolean
+          show_online_status?: boolean
           updated_at?: string | null
           user_id?: string
           username?: string | null
@@ -1543,6 +1543,20 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      get_chat_presence: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          user_id: string
+          is_online: boolean
+          last_seen_at: string | null
+          show_last_seen: boolean
+          show_online_status: boolean
+        }[]
+      }
+      touch_my_chat_presence: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       send_contact_message: {
         Args: { _message: string; _subject: string }

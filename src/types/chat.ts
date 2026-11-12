@@ -6,6 +6,7 @@ export interface ChatContact {
   time: string;
   unread: number;
   online: boolean;
+  statusLabel?: string;
   typing?: boolean;
 }
 
