@@ -132,8 +132,8 @@ BEGIN
     FOREACH v_dir SLICE 1 IN ARRAY v_dirs LOOP
       v_step := 1;
       LOOP
-        EXIT WHEN v_r+v_dr[1]*v_step NOT BETWEEN 0 AND 7 OR v_c+v_dr[2]*v_step NOT BETWEEN 0 AND 7;
-        IF p_board->((v_r+v_dr[1]*v_step)*8+(v_c+v_dr[2]*v_step)) <> 'null'::jsonb THEN EXIT; END IF;
+        EXIT WHEN v_r+v_dir[1]*v_step NOT BETWEEN 0 AND 7 OR v_c+v_dir[2]*v_step NOT BETWEEN 0 AND 7;
+        IF p_board->((v_r+v_dir[1]*v_step)*8+(v_c+v_dir[2]*v_step)) <> 'null'::jsonb THEN EXIT; END IF;
         RETURN true;
         EXIT WHEN NOT coalesce((v_piece->>'k')::boolean,false);
         v_step := v_step+1;
