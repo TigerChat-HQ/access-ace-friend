@@ -206,6 +206,20 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
           {post.post_audio_url && <div className="absolute bottom-3 left-3 right-3 flex items-center gap-2 rounded-xl bg-black/70 p-2 text-white backdrop-blur"><span className="min-w-0 flex-1 truncate text-xs">{post.post_audio_title || "Post soundtrack"}</span><audio src={post.post_audio_url} controls className="h-8 max-w-[55%]" /></div>}
         </div>
       )}
+      {mediaItems.filter((item) => item.type !== "video").length > 1 && (
+        <div className="grid grid-cols-5 gap-1 px-2 pb-2" aria-label="Picha za chapisho">
+          {mediaItems.filter((item) => item.type !== "video").slice(0, 5).map((item, index, images) => {
+            const imageIndex = mediaItems.indexOf(item);
+            const extraCount = images.length - 5;
+            return (
+              <button key={item.url + index} type="button" onClick={() => setCarouselIndex(imageIndex)} aria-label={index === 4 && extraCount > 0 ? `Fungua picha ${imageIndex + 1}, na picha nyingine ${extraCount}` : `Fungua picha ${imageIndex + 1}`} className={`relative aspect-square overflow-hidden rounded-lg border-2 bg-muted ${carouselIndex === imageIndex ? "border-primary" : "border-transparent"}`}>
+                <img src={item.url} alt={item.alt_text || ""} loading="lazy" className="h-full w-full object-cover" />
+                {index === 4 && extraCount > 0 && <span className="absolute inset-0 flex items-center justify-center bg-black/65 text-sm font-black text-white">+${extraCount}</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {post.media_url && activeMedia?.type === "video" && (
         <div className="relative" onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }} onTouchEnd={(event) => { if (touchStartX.current === null || mediaItems.length < 2) return; const delta = event.changedTouches[0].clientX - touchStartX.current; if (Math.abs(delta) > 45) setCarouselIndex((index) => (index + (delta < 0 ? 1 : -1) + mediaItems.length) % mediaItems.length); touchStartX.current = null; }}>
           {isReel && user && carouselIndex === 0 ? (
