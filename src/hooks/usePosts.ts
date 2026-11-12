@@ -69,7 +69,7 @@ export const useFeed = (mode: "following" | "discover" | "reels" = "following") 
       userIdsForFeed = [...(follows?.map((f) => f.following_id) || []), user.id];
     }
 
-    let query = supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(100);
+    let query = supabase.from("posts").select("*").or(`scheduled_at.is.null,scheduled_at.lte.${new Date().toISOString()}`).order("created_at", { ascending: false }).limit(100);
     if (mode === "reels") query = query.eq("media_type", "video").not("media_url", "is", null);
     if (userIdsForFeed) query = query.in("user_id", userIdsForFeed);
 
@@ -169,8 +169,8 @@ export const useUserPosts = (userId: string | undefined) => {
     const { data: collaborations } = await supabase.rpc("get_profile_collaboration_post_ids" as any, { _profile_id: userId } as any) as any;
     const collaborationIds = (collaborations || []).map((row: { post_id: string }) => row.post_id);
     const [ownedResult, collaborativeResult] = await Promise.all([
-      supabase.from("posts").select("*").eq("user_id", userId),
-      collaborationIds.length ? supabase.from("posts").select("*").in("id", collaborationIds).is("archived_at", null) : Promise.resolve({ data: [] as any[] }),
+      supabase.from("posts").select("*").eq("user_id", userId).or(`scheduled_at.is.null,scheduled_at.lte.${new Date().toISOString()}`),
+      collaborationIds.length ? supabase.from("posts").select("*").in("id", collaborationIds).is("archived_at", null).or(`scheduled_at.is.null,scheduled_at.lte.${new Date().toISOString()}`) : Promise.resolve({ data: [] as any[] }),
     ]);
     const ownedPosts = ownedResult.data || [];
     const collaborativePosts = (collaborativeResult.data || []).filter((post: any) => post.user_id !== userId);
