@@ -8,8 +8,8 @@ const liveGames = [
 
 const comingSoon = [
   { title: "Chess Arena", subtitle: "Chess dhidi ya AI na marafiki", icon: "♛", tone: "border-sky-400/20 bg-sky-400/5", label: "Mkakati" },
-  { title: "Connect Four", subtitle: "Unganisha nne kabla ya mpinzani", icon: "🔴", tone: "border-rose-400/20 bg-rose-400/5", label: "PvP" },
-  { title: "Word Puzzle", subtitle: "Maneno, lugha na changamoto za akili", icon: "🔤", tone: "border-violet-400/20 bg-violet-400/5", label: "Puzzle" },
+  { title: "Connect Four", subtitle: "Unganisha nne kabla ya mpinzani", icon: "🔴", tone: "border-rose-400/20 bg-rose-400/5", label: "PvP", path: "/games/connect-four", playable: true },
+  { title: "Block Puzzle", subtitle: "Panga blocks, safisha mistari na kusanya pointi", icon: "🧩", tone: "border-violet-400/20 bg-violet-400/5", label: "Puzzle", path: "/games/block-puzzle", playable: true },
   { title: "Snake Rush", subtitle: "Mchezo wa kasi na alama nyingi", icon: "🐍", tone: "border-lime-400/20 bg-lime-400/5", label: "Arcade" },
 ];
 
@@ -60,12 +60,12 @@ export default function GamesHub() {
       </section>
 
       <section id="more-games" className="scroll-mt-20 space-y-4">
-        <div className="flex items-end justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-primary">Inayofuata</p><h2 className="text-xl font-black sm:text-2xl">Michezo zaidi inakuja</h2><p className="mt-1 text-xs text-muted-foreground">Pendekezo la michezo itakayoongezwa kwenye TigerChat.</p></div><span className="shrink-0 rounded-full border border-border px-3 py-1 text-[10px] font-semibold text-muted-foreground">COMING SOON</span></div>
+        <div className="flex items-end justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-primary">Inayofuata</p><h2 className="text-xl font-black sm:text-2xl">Michezo zaidi inakuja</h2><p className="mt-1 text-xs text-muted-foreground">Pendekezo la michezo itakayoongezwa kwenye TigerChat.</p></div><span className="shrink-0 rounded-full border border-border px-3 py-1 text-[10px] font-semibold text-muted-foreground">2 NEW GAMES</span></div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {comingSoon.map((game) => <article key={game.title} className={`flex items-center gap-4 rounded-2xl border p-4 ${game.tone}`}>
             <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-background/70 text-3xl">{game.icon}</span>
             <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold">{game.title}</h3><span className="rounded-full bg-background/70 px-2 py-0.5 text-[9px] font-bold text-muted-foreground">{game.label}</span></div><p className="mt-1 text-xs leading-5 text-muted-foreground">{game.subtitle}</p></div>
-            <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-semibold text-muted-foreground"><Clock3 className="h-3.5 w-3.5"/> Soon</span>
+            {game.playable ? <button onClick={() => nav(game.path)} className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-primary px-3 py-2 text-[10px] font-bold text-primary-foreground">Cheza <ChevronRight className="h-3.5 w-3.5"/></button> : <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-semibold text-muted-foreground"><Clock3 className="h-3.5 w-3.5"/> Soon</span>}
           </article>)}
         </div>
       </section>
