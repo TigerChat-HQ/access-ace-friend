@@ -427,6 +427,11 @@ open class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         warmFirebaseToken()
+        if (::webView.isInitialized && pageLoaded) {
+            webView.post {
+                webView.evaluateJavascript("window.dispatchEvent(new Event('tiger:overlay-permission-returned'))", null)
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -535,15 +540,6 @@ open class MainActivity : Activity() {
         if (!::webView.isInitialized) return
         val encoded = org.json.JSONObject.quote(token)
         webView.post { webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('tiger:native-fcm-token',{detail:$encoded}))", null) }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        if (::webView.isInitialized && pageLoaded) {
-            webView.post {
-                webView.evaluateJavascript("window.dispatchEvent(new Event('tiger:overlay-permission-returned'))", null)
-            }
-        }
     }
 
     inner class NativeBridge {
