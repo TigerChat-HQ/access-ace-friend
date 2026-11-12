@@ -443,7 +443,7 @@ open class MainActivity : Activity() {
                 .put("source", source)
                 .put("category", category)
                 .put("title", title.take(240))
-                .put("message", message.replace(Regex("(?i)(token|password|authorization)(\\\\s*[:=]\\\\s*)[^&\\\\s,]+"), "$1$2[REDACTED]").take(1800))
+                .put("message", message.replace(Regex("(?i)(token|password|authorization)(\\s*[:=]\\s*)[^&\\s,]+"), "$1$2[REDACTED]").take(1800))
                 .put("severity", severity)
                 .put("createdAt", System.currentTimeMillis())
                 .put("metadata", metadata)
