@@ -78,7 +78,30 @@ export const usePresence = (trackSelf = false) => {
     const listener = (ids: string[]) => setOnlineUserIds(ids);
     h.listeners.add(listener);
     setOnlineUserIds(h.ids);
-    if (trackSelf) { h.trackers += 1; updateTracking(h); }
+    if (trackSelf) {
+      h.trackers += 1;
+      updateTracking(h);
+      const touchLastSeen = () => {
+        void supabase.from("profiles").update({ last_seen: new Date().toISOString() }).eq("user_id", user.id);
+      };
+      touchLastSeen();
+      const heartbeat = window.setInterval(() => {
+        if (!document.hidden) touchLastSeen();
+      }, 60_000);
+      const onVisibilityChange = () => touchLastSeen();
+      const onPageHide = () => touchLastSeen();
+      document.addEventListener("visibilitychange", onVisibilityChange);
+      window.addEventListener("pagehide", onPageHide);
+      return () => {
+        window.clearInterval(heartbeat);
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+        window.removeEventListener("pagehide", onPageHide);
+        h.listeners.delete(listener);
+        h.trackers -= 1;
+        updateTracking(h);
+        release(h);
+      };
+    }
 
     return () => {
       h.listeners.delete(listener);
