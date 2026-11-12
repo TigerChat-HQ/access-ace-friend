@@ -14,6 +14,7 @@ type Props = {
   coverUrl?: string | null;
   audioUrl?: string | null;
   audioStart?: number;
+  audioEnd?: number | null;
   trimStart?: number;
   trimEnd?: number | null;
   captions?: TimedCaption[] | null;
@@ -24,7 +25,7 @@ const db = supabase as unknown as SupabaseClient;
 
 export const ReelAnalyticsVideo = ({
   postId, creatorId, viewerId, src, coverUrl, audioUrl,
-  audioStart = 0, trimStart = 0, trimEnd, captions, className,
+  audioStart = 0, audioEnd = null, trimStart = 0, trimEnd, captions, className,
 }: Props) => {
   const rootRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -93,10 +94,13 @@ export const ReelAnalyticsVideo = ({
     const video = videoRef.current;
     const audio = audioRef.current;
     if (!video || !audio || !audioUrl) return;
-    const elapsedTrackTime = Math.max(0, audioStart + video.currentTime - trimStart);
-    const targetTime = Number.isFinite(audio.duration) && audio.duration > 0
-      ? elapsedTrackTime % audio.duration
-      : elapsedTrackTime;
+    const trackStart = Math.max(0, Math.min(audioStart, Number.isFinite(audio.duration) ? audio.duration : audioStart));
+    const trackEnd = Number.isFinite(audioEnd) && audioEnd !== null && audioEnd > trackStart
+      ? Math.min(audioEnd, audio.duration)
+      : audio.duration;
+    const trackLength = Number.isFinite(trackEnd) && trackEnd > trackStart ? trackEnd - trackStart : 0;
+    const elapsedTrackTime = Math.max(0, video.currentTime - trimStart);
+    const targetTime = trackLength > 0 ? trackStart + (elapsedTrackTime % trackLength) : trackStart + elapsedTrackTime;
     if (Math.abs(audio.currentTime - targetTime) > 0.45) audio.currentTime = targetTime;
     void audio.play().catch(() => undefined);
   };
@@ -140,8 +144,13 @@ export const ReelAnalyticsVideo = ({
         if (pendingWatch.current >= 10) flushWatch();
       }
       if (audioUrl && audioRef.current && !audioRef.current.paused) {
-        const elapsedTrackTime = Math.max(0, audioStart + now - trimStart);
-        const expected = Number.isFinite(audioRef.current.duration) && audioRef.current.duration > 0 ? elapsedTrackTime % audioRef.current.duration : elapsedTrackTime;
+        const trackStart = Math.max(0, Math.min(audioStart, Number.isFinite(audioRef.current.duration) ? audioRef.current.duration : audioStart));
+        const trackEnd = Number.isFinite(audioEnd) && audioEnd !== null && audioEnd > trackStart
+          ? Math.min(audioEnd, audioRef.current.duration)
+          : audioRef.current.duration;
+        const trackLength = Number.isFinite(trackEnd) && trackEnd > trackStart ? trackEnd - trackStart : 0;
+        const elapsedTrackTime = Math.max(0, now - trimStart);
+        const expected = trackLength > 0 ? trackStart + (elapsedTrackTime % trackLength) : trackStart + elapsedTrackTime;
         if (Math.abs(audioRef.current.currentTime - expected) > 0.8) audioRef.current.currentTime = expected;
       }
     }
