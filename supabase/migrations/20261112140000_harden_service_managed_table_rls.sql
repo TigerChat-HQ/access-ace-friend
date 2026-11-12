@@ -10,7 +10,7 @@ BEGIN
     RAISE EXCEPTION 'Expected security tables are missing; refusing partial hardening';
   END IF;
 END;
-$;
+$$;
 
 DROP POLICY IF EXISTS chat_presence_service_role_only ON private.chat_presence;
 CREATE POLICY chat_presence_service_role_only
