@@ -36,7 +36,18 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
     setIsStarting(true);
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error("Kifaa hiki hakiruhusu kurekodi sauti. Sasisha Android System WebView na ujaribu tena.");
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      // Android WebView devices/drivers sometimes reject advanced audio constraints with
+      // "Could not start audio source". Retry with the browser's simplest microphone request.
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        });
+      } catch (firstError) {
+        const firstName = firstError instanceof DOMException ? firstError.name : "";
+        if (!["NotReadableError", "AbortError", "OverconstrainedError"].includes(firstName)) throw firstError;
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       if (!mountedRef.current) { stream.getTracks().forEach((track) => track.stop()); return; }
       streamRef.current = stream;
       const mimeType = supportedAudioMimeType();
@@ -68,7 +79,9 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
       const message = name === "NotAllowedError" || name === "PermissionDeniedError"
         ? "Ruhusa ya Microphone imekataliwa. Fungua App permissions za TigerChat, ruhusu Microphone, kisha bonyeza Jaribu tena."
         : name === "NotFoundError" ? "Hakuna kipaza sauti (Microphone) kilichopatikana."
-        : cause instanceof Error ? cause.message : "Imeshindikana kuanza kurekodi sauti.";
+        : name === "NotReadableError" || name === "AbortError"
+          ? "Microphone haikuweza kuanzishwa. Funga app nyingine inayotumia sauti, hakikisha ruhusa ya Microphone ipo, kisha bonyeza Jaribu tena."
+          : cause instanceof Error ? cause.message : "Imeshindikana kuanza kurekodi sauti.";
       if (mountedRef.current) { setError(message); setIsRecording(false); }
     } finally {
       if (mountedRef.current) setIsStarting(false);
