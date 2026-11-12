@@ -4,7 +4,7 @@ import { Volume2, VolumeX } from "lucide-react";
 import { claimFeedPlayback, getFeedMuted, releaseFeedPlayback, setFeedMuted } from "@/lib/feedVideoPlayback";
 import { supabase } from "@/integrations/supabase/client";
 
-type AnalyticsEvent = "impression" | "play" | "watch" | "retention_25" | "retention_50" | "retention_75" | "retention_100";
+type AnalyticsEvent = "impression" | "play" | "replay" | "watch" | "retention_25" | "retention_50" | "retention_75" | "retention_100";
 type TimedCaption = { start: number; end: number; text: string };
 type Props = {
   postId: string;
@@ -32,6 +32,7 @@ export const ReelAnalyticsVideo = ({
   const sessionId = useRef(typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
   const lastSample = useRef(0);
   const pendingWatch = useRef(0);
+  const ended = useRef(false);
   const recorded = useRef(new Set<AnalyticsEvent>());
   const [currentTime, setCurrentTime] = useState(0);
   const [muted, setMuted] = useState(getFeedMuted());
@@ -102,7 +103,10 @@ export const ReelAnalyticsVideo = ({
   };
 
   const onPlay = () => {
-    if (!recorded.current.has("play")) {
+    if (ended.current) {
+      ended.current = false;
+      void record("replay");
+    } else if (!recorded.current.has("play")) {
       recorded.current.add("play");
       void record("play");
     }
@@ -162,7 +166,7 @@ export const ReelAnalyticsVideo = ({
         onLoadedMetadata={() => { if (videoRef.current && trimStart > 0) videoRef.current.currentTime = trimStart; }}
         onPlay={onPlay} onTimeUpdate={onTimeUpdate}
         onPause={() => { audioRef.current?.pause(); flushWatch(); }}
-        onEnded={() => { audioRef.current?.pause(); flushWatch(); }}
+        onEnded={() => { ended.current = true; audioRef.current?.pause(); flushWatch(); }}
       />
       {audioUrl && <audio ref={audioRef} src={audioUrl} preload="metadata" />}
       {audioUrl && <button type="button" aria-label={muted ? "Unmute video" : "Mute video"} onClick={() => { const next = !muted; setMuted(next); setFeedMuted(next); if (audioRef.current) audioRef.current.muted = next; if (!next && videoRef.current && !videoRef.current.paused) syncAudio(); }} className="absolute right-3 bottom-3 z-10 rounded-full bg-black/70 p-2 text-white" >{muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}</button>}
