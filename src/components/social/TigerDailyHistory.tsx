@@ -118,13 +118,12 @@ export const TigerDailyHistory = () => {
     </div>
     {commentsOpen && <div className="border-t border-border/60 p-4 space-y-3">
       <h3 className="text-sm font-bold text-foreground">Maoni ({comments.length})</h3>
-      {roots.map(c => <div key={c.id} className="space-y-2">
+      {comments.map(c => <div key={c.id} className={c.parent_id ? "ml-5 space-y-2" : "space-y-2"}>
         <div className="rounded-xl bg-muted/50 p-3">
           <div className="flex items-center gap-2"><span className="text-xs font-bold text-foreground">{c.is_tiger_ai ? "Tiger AI 🐯" : "Mwanachama"}</span>{c.ai_liked && <span className="text-[10px] text-primary">♥ Tiger AI amependa</span>}</div>
           <p className="mt-1 text-sm text-foreground whitespace-pre-wrap">{c.body}</p>
           <div className="mt-2 flex gap-4">{!c.is_tiger_ai && <button onClick={() => toggleCommentLike(c)} className={`text-xs inline-flex items-center gap-1 ${c.liked_by_me ? "text-primary" : "text-muted-foreground"}`}><Heart className={`w-3.5 h-3.5 ${c.liked_by_me ? "fill-current" : ""}`} /> {c.like_count}</button>}<button onClick={() => setReplyTo(c)} className="text-xs text-muted-foreground inline-flex items-center gap-1"><Reply className="w-3.5 h-3.5" /> Jibu</button></div>
         </div>
-        {comments.filter(r => r.parent_id === c.id).map(r => <div key={r.id} className="ml-5 rounded-xl border border-border/60 p-3"><div className="text-xs font-bold text-foreground">{r.is_tiger_ai ? "Tiger AI 🐯" : "Mwanachama"}</div><p className="mt-1 text-sm text-foreground whitespace-pre-wrap">{r.body}</p></div>)}
       </div>)}
       {replyTo && <div className="text-xs text-primary">Unajibu maoni <button onClick={() => setReplyTo(null)} className="underline">Ghairi</button></div>}
       <div className="flex gap-2"><input value={commentText} onChange={e => setCommentText(e.target.value)} onKeyDown={e => e.key === "Enter" && sendComment()} placeholder={replyTo ? "Andika jibu..." : "Andika maoni..."} className="min-w-0 flex-1 rounded-full bg-muted px-4 py-2 text-sm outline-none" /><button onClick={sendComment} disabled={sending || !commentText.trim()} className="rounded-full bg-primary p-2.5 text-primary-foreground disabled:opacity-50">{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}</button></div>
