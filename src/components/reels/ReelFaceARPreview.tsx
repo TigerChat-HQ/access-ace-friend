@@ -24,7 +24,7 @@ export function ReelFaceARPreview({ stream, effect, onStatus }: Props) {
     }
     onStatus?.("Loading face tracking…");
     void loadFaceLandmarker().then((tracker) => {
-      if (!active) { tracker.close(); return; }
+      if (!active) return;
       landmarker = tracker;
       setSupported(true);
       onStatus?.("Face tracking active");
@@ -56,7 +56,6 @@ export function ReelFaceARPreview({ stream, effect, onStatus }: Props) {
     return () => {
       active = false;
       cancelAnimationFrame(frame);
-      landmarker?.close();
       context.clearRect(0, 0, canvas.width, canvas.height);
     };
   }, [stream, effect, onStatus]);
