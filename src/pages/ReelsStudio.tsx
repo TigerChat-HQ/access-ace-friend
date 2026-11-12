@@ -7,6 +7,18 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
 type TimedCaption = { start: number; end: number; text: string };
+type SpeechRecognitionLike = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((event: { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+type SpeechWindow = Window & { SpeechRecognition?: new () => SpeechRecognitionLike; webkitSpeechRecognition?: new () => SpeechRecognitionLike };
+
 type DraftRow = {
   id: string;
   caption: string;
@@ -31,6 +43,7 @@ const ReelsStudio = () => {
   const voiceRecorderRef = useRef<MediaRecorder | null>(null);
   const voiceStreamRef = useRef<MediaStream | null>(null);
   const voiceChunksRef = useRef<Blob[]>([]);
+  const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
@@ -53,6 +66,7 @@ const ReelsStudio = () => {
   const [captionEnd, setCaptionEnd] = useState(3);
   const [busy, setBusy] = useState(false);
   const [recordingVoice, setRecordingVoice] = useState(false);
+  const [listeningCaptions, setListeningCaptions] = useState(false);
 
   const refreshDrafts = useCallback(async () => {
     if (!user) return;
@@ -65,6 +79,7 @@ const ReelsStudio = () => {
   useEffect(() => () => {
     if (voiceRecorderRef.current?.state === "recording") voiceRecorderRef.current.stop();
     voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+    speechRecognitionRef.current?.stop();
   }, []);
 
   const uploadAsset = async (file: File, folder: string) => {
@@ -280,6 +295,53 @@ const ReelsStudio = () => {
     }
   };
 
+
+  const toggleAutoCaptions = () => {
+    if (listeningCaptions) {
+      speechRecognitionRef.current?.stop();
+      setListeningCaptions(false);
+      return;
+    }
+    const speechApi = window as SpeechWindow;
+    const SpeechRecognitionCtor = speechApi.SpeechRecognition || speechApi.webkitSpeechRecognition;
+    if (!SpeechRecognitionCtor) {
+      toast({ title: "Automatic captions are unavailable", description: "This browser does not support speech recognition. You can still add timed captions manually.", variant: "destructive" });
+      return;
+    }
+    if (recordingVoice) {
+      toast({ title: "Stop voiceover first", description: "Use automatic captions or voiceover recording one at a time." });
+      return;
+    }
+    const recognition = new SpeechRecognitionCtor();
+    recognition.lang = navigator.language || "en-US";
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.onresult = (event) => {
+      const videoTime = videoRef.current?.currentTime ?? 0;
+      const additions: TimedCaption[] = [];
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        const transcript = result?.[0]?.transcript?.trim();
+        if (result?.isFinal && transcript) additions.push({ start: videoTime, end: Math.min(duration || videoTime + 4, videoTime + 4), text: transcript });
+      }
+      if (additions.length) setCaptions((items) => [...items, ...additions].sort((a, b) => a.start - b.start));
+    };
+    recognition.onerror = () => {
+      setListeningCaptions(false);
+      toast({ title: "Caption recognition stopped", description: "Check microphone permission or continue with timed captions manually.", variant: "destructive" });
+    };
+    recognition.onend = () => setListeningCaptions(false);
+    speechRecognitionRef.current = recognition;
+    try {
+      recognition.start();
+      setListeningCaptions(true);
+      toast({ title: "Listening for speech", description: "Play the video near your microphone. Captions will be added with approximate timestamps." });
+    } catch (error) {
+      setListeningCaptions(false);
+      toast({ title: "Could not start captions", description: error instanceof Error ? error.message : "Try again.", variant: "destructive" });
+    }
+  };
+
   const addCaption = () => {
     if (!captionText.trim() || captionEnd <= captionStart) return;
     setCaptions((items) => [...items, { start: captionStart, end: captionEnd, text: captionText.trim() }].sort((a, b) => a.start - b.start));
@@ -416,6 +478,9 @@ const ReelsStudio = () => {
               <label className="text-xs text-muted-foreground">End (s)<input type="number" min={0.1} step={0.1} value={captionEnd} onChange={(e) => setCaptionEnd(Number(e.target.value))} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground" /></label>
             </div>
             <input value={captionText} onChange={(e) => setCaptionText(e.target.value)} placeholder="Caption text for this time range" className="mt-2 w-full rounded-lg bg-background p-2 text-sm text-foreground" />
+            <button type="button" disabled={busy || recordingVoice} onClick={toggleAutoCaptions} className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-border p-2 text-sm text-foreground disabled:opacity-50">
+              {listeningCaptions ? "Stop automatic captions" : "Generate captions from speech"}
+            </button>
             <button onClick={addCaption} disabled={!captionText.trim() || captionEnd <= captionStart} className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg bg-secondary p-2 text-sm text-secondary-foreground disabled:opacity-40"><Plus className="h-4 w-4" /> Add timed caption</button>
             <div className="mt-3 space-y-2">
               {captions.map((item, index) => <div key={index} className="flex items-center gap-2 rounded-lg bg-background p-2 text-xs"><span className="shrink-0 text-muted-foreground">{item.start}s–{item.end}s</span><span className="min-w-0 flex-1 truncate text-foreground">{item.text}</span><button onClick={() => setCaptions((all) => all.filter((_, i) => i !== index))} aria-label="Remove caption" className="text-destructive"><Trash2 className="h-4 w-4" /></button></div>)}
