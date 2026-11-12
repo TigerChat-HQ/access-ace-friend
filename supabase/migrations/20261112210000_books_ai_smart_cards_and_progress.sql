@@ -150,7 +150,15 @@ VALUES
    'Australian Education Research Organisation',
    'Spacing and retrieval practice guide',
    'https://www.edresearch.edu.au/guides-resources/practice-guides/spacing-and-retrieval-practice-guide-full-publication',
-   NULL, '/books?book=learning-science', true, true)
+   NULL, '/books?book=learning-science', true, true),
+  (current_date, 'status', 'sheria', 'copyright-act',
+   'Tafsiri nazo zinaweza kuwa na hakimiliki',
+   'JE, WAJUA? Kitabu cha zamani na tafsiri yake si lazima ziwe na hali sawa ya hakimiliki.',
+   'Kifungu 6(1)(a) cha Copyright and Neighbouring Rights Act, Cap. 218 R.E. 2023, kinataja tafsiri na marekebisho ya kazi za fasihi na sanaa kuwa kazi zinazoweza kulindwa kama kazi asilia. Hivyo, haki za tafsiri zinapaswa kuchunguzwa tofauti na haki za kitabu cha asili.',
+   'Office of the Attorney General — OAG MIS',
+   'Copyright and Neighbouring Rights Act, Cap. 218 R.E. 2023, section 6(1)(a); revised publication 25 Apr 2025',
+   'https://oagmis.oag.go.tz/portal/revised-acts/revised/322',
+   'Tanzania', '/books?book=copyright-act', true, true)
 ON CONFLICT (publish_date, placement, source_key) DO NOTHING;
 
 -- First run at 06:00 Africa/Dar_es_Salaam, then retry at noon and 18:00 if an AI call failed.
