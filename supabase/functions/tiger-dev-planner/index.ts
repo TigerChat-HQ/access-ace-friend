@@ -335,6 +335,48 @@ Deno.serve(async (req) => {
     if (!(roles || []).some((r) => ["admin", "superior_admin"].includes(r.role)))
       return json({ error: "Admin access required" }, 403);
 
+    if (body.action === "check_pr_status" || body.action === "merge_github_pr") {
+      const prNumber = Number(body.pr_number);
+      if (!Number.isInteger(prNumber) || prNumber < 1) return json({ error: "Invalid pull request number" }, 400);
+      const prUrl = `https://github.com/TigerChat-HQ/access-ace-friend/pull/${prNumber}`;
+      let checks: Awaited<ReturnType<typeof readGitHubChecks>>;
+      try {
+        checks = await readGitHubChecks(prUrl);
+      } catch (error) {
+        return json({ error: error instanceof Error ? error.message : "GitHub CI lookup failed" }, 502);
+      }
+      if (body.action === "check_pr_status") return json({ checks });
+      if (checks.verdict !== "passed" || checks.total === 0) {
+        return json({ error: `PR haijapita CI zote. Hali: ${checks.verdict}; passed ${checks.passed}/${checks.total}; failed ${checks.failed}; pending ${checks.pending}.` }, 409);
+      }
+      const githubToken = Deno.env.get("GITHUB_TOKEN");
+      if (!githubToken) return json({ error: "GITHUB_TOKEN haijawekwa kwenye Supabase Edge Function Secrets. GitHub merge imezimwa kwa usalama." }, 503);
+      try {
+        const prData = await githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/pulls/${prNumber}`, githubToken);
+        if (prData.state !== "open") return json({ error: "PR haiko open tena." }, 409);
+        if (prData.base?.ref !== "main") return json({ error: "PR lazima ilenge main." }, 409);
+        if (prData.draft) return json({ error: "PR bado ni draft. Iweke ready for review kwanza." }, 409);
+        if (prData.mergeable === false) return json({ error: "PR ina merge conflicts; rekebisha conflicts kwanza." }, 409);
+        if (prData.head?.sha !== checks.sha) return json({ error: "PR imebadilika baada ya CI kukaguliwa. Kagua CI upya." }, 409);
+        const merged = await githubJson(`${GITHUB_API}/repos/${GITHUB_REPO}/pulls/${prNumber}/merge`, githubToken, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sha: checks.sha, merge_method: "squash" }),
+        });
+        if (!merged.merged) return json({ error: "GitHub haikukubali kuunganisha PR." }, 502);
+        await sb.from("admin_diagnostic_notifications").insert({
+          notification_type: "github_pr_merged",
+          title: `PR #${prNumber} imeunganishwa main`,
+          message: `Admin amethibitisha PR baada ya CI kufaulu. Merge commit: ${merged.sha || "unknown"}`,
+          pr_url: prUrl,
+          is_read: false,
+        });
+        return json({ ok: true, merged: true, sha: merged.sha, pr_number: prNumber });
+      } catch (error) {
+        return json({ error: error instanceof Error ? error.message : "GitHub merge failed" }, 502);
+      }
+    }
+
     if (body.action === "set_status") {
       if (typeof body.id !== "string" || !STATUSES.includes(body.status)) return json({ error: "Invalid input" }, 400);
       const { error } = await sb.from("dev_tasks").update({ status: body.status, updated_at: new Date().toISOString() }).eq("id", body.id);
