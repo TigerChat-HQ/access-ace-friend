@@ -87,6 +87,22 @@ export const AdminDiagnostics = () => {
       if (page.length < pageSize) break;
       offset += pageSize;
     }
+    // Tiger AI marks a diagnostic fixed only after its repair is confirmed merged.
+    // Reflect that result automatically in the issue log while preserving the audit history.
+    const aiFixed = allItems.filter(item => item.ai_status === "fixed" && (item.status === "new" || item.status === "investigating"));
+    if (aiFixed.length > 0) {
+      const resolvedAt = new Date().toISOString();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- diagnostics workflow columns are provisioned by Supabase migrations.
+      const { error: resolveError } = await (supabase as any).from("app_diagnostics")
+        .update({ status: "fixed", resolved_at: resolvedAt })
+        .in("id", aiFixed.map(item => item.id));
+      if (!resolveError) {
+        const resolvedIds = new Set(aiFixed.map(item => item.id));
+        for (const item of allItems) if (resolvedIds.has(item.id)) { item.status = "fixed"; }
+      } else {
+        toast({ title: "Auto-resolution haijakamilika", description: resolveError.message, variant: "destructive" });
+      }
+    }
     setAiQueue(allItems.filter(item => Boolean(item.ai_status)).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
     setItems(allItems.sort((a, b) => {
       const activeA = a.status === "new" || a.status === "investigating" ? 1 : 0;
@@ -94,7 +110,8 @@ export const AdminDiagnostics = () => {
       return activeB - activeA || new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     }));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table is created by diagnostics workflow migration.
-    const { data: notices } = await (supabase as any).from("admin_diagnostic_notifications").select("*").order("created_at", { ascending: false }).limit(30);
+    const { data: notices, error: noticeError } = await (supabase as any).from("admin_diagnostic_notifications").select("*").order("created_at", { ascending: false }).limit(30);
+    if (noticeError) toast({ title: "Admin notifications hazijasomeka", description: noticeError.message, variant: "destructive" });
     setAdminNotices((notices ?? []) as AdminDiagnosticNotice[]);
     setLoading(false);
   }, [toast]);
@@ -160,6 +177,17 @@ export const AdminDiagnostics = () => {
 
   const runSchemaCheck = async () => {
     setChecking(true);
+    // Inventory comes from pg_catalog through an admin-only RPC, so new tables cannot be silently omitted.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC is added by the diagnostics inventory migration.
+    const { data: inventory, error: inventoryError } = await (supabase as any).rpc("admin_diagnostics_schema_inventory");
+    if (inventoryError) {
+      setChecking(false);
+      toast({ title: "Schema inventory haipatikani", description: inventoryError.message, variant: "destructive" });
+      return;
+    }
+    const actualTables = new Set<string>((inventory ?? []).map((row: { table_name: string }) => row.table_name));
+    const unregistered = [...actualTables].filter(name => !EXPECTED_TABLES.includes(name)).sort();
+    const missingRegistered = EXPECTED_TABLES.filter(name => !actualTables.has(name));
     const results = await Promise.all(EXPECTED_TABLES.map(async (name) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic table names are required for the schema registry scan.
       const { error } = await (supabase as any).from(name).select("*", { head: true, count: "exact" });
@@ -171,7 +199,11 @@ export const AdminDiagnostics = () => {
       }
       return { name, status: "error" as const, detail: msg };
     }));
-    setSchemaResults(results);
+    const expandedResults = [
+      ...results,
+      ...unregistered.map(name => ({ name, status: "ok" as const, detail: "Present in database inventory; not yet in the app's expected-table registry." })),
+    ];
+    setSchemaResults(expandedResults);
     const missing = results.filter(x => x.status === "missing");
     const failures = results.filter(x => x.status === "error");
     for (const item of [...missing, ...failures]) {
@@ -184,7 +216,7 @@ export const AdminDiagnostics = () => {
     }
     setChecking(false);
     await load();
-    toast({ title: "Database check complete", description: `${results.length - missing.length - failures.length} OK · ${missing.length} missing · ${failures.length} access/errors` });
+    toast({ title: "Database check complete", description: `${actualTables.size} actual tables/views · ${missing.length} expected tables missing · ${unregistered.length} unregistered tables · ${failures.length} access/errors` });
   };
 
   const testMediaPermission = async (kind: "camera" | "microphone") => {
@@ -231,9 +263,20 @@ export const AdminDiagnostics = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Ingia kwanza ili kuhifadhi nakala.");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- app_diagnostics is provisioned by the diagnostics migration; generated Supabase types are not refreshed yet.
-      const { data, error } = await (supabase as any).from("app_diagnostics").select("*").order("created_at", { ascending: false });
-      if (error) throw error;
-      const backup = { format: "tigerchat-diagnostics-backup", version: 1, created_at: new Date().toISOString(), record_count: (data ?? []).length, records: data ?? [] };
+      const pageSize = 1000;
+      let offset = 0;
+      const records: Diagnostic[] = [];
+      while (true) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- diagnostics table is provisioned by Supabase migrations.
+        const { data, error } = await (supabase as any).from("app_diagnostics").select("*")
+          .order("created_at", { ascending: false }).range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        const page = (data ?? []) as Diagnostic[];
+        records.push(...page);
+        if (page.length < pageSize) break;
+        offset += pageSize;
+      }
+      const backup = { format: "tigerchat-diagnostics-backup", version: 1, created_at: new Date().toISOString(), record_count: records.length, records };
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -262,7 +305,8 @@ export const AdminDiagnostics = () => {
   const updateStatus = async (id: string, status: string) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table is added by this PR migration; generated Supabase types are not refreshed yet.
     const { error } = await (supabase as any).from("app_diagnostics").update({
-      status, resolved_at: status === "fixed" || status === "ignored" ? new Date().toISOString() : null
+      status, resolved_at: status === "fixed" || status === "ignored" ? new Date().toISOString() : null,
+      ...(status === "fixed" ? { ai_status: "fixed" } : status === "ignored" ? { ai_status: "ignored" } : {})
     }).eq("id", id);
     if (error) toast({ title: "Could not update issue", description: error.message, variant: "destructive" });
     else await load();
@@ -270,7 +314,11 @@ export const AdminDiagnostics = () => {
 
   const markNoticeRead = async (id: string) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table is created by diagnostics workflow migration.
-    await (supabase as any).from("admin_diagnostic_notifications").update({ is_read: true }).eq("id", id);
+    const { error } = await (supabase as any).from("admin_diagnostic_notifications").update({ is_read: true }).eq("id", id);
+    if (error) {
+      toast({ title: "Arifa haijasasishwa", description: error.message, variant: "destructive" });
+      return;
+    }
     setAdminNotices(current => current.map(n => n.id === id ? { ...n, is_read: true } : n));
   };
 
@@ -340,6 +388,7 @@ export const AdminDiagnostics = () => {
       <Button size="sm" variant="outline" onClick={() => void exportDiagnosticsBackup()} disabled={backupBusy}>{backupBusy ? <Loader2 className="mr-1 h-4 w-4 animate-spin"/> : <Download className="mr-1 h-4 w-4"/>}Download diagnostics backup</Button>
       <p className="text-[11px] text-muted-foreground">Hii ni backup ya diagnostics pekee, si full database/media backup ya watumiaji. Full database backups na point-in-time recovery husimamiwa kupitia mipangilio ya Supabase project.</p>
     </div>
+    <div className="rounded-lg border border-border bg-card p-3 space-y-2">
       <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">03 · Database</p><h4 className="text-sm font-semibold">Ukaguzi wa jedwali (Schema)</h4></div>
       <h4 className="text-sm font-semibold flex items-center gap-2"><Database className="h-4 w-4"/> Database schema check</h4>
       <p className="text-xs text-muted-foreground">Checks the app's registered tables. Permission/RLS failures are reported separately from missing tables.</p>
