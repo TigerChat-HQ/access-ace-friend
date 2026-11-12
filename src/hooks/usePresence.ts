@@ -27,7 +27,7 @@ export const usePresence = (trackSelf = false) => {
 
     let active = true;
     const refresh = async () => {
-      const { data, error } = await (supabase as any).rpc("get_chat_presence");
+      const { data, error } = await supabase.rpc("get_chat_presence");
       if (active && !error && Array.isArray(data)) setPresence(data as ChatPresence[]);
     };
     const touch = async () => {
