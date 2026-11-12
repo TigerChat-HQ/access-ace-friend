@@ -29,6 +29,7 @@ type DraftRow = {
   audio_path: string | null;
   audio_title: string | null;
   audio_start_seconds: number;
+  audio_end_seconds: number | null;
   trim_start_seconds: number;
   trim_end_seconds: number | null;
   captions: TimedCaption[];
@@ -68,6 +69,7 @@ const ReelsStudio = () => {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioTitle, setAudioTitle] = useState("");
   const [audioStart, setAudioStart] = useState(0);
+  const [audioEnd, setAudioEnd] = useState<number | null>(null);
   const [captions, setCaptions] = useState<TimedCaption[]>([]);
   const [captionText, setCaptionText] = useState("");
   const [captionStart, setCaptionStart] = useState(0);
@@ -96,13 +98,14 @@ const ReelsStudio = () => {
 
   const markTimelineDirty = () => { if (timelineRendered) setRenderedEditsDirty(true); setTimelineRendered(false); };
 
-  const selectAudioTrack = (track: { url: string; title: string; start?: number }) => {
+  const selectAudioTrack = (track: { url: string; title: string; start?: number; end?: number | null }) => {
     setAudioLibraryUrl(track.url);
     setAudioUrl(track.url);
     setAudioFile(null);
     setAudioPath(null);
     setAudioTitle(track.title);
     setAudioStart(Math.max(0, track.start || 0));
+    setAudioEnd(track.end ?? null);
     markTimelineDirty();
   };
 
@@ -114,10 +117,11 @@ const ReelsStudio = () => {
       setAudioPath(null);
       setAudioTitle("");
       setAudioStart(0);
+      setAudioEnd(null);
       markTimelineDirty();
       return;
     }
-    selectAudioTrack({ url: track.url, title: track.title, start: track.start });
+    selectAudioTrack({ url: track.url, title: track.title, start: track.start, end: track.end });
   };
 
   const refreshDrafts = useCallback(async () => {
@@ -346,6 +350,7 @@ const ReelsStudio = () => {
         audio_path: assets.nextAudioPath,
         audio_title: audioTitle || (audioFile?.name ?? null),
         audio_start_seconds: audioStart,
+        audio_end_seconds: audioEnd,
         trim_start_seconds: trimStart,
         trim_end_seconds: trimEnd,
         captions,
@@ -379,6 +384,7 @@ const ReelsStudio = () => {
     setAudioFile(null);
     setAudioTitle(draft.audio_title || "");
     setAudioStart(Number(draft.audio_start_seconds || 0));
+    setAudioEnd(draft.audio_end_seconds === null || draft.audio_end_seconds === undefined ? null : Number(draft.audio_end_seconds));
     setTrimStart(Number(draft.trim_start_seconds || 0));
     setTrimEnd(draft.trim_end_seconds === null ? null : Number(draft.trim_end_seconds));
     setCaptions(Array.isArray(draft.captions) ? draft.captions : []);
@@ -639,6 +645,7 @@ const ReelsStudio = () => {
           setAudioUrl(URL.createObjectURL(file));
           setAudioTitle("My voiceover");
           setAudioStart(0);
+          setAudioEnd(null);
           toast({ title: "Voiceover ready", description: "Your recording is selected as the Reel audio track." });
         }
       };
@@ -753,6 +760,7 @@ const ReelsStudio = () => {
           reel_original_post_id: originalReelId,
           reel_remix_type: remixType,
           reel_audio_start_seconds: audioStart,
+          reel_audio_end_seconds: audioEnd,
           reel_trim_start_seconds: timelineRendered ? 0 : trimStart,
           reel_trim_end_seconds: timelineRendered ? null : trimEnd,
           is_draft: false,
@@ -882,9 +890,9 @@ const ReelsStudio = () => {
           <div className="rounded-2xl border border-border/60 bg-card p-4">
             <div className="mb-3 flex items-center gap-2"><AudioLines className="h-4 w-4 text-primary" /><h2 className="text-sm font-semibold text-foreground">Audio track</h2></div>
             <p className="mb-2 text-xs text-muted-foreground">Choose from the 20 background tracks already available in TigerChat (CC0), or add your own recording.</p>
-            <MusicPicker maxClip={90} value={audioLibraryUrl ? { url: audioLibraryUrl, title: audioTitle || "TigerChat music", start: audioStart, end: audioStart + 90 } : null} onChange={handleBuiltInMusicChange} />
+            <MusicPicker maxClip={90} value={audioLibraryUrl ? { url: audioLibraryUrl, title: audioTitle || "TigerChat music", start: audioStart, end: audioEnd ?? audioStart + 90 } : null} onChange={handleBuiltInMusicChange} />
             {audioUrl && <div className="mt-2 rounded-lg bg-background p-2"><p className="mb-1 truncate text-xs text-foreground">{audioTitle || "Selected background music"}</p><audio src={audioUrl} controls preload="none" className="h-9 w-full" /></div>}
-            <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border p-3 text-sm text-muted-foreground"><Upload className="h-4 w-4" /> Upload your own audio instead<input type="file" accept="audio/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0] || null; setAudioFile(file); setAudioPath(null); setAudioLibraryUrl(null); setAudioUrl(file ? URL.createObjectURL(file) : null); markTimelineDirty(); if (file && !audioTitle) setAudioTitle(file.name); }} /></label>
+            <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border p-3 text-sm text-muted-foreground"><Upload className="h-4 w-4" /> Upload your own audio instead<input type="file" accept="audio/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0] || null; setAudioFile(file); setAudioPath(null); setAudioLibraryUrl(null); setAudioUrl(file ? URL.createObjectURL(file) : null); setAudioEnd(null); markTimelineDirty(); if (file && !audioTitle) setAudioTitle(file.name); }} /></label>
             <button type="button" disabled={busy} onClick={() => void toggleVoiceover()} className={`mt-2 flex w-full items-center justify-center gap-2 rounded-xl p-3 text-sm font-semibold ${recordingVoice ? "bg-destructive text-destructive-foreground" : "bg-secondary text-secondary-foreground"}`}>
               <span className={recordingVoice ? "h-2 w-2 animate-pulse rounded-full bg-current" : "h-2 w-2 rounded-full bg-primary"} />
               {recordingVoice ? "Stop voiceover recording" : "Record voiceover"}
@@ -902,13 +910,13 @@ const ReelsStudio = () => {
                 {savedAudio.slice(0, 5).map((track) => (
                   <div key={track.id} className="flex items-center gap-2 rounded-lg bg-background p-2">
                     <span className="min-w-0 flex-1 truncate text-xs text-foreground">{track.audio_title}</span>
-                    <button type="button" onClick={() => selectAudioTrack({ url: track.audio_url, title: track.audio_title, start: 0 })} className="text-xs font-semibold text-primary">Use</button>
+                    <button type="button" onClick={() => selectAudioTrack({ url: track.audio_url, title: track.audio_title, start: 0, end: null })} className="text-xs font-semibold text-primary">Use</button>
                   </div>
                 ))}
                 {audioLibrary.slice(0, 8).map((track) => (
                   <div key={track.id} className="flex items-center gap-2 rounded-lg bg-background p-2">
                     <span className="min-w-0 flex-1 truncate text-xs text-foreground">{track.reel_audio_title || "Original audio"} · {track.usage_count || 0} remixes</span>
-                    <button type="button" onClick={() => selectAudioTrack({ url: track.reel_audio_url, title: track.reel_audio_title || "Original audio", start: 0 })} className="text-xs font-semibold text-primary">Use</button>
+                    <button type="button" onClick={() => selectAudioTrack({ url: track.reel_audio_url, title: track.reel_audio_title || "Original audio", start: 0, end: null })} className="text-xs font-semibold text-primary">Use</button>
                     <button type="button" onClick={async () => {
                       const { error } = await db.from("reel_audio_saves").insert({ user_id: user?.id, source_post_id: track.id, creator_id: track.user_id, audio_url: track.reel_audio_url, audio_title: track.reel_audio_title || "Original audio" });
                       if (error && error.code !== "23505") toast({ title: "Could not save audio", description: error.message, variant: "destructive" });
