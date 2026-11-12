@@ -4,6 +4,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { PostCard } from "@/components/social/PostCard";
 import { TrendingRail } from "@/components/social/TrendingRail";
 import { TigerDailyHistory } from "@/components/social/TigerDailyHistory";
+import { TigerSmartCards } from "@/components/social/TigerSmartCards";
 import { StoryFeedRail } from "@/components/social/StoryFeedRail";
 import { Link } from "react-router-dom";
 import { BarChart3, Bell, Bookmark, Clapperboard, PlusSquare, Search, Settings as SettingsIcon, Sparkles } from "lucide-react";
@@ -58,6 +59,7 @@ const Feed = () => {
       </div>
       <div className="flex-1 overflow-y-auto scrollbar-thin">
         <StoryFeedRail />
+        <TigerSmartCards />
         <TigerDailyHistory />
         <TrendingRail />
         {loading ? <div className="flex justify-center py-20"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>

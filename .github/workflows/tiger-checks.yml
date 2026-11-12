@@ -15,6 +15,19 @@ jobs:
       - run: bun run test
       - run: bun run build
 
+  books-ai-edge-function:
+    name: Books AI Edge Function type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check daily Books AI publisher
+        run: deno check --node-modules-dir=none supabase/functions/tiger-books-ai/index.ts
+      - name: Type-check Smart Card AI reply function
+        run: deno check --node-modules-dir=none supabase/functions/tiger-ai-smart-card-reply/index.ts
+
   security:
     name: Security check
     runs-on: ubuntu-latest
