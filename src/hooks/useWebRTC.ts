@@ -82,7 +82,7 @@ export interface CallInfo {
   callerAvatar?: string;
 }
 
-export type CallStatus = "idle" | "outgoing" | "incoming" | "connecting" | "connected" | "ended";
+export type CallStatus = "idle" | "outgoing" | "ringing" | "incoming" | "connecting" | "connected" | "ended";
 
 type QueuedIce = { info: CallInfo; candidate: RTCIceCandidateInit };
 
@@ -367,6 +367,18 @@ export const useWebRTC = () => {
     setIsVideoOn(callType === "video");
     localIceQueue.current = [];
     signalReadyCallId.current = null;
+    let calleeOnline = false;
+    try {
+      const { data: presenceData, error: presenceError } = await supabase.rpc("get_chat_presence");
+      const presenceRows = Array.isArray(presenceData)
+        ? presenceData as unknown as Array<{ user_id: string; is_online: boolean; show_online_status: boolean }>
+        : [];
+      calleeOnline = !presenceError && presenceRows.some((entry) =>
+        entry.user_id === calleeId && entry.is_online && entry.show_online_status
+      );
+    } catch (presenceError) {
+      console.warn("Could not refresh callee presence; continuing call without an online indicator:", presenceError);
+    }
     try {
       const iceServers = await getCallIceServers(conversationId);
       const stream = await getMedia(callType === "video");
@@ -378,8 +390,14 @@ export const useWebRTC = () => {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       await sendSignal(info, "offer", { sdp: offer.sdp, type: offer.type }, "pending");
+      if (calleeOnline && callIdRef.current === info.callId && statusRef.current === "outgoing") {
+        statusRef.current = "ringing";
+        setCallStatus("ringing");
+      }
       await flushLocalIce(info);
-      ringTimerRef.current = setTimeout(() => { if (statusRef.current === "outgoing") void endCall(); }, RING_TIMEOUT_MS);
+      ringTimerRef.current = setTimeout(() => {
+        if (statusRef.current === "outgoing" || statusRef.current === "ringing") void endCall();
+      }, RING_TIMEOUT_MS);
     } catch (error) {
       console.error("Failed to start call:", error);
       alert(describeMediaError(error, callType === "video"));
