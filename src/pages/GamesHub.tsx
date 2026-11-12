@@ -18,7 +18,7 @@ const comingSoon = [
 
 export default function GamesHub() {
   const nav = useNavigate();
-  return <main className="min-h-full overflow-y-auto overscroll-contain bg-background pb-28">
+  return <main className="h-full min-h-0 w-full overflow-x-hidden overflow-y-auto overscroll-y-contain touch-pan-y bg-background pb-28" style={{ WebkitOverflowScrolling: "touch" }}>
     <header className="tiger-page-header sticky top-0 z-20">
       <button onClick={() => nav(-1)} className="tiger-header-action" aria-label="Back"><ArrowLeft className="h-5 w-5" /></button>
       <div className="min-w-0 flex-1"><p className="text-[10px] font-bold uppercase tracking-[.24em] text-primary">TigerChat</p><h1 className="text-base font-black">Games Arena</h1></div>
