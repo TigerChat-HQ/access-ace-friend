@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Trophy, Clock, Sparkles, ArrowRight, RotateCcw, Crown, Flame } from "lucide-react";
+import { Trophy, Clock, Sparkles, ArrowRight, ArrowLeft, RotateCcw, Crown, Flame } from "lucide-react";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
@@ -188,7 +188,7 @@ const Game = () => {
             <p className="text-xs text-muted-foreground">Answer fast. Earn trophies. Climb the ranks.</p>
           </div>
           <div className="flex items-center gap-2">
-            <Link to="/games" className="text-[11px] px-2.5 py-1.5 rounded-full bg-primary/15 border border-primary/30 text-primary hover:bg-primary/25">🎮 Games Hub</Link>
+            <Link to="/games" onClick={(event) => { if (phase === "playing" && !window.confirm("Una uhakika unataka kutoka kwenye Quiz? Maendeleo ya raundi hii hayatapotea ukibaki hapa.")) event.preventDefault(); }} aria-label="Back to Games Arena" className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/15 px-3 py-2 text-[11px] font-bold text-primary transition hover:bg-primary/25"><ArrowLeft className="h-4 w-4" /> Games Arena</Link>
             <Trophy className="w-7 h-7 text-primary drop-shadow-[0_0_12px_hsl(var(--primary)/0.6)]" />
           </div>
         </header>
