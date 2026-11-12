@@ -435,7 +435,7 @@ const Draughts = () => {
   };
 
   const exitMatch = () => {
-    if (match && match.status === "active" && !window.confirm("Una uhakika unataka kutoka kwenye mechi ya Draughts? Unaweza kuendelea kucheza ukichagua Cancel.")) return;
+    if (match && match.status !== "finished" && !window.confirm("Una uhakika unataka kutoka kwenye mechi ya Draughts? Chagua Cancel ili uendelee na mechi.")) return;
     if (channelRef.current) supabase.removeChannel(channelRef.current);
     setMatch(null);
     setSelected(null);
