@@ -474,21 +474,21 @@ open class MainActivity : Activity() {
             exits.forEach { exit ->
                 val reason = when (exit.reason) {
                     ApplicationExitInfo.REASON_ANR -> "ANR / app not responding"
-                    ActivityManager.ProcessExitInfo.REASON_CRASH -> "Java/Kotlin crash"
-                    ActivityManager.ProcessExitInfo.REASON_CRASH_NATIVE -> "Native Android crash"
-                    ActivityManager.ProcessExitInfo.REASON_LOW_MEMORY -> "Android killed app due to low memory"
-                    ActivityManager.ProcessExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "Excessive resource usage"
-                    ActivityManager.ProcessExitInfo.REASON_INITIALIZATION_FAILURE -> "App initialization failure"
-                    ActivityManager.ProcessExitInfo.REASON_DEPENDENCY_DIED -> "App dependency process died"
-                    ActivityManager.ProcessExitInfo.REASON_SIGNALED -> "App process terminated by signal"
+                    ApplicationExitInfo.REASON_CRASH -> "Java/Kotlin crash"
+                    ApplicationExitInfo.REASON_CRASH_NATIVE -> "Native Android crash"
+                    ApplicationExitInfo.REASON_LOW_MEMORY -> "Android killed app due to low memory"
+                    ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "Excessive resource usage"
+                    ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> "App initialization failure"
+                    ApplicationExitInfo.REASON_DEPENDENCY_DIED -> "App dependency process died"
+                    ApplicationExitInfo.REASON_SIGNALED -> "App process terminated by signal"
                     else -> "Android process exit (reason ${exit.reason})"
                 }
                 recordNativeDiagnostic(
                     source = "android_native",
-                    category = if (exit.reason == ActivityManager.ProcessExitInfo.REASON_ANR) "android_anr" else "android_process_exit",
+                    category = if (exit.reason == ApplicationExitInfo.REASON_ANR) "android_anr" else "android_process_exit",
                     title = "TigerChat previous session: $reason",
                     message = exit.description?.takeIf { it.isNotBlank() } ?: reason,
-                    severity = if (exit.reason == ActivityManager.ProcessExitInfo.REASON_ANR || exit.reason == ActivityManager.ProcessExitInfo.REASON_CRASH || exit.reason == ActivityManager.ProcessExitInfo.REASON_CRASH_NATIVE) "critical" else "high",
+                    severity = if (exit.reason == ApplicationExitInfo.REASON_ANR || exit.reason == ApplicationExitInfo.REASON_CRASH || exit.reason == ApplicationExitInfo.REASON_CRASH_NATIVE) "critical" else "high",
                     metadata = JSONObject().put("reasonCode", exit.reason).put("status", exit.status).put("importance", exit.importance).put("pid", exit.pid).put("processName", exit.processName).put("exitTimestamp", exit.timestamp)
                 )
                 newestTimestamp = maxOf(newestTimestamp, exit.timestamp)
