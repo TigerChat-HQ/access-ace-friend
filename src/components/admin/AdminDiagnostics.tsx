@@ -218,7 +218,7 @@ export const AdminDiagnostics = () => {
       title: `${kind === "camera" ? "Camera" : "Microphone"} permission test ${outcome}`,
       message: detail, route: window.location.pathname, component: "AdminDiagnostics",
       suggestion: outcome === "passed" ? "Media capture ilifanya kazi kwenye WebView hii wakati wa test." : fixSteps.join(" "),
-      metadata: { permissionState, deviceCount, userAgent: navigator.userAgent, secureContext: window.isSecureContext, mediaDevicesAvailable: Boolean(navigator.mediaDevices), webView: /; wv\)|Android.*Version\//i.test(navigator.userAgent) },
+      metadata: { permissionState, deviceCount, errorName: failureName || null, fixSteps, userAgent: navigator.userAgent, secureContext: window.isSecureContext, mediaDevicesAvailable: Boolean(navigator.mediaDevices), webView: /; wv\)|Android.*Version\//i.test(navigator.userAgent) },
     });
     setMediaBusy(null);
     await load();
