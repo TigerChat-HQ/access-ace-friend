@@ -210,7 +210,7 @@ BEGIN
 
   BEGIN
     PERFORM public.commit_draft_move(v_capture_id,0,v_capture_board,'w',
-      '{"from":17,"to":8,"captures":[],"promote":false}'::jsonb,'active',NULL);
+      '{"from":17,"to":24,"captures":[],"promote":false}'::jsonb,'active',NULL);
     RAISE EXCEPTION 'Non-capture move bypassed compulsory capture';
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM='Non-capture move bypassed compulsory capture' THEN RAISE; END IF;
