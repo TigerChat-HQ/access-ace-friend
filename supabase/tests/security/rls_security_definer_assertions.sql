@@ -57,7 +57,7 @@ BEGIN
 END
 $$;
 
--- Behavioral regression: a caller cannot probe another user's role, conversation
+-- Behavioral regression: a caller cannot probe another user''s role, conversation
 -- membership, or selected-story audience membership.
 DO $$
 DECLARE
@@ -74,7 +74,7 @@ BEGIN
     RAISE EXCEPTION 'A caller probed another user''s conversation membership';
   END IF;
   IF public.is_story_audience_member(v_story, v_admin, 'include') THEN
-    RAISE EXCEPTION 'A caller probed another user's story audience membership';
+    RAISE EXCEPTION 'A caller probed another user''s story audience membership';
   END IF;
 
   PERFORM set_config('request.jwt.claim.sub', v_admin::text, true);
