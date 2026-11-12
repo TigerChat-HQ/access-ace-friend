@@ -47,6 +47,10 @@ const ReelsStudio = () => {
   const voiceStreamRef = useRef<MediaStream | null>(null);
   const voiceChunksRef = useRef<Blob[]>([]);
   const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const cameraPreviewRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const cameraRecorderRef = useRef<MediaRecorder | null>(null);
+  const cameraChunksRef = useRef<Blob[]>([]);
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
@@ -85,6 +89,8 @@ const ReelsStudio = () => {
   const [remixType, setRemixType] = useState<"remix" | "duet" | null>(null);
   const [duetFile, setDuetFile] = useState<File | null>(null);
   const [scheduledReels, setScheduledReels] = useState<Array<{ id: string; caption: string | null; scheduled_at: string }>>([]);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [recordingCamera, setRecordingCamera] = useState(false);
 
   const refreshDrafts = useCallback(async () => {
     if (!user) return;
@@ -162,6 +168,7 @@ const ReelsStudio = () => {
     if (voiceRecorderRef.current?.state === "recording") voiceRecorderRef.current.stop();
     voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
     speechRecognitionRef.current?.stop();
+    cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
   }, []);
 
   const uploadAsset = async (file: File, folder: string) => {
@@ -342,6 +349,80 @@ const ReelsStudio = () => {
     setRemixType(draft.editor_state?.remixType || null);
     setTimelineFiles([]);
     setTimelineRendered(false);
+  };
+
+  const openCamera = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast({ title: "Camera unavailable", description: "Use the camera/gallery upload picker on this device.", variant: "destructive" });
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "user" }, width: { ideal: 1080 }, height: { ideal: 1920 } },
+        audio: true,
+      });
+      cameraStreamRef.current = stream;
+      setCameraOpen(true);
+    } catch (error) {
+      toast({ title: "Camera permission denied", description: error instanceof Error ? error.message : "Allow camera and microphone access, then try again.", variant: "destructive" });
+    }
+  };
+
+  useEffect(() => {
+    if (!cameraOpen || !cameraPreviewRef.current || !cameraStreamRef.current) return;
+    cameraPreviewRef.current.srcObject = cameraStreamRef.current;
+    void cameraPreviewRef.current.play().catch(() => undefined);
+  }, [cameraOpen]);
+
+  const stopCameraStream = () => {
+    cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+    cameraStreamRef.current = null;
+    setCameraOpen(false);
+    setRecordingCamera(false);
+  };
+
+  const startCameraRecording = () => {
+    const stream = cameraStreamRef.current;
+    if (!stream || typeof MediaRecorder === "undefined") {
+      toast({ title: "Recording unavailable", description: "This browser cannot record camera video.", variant: "destructive" });
+      return;
+    }
+    try {
+      cameraChunksRef.current = [];
+      const mimeType = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm", "video/mp4"].find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      cameraRecorderRef.current = recorder;
+      recorder.ondataavailable = (event) => { if (event.data.size) cameraChunksRef.current.push(event.data); };
+      recorder.onerror = () => {
+        toast({ title: "Camera recording failed", description: "Check camera permission and try again.", variant: "destructive" });
+        stopCameraStream();
+      };
+      recorder.onstop = () => {
+        const type = recorder.mimeType || "video/webm";
+        const blob = new Blob(cameraChunksRef.current, { type });
+        stopCameraStream();
+        if (blob.size) {
+          const extension = type.includes("mp4") ? "mp4" : "webm";
+          chooseVideo(new File([blob], `tiger-camera-${Date.now()}.${extension}`, { type }));
+        }
+      };
+      recorder.start(250);
+      setRecordingCamera(true);
+    } catch (error) {
+      toast({ title: "Could not start camera recording", description: error instanceof Error ? error.message : "Try again.", variant: "destructive" });
+    }
+  };
+
+  const finishCameraRecording = () => {
+    if (cameraRecorderRef.current?.state === "recording") cameraRecorderRef.current.stop();
+  };
+
+  const closeCamera = () => {
+    if (cameraRecorderRef.current?.state === "recording") {
+      cameraRecorderRef.current.stop();
+      return;
+    }
+    stopCameraStream();
   };
 
   const addTimelineClips = (files: File[]) => {
@@ -628,11 +709,24 @@ const ReelsStudio = () => {
                 </div>
                 <p className="text-[11px] text-muted-foreground">Trim points are saved as playback metadata. Exporting a physically shortened video file is a separate processing step and is not enabled in this release.</p>
               </div>
+            ) : cameraOpen ? (
+              <div className="space-y-3">
+                <video ref={cameraPreviewRef} autoPlay playsInline muted className="max-h-[55dvh] w-full rounded-xl bg-black" />
+                <div className="grid grid-cols-2 gap-2">
+                  {!recordingCamera ? <button type="button" onClick={startCameraRecording} className="rounded-xl bg-primary px-3 py-3 text-sm font-semibold text-primary-foreground">Start recording</button> : <button type="button" onClick={finishCameraRecording} className="rounded-xl bg-destructive px-3 py-3 text-sm font-semibold text-destructive-foreground">Stop & use video</button>}
+                  <button type="button" onClick={closeCamera} className="rounded-xl border border-border px-3 py-3 text-sm text-foreground">Close camera</button>
+                </div>
+              </div>
             ) : (
-              <label className="flex min-h-56 cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-background p-6 text-center">
-                <Video className="h-10 w-10 text-primary" /><span className="font-semibold text-foreground">Record with camera or choose a video</span><span className="text-xs text-muted-foreground">Camera capture or gallery · MP4, WebM · max 150 MB</span>
-                <input type="file" accept="video/*" capture="user" className="hidden" onChange={(e) => chooseVideo(e.target.files?.[0])} />
-              </label>
+              <div className="flex min-h-56 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-background p-6 text-center">
+                <Video className="h-10 w-10 text-primary" />
+                <span className="font-semibold text-foreground">Create your Reel</span>
+                <span className="text-xs text-muted-foreground">Record inside Tiger Reels or choose a video from your gallery · max 150 MB</span>
+                <div className="flex w-full flex-col gap-2 sm:flex-row">
+                  <button type="button" onClick={() => void openCamera()} className="flex-1 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">Open in-app camera</button>
+                  <label className="flex flex-1 cursor-pointer items-center justify-center rounded-xl border border-border px-4 py-3 text-sm font-semibold text-foreground">Choose from gallery<input type="file" accept="video/*" capture="user" className="hidden" onChange={(e) => chooseVideo(e.target.files?.[0])} /></label>
+                </div>
+              </div>
             )}
           </div>
 
