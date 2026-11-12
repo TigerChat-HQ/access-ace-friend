@@ -10,6 +10,7 @@ import { Bug, RefreshCw, Loader2, Send, Database, CheckCircle2, AlertTriangle, C
 type ActiveAudioApp = { packageName: string; appName: string; clientAudioSource?: number; silenced?: boolean };
 type AudioInspection = { available?: boolean; recordings?: ActiveAudioApp[]; permission?: string; reason?: string; error?: string };
 type AdminDiagnosticNotice = { id: string; diagnostic_id: string | null; task_id: string | null; notification_type: string; title: string; message: string; pr_url: string | null; is_read: boolean; created_at: string };
+type GitHubPullRequest = { number: number; title: string; url: string; state: string; draft: boolean; head_sha: string; head_branch: string; base_branch: string; updated_at: string; user: string; checks?: { verdict: string; total: number; passed: number; failed: number; pending: number } };
 type Diagnostic = {
   id: string; source: string; severity: string; category: string; title: string;
   message: string | null; route: string | null; component_name: string | null;
@@ -59,6 +60,12 @@ export const AdminDiagnostics = () => {
   const [aiQueue, setAiQueue] = useState<Diagnostic[]>([]);
   const [adminNotices, setAdminNotices] = useState<AdminDiagnosticNotice[]>([]);
   const [mergingTask, setMergingTask] = useState<string | null>(null);
+  const [githubPRs, setGithubPRs] = useState<GitHubPullRequest[]>([]);
+  const [githubPRBusy, setGithubPRBusy] = useState(false);
+  const [githubPRWriteEnabled, setGithubPRWriteEnabled] = useState(false);
+  const [githubPRError, setGithubPRError] = useState("");
+  const [checkingPR, setCheckingPR] = useState<number | null>(null);
+  const [mergingPR, setMergingPR] = useState<number | null>(null);
   const [retryingQueue, setRetryingQueue] = useState(false);
   const queueRetryStarted = useRef(false);
   const [loading, setLoading] = useState(false);
@@ -390,6 +397,46 @@ export const AdminDiagnostics = () => {
     setAdminNotices(current => current.map(n => n.id === id ? { ...n, is_read: true } : n));
   };
 
+  const loadGitHubPRs = useCallback(async () => {
+    setGithubPRBusy(true);
+    setGithubPRError("");
+    const { data, error } = await supabase.functions.invoke("tiger-dev-planner", { body: { action: "github_list_prs" } });
+    setGithubPRBusy(false);
+    if (error || data?.error) {
+      setGithubPRError(data?.error || error?.message || "GitHub PR list haipatikani.");
+      return;
+    }
+    setGithubPRs(Array.isArray(data?.pull_requests) ? data.pull_requests : []);
+    setGithubPRWriteEnabled(Boolean(data?.write_enabled));
+  }, []);
+
+  useEffect(() => { void loadGitHubPRs(); }, [loadGitHubPRs]);
+
+  const checkGitHubPR = async (prNumber: number) => {
+    setCheckingPR(prNumber);
+    const { data, error } = await supabase.functions.invoke("tiger-dev-planner", { body: { action: "check_pr_status", pr_number: prNumber } });
+    setCheckingPR(null);
+    if (error || data?.error) {
+      toast({ title: "CI haijakaguliwa", description: data?.error || error?.message || "GitHub check failed", variant: "destructive" });
+      return;
+    }
+    setGithubPRs(current => current.map(pr => pr.number === prNumber ? { ...pr, checks: data.checks } : pr));
+  };
+
+  const mergeGitHubPR = async (pr: GitHubPullRequest) => {
+    if (!window.confirm(`Unathibitisha kuunganisha PR #${pr.number} kwenda main baada ya ukaguzi wa CI?`)) return;
+    setMergingPR(pr.number);
+    const { data, error } = await supabase.functions.invoke("tiger-dev-planner", { body: { action: "merge_github_pr", pr_number: pr.number } });
+    setMergingPR(null);
+    if (error || data?.error) {
+      toast({ title: "Merge imezuiwa", description: data?.error || error?.message || "GitHub merge failed", variant: "destructive" });
+      return;
+    }
+    toast({ title: "PR imeunganishwa main", description: `PR #${pr.number} imeunganishwa. Commit: ${String(data.sha || "").slice(0, 8)}` });
+    await loadGitHubPRs();
+    await load();
+  };
+
   const approveMerge = async (notice: AdminDiagnosticNotice) => {
     if (!notice.task_id) return;
     setMergingTask(notice.task_id);
@@ -501,8 +548,22 @@ export const AdminDiagnostics = () => {
         {item.ai_status === "failed" && <p className="text-xs text-destructive">Imeshindwa; soma sababu kwenye Admin Notification Box hapa chini.</p>}
       </div>)}
     </div>
+    <div className="rounded-lg border border-primary/30 bg-card p-3 space-y-3">
+      <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">06 · GitHub PR approvals</p><h4 className="text-sm font-semibold">Pull Requests zinazosubiri kwenda main</h4><p className="text-xs text-muted-foreground">Orodha ya PR zote zilizo wazi. Kagua CI, soma mabadiliko GitHub, kisha thibitisha merge. Mfumo unakataa PR yenye CI iliyofeli, inayoendelea, isiyo na checks au isiyolenga main.</p></div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold">Open PRs ({githubPRs.length})</p><Button size="sm" variant="outline" onClick={() => void loadGitHubPRs()} disabled={githubPRBusy}>{githubPRBusy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin"/> : <RefreshCw className="mr-1 h-3.5 w-3.5"/>}Refresh GitHub PRs</Button></div>
+      {!githubPRWriteEnabled && <p className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-xs text-amber-700">GitHub read-only mode: kuweka GITHUB_TOKEN kwenye Supabase Edge Function Secrets kunahitajika ili AI iunde code PR na Admin aweze kuziunganisha. Token haipaswi kuwekwa kwenye browser.</p>}
+      {githubPRError && <p className="rounded-md border border-destructive/40 p-2 text-xs text-destructive">{githubPRError}</p>}
+      {!githubPRBusy && !githubPRError && githubPRs.length === 0 && <p className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground">Hakuna PR zilizo wazi kwa sasa.</p>}
+      {githubPRs.map(pr => <div key={pr.number} className="rounded-md border border-border p-3 space-y-2">
+        <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><p className="text-sm font-bold">#{pr.number} · {pr.title}</p><p className="text-[10px] text-muted-foreground">{pr.head_branch} → {pr.base_branch} · {pr.user} · {new Date(pr.updated_at).toLocaleString()}</p></div><Badge variant={pr.draft ? "secondary" : "default"}>{pr.draft ? "Draft" : "Open"}</Badge></div>
+        <a className="text-xs text-primary underline" href={pr.url} target="_blank" rel="noopener noreferrer">Fungua na ukague code kwenye GitHub</a>
+        {pr.checks && <p className="text-xs font-semibold">CI: {pr.checks.verdict} · passed {pr.checks.passed}/{pr.checks.total} · failed {pr.checks.failed} · pending {pr.checks.pending}</p>}
+        <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => void checkGitHubPR(pr.number)} disabled={checkingPR !== null || mergingPR !== null}>{checkingPR === pr.number ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin"/> : <RefreshCw className="mr-1 h-3.5 w-3.5"/>}Kagua CI</Button>
+        {pr.checks?.verdict === "passed" && pr.checks.total > 0 && pr.base_branch === "main" && !pr.draft && githubPRWriteEnabled && <Button size="sm" onClick={() => void mergeGitHubPR(pr)} disabled={mergingPR !== null || checkingPR !== null}>{mergingPR === pr.number ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin"/> : <Check className="mr-1 h-3.5 w-3.5"/>}Thibitisha na unganisha main</Button>}</div>
+      </div>)}
+    </div>
     <div className="rounded-lg border border-primary/30 bg-card p-3 space-y-2">
-      <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">06 · Idhini na arifa</p><h4 className="text-sm font-semibold">Admin Notification Box</h4><p className="text-xs text-muted-foreground">Kagua PR na tumia vitufe vya idhini au retry kulingana na hali ya kazi.</p></div>
+      <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">07 · Idhini na arifa</p><h4 className="text-sm font-semibold">Admin Notification Box</h4><p className="text-xs text-muted-foreground">Kagua PR na tumia vitufe vya idhini au retry kulingana na hali ya kazi.</p></div>
       <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-sm font-semibold flex items-center gap-2"><Bell className="h-4 w-4 text-primary"/> Admin Notification Box <Badge>{adminNotices.filter(n => !n.is_read).length} mpya</Badge></h4><Button size="sm" variant="outline" onClick={() => void retryQueuedDiagnostics(true)} disabled={retryingQueue}>{retryingQueue ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin"/> : <RefreshCw className="mr-1 h-3.5 w-3.5"/>}Retry Tiger AI queue</Button></div>
       {adminNotices.length === 0 ? <p className="text-xs text-muted-foreground">Hakuna taarifa mpya za Tiger AI kwa sasa.</p> : adminNotices.map(notice => <div key={notice.id} className="rounded-md border border-border p-2 space-y-1">
         <div className="flex items-start gap-2"><span className={`mt-1 h-2 w-2 rounded-full shrink-0 ${notice.is_read ? "bg-muted-foreground/40" : "bg-emerald-500"}`}/><div className="min-w-0 flex-1"><p className={`text-sm ${notice.is_read ? "font-medium" : "font-bold"}`}>{notice.title}</p><p className="text-xs text-muted-foreground">{notice.message}</p><p className="text-[10px] text-muted-foreground">{new Date(notice.created_at).toLocaleString()}</p></div>{!notice.is_read && <Button size="sm" variant="ghost" onClick={() => void markNoticeRead(notice.id)}>Read</Button>}</div>
@@ -511,7 +572,7 @@ export const AdminDiagnostics = () => {
       </div>)}
     </div>
     <div className="rounded-lg border border-border bg-card p-3 space-y-2">
-    <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">07 · Historia</p><h4 className="text-sm font-semibold">Rekodi za makosa</h4><p className="text-xs text-muted-foreground">Chuja, fuatilia, nakili au badilisha hali ya kila kosa.</p></div>
+    <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">08 · Historia</p><h4 className="text-sm font-semibold">Rekodi za makosa</h4><p className="text-xs text-muted-foreground">Chuja, fuatilia, nakili au badilisha hali ya kila kosa.</p></div>
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex flex-wrap items-center gap-2"><h4 className="text-sm font-semibold">Issue log ({visible.length})</h4><Button size="sm" variant="outline" onClick={() => void copyAllErrors()} disabled={items.length === 0}><Copy className="mr-1 h-3.5 w-3.5"/>Copy all errors ({items.length})</Button></div>
       <div className="flex flex-wrap gap-2">
