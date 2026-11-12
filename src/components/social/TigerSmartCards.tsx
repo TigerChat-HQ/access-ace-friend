@@ -58,7 +58,7 @@ export const TigerSmartCards = () => {
 
   const load = useCallback(async () => {
     const since = new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10);
-    const { data, error } = await supabase
+    const { data, error } = await smartCardsDb
       .from("tiger_ai_smart_cards")
       .select("id,placement,category,title,hook,body,source_title,source_reference,source_url,jurisdiction,read_more_url,verified,publish_date")
       .eq("is_active", true)
