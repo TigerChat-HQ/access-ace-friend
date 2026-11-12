@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Smile, Paperclip, Mic, X, FileText, Reply, MapPin, Contact, Volume2, VolumeX, Check } from "lucide-react";
+import { Send, Smile, Paperclip, Mic, X, FileText, Reply, MapPin, Contact, Volume2, VolumeX, Check, Search } from "lucide-react";
 import { playChatEmojiSound, CHAT_EMOJIS, CHAT_EMOJI_SOUND_KEY } from "@/lib/chat-emoji";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,9 @@ import { toast } from "sonner";
 import { VoiceRecorder } from "./VoiceRecorder";
 import { Message } from "@/types/chat";
 import { cn } from "@/lib/utils";
+
+type DeviceContact = { id: string; name: string; phone: string };
+type ContactsBridgeWindow = Window & { TigerNative?: { hasContactsPermission?: () => boolean; requestContactsPermission?: () => void; searchContacts?: (query: string) => string } };
 
 interface MessageInputProps {
   onSend: (text: string) => void;
@@ -35,7 +38,56 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
   const [contactOpen, setContactOpen] = useState(false);
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  const [contactSearch, setContactSearch] = useState("");
+  const [phoneContacts, setPhoneContacts] = useState<DeviceContact[]>([]);
+  const [contactsPermissionGranted, setContactsPermissionGranted] = useState(false);
+  const [nativeContactsAvailable, setNativeContactsAvailable] = useState(false);
   const [locating, setLocating] = useState(false);
+
+  useEffect(() => {
+    const onContactsPermission = (event: Event) => {
+      const granted = Boolean((event as CustomEvent<{ granted?: boolean }>).detail?.granted);
+      setContactsPermissionGranted(granted);
+      if (!granted) toast.error("Contacts permission was not granted. You can still enter a contact manually.");
+    };
+    window.addEventListener("tiger:contacts-permission", onContactsPermission);
+    return () => window.removeEventListener("tiger:contacts-permission", onContactsPermission);
+  }, []);
+
+  useEffect(() => {
+    if (!contactOpen || !contactsPermissionGranted) { setPhoneContacts([]); return; }
+    const bridge = (window as ContactsBridgeWindow).TigerNative;
+    if (!bridge?.searchContacts) return;
+    try {
+      const parsed: unknown = JSON.parse(bridge.searchContacts(contactSearch));
+      setPhoneContacts(Array.isArray(parsed) ? parsed.filter((item): item is DeviceContact =>
+        item && typeof item.id === "string" && typeof item.name === "string" && typeof item.phone === "string"
+      ) : []);
+    } catch { setPhoneContacts([]); }
+  }, [contactOpen, contactSearch, contactsPermissionGranted]);
+
+  const openContactPicker = () => {
+    setContactOpen(true);
+    setContactSearch("");
+    const bridge = (window as ContactsBridgeWindow).TigerNative;
+    const available = Boolean(bridge?.searchContacts && bridge?.requestContactsPermission);
+    setNativeContactsAvailable(available);
+    if (available) {
+      const granted = bridge?.hasContactsPermission?.() ?? false;
+      setContactsPermissionGranted(granted);
+      if (!granted) bridge?.requestContactsPermission?.();
+    } else setContactsPermissionGranted(false);
+  };
+
+  const choosePhoneContact = (contact: DeviceContact) => {
+    try {
+      setText(contactMessage(contact.name, contact.phone));
+      setContactName(contact.name);
+      setContactPhone(contact.phone);
+      setContactOpen(false);
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not add this contact."); }
+  };
+
   const shareLocation = () => {
     if (!navigator.geolocation) { toast.error("Location is unavailable on this device."); return; }
     setLocating(true);
@@ -161,7 +213,7 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
           <Smile className="w-5 h-5" />
         </button>
         <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="Share attachment" disabled={locating}><Paperclip className="w-5 h-5" /></Button></DropdownMenuTrigger>
-          <DropdownMenuContent><DropdownMenuItem onSelect={() => fileRef.current?.click()}><FileText className="mr-2 w-4 h-4" />Photo, video or file</DropdownMenuItem><DropdownMenuItem onSelect={shareLocation}><MapPin className="mr-2 w-4 h-4" />Current location</DropdownMenuItem><DropdownMenuItem onSelect={() => setContactOpen(true)}><Contact className="mr-2 w-4 h-4" />Contact</DropdownMenuItem></DropdownMenuContent>
+          <DropdownMenuContent><DropdownMenuItem onSelect={() => fileRef.current?.click()}><FileText className="mr-2 w-4 h-4" />Photo, video or file</DropdownMenuItem><DropdownMenuItem onSelect={shareLocation}><MapPin className="mr-2 w-4 h-4" />Current location</DropdownMenuItem><DropdownMenuItem onSelect={openContactPicker}><Contact className="mr-2 w-4 h-4" />Search phone contacts</DropdownMenuItem></DropdownMenuContent>
         </DropdownMenu>
         <input ref={fileRef} type="file" accept="image/*,video/*,audio/*,.vcf,.pdf,.doc,.docx,.zip" onChange={handleFileChange} className="hidden" />
         <input
@@ -188,7 +240,22 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
           </button>
         )}
       </div>
-      <Dialog open={contactOpen} onOpenChange={setContactOpen}><DialogContent><DialogHeader><DialogTitle>Share contact</DialogTitle></DialogHeader><form className="space-y-3" onSubmit={e => { e.preventDefault(); try { setText(contactMessage(contactName, contactPhone)); setContactOpen(false); } catch (error) { toast.error(error instanceof Error ? error.message : "Invalid contact"); } }}><Input aria-label="Contact name" placeholder="Name" value={contactName} onChange={e => setContactName(e.target.value)} maxLength={100} /><Input aria-label="Contact phone" placeholder="Phone number" type="tel" value={contactPhone} onChange={e => setContactPhone(e.target.value)} /><Button type="submit">Add contact</Button></form></DialogContent></Dialog>
+      <Dialog open={contactOpen} onOpenChange={setContactOpen}><DialogContent className="max-h-[85vh] overflow-y-auto"><DialogHeader><DialogTitle>Share a phone contact</DialogTitle></DialogHeader>
+        {nativeContactsAvailable && contactsPermissionGranted ? (
+          <div className="space-y-3">
+            <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input autoFocus aria-label="Search phone contacts" placeholder="Search names or phone numbers..." value={contactSearch} onChange={e => setContactSearch(e.target.value)} className="pl-9" /></div>
+            <p className="text-xs text-muted-foreground">Contacts are searched on this phone. They are not uploaded to TigerChat.</p>
+            <div className="max-h-64 space-y-1 overflow-y-auto">{phoneContacts.length ? phoneContacts.map(contact => <button key={contact.id + contact.phone} type="button" onClick={() => choosePhoneContact(contact)} className="flex w-full items-center justify-between gap-3 rounded-xl p-3 text-left hover:bg-muted"><span className="min-w-0"><span className="block truncate text-sm font-medium">{contact.name}</span><span className="block text-xs text-muted-foreground">{contact.phone}</span></span><Contact className="h-4 w-4 shrink-0 text-primary" /></button>) : <p className="py-6 text-center text-sm text-muted-foreground">{contactSearch ? "No matching contacts found." : "No contacts with phone numbers found."}</p>}</div>
+          </div>
+        ) : (
+          <form className="space-y-3" onSubmit={e => { e.preventDefault(); try { setText(contactMessage(contactName, contactPhone)); setContactOpen(false); } catch (error) { toast.error(error instanceof Error ? error.message : "Invalid contact"); } }}>
+            {nativeContactsAvailable && <p className="text-sm text-muted-foreground">Allow Contacts access in the Android permission prompt to search your phone book. You can also enter a contact manually below.</p>}
+            <Input aria-label="Contact name" placeholder="Name" value={contactName} onChange={e => setContactName(e.target.value)} maxLength={100} />
+            <Input aria-label="Contact phone" placeholder="Phone number" type="tel" value={contactPhone} onChange={e => setContactPhone(e.target.value)} />
+            <Button type="submit">Add contact</Button>
+          </form>
+        )}
+      </DialogContent></Dialog>
     </div>
   );
 };

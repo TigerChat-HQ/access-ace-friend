@@ -23,6 +23,12 @@ export const AppShell = () => {
   useNotifications();
 
   useEffect(() => {
+    if (!location.search.includes("bubble=1") || location.pathname !== "/") return;
+    const embeddedPath = new URLSearchParams(location.search).get("path");
+    if (embeddedPath === "/chats") navigate("/chats?bubble=1", { replace: true });
+  }, [location.pathname, location.search, navigate]);
+
+  useEffect(() => {
     type NativeNavigationWindow = Window & { __tigerPendingNativePath?: string };
     const nativeWindow = window as NativeNavigationWindow;
     const navigateToNativePath = (path: string | undefined) => {
