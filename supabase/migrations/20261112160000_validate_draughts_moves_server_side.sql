@@ -6,9 +6,10 @@ CREATE OR REPLACE FUNCTION private.draughts_capture_paths(
   p_board jsonb,
   p_from integer,
   p_piece jsonb,
-  p_captures integer[] DEFAULT ARRAY[]::integer[]
+  p_captures integer[] DEFAULT ARRAY[]::integer[],
+  p_promoted boolean DEFAULT false
 )
-RETURNS TABLE(to_index integer, captures integer[])
+RETURNS TABLE(to_index integer, captures integer[], promoted boolean)
 LANGUAGE plpgsql
 IMMUTABLE
 SET search_path TO 'pg_catalog', 'public', 'private'
@@ -33,6 +34,8 @@ DECLARE
   v_next_board jsonb;
   v_next_caps integer[];
   v_has_further boolean;
+  v_jump_promotes boolean;
+  v_next_promoted boolean;
 BEGIN
   IF v_king THEN
     v_dirs := ARRAY[ARRAY[-1,-1],ARRAY[-1,1],ARRAY[1,-1],ARRAY[1,1]];
@@ -66,23 +69,23 @@ BEGIN
       v_to := v_tr*8+v_tc;
       v_next_board := jsonb_set(p_board, ARRAY[p_from::text], 'null'::jsonb);
       v_next_board := jsonb_set(v_next_board, ARRAY[v_mid::text], 'null'::jsonb);
-      v_next_piece := jsonb_build_object(
-        'c',v_color,
-        'k',v_king OR (v_color='w' AND v_tr=0) OR (v_color='b' AND v_tr=7)
-      );
+      v_jump_promotes := NOT v_king AND ((v_color='w' AND v_tr=0) OR (v_color='b' AND v_tr=7));
+      v_next_promoted := p_promoted OR v_jump_promotes;
+      v_next_piece := jsonb_build_object('c',v_color,'k',v_king OR v_jump_promotes);
       v_next_board := jsonb_set(v_next_board, ARRAY[v_to::text], v_next_piece);
       v_next_caps := array_append(p_captures,v_mid);
 
       SELECT EXISTS (
-        SELECT 1 FROM private.draughts_capture_paths(v_next_board,v_to,v_next_piece,v_next_caps)
+        SELECT 1 FROM private.draughts_capture_paths(v_next_board,v_to,v_next_piece,v_next_caps,v_next_promoted)
       ) INTO v_has_further;
 
       IF v_has_further THEN
-        RETURN QUERY SELECT cp.to_index,cp.captures
+        RETURN QUERY SELECT cp.to_index,cp.captures,cp.promoted
           FROM private.draughts_capture_paths(v_next_board,v_to,v_next_piece,v_next_caps) cp;
       ELSE
         to_index := v_to;
         captures := v_next_caps;
+        promoted := v_next_promoted;
         RETURN NEXT;
       END IF;
 
@@ -233,7 +236,7 @@ BEGIN
       WHERE q.piece IS NOT NULL AND q.piece<>'null'::jsonb AND q.piece->>'c'=v_mover
         AND EXISTS (SELECT 1 FROM private.draughts_capture_paths(v_match.board,i,q.piece))
     ) THEN
-      SELECT cp.captures INTO v_expected_caps
+      SELECT cp.captures,cp.promoted INTO v_expected_caps,v_promote
       FROM private.draughts_capture_paths(v_match.board,v_from,v_piece) cp
       WHERE cp.to_index=v_to AND cp.captures=v_caps
       LIMIT 1;
@@ -259,7 +262,10 @@ BEGIN
       END LOOP;
     END IF;
 
-    v_promote:=(v_mover='w' AND v_to/8=0) OR (v_mover='b' AND v_to/8=7);
+    IF cardinality(v_caps)=0 THEN
+      v_promote := NOT coalesce((v_piece->>'k')::boolean,false)
+        AND ((v_mover='w' AND v_to/8=0) OR (v_mover='b' AND v_to/8=7));
+    END IF;
     IF (p_move->>'promote')::boolean IS DISTINCT FROM (coalesce((v_piece->>'k')::boolean,false) OR v_promote) THEN
       RAISE EXCEPTION 'Invalid promotion flag';
     END IF;
