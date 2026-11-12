@@ -35,6 +35,7 @@ USING (public.is_conversation_member(conversation_members.conversation_id, (SELE
 
 DROP POLICY IF EXISTS "Authenticated users add members" ON public.conversation_members;
 DROP POLICY IF EXISTS "Users add members" ON public.conversation_members;
+DROP POLICY IF EXISTS "Group admins add members" ON public.conversation_members;
 CREATE POLICY "Group admins add members"
 ON public.conversation_members FOR INSERT TO authenticated
 WITH CHECK (

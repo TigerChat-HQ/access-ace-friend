@@ -46,6 +46,43 @@ Deno.serve(async (request) => {
       .maybeSingle();
     if (membershipError || !membership) return reply({ error: "Conversation access denied" }, 403);
 
+    // Cloudflare Realtime TURN uses short-lived credentials issued by its API.
+    // Keep the TURN key and API token server-side in Supabase Edge Function secrets.
+    const cloudflareTurnKeyId = Deno.env.get("TURN_KEY_ID");
+    const cloudflareTurnApiToken = Deno.env.get("TURN_KEY_API_TOKEN");
+    if (cloudflareTurnKeyId && cloudflareTurnApiToken) {
+      const configuredTtl = Number(Deno.env.get("TURN_CREDENTIAL_TTL_SECONDS") || "86400");
+      const ttlSeconds = Number.isFinite(configuredTtl)
+        ? Math.min(172800, Math.max(300, Math.floor(configuredTtl)))
+        : 86400;
+      const cloudflareResponse = await fetch(
+        `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(cloudflareTurnKeyId)}/credentials/generate-ice-servers`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${cloudflareTurnApiToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ ttl: ttlSeconds }),
+        },
+      );
+      if (!cloudflareResponse.ok) {
+        console.error("Cloudflare TURN credential request failed:", cloudflareResponse.status);
+        return reply({ error: "Secure call relay is temporarily unavailable" }, 503);
+      }
+      const cloudflareData = await cloudflareResponse.json();
+      const iceServers = cloudflareData?.iceServers;
+      const hasTurnServer = Array.isArray(iceServers) && iceServers.some((server: { urls?: string | string[] }) => {
+        const urls = Array.isArray(server?.urls) ? server.urls : [server?.urls];
+        return urls.some((url) => typeof url === "string" && /^turns?:/i.test(url));
+      });
+      if (!hasTurnServer) {
+        console.error("Cloudflare TURN returned an invalid ICE server configuration.");
+        return reply({ error: "Secure call relay is temporarily unavailable" }, 503);
+      }
+      return reply({ iceServers, expiresAt: Math.floor(Date.now() / 1000) + ttlSeconds });
+    }
+
     const sharedSecret = Deno.env.get("TURN_SHARED_SECRET");
     const rawUrls = Deno.env.get("TURN_URLS") || "";
     if (!sharedSecret || new TextEncoder().encode(sharedSecret).length < 32) {
