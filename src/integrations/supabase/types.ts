@@ -1072,6 +1072,8 @@ export type Database = {
           is_online: boolean | null
           is_private: boolean
           last_seen: string | null
+          show_last_seen: boolean
+          show_online_status: boolean
           updated_at: string | null
           user_id: string
           username: string | null
@@ -1085,6 +1087,8 @@ export type Database = {
           is_online?: boolean | null
           is_private?: boolean
           last_seen?: string | null
+          show_last_seen?: boolean
+          show_online_status?: boolean
           updated_at?: string | null
           user_id: string
           username?: string | null
