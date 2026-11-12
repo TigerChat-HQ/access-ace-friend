@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, AudioLines, Camera, Clapperboard, Loader2, Plus, Save, Trash2, Upload, Video } from "lucide-react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,6 +40,7 @@ const ReelsStudio = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const videoRef = useRef<HTMLVideoElement>(null);
   const voiceRecorderRef = useRef<MediaRecorder | null>(null);
   const voiceStreamRef = useRef<MediaStream | null>(null);
@@ -75,6 +76,13 @@ const ReelsStudio = () => {
   const [renderingTimeline, setRenderingTimeline] = useState(false);
   const [renderProgress, setRenderProgress] = useState(0);
   const [scheduleAt, setScheduleAt] = useState("");
+  const [shareAudio, setShareAudio] = useState(false);
+  const [audioLibraryUrl, setAudioLibraryUrl] = useState<string | null>(null);
+  const [audioLibrary, setAudioLibrary] = useState<Array<{ id: string; user_id: string; reel_audio_url: string; reel_audio_title: string | null }>>([]);
+  const [savedAudio, setSavedAudio] = useState<Array<{ id: string; source_post_id: string; audio_url: string; audio_title: string }>>([]);
+  const [originalReelId, setOriginalReelId] = useState<string | null>(null);
+  const [remixType, setRemixType] = useState<"remix" | "duet" | null>(null);
+  const [duetFile, setDuetFile] = useState<File | null>(null);
 
   const refreshDrafts = useCallback(async () => {
     if (!user) return;
@@ -83,6 +91,59 @@ const ReelsStudio = () => {
   }, [user]);
 
   useEffect(() => { void refreshDrafts(); }, [refreshDrafts]);
+
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    void (async () => {
+      const [{ data: tracks }, { data: saved }] = await Promise.all([
+        db.from("posts").select("id,user_id,reel_audio_url,reel_audio_title")
+          .eq("media_type", "video").eq("reel_audio_shareable", true).eq("audience", "public")
+          .not("reel_audio_url", "is", null).order("created_at", { ascending: false }).limit(20),
+        db.from("reel_audio_saves").select("id,source_post_id,audio_url,audio_title")
+          .eq("user_id", user.id).order("created_at", { ascending: false }).limit(30),
+      ]);
+      if (!active) return;
+      setAudioLibrary((tracks || []) as typeof audioLibrary);
+      setSavedAudio((saved || []) as typeof savedAudio);
+    })();
+    return () => { active = false; };
+  }, [user]);
+
+  useEffect(() => {
+    const sourceId = searchParams.get("remix") || searchParams.get("duet");
+    const mode = searchParams.get("duet") ? "duet" : searchParams.get("remix") ? "remix" : null;
+    if (!sourceId || !mode || !user) return;
+    let active = true;
+    void (async () => {
+      const { data, error } = await db.from("posts")
+        .select("id,user_id,media_url,reel_audio_url,reel_audio_title,reel_audio_shareable")
+        .eq("id", sourceId).eq("media_type", "video").maybeSingle();
+      if (error || !data || !active) {
+        if (active) toast({ title: "Original Reel unavailable", description: "It may have been deleted or is no longer accessible.", variant: "destructive" });
+        return;
+      }
+      setOriginalReelId(data.id);
+      setRemixType(mode);
+      if (mode === "remix" && data.reel_audio_shareable && data.reel_audio_url) {
+        setAudioLibraryUrl(data.reel_audio_url);
+        setAudioUrl(data.reel_audio_url);
+        setAudioTitle(data.reel_audio_title || "Original audio");
+      }
+      if (mode === "duet" && data.media_url) {
+        try {
+          const response = await fetch(data.media_url);
+          if (!response.ok) throw new Error("Could not download the original Reel for duet.");
+          const blob = await response.blob();
+          if (!active) return;
+          setDuetFile(new File([blob], "tiger-duet-source.mp4", { type: blob.type || "video/mp4" }));
+        } catch (error) {
+          if (active) toast({ title: "Could not prepare duet", description: error instanceof Error ? error.message : "Try remix instead.", variant: "destructive" });
+        }
+      }
+    })();
+    return () => { active = false; };
+  }, [searchParams, user, toast]);
 
   useEffect(() => () => {
     if (voiceRecorderRef.current?.state === "recording") voiceRecorderRef.current.stop();
@@ -259,6 +320,8 @@ const ReelsStudio = () => {
     setTrimStart(Number(draft.trim_start_seconds || 0));
     setTrimEnd(draft.trim_end_seconds === null ? null : Number(draft.trim_end_seconds));
     setCaptions(Array.isArray(draft.captions) ? draft.captions : []);
+    setTimelineFiles([]);
+    setTimelineRendered(false);
   };
 
   const addTimelineClips = (files: File[]) => {
@@ -312,6 +375,7 @@ const ReelsStudio = () => {
       }));
       const rendered = await renderReelTimeline({
         clips,
+        duetFile,
         filter: filterPreset,
         speed: playbackSpeed,
         musicFile: audioFile,
@@ -463,7 +527,7 @@ const ReelsStudio = () => {
           publishedCover = await promoteDraftAsset(coverPath, "cover");
           if (publishedCover?.path) uploadedPaths.push(publishedCover.path);
         }
-        if (audioFile) {
+        if (audioFile && !timelineRendered) {
           publishedAudio = await uploadPublishedFile(audioFile, "audio");
           if (publishedAudio.path) uploadedPaths.push(publishedAudio.path);
         } else if (audioPath) {
@@ -478,8 +542,11 @@ const ReelsStudio = () => {
           media_type: "video",
           hashtags: hashtags(caption),
           reel_cover_url: publishedCover?.url || null,
-          reel_audio_url: publishedAudio?.url || null,
+          reel_audio_url: (timelineRendered && audioFile) ? null : (publishedAudio?.url || audioLibraryUrl || null),
           reel_audio_title: audioTitle || (audioFile?.name ?? null),
+          reel_audio_shareable: Boolean(shareAudio && (publishedAudio?.url || audioLibraryUrl)),
+          reel_original_post_id: originalReelId,
+          reel_remix_type: remixType,
           reel_audio_start_seconds: audioStart,
           reel_trim_start_seconds: timelineRendered ? 0 : trimStart,
           reel_trim_end_seconds: timelineRendered ? null : trimEnd,
@@ -604,6 +671,37 @@ const ReelsStudio = () => {
             </button>
             {audioFile && <p className="mt-2 text-xs text-muted-foreground">{audioFile.name}</p>}
             <label className="mt-3 block text-xs text-muted-foreground">Audio start offset (seconds)<input type="number" min={0} step={0.1} value={audioStart} onChange={(e) => setAudioStart(Math.max(0, Number(e.target.value)))} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground" /></label>
+            <label className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+              <input type="checkbox" checked={shareAudio} onChange={(event) => setShareAudio(event.target.checked)} />
+              Allow other creators to use this audio in their Reels
+            </label>
+            {(audioLibrary.length > 0 || savedAudio.length > 0) && (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs font-semibold text-foreground">Community audio · shared by creators</p>
+                {savedAudio.length > 0 && <p className="text-[11px] text-muted-foreground">Your saved tracks</p>}
+                {savedAudio.slice(0, 5).map((track) => (
+                  <div key={track.id} className="flex items-center gap-2 rounded-lg bg-background p-2">
+                    <span className="min-w-0 flex-1 truncate text-xs text-foreground">{track.audio_title}</span>
+                    <button type="button" onClick={() => { setAudioLibraryUrl(track.audio_url); setAudioUrl(track.audio_url); setAudioFile(null); setAudioPath(null); setAudioTitle(track.audio_title); }} className="text-xs font-semibold text-primary">Use</button>
+                  </div>
+                ))}
+                {audioLibrary.slice(0, 8).map((track) => (
+                  <div key={track.id} className="flex items-center gap-2 rounded-lg bg-background p-2">
+                    <span className="min-w-0 flex-1 truncate text-xs text-foreground">{track.reel_audio_title || "Original audio"}</span>
+                    <button type="button" onClick={() => { setAudioLibraryUrl(track.reel_audio_url); setAudioUrl(track.reel_audio_url); setAudioFile(null); setAudioPath(null); setAudioTitle(track.reel_audio_title || "Original audio"); }} className="text-xs font-semibold text-primary">Use</button>
+                    <button type="button" onClick={async () => {
+                      const { error } = await db.from("reel_audio_saves").insert({ user_id: user?.id, source_post_id: track.id, creator_id: track.user_id, audio_url: track.reel_audio_url, audio_title: track.reel_audio_title || "Original audio" });
+                      if (error && error.code !== "23505") toast({ title: "Could not save audio", description: error.message, variant: "destructive" });
+                      else {
+                        const { data } = await db.from("reel_audio_saves").select("id,source_post_id,audio_url,audio_title").eq("user_id", user?.id).order("created_at", { ascending: false }).limit(30);
+                        setSavedAudio((data || []) as typeof savedAudio);
+                        toast({ title: "Audio saved" });
+                      }
+                    }} className="text-xs text-muted-foreground">Save</button>
+                  </div>
+                ))}
+              </div>
+            )}
             <p className="mt-2 text-[11px] text-muted-foreground">Use original or licensed audio only. Voiceover recordings are saved as the Reel audio track. A commercial music catalogue still requires a licensed provider.</p>
           </div>
         </section>
@@ -631,6 +729,7 @@ const ReelsStudio = () => {
             {drafts.length ? drafts.map((draft) => <div key={draft.id} className="mb-2 flex items-center gap-2 rounded-xl bg-background p-2"><button onClick={() => void openDraft(draft).catch((error) => toast({ title: "Could not open draft", description: error instanceof Error ? error.message : "Try again.", variant: "destructive" }))} className="min-w-0 flex-1 text-left"><span className="block truncate text-sm text-foreground">{draft.caption || "Untitled Reel"}</span><span className="text-[11px] text-muted-foreground">Updated {new Date(draft.updated_at).toLocaleString()}</span></button><button onClick={() => void removeDraft(draft.id)} aria-label="Delete draft" className="p-2 text-destructive"><Trash2 className="h-4 w-4" /></button></div>) : <p className="py-4 text-center text-xs text-muted-foreground">Your saved drafts will appear here.</p>}
           </div>
 
+          {remixType && <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs text-foreground">Creating a {remixType === "duet" ? "split-screen duet" : "remix"} from the original Reel. {duetFile ? "Original video loaded." : ""}</div>}
           <div className="rounded-2xl border border-border/60 bg-card p-4">
             <label className="mb-2 block text-sm font-semibold text-foreground">Schedule Reel (optional)</label>
             <input type="datetime-local" value={scheduleAt} min={new Date(Date.now() + 60000).toISOString().slice(0, 16)} onChange={(event) => setScheduleAt(event.target.value)} className="w-full rounded-lg bg-background p-2 text-sm text-foreground" />
