@@ -10,6 +10,20 @@ ALTER TABLE public.posts
   ADD CONSTRAINT posts_reel_remix_type_check
   CHECK (reel_remix_type IS NULL OR reel_remix_type IN ('remix', 'duet'));
 
+CREATE INDEX IF NOT EXISTS idx_posts_shared_reel_audio
+  ON public.posts(created_at DESC)
+  WHERE media_type = 'video'
+    AND reel_audio_shareable = true
+    AND reel_audio_url IS NOT NULL
+    AND audience = 'public'
+    AND archived_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_posts_reel_remix_source
+  ON public.posts(reel_original_post_id, created_at DESC)
+  WHERE reel_remix_type = 'remix' AND reel_original_post_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_posts_creator_scheduled_reels
+  ON public.posts(user_id, scheduled_at)
+  WHERE media_type = 'video' AND is_draft = false AND scheduled_at IS NOT NULL;
+
 -- A creator may see their own scheduled Reels before the public release time.
 DROP POLICY IF EXISTS "Creators read their own scheduled reels" ON public.posts;
 CREATE POLICY "Creators read their own scheduled reels"
