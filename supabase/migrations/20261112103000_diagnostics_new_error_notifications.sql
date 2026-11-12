@@ -33,5 +33,7 @@ AFTER INSERT ON public.app_diagnostics
 FOR EACH ROW
 EXECUTE FUNCTION public.notify_admin_of_new_diagnostic();
 
+REVOKE ALL ON FUNCTION public.notify_admin_of_new_diagnostic() FROM PUBLIC, anon, authenticated;
+
 COMMENT ON FUNCTION public.notify_admin_of_new_diagnostic() IS
   'Creates a newest-first admin inbox notification for each newly inserted diagnostic, excluding admin recommendations.';
