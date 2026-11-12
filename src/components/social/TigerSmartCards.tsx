@@ -56,7 +56,7 @@ export const TigerSmartCards = () => {
       console.warn("Tiger AI Smart Cards are not available yet:", error.message);
       return;
     }
-    setCards((data || []) as SmartCard[]);
+    setCards((data || []) as unknown as SmartCard[]);
   }, []);
 
   useEffect(() => {
