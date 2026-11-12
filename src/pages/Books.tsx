@@ -112,7 +112,7 @@ const makeDailyChapter = (storyId: string) => {
   const opening = dailyLines[storyId][(episode - 1) % dailyLines[storyId].length];
   const detail = dailyDetails[(episode * 7 + storyIndex * 3) % dailyDetails.length];
   const cliffhanger = dailyCliffhangers[(episode * 11 + storyIndex * 5) % dailyCliffhangers.length];
-  return [opening, \`Katika sehemu ya \${episode}, \${detail}\`, cliffhanger];
+  return [opening, `Katika sehemu ya ${episode}, ${detail}`, cliffhanger];
 };
 
 const dayNumber = () => Math.max(0, Math.floor((new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime() - new Date(2026, 10, 12).getTime()) / 86400000));
