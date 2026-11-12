@@ -111,8 +111,8 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
           "min-w-0 max-w-[78%] rounded-[1.35rem] text-[14.5px] leading-relaxed shadow-sm transition-transform active:scale-[0.98] [overflow-wrap:anywhere]",
           isImage && !message.text ? "p-1" : "px-4 py-2.5",
           isMe
-            ? cn(myBubbleClass || "bg-primary text-primary-foreground", "rounded-br-md shadow-[0_4px_18px_-6px_hsl(var(--primary)/0.55)]")
-            : "bg-card/90 backdrop-blur border border-border/40 text-foreground rounded-bl-md"
+            ? cn("relative isolate rounded-br-md border border-cyan-300/20 bg-[#080a0f] !text-white shadow-[0_7px_0_rgba(0,0,0,0.55),0_16px_28px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-cyan-300/10", myBubbleClass)
+            : "relative isolate rounded-bl-md border border-white/15 bg-[#080a0f] !text-white shadow-[0_7px_0_rgba(0,0,0,0.58),0_16px_28px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.14)] ring-1 ring-white/10 backdrop-blur-xl"
         )}
       >
         {isPinned && <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide opacity-70"><Pin className="h-3 w-3" /> Pinned message</div>}
