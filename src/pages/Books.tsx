@@ -9,8 +9,9 @@ import { Slider } from "@/components/ui/slider";
 import { BOOK_CONTENT_PHASE_1 } from "@/data/bookContentPhase1";
 import { BOOK_CONTENT_PHASE_2 } from "@/data/bookContentPhase2";
 import { BOOK_CONTENT_PHASE_3 } from "@/data/bookContentPhase3";
+import { BOOK_CONTENT_PHASE_4 } from "@/data/bookContentPhase4";
 
-const BOOK_CONTENT = { ...BOOK_CONTENT_PHASE_1, ...BOOK_CONTENT_PHASE_2, ...BOOK_CONTENT_PHASE_3 };
+const BOOK_CONTENT = { ...BOOK_CONTENT_PHASE_1, ...BOOK_CONTENT_PHASE_2, ...BOOK_CONTENT_PHASE_3, ...BOOK_CONTENT_PHASE_4 };
 
 type Book = {
   id: string;
