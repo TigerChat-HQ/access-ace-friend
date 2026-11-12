@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { Clock3, Sparkles, MessageCircle, Send, Heart } from "lucide-react";
+import { Clock3, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- this table is introduced by the companion migration. */
+const db = supabase as any;
 
 type AiCard = {
   id: string;
@@ -24,7 +27,7 @@ export const TigerAiDailyCards = () => {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const { data, error } = await supabase.from("tiger_ai_social_cards")
+    const { data, error } = await db.from("tiger_ai_social_cards")
       .select("id,card_type,title,body,theme,created_at,expires_at")
       .gt("expires_at", new Date().toISOString())
       .order("created_at", { ascending: false })
