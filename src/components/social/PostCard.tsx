@@ -4,7 +4,6 @@ import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Flag, UserX, Bookma
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { reportDiagnostic } from "@/lib/diagnostics";
 import { FeedPost, toggleLike, deletePost } from "@/hooks/usePosts";
 import { CommentsSheet } from "./CommentsSheet";
 import { PostInsightsDialog } from "./PostInsightsDialog";
@@ -110,7 +109,6 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
         toast({ title: "Saved to your collection" });
       }
     } catch (error) {
-      void reportDiagnostic({ title: "Saved posts update failed", error, component: "PostCard", action: "Save or remove post", category: "posts" });
       toast({ title: "Could not update saved posts", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
     } finally { setSaveBusy(false); }
   };

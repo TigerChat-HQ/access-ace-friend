@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import {
   ArrowLeft, Trash2, Users, FileText, MessageSquare, Search, Shield, ShieldOff, Flag,
-  TrendingUp, Heart, Eye, Crown, BarChart3, Gamepad2, Bot, Bug, ChevronRight, ArrowLeft as BackArrow,
+  TrendingUp, Heart, Eye, Crown, BarChart3, Gamepad2, ChevronRight, ArrowLeft as BackArrow,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,9 +17,7 @@ import {
 import { AnnouncementComposer } from "@/components/admin/AnnouncementComposer";
 import { GameAdmin } from "@/components/admin/GameAdmin";
 import { DraughtsAdminControl } from "@/components/admin/DraughtsAdminControl";
-import { TigerCommandCenter } from "@/components/admin/TigerCommandCenter";
 import { ReportReplyDialog } from "@/components/admin/ReportReplyDialog";
-import { AdminDiagnostics } from "@/components/admin/AdminDiagnostics";
 
 type AdminPost = Tables<"posts">;
 type AdminUser = Tables<"profiles">;
@@ -382,8 +380,6 @@ const Admin = () => {
         </section>}
 
         {selectedSection === "draughts" && <DraughtsAdminControl />}
-        {selectedSection === "developer" && <TigerCommandCenter />}
-        {selectedSection === "diagnostics" && <AdminDiagnostics />}
         {selectedSection === "games" && <GameAdmin />}
       </div>
 
@@ -405,8 +401,6 @@ const adminSections: { id: string; title: string; description: string; icon: Luc
   { id: "content", title: "Content & Communication", description: "Matangazo, reports, majibu na posts za hivi karibuni.", icon: FileText },
   { id: "draughts", title: "Draughts & Tournaments", description: "Michezo inayoendelea, waiting rooms, seasons na badges.", icon: Shield },
   { id: "games", title: "Games & Quiz Settings", description: "Maswali ya mchezo na viwango vya zawadi.", icon: Gamepad2 },
-  { id: "developer", title: "Developer & System Tools", description: "Tiger AI Command Center, kazi za kiufundi na ukaguzi wa GitHub.", icon: Bot },
-  { id: "diagnostics", title: "Diagnostics & Bug Reports", description: "Tambua tables zinazokosekana, rekodi errors na dhibiti mapendekezo ya marekebisho.", icon: Bug },
 ];
 
 const Stat = ({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number }) => (

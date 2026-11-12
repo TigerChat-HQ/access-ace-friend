@@ -3,7 +3,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, AudioLines, Camera, Clapperboard, Loader2, Plus, Save, Trash2, Upload, Video } from "lucide-react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { reportDiagnostic } from "@/lib/diagnostics";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
@@ -107,7 +106,6 @@ const ReelsStudio = () => {
       setCoverUrl(asset.url);
       toast({ title: "Cover frame saved" });
     } catch (error) {
-      void reportDiagnostic({ title: "Reel cover upload failed", error, component: "ReelsStudio", action: "Capture cover", category: "storage", suggestion: "Check reel-drafts Storage permissions, file upload and signed URL creation." });
       toast({ title: "Cover upload failed", description: error instanceof Error ? error.message : "Try again.", variant: "destructive" });
     } finally { setBusy(false); }
   };
@@ -183,7 +181,6 @@ const ReelsStudio = () => {
       await refreshDrafts();
       toast({ title: "Draft saved" });
     } catch (error) {
-      void reportDiagnostic({ title: "Reel draft save failed", error, component: "ReelsStudio", action: "Save draft", category: "database_storage", suggestion: "Check reel_drafts permissions and reel-drafts Storage upload/signing." });
       toast({ title: "Could not save draft", description: error instanceof Error ? error.message : "Try again.", variant: "destructive" });
     } finally { setBusy(false); }
   };
@@ -243,7 +240,6 @@ const ReelsStudio = () => {
       toast({ title: "Your Reel is published" });
       navigate("/reels");
     } catch (error) {
-      void reportDiagnostic({ title: "Reel publish failed", error, component: "ReelsStudio", action: "Publish Reel", category: "publishing_storage_database", severity: "high", suggestion: "Check reel-drafts and post-media Storage policies, signed URLs, and posts insert permissions." });
       toast({ title: "Could not publish Reel", description: error instanceof Error ? error.message : "Try again.", variant: "destructive" });
     } finally { setBusy(false); }
   };
