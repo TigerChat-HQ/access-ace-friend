@@ -72,7 +72,7 @@ const Chats = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { onlineUserIds } = usePresence(false);
+  const { onlineUserIds, presenceByUserId } = usePresence(false);
   const { language } = useLanguage();
   const [params, setParams] = useSearchParams();
   const activeChat = params.get("c");
@@ -634,12 +634,14 @@ const Chats = () => {
                   lastMessage: convo.lastMessage?.content || "No messages yet",
                   time: convo.lastMessage ? new Date(convo.lastMessage.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "",
                   unread: convo.unreadCount,
-                  online: Boolean(convo.otherProfile?.user_id && onlineUserIds.has(convo.otherProfile.user_id) && convo.otherProfile.show_online_status !== false),
-                  statusLabel: convo.otherProfile?.user_id && onlineUserIds.has(convo.otherProfile.user_id) && convo.otherProfile.show_online_status !== false
-                    ? (language === "sw" ? "Mtandaoni" : "Online")
-                    : convo.otherProfile?.show_last_seen !== false
-                      ? formatLastSeen(convo.otherProfile?.last_seen, language)
-                      : (language === "sw" ? "Hajapatikana" : "Offline"),
+                  online: Boolean(convo.otherProfile?.user_id && onlineUserIds.has(convo.otherProfile.user_id)),
+                  statusLabel: convo.otherProfile?.user_id
+                    ? (presenceByUserId.get(convo.otherProfile.user_id)?.is_online
+                      ? (language === "sw" ? "Mtandaoni" : "Online")
+                      : presenceByUserId.get(convo.otherProfile.user_id)?.show_last_seen
+                        ? formatLastSeen(presenceByUserId.get(convo.otherProfile.user_id)?.last_seen_at, language)
+                        : (language === "sw" ? "Hajapatikana" : "Offline"))
+                    : undefined,
                 }}
                 isActive={activeChat === convo.id}
                 onClick={() => setActiveChat(convo.id)}
@@ -658,12 +660,12 @@ const Chats = () => {
               <button onClick={() => setActiveChat(null)} className="tiger-header-action md:hidden hover:bg-surface-hover hover:text-foreground" aria-label="Back to chats"><ArrowLeft className="w-5 h-5 text-foreground" /></button>
               <div className="relative">
                 <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center text-sm font-semibold text-secondary-foreground">{activeConvoAvatar}</div>
-                {activeConvo.otherProfile?.user_id && onlineUserIds.has(activeConvo.otherProfile.user_id) && activeConvo.otherProfile.show_online_status !== false && <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-background" />}
+                {activeConvo.otherProfile?.user_id && onlineUserIds.has(activeConvo.otherProfile.user_id) && <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-background" />}
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-sm text-foreground">{activeConvoName}</h3>
                 <p className="text-[11px] text-muted-foreground">
-                  {isTyping ? <span className="text-primary animate-pulse">typing...</span> : chatPrefs.muted_until && new Date(chatPrefs.muted_until).getTime() > Date.now() ? <span className="inline-flex items-center gap-1"><BellOff className="h-3 w-3"/> Muted</span> : isGroup ? <span>Group</span> : activeConvo.otherProfile?.user_id && onlineUserIds.has(activeConvo.otherProfile.user_id) && activeConvo.otherProfile.show_online_status !== false ? <span className="font-medium text-emerald-500">{language === "sw" ? "Mtandaoni" : "Online"}</span> : activeConvo.otherProfile?.show_last_seen !== false ? formatLastSeen(activeConvo.otherProfile?.last_seen, language) : (language === "sw" ? "Hajapatikana" : "Offline") }
+                  {isTyping ? <span className="text-primary animate-pulse">typing...</span> : chatPrefs.muted_until && new Date(chatPrefs.muted_until).getTime() > Date.now() ? <span className="inline-flex items-center gap-1"><BellOff className="h-3 w-3"/> Muted</span> : isGroup ? <span>Group</span> : activeConvo.otherProfile?.user_id && onlineUserIds.has(activeConvo.otherProfile.user_id) ? <span className="font-medium text-emerald-500">{language === "sw" ? "Mtandaoni" : "Online"}</span> : activeConvo.otherProfile?.user_id && presenceByUserId.get(activeConvo.otherProfile.user_id)?.show_last_seen ? formatLastSeen(presenceByUserId.get(activeConvo.otherProfile.user_id)?.last_seen_at, language) : (language === "sw" ? "Hajapatikana" : "Offline") }
                 </p>
               </div>
               <div className="flex items-center gap-1">
