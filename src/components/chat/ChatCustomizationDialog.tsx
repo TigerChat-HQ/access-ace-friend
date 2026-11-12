@@ -133,17 +133,19 @@ export const wallpaperClass = (key: string | null): string => {
 };
 
 export const bubbleColorClass = (key: string | null): string => {
+  // Keep every message surface black; the saved color preference now accents
+  // the 4D edge instead of recoloring the message body.
   switch (key) {
     case "blue":
-      return "bg-blue-500 text-white";
+      return "border-blue-300/25 ring-1 ring-blue-400/15";
     case "purple":
-      return "bg-purple-500 text-white";
+      return "border-purple-300/25 ring-1 ring-purple-400/15";
     case "pink":
-      return "bg-pink-500 text-white";
+      return "border-pink-300/25 ring-1 ring-pink-400/15";
     case "orange":
-      return "bg-orange-500 text-white";
+      return "border-orange-300/25 ring-1 ring-orange-400/15";
     default:
-      return "bg-primary text-primary-foreground";
+      return "border-emerald-300/20 ring-1 ring-emerald-400/10";
   }
 };
 
