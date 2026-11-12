@@ -36,7 +36,7 @@ const diagnosticSignature = async (record: Record<string, unknown>) => {
 };
 const safeText = (value: string, max = 8000) => value.replace(/(Bearer\s+)[^\s]+/gi, "$1[REDACTED]").replace(/(access_token|refresh_token|password|authorization)(\s*[:=]\s*)[^&\s,]+/gi, "$1$2[REDACTED]").slice(0, max);
 
-export async function reportDiagnostic(input: DiagnosticInput) {
+export async function reportDiagnostic(input: DiagnosticInput): Promise<boolean> {
   try {
     const error = input.error;
     const message = safeText(input.message || (error instanceof Error ? error.message : String((error as { message?: unknown })?.message ?? error ?? "Unknown error")));
@@ -57,11 +57,11 @@ export async function reportDiagnostic(input: DiagnosticInput) {
     const signature = await diagnosticSignature(record);
     const key = signature;
     const now = Date.now();
-    if (now - (recent.get(key) || 0) < 15000) return;
+    if (now - (recent.get(key) || 0) < 15000) return true;
     recent.set(key, now);
     if (recent.size > 250) recent.clear();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) return false;
     // Database-side upsert is atomic across browser tabs and devices.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC is defined by the diagnostics deduplication migration.
     const { data: rows, error: insertError } = await (supabase as any).rpc("report_app_diagnostic", {
@@ -71,6 +71,7 @@ export async function reportDiagnostic(input: DiagnosticInput) {
     const inserted = Array.isArray(rows) ? rows[0] : rows;
     if (insertError) {
       console.warn("Diagnostics report could not be saved:", insertError.message);
+      return false;
     } else if (inserted?.id && inserted.ai_status === "queued") {
       // Supabase Functions returns invocation failures in { error }, not always as a rejected Promise.
       const { data: aiResult, error: automationError } = await supabase.functions.invoke("tiger-dev-planner", {
@@ -80,8 +81,10 @@ export async function reportDiagnostic(input: DiagnosticInput) {
         console.warn("Tiger AI diagnostics handoff failed:", automationError?.message || aiResult?.error || "Unknown Edge Function response");
       }
     }
+    return true;
   } catch (reportError) {
     console.warn("Diagnostics reporter failed:", reportError);
+    return false;
   }
 }
 
@@ -98,14 +101,100 @@ export function installGlobalDiagnostics() {
     lastAction = (control.getAttribute("aria-label") || control.getAttribute("title") || control.innerText || control.textContent || control.tagName).trim().slice(0, 160);
     lastActionAt = Date.now();
   }, true);
-  window.addEventListener("error", (event) => {
-    void reportDiagnostic({
-      source: "browser", severity: "high", category: "javascript",
-      title: event.message || "Uncaught browser error", message: event.message || "Unknown JavaScript error",
-      action: Date.now() - lastActionAt < 10000 ? lastAction : undefined,
-      error: event.error,
-      metadata: { filename: event.filename, line: event.lineno, column: event.colno },
-    });
+  window.addEventListener("error", (event: Event) => {
+    const errorEvent = event as ErrorEvent;
+    if (typeof errorEvent.message === "string" && errorEvent.message.length > 0) {
+      void reportDiagnostic({
+        source: "website", severity: "high", category: "javascript",
+        title: errorEvent.message || "Uncaught browser error", message: errorEvent.message || "Unknown JavaScript error",
+        action: Date.now() - lastActionAt < 10000 ? lastAction : undefined,
+        error: errorEvent.error,
+        metadata: { filename: errorEvent.filename, line: errorEvent.lineno, column: errorEvent.colno, platform: "web", userAgent: navigator.userAgent },
+      });
+      return;
+    }
+    const target = event.target;
+    if (target instanceof HTMLScriptElement || target instanceof HTMLLinkElement || target instanceof HTMLImageElement || target instanceof HTMLVideoElement || target instanceof HTMLAudioElement) {
+      const resourceUrl = "src" in target ? target.src : target.href;
+      void reportDiagnostic({
+        source: "website", severity: "medium", category: "asset_load",
+        title: "Website resource failed to load", message: `Failed to load ${target.tagName.toLowerCase()} resource`,
+        action: Date.now() - lastActionAt < 10000 ? lastAction : undefined,
+        component: target.tagName.toLowerCase(),
+        metadata: { resourceUrl: resourceUrl ? new URL(resourceUrl, location.href).pathname : null, platform: "web" },
+      });
+    }
+  }, true);
+  // Capture failed API responses (including chat/bubble 404s) even when the UI
+  // handles the rejection and no browser-level exception is emitted.
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const requestUrl = input instanceof Request ? input.url : String(input);
+    const method = (init?.method || (input instanceof Request ? input.method : "GET")).toUpperCase();
+    let response: Response;
+    try {
+      response = await originalFetch(input, init);
+    } catch (error) {
+      const path = (() => { try { return new URL(requestUrl, location.href).pathname; } catch { return "unknown"; } })();
+      void reportDiagnostic({
+        source: "website", severity: "high", category: "api_network",
+        title: /bubble|chat|conversation/i.test(path) || /bubble|chat/i.test(lastAction) ? "Bubble Chat request failed" : "Website API request failed",
+        message: error instanceof Error ? error.message : String(error),
+        action: Date.now() - lastActionAt < 10000 ? lastAction : undefined,
+        component: /bubble|chat|conversation/i.test(path) || /bubble|chat/i.test(lastAction) ? "Bubble Chat" : "fetch",
+        suggestion: "Check the API endpoint, authentication, network connection and server logs for this request.",
+        metadata: { platform: "web", method, endpoint: path, networkFailure: true },
+      });
+      throw error;
+    }
+    if (response.status >= 400) {
+      const path = (() => { try { return new URL(requestUrl, location.href).pathname; } catch { return "unknown"; } })();
+      const isBubbleChat = /bubble|chat|conversation/i.test(path) || /bubble|chat/i.test(lastAction);
+      void reportDiagnostic({
+        source: "website", severity: response.status >= 500 ? "critical" : "high",
+        category: response.status === 404 ? (isBubbleChat ? "bubble_chat_not_found" : "api_not_found") : "api_http",
+        title: isBubbleChat && response.status === 404 ? "Bubble Chat: Not Found (404)" : `Website API returned HTTP ${response.status}`,
+        message: ` ${method} ${path} returned HTTP ${response.status} ${response.statusText}`.trim(),
+        action: Date.now() - lastActionAt < 10000 ? lastAction : undefined,
+        component: isBubbleChat ? "Bubble Chat" : "API request",
+        suggestion: response.status === 404
+          ? "Verify that the chat/bubble API route and requested conversation exist, and that the frontend uses the current endpoint. Check Render server logs for the matching 404."
+          : "Inspect the API response and matching hosting logs; verify authentication, permissions and server health.",
+        metadata: { platform: "web", method, endpoint: path, status: response.status, statusText: response.statusText },
+      });
+    }
+    return response;
+  };
+
+  window.addEventListener("offline", () => {
+    void reportDiagnostic({ source: "website", severity: "high", category: "network_offline", title: "Device lost network connection", message: "The browser reported that the device is offline.", metadata: { platform: "web" } });
+  });
+  window.addEventListener("online", () => {
+    void reportDiagnostic({ source: "website", severity: "low", category: "network_restored", title: "Network connection restored", message: "The browser reported that the device is online again.", metadata: { platform: "web" } });
+  });
+
+  const flushNativeDiagnostics = async () => {
+    const bridge = (window as Window & { TigerNative?: { getPendingDiagnostics?: () => string; acknowledgeDiagnostic?: (id: string) => void; getAppVersion?: () => string } }).TigerNative;
+    if (!bridge?.getPendingDiagnostics || !bridge.acknowledgeDiagnostic) return;
+    try {
+      const pending = JSON.parse(bridge.getPendingDiagnostics()) as Array<{ id: string; source?: string; category?: string; title?: string; message?: string; severity?: "critical" | "high" | "medium" | "low"; metadata?: Record<string, unknown>; createdAt?: number }>;
+      for (const item of pending) {
+        const saved = await reportDiagnostic({
+          source: item.source || "android_native", severity: item.severity || "high",
+          category: item.category || "android_runtime", title: item.title || "Android app diagnostic",
+          message: item.message || "Android reported a native application error.", component: "Android WebView / Native",
+          metadata: { ...(item.metadata || {}), platform: "android", nativeDiagnosticId: item.id, nativeCreatedAt: item.createdAt, appVersion: bridge.getAppVersion?.() || "unknown" },
+        });
+        if (saved) bridge.acknowledgeDiagnostic(item.id);
+      }
+    } catch (error) {
+      console.warn("Could not transfer Android diagnostics:", error);
+    }
+  };
+  window.addEventListener("tiger:native-diagnostics-ready", () => { void flushNativeDiagnostics(); });
+  void flushNativeDiagnostics();
+  supabase.auth.onAuthStateChange(() => {
+    window.setTimeout(() => { void flushNativeDiagnostics(); }, 0);
   });
   if (navigator.mediaDevices?.getUserMedia) {
     const mediaDevices = navigator.mediaDevices;
@@ -139,11 +228,20 @@ export function installGlobalDiagnostics() {
     };
   }
   window.addEventListener("unhandledrejection", (event) => {
+    const rejectionMessage = event.reason instanceof Error ? event.reason.message : String(event.reason ?? "Unknown rejection");
+    const isBubbleNotFound = /not found|404|does not exist/i.test(rejectionMessage) && /bubble|chat|conversation/i.test(lastAction);
     void reportDiagnostic({
-      source: "browser", severity: "high", category: "promise",
-      title: "Unhandled promise rejection", error: event.reason,
-      message: event.reason instanceof Error ? event.reason.message : String(event.reason ?? "Unknown rejection"),
+      source: "website", severity: "high",
+      category: isBubbleNotFound ? "bubble_chat_not_found" : "promise",
+      title: isBubbleNotFound ? "Bubble Chat: Not Found" : "Unhandled promise rejection",
+      error: event.reason,
+      message: rejectionMessage,
+      component: isBubbleNotFound ? "Bubble Chat" : "Promise handler",
+      suggestion: isBubbleNotFound
+        ? "Thibitisha chat/conversation ID, API endpoint, ruhusa za mtumiaji na rekodi ya mazungumzo. Linganisha muda wa hitilafu na Render server logs."
+        : undefined,
       action: Date.now() - lastActionAt < 10000 ? lastAction : undefined,
+      metadata: { platform: "web", action: lastAction || null, notFound: /not found|404|does not exist/i.test(rejectionMessage) },
     });
   });
 }
