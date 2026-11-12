@@ -124,7 +124,6 @@ export const TigerDailyHistory = () => {
           <p className="mt-1 text-sm text-foreground whitespace-pre-wrap">{c.body}</p>
           <div className="mt-2 flex gap-4">{!c.is_tiger_ai && <button onClick={() => toggleCommentLike(c)} className={`text-xs inline-flex items-center gap-1 ${c.liked_by_me ? "text-primary" : "text-muted-foreground"}`}><Heart className={`w-3.5 h-3.5 ${c.liked_by_me ? "fill-current" : ""}`} /> {c.like_count}</button>}<button onClick={() => setReplyTo(c)} className="text-xs text-muted-foreground inline-flex items-center gap-1"><Reply className="w-3.5 h-3.5" /> Jibu</button></div>
         </div>
-        {}
       </div>)}
       {replyTo && <div className="text-xs text-primary">Unajibu maoni <button onClick={() => setReplyTo(null)} className="underline">Ghairi</button></div>}
       <div className="flex gap-2"><input value={commentText} onChange={e => setCommentText(e.target.value)} onKeyDown={e => e.key === "Enter" && sendComment()} placeholder={replyTo ? "Andika jibu..." : "Andika maoni..."} className="min-w-0 flex-1 rounded-full bg-muted px-4 py-2 text-sm outline-none" /><button onClick={sendComment} disabled={sending || !commentText.trim()} className="rounded-full bg-primary p-2.5 text-primary-foreground disabled:opacity-50">{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}</button></div>
