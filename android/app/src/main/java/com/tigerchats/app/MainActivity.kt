@@ -2,6 +2,7 @@ package com.tigerchats.app
 
 import android.Manifest
 import android.app.Activity
+import android.app.ActivityManager
 import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -43,6 +44,7 @@ open class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         installNativeCrashCapture()
+        collectPreviousProcessExitReasons()
         // Keep the WebView inside the decor's system-bar bounds and let Android resize
         // its actual viewport for the IME. Do not also add IME padding to the WebView:
         // that double-adjusts the viewport and can push the chat composer below the keyboard.
@@ -455,6 +457,44 @@ open class MainActivity : Activity() {
             android.util.Log.w(TAG, "Diagnostic captured: $category / $title")
         } catch (error: Exception) {
             android.util.Log.e(TAG, "Could not persist native diagnostic", error)
+        }
+    }
+
+    private fun collectPreviousProcessExitReasons() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        try {
+            val manager = getSystemService(ActivityManager::class.java) ?: return
+            val prefs = getSharedPreferences(NATIVE_DIAGNOSTICS_PREFS, MODE_PRIVATE)
+            val lastSeen = prefs.getLong("last_process_exit_timestamp", 0L)
+            val exits = manager.getHistoricalProcessExitReasons(packageName, 0, 10)
+                .filter { it.timestamp > lastSeen }
+                .sortedBy { it.timestamp }
+            var newestTimestamp = lastSeen
+            exits.forEach { exit ->
+                val reason = when (exit.reason) {
+                    ActivityManager.ProcessExitInfo.REASON_ANR -> "ANR / app not responding"
+                    ActivityManager.ProcessExitInfo.REASON_CRASH -> "Java/Kotlin crash"
+                    ActivityManager.ProcessExitInfo.REASON_CRASH_NATIVE -> "Native Android crash"
+                    ActivityManager.ProcessExitInfo.REASON_LOW_MEMORY -> "Android killed app due to low memory"
+                    ActivityManager.ProcessExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "Excessive resource usage"
+                    ActivityManager.ProcessExitInfo.REASON_INITIALIZATION_FAILURE -> "App initialization failure"
+                    ActivityManager.ProcessExitInfo.REASON_DEPENDENCY_DIED -> "App dependency process died"
+                    ActivityManager.ProcessExitInfo.REASON_SIGNALED -> "App process terminated by signal"
+                    else -> "Android process exit (reason ${exit.reason})"
+                }
+                recordNativeDiagnostic(
+                    source = "android_native",
+                    category = if (exit.reason == ActivityManager.ProcessExitInfo.REASON_ANR) "android_anr" else "android_process_exit",
+                    title = "TigerChat previous session: $reason",
+                    message = exit.description?.takeIf { it.isNotBlank() } ?: reason,
+                    severity = if (exit.reason == ActivityManager.ProcessExitInfo.REASON_ANR || exit.reason == ActivityManager.ProcessExitInfo.REASON_CRASH || exit.reason == ActivityManager.ProcessExitInfo.REASON_CRASH_NATIVE) "critical" else "high",
+                    metadata = JSONObject().put("reasonCode", exit.reason).put("status", exit.status).put("importance", exit.importance).put("pid", exit.pid).put("processName", exit.processName).put("exitTimestamp", exit.timestamp)
+                )
+                newestTimestamp = maxOf(newestTimestamp, exit.timestamp)
+            }
+            if (newestTimestamp > lastSeen) prefs.edit().putLong("last_process_exit_timestamp", newestTimestamp).apply()
+        } catch (error: Exception) {
+            android.util.Log.w(TAG, "Could not read Android historical process exits", error)
         }
     }
 
