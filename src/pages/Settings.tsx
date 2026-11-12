@@ -84,6 +84,7 @@ const Settings = () => {
   const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences>(() => getNotificationPreferences(user?.id));
   const [readReceipts, setReadReceipts] = useState(true);
   const [lastSeen, setLastSeen] = useState(true);
+  const [onlineStatus, setOnlineStatus] = useState(true);
   const [isPrivate, setIsPrivate] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -198,6 +199,19 @@ const Settings = () => {
       setBio(data.bio || "");
       setAvatarUrl(data.avatar_url || "");
       setIsPrivate((data as typeof data & { is_private?: boolean }).is_private ?? false);
+      setLastSeen(data.show_last_seen ?? true);
+      setOnlineStatus(data.show_online_status ?? true);
+    }
+  };
+
+  const updatePresencePrivacy = async (field: "show_last_seen" | "show_online_status", value: boolean) => {
+    if (field === "show_last_seen") setLastSeen(value);
+    else setOnlineStatus(value);
+    const { error } = await db.from("profiles").update({ [field]: value }).eq("user_id", user!.id);
+    if (error) {
+      if (field === "show_last_seen") setLastSeen(!value);
+      else setOnlineStatus(!value);
+      toast({ title: "Failed to update presence privacy", description: error.message, variant: "destructive" as const });
     }
   };
 
@@ -436,7 +450,8 @@ const Settings = () => {
               icon={<Lock className="w-5 h-5" />}
             />
             <SettingToggle label={t("readReceipts")} description={t("readReceiptsDesc")} value={readReceipts} onChange={setReadReceipts} />
-            <SettingToggle label={t("lastSeen")} description={t("lastSeenDesc")} value={lastSeen} onChange={setLastSeen} />
+            <SettingToggle label={t("lastSeen")} description={t("lastSeenDesc")} value={lastSeen} onChange={(value) => void updatePresencePrivacy("show_last_seen", value)} />
+            <SettingToggle label="Online Status" description="Allow contacts to see the green online indicator while you are active." value={onlineStatus} onChange={(value) => void updatePresencePrivacy("show_online_status", value)} />
             {isWebAuthnSupported() && (
               <SettingToggle
                 label="Biometric app lock"
