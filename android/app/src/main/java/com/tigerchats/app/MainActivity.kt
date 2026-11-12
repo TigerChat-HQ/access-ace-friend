@@ -559,16 +559,18 @@ open class MainActivity : Activity() {
                 val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
                 val recordings = JSONArray()
                 audioManager.activeRecordingConfigurations.forEach { config ->
-                    val packageName = config.clientPackageName
+                    val packages = packageManager.getPackagesForUid(config.clientUid).orEmpty()
+                    val packageName = packages.firstOrNull() ?: "uid:${config.clientUid}"
                     val appName = try {
                         val appInfo = packageManager.getApplicationInfo(packageName, 0)
                         packageManager.getApplicationLabel(appInfo).toString()
                     } catch (_: Exception) { packageName }
-                    recordings.put(JSONObject()
+                    val recording = JSONObject()
                         .put("packageName", packageName)
                         .put("appName", appName)
                         .put("clientAudioSource", config.clientAudioSource)
-                        .put("silenced", config.isClientSilenced))
+                        .put("silenced", config.isClientSilenced)
+                    recordings.put(recording)
                 }
                 result.put("permission", "granted").put("recordings", recordings)
                 result.toString()
