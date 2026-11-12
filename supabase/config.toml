@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.tiger-ai-smart-card-reply]
 verify_jwt = true
+
+[functions.draughts-ai-turn]
+verify_jwt = true

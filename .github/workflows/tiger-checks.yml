@@ -27,6 +27,8 @@ jobs:
         run: deno check --node-modules-dir=none supabase/functions/tiger-books-ai/index.ts
       - name: Type-check Smart Card AI reply function
         run: deno check --node-modules-dir=none supabase/functions/tiger-ai-smart-card-reply/index.ts
+      - name: Type-check server-side Draughts AI turn function
+        run: deno check --node-modules-dir=none supabase/functions/draughts-ai-turn/index.ts
 
   security:
     name: Security check
