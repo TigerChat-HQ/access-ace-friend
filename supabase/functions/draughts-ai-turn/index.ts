@@ -143,7 +143,7 @@ Deno.serve(async (req) => {
     if (!Array.isArray(board) || board.length !== 64) return json({ error: "Stored board is invalid" }, 500);
 
     const move = pickAIMove(board, depth);
-    let nextBoard = board, nextTurn = "b", status = "finished", matchWinner = "white";
+    let nextBoard: Board = board, nextTurn = "b", status = "finished", matchWinner: string | null = "white";
     if (move) {
       nextBoard = applyMove(board, move);
       const won = winner(nextBoard, "w");
