@@ -19,6 +19,42 @@ const wallpapers = [
   { key: "light", label: "Light", className: "bg-zinc-100" },
 ];
 
+const classicThemes = [
+  {
+    key: "classic-dark",
+    label: "Classic Dark",
+    description: "Black chat surface, white text and emerald accents",
+    wallpaper: "default",
+    bubble_color: "primary",
+    preview: "bg-[#090b10]",
+    incoming: "bg-[#20242d] text-white",
+    outgoing: "bg-[#123d32] text-white",
+    accent: "bg-emerald-400",
+  },
+  {
+    key: "classic-light",
+    label: "Classic Light",
+    description: "Clean light background with dark message text",
+    wallpaper: "light",
+    bubble_color: "blue",
+    preview: "bg-[#edf1f5]",
+    incoming: "bg-white text-slate-900",
+    outgoing: "bg-blue-600 text-white",
+    accent: "bg-blue-500",
+  },
+  {
+    key: "classic-blue",
+    label: "Classic Blue",
+    description: "Deep blue chat background with bright blue bubbles",
+    wallpaper: "ocean",
+    bubble_color: "blue",
+    preview: "bg-gradient-to-br from-[#071b38] to-[#075985]",
+    incoming: "bg-[#163b60] text-white",
+    outgoing: "bg-[#0879c9] text-white",
+    accent: "bg-sky-400",
+  },
+] as const;
+
 const colors = [
   { key: "primary", label: "Tiger green", className: "bg-primary" },
   { key: "blue", label: "Blue", className: "bg-blue-500" },
@@ -45,19 +81,58 @@ export const ChatAppearanceSettings = () => {
     toast({ title: "Default chat appearance saved", description: "New chats will use these settings. Existing chats keep their individual themes." });
   };
 
+  const applyClassicTheme = (theme: typeof classicThemes[number]) => {
+    update({ wallpaper: theme.wallpaper, bubble_color: theme.bubble_color });
+    toast({ title: `${theme.label} selected`, description: "This is now your default chat appearance." });
+  };
+
   const reset = () => {
     if (!user?.id) return;
     resetGlobalChatPreferences(user.id);
     setPrefs(defaults);
-    toast({ title: "Chat appearance reset", description: "Default TigerChat appearance restored." });
+    toast({ title: "Chat appearance reset", description: "Classic Dark appearance restored." });
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3">
         <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Sparkles className="h-4 w-4 text-primary" /> Messenger + WhatsApp style</div>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">Set default wallpapers, message bubble colors and text size for your conversations. You can still customize each chat separately from its chat menu.</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">Choose a ready-made chat theme, then fine-tune wallpapers, message bubble colors and text size. Your selection is saved as the default for your chats; individual conversations can still keep their own settings.</p>
       </div>
+
+      <section>
+        <h3 className="mb-3 text-sm font-semibold text-foreground">Classic chat themes</h3>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {classicThemes.map((theme) => {
+            const selected = prefs.wallpaper === theme.wallpaper && prefs.bubble_color === theme.bubble_color;
+            return (
+              <button
+                key={theme.key}
+                type="button"
+                onClick={() => applyClassicTheme(theme)}
+                aria-pressed={selected}
+                className={cn("overflow-hidden rounded-2xl border-2 text-left transition-all hover:-translate-y-0.5", selected ? "border-primary ring-2 ring-primary/25" : "border-border/70")}
+              >
+                <div className={cn("space-y-2 p-3", theme.preview)}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-white">TigerChat</span>
+                    <span className={cn("h-2 w-2 rounded-full", theme.accent)} />
+                  </div>
+                  <div className={cn("w-fit max-w-[85%] rounded-xl px-3 py-2 text-[10px] shadow-lg", theme.incoming)}>Hello! 👋</div>
+                  <div className={cn("ml-auto w-fit max-w-[85%] rounded-xl px-3 py-2 text-[10px] shadow-lg", theme.outgoing)}>Hi there!</div>
+                </div>
+                <div className="flex items-start justify-between gap-2 bg-card p-3">
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-foreground">{theme.label}</span>
+                    <span className="mt-1 block text-[11px] leading-4 text-muted-foreground">{theme.description}</span>
+                  </span>
+                  {selected && <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
       <section>
         <h3 className="mb-3 text-sm font-semibold text-foreground">Chat wallpaper</h3>
