@@ -31,7 +31,7 @@ type DraftRow = {
   trim_start_seconds: number;
   trim_end_seconds: number | null;
   captions: TimedCaption[];
-  editor_state?: { filter?: string; speed?: number; shareAudio?: boolean; originalReelId?: string | null; remixType?: "remix" | "duet" | null };
+  editor_state?: { filter?: string; speed?: number; shareAudio?: boolean; audioLibraryUrl?: string | null; originalReelId?: string | null; remixType?: "remix" | "duet" | null };
   updated_at: string;
 };
 const db = supabase as unknown as SupabaseClient;
@@ -320,7 +320,7 @@ const ReelsStudio = () => {
         trim_start_seconds: trimStart,
         trim_end_seconds: trimEnd,
         captions,
-        editor_state: { version: 2, filter: filterPreset, speed: playbackSpeed, shareAudio, originalReelId, remixType },
+        editor_state: { version: 2, filter: filterPreset, speed: playbackSpeed, shareAudio, audioLibraryUrl, originalReelId, remixType },
         updated_at: new Date().toISOString(),
       };
       const result = draftId
@@ -344,8 +344,9 @@ const ReelsStudio = () => {
     setCoverPath(draft.cover_path);
     setCoverUrl(await privateUrl(draft.cover_path));
     setAudioPath(draft.audio_path);
-    setAudioLibraryUrl(null);
-    setAudioUrl(await privateUrl(draft.audio_path));
+    const savedLibraryAudio = draft.editor_state?.audioLibraryUrl || null;
+    setAudioLibraryUrl(savedLibraryAudio);
+    setAudioUrl(savedLibraryAudio || await privateUrl(draft.audio_path));
     setAudioFile(null);
     setAudioTitle(draft.audio_title || "");
     setAudioStart(Number(draft.audio_start_seconds || 0));
@@ -357,6 +358,21 @@ const ReelsStudio = () => {
     setShareAudio(Boolean(draft.editor_state?.shareAudio));
     setOriginalReelId(draft.editor_state?.originalReelId || null);
     setRemixType(draft.editor_state?.remixType || null);
+    if (draft.editor_state?.remixType === "duet" && draft.editor_state?.originalReelId) {
+      try {
+        const { data: original } = await db.from("posts").select("media_url").eq("id", draft.editor_state.originalReelId).maybeSingle();
+        if (original?.media_url) {
+          const response = await fetch(original.media_url);
+          if (response.ok) {
+            const blob = await response.blob();
+            setDuetFile(new File([blob], "tiger-duet-source.mp4", { type: blob.type || "video/mp4" }));
+          }
+        }
+      } catch {
+        setDuetFile(null);
+        toast({ title: "Duet source unavailable", description: "Reopen the original Reel to prepare the duet again.", variant: "destructive" });
+      }
+    } else setDuetFile(null);
     setTimelineFiles([]);
     setTimelineRendered(false);
   };
@@ -883,7 +899,7 @@ const ReelsStudio = () => {
             <input type="datetime-local" value={scheduleAt} min={new Date(Date.now() + 60000 - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16)} onChange={(event) => setScheduleAt(event.target.value)} className="w-full rounded-lg bg-background p-2 text-sm text-foreground" />
             <p className="mt-2 text-[11px] text-muted-foreground">If set, the Reel is stored privately until the selected time, then becomes visible automatically.</p>
           </div>
-          <button onClick={publish} disabled={busy || !videoUrl} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground disabled:opacity-50">
+          <button onClick={publish} disabled={busy || !videoUrl || recordingVoice || listeningCaptions || recordingCamera} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground disabled:opacity-50">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clapperboard className="h-4 w-4" />} Publish Reel
           </button>
         </section>
