@@ -647,6 +647,7 @@ const ReelsStudio = () => {
     if (!user) return;
     setBusy(true);
     try {
+      if (recordingVoice || listeningCaptions || recordingCamera) throw new Error("Stop camera, voiceover and automatic captions before publishing.");
       if (!videoFile && !videoPath) throw new Error("Choose a video first.");
       if (remixType === "duet" && !duetFile) throw new Error("The original video could not be loaded for this duet. Try again or choose Remix.");
       if (timelineFiles.length > 1 && !timelineRendered) throw new Error("Render your multi-clip timeline before publishing.");
@@ -725,7 +726,7 @@ const ReelsStudio = () => {
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border/50 bg-card/95 px-4 py-3 backdrop-blur">
         <Link to="/reels" aria-label="Back to Reels" className="rounded-full p-2 text-muted-foreground"><ArrowLeft className="h-5 w-5" /></Link>
         <div className="flex items-center gap-2"><Clapperboard className="h-5 w-5 text-primary" /><h1 className="font-bold text-foreground">Reels Studio</h1></div>
-        <button onClick={saveDraft} disabled={busy || !videoUrl || recordingVoice} className="flex items-center gap-1 rounded-full px-3 py-2 text-sm text-primary disabled:opacity-50"><Save className="h-4 w-4" /> Draft</button>
+        <button onClick={saveDraft} disabled={busy || !videoUrl || recordingVoice || listeningCaptions || recordingCamera} className="flex items-center gap-1 rounded-full px-3 py-2 text-sm text-primary disabled:opacity-50"><Save className="h-4 w-4" /> Draft</button>
       </header>
 
       <main className="mx-auto grid max-w-5xl gap-5 p-4 lg:grid-cols-[1.2fr_0.8fr]">
