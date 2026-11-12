@@ -27,9 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
-      # Monotonic versioning: every Actions run gets a higher Android versionCode.
-      TIGER_VERSION_CODE: ${{ github.run_number }}
-      TIGER_VERSION_NAME: 1.0.${{ github.run_number }}
+      # Official first release in the existing APK series; next release starts at 1.0.27.
+      TIGER_VERSION_CODE: 26
+      TIGER_VERSION_NAME: 1.0.26
     steps:
       - uses: actions/checkout@v4
         with:
