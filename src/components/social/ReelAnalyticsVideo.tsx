@@ -126,6 +126,7 @@ export const ReelAnalyticsVideo = ({
     if (!video) return;
     const now = video.currentTime;
     if (trimEnd !== null && trimEnd !== undefined && now >= trimEnd) {
+      ended.current = true;
       video.pause();
       video.currentTime = trimEnd;
       audioRef.current?.pause();
