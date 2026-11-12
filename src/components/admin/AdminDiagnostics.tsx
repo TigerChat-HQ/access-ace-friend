@@ -187,7 +187,6 @@ export const AdminDiagnostics = () => {
     }
     const actualTables = new Set<string>((inventory ?? []).map((row: { table_name: string }) => row.table_name));
     const unregistered = [...actualTables].filter(name => !EXPECTED_TABLES.includes(name)).sort();
-    const missingRegistered = EXPECTED_TABLES.filter(name => !actualTables.has(name));
     const results = await Promise.all(EXPECTED_TABLES.map(async (name) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic table names are required for the schema registry scan.
       const { error } = await (supabase as any).from(name).select("*", { head: true, count: "exact" });
