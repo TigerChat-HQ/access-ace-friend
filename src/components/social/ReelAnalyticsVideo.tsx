@@ -15,6 +15,8 @@ type Props = {
   audioUrl?: string | null;
   audioStart?: number;
   audioEnd?: number | null;
+  originalVolume?: number;
+  musicVolume?: number;
   trimStart?: number;
   trimEnd?: number | null;
   captions?: TimedCaption[] | null;
@@ -25,7 +27,7 @@ const db = supabase as unknown as SupabaseClient;
 
 export const ReelAnalyticsVideo = ({
   postId, creatorId, viewerId, src, coverUrl, audioUrl,
-  audioStart = 0, audioEnd = null, trimStart = 0, trimEnd, captions, className,
+  audioStart = 0, audioEnd = null, originalVolume = 1, musicVolume = 0.75, trimStart = 0, trimEnd, captions, className,
 }: Props) => {
   const rootRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -58,8 +60,10 @@ export const ReelAnalyticsVideo = ({
         const video = videoRef.current;
         const audio = audioRef.current;
         if (video) {
-          video.muted = Boolean(audioUrl) || getFeedMuted();
-          claimFeedPlayback(audioUrl && audio ? [audio] : [video]);
+          video.muted = getFeedMuted();
+          video.volume = originalVolume;
+          if (audio) { audio.muted = getFeedMuted(); audio.volume = musicVolume; }
+          claimFeedPlayback(audioUrl && audio ? [video, audio] : [video]);
           void video.play().catch(() => undefined);
         }
       } else {
@@ -77,7 +81,7 @@ export const ReelAnalyticsVideo = ({
       observer.observe(target);
     } else onVisible(true);
     return () => observer?.disconnect();
-  }, [record, audioUrl]);
+  }, [record, audioUrl, originalVolume, musicVolume]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -114,13 +118,15 @@ export const ReelAnalyticsVideo = ({
       void record("play");
     }
     lastSample.current = videoRef.current?.currentTime ?? 0;
-    if (audioUrl && audioRef.current) {
-      claimFeedPlayback([audioRef.current]);
-      audioRef.current.muted = getFeedMuted();
-    } else if (videoRef.current) {
-      claimFeedPlayback([videoRef.current]);
+    if (videoRef.current) {
       videoRef.current.muted = getFeedMuted();
+      videoRef.current.volume = originalVolume;
     }
+    if (audioUrl && audioRef.current) {
+      audioRef.current.muted = getFeedMuted();
+      audioRef.current.volume = musicVolume;
+      claimFeedPlayback([videoRef.current!, audioRef.current]);
+    } else if (videoRef.current) claimFeedPlayback([videoRef.current]);
     syncAudio();
   };
 
@@ -179,7 +185,7 @@ export const ReelAnalyticsVideo = ({
         onEnded={() => { ended.current = true; audioRef.current?.pause(); flushWatch(); }}
       />
       {audioUrl && <audio ref={audioRef} src={audioUrl} preload="metadata" loop /> }
-      {audioUrl && <button type="button" aria-label={muted ? "Unmute video" : "Mute video"} onClick={() => { const next = !muted; setMuted(next); setFeedMuted(next); if (audioRef.current) audioRef.current.muted = next; if (!next && videoRef.current && !videoRef.current.paused) syncAudio(); }} className="absolute right-3 bottom-3 z-10 rounded-full bg-black/70 p-2 text-white" >{muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}</button>}
+      {audioUrl && <button type="button" aria-label={muted ? "Unmute video" : "Mute video"} onClick={() => { const next = !muted; setMuted(next); setFeedMuted(next); if (videoRef.current) videoRef.current.muted = next; if (audioRef.current) audioRef.current.muted = next; if (!next && videoRef.current && !videoRef.current.paused) syncAudio(); }} className="absolute right-3 bottom-3 z-10 rounded-full bg-black/70 p-2 text-white" >{muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}</button>}
       {activeCaption?.text && (
         <div aria-live="off" className="pointer-events-none absolute inset-x-4 bottom-16 mx-auto max-w-[90%] text-center">
           <span className="inline-block rounded-lg bg-black/75 px-3 py-2 text-base font-semibold text-white shadow-lg">{activeCaption.text}</span>
