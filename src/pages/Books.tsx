@@ -235,7 +235,7 @@ export default function BooksPage() {
     const row = { progress_percent: Math.max(0, Math.min(100, Math.round(percent))), last_chapter: Math.max(0, lastChapter) };
     setReadingProgress((current) => ({ ...current, [bookId]: row }));
     if (!user) { toast({ title: "Maendeleo yamehifadhiwa kwenye kifaa hiki", description: "Ingia ili uyasawazishe kwenye akaunti yako." }); return; }
-    const { error } = await supabase.from("books_reading_progress" as any).upsert({ user_id: user.id, book_id: bookId, ...row, updated_at: new Date().toISOString() }, { onConflict: "user_id,book_id" });
+    const { error } = await booksDb.from("books_reading_progress").upsert({ user_id: user.id, book_id: bookId, ...row, updated_at: new Date().toISOString() }, { onConflict: "user_id,book_id" });
     if (error) { toast({ title: "Usawazishaji haujakamilika", description: "Maendeleo yamebaki kwenye kifaa hiki kwa sasa.", variant: "destructive" }); return; }
     toast({ title: "Maendeleo yamesawazishwa kwenye akaunti yako" });
   };
