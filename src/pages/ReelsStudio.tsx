@@ -677,7 +677,7 @@ const ReelsStudio = () => {
           publishedCover = await promoteDraftAsset(coverPath, "cover");
           if (publishedCover?.path) uploadedPaths.push(publishedCover.path);
         }
-        if (audioFile && !timelineRendered) {
+        if (audioFile && (!timelineRendered || shareAudio)) {
           publishedAudio = await uploadPublishedFile(audioFile, "audio");
           if (publishedAudio.path) uploadedPaths.push(publishedAudio.path);
         } else if (audioPath) {
@@ -692,7 +692,7 @@ const ReelsStudio = () => {
           media_type: "video",
           hashtags: hashtags(caption),
           reel_cover_url: publishedCover?.url || null,
-          reel_audio_url: (timelineRendered && audioFile) ? null : (publishedAudio?.url || audioLibraryUrl || null),
+          reel_audio_url: (timelineRendered && audioFile && !shareAudio) ? null : (publishedAudio?.url || audioLibraryUrl || null),
           reel_audio_title: audioTitle || (audioFile?.name ?? null),
           reel_audio_shareable: Boolean(shareAudio && (publishedAudio?.url || audioLibraryUrl)),
           reel_original_post_id: originalReelId,
