@@ -262,6 +262,16 @@ export const AdminDiagnostics = () => {
     let detail = "";
     let failureName = "";
     let fixSteps: string[] = [];
+    let activeAudioApps: Array<{packageName:string;appName:string;clientAudioSource?:number;silenced?:boolean}> = [];
+    let audioInspection: Record<string, unknown> = { available: false, reason: "Native Android bridge haipatikani." };
+    if (kind === "microphone" && window.TigerNative?.getActiveAudioRecordingApps) {
+      try {
+        audioInspection = JSON.parse(window.TigerNative.getActiveAudioRecordingApps());
+        activeAudioApps = Array.isArray((audioInspection as any).recordings) ? (audioInspection as any).recordings : [];
+      } catch (inspectionError) {
+        audioInspection = { available: false, error: String(inspectionError) };
+      }
+    }
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error("MediaDevices.getUserMedia haipatikani kwenye WebView/browser hii.");
       try {
@@ -277,7 +287,28 @@ export const AdminDiagnostics = () => {
       failureName = error instanceof DOMException ? error.name : "UnknownError";
       detail = `${failureName}: ${error instanceof Error ? error.message : String(error)}; permission: ${permissionState}`;
       fixSteps = mediaFixInstructions(kind, failureName, permissionState);
+      if (kind === "microphone" && failureName === "NotReadableError") {
+        if (activeAudioApps.length > 0) {
+          const names = activeAudioApps.map(app => `${app.appName} (${app.packageName})${app.silenced ? " — Android imeinyamazisha" : ""}`);
+          detail += `; Android imethibitisha app zinazorekodi sauti: ${names.join(", ")}`;
+          fixSteps = [
+            `Funga au simamisha app hizi kwanza: ${names.join("; ")}.`,
+            "Fungua Recent Apps na uzifunge kabisa; kisha rudia kipimo cha microphone.",
+            "Ikiwa app hiyo inahitaji microphone, maliza simu/rekodi inayoendelea ndani yake kabla ya kutumia TigerChat."
+          ];
+        } else if ((audioInspection as any).available === true) {
+          detail += "; Android haijaonyesha app nyingine inayorekodi sauti wakati wa ukaguzi. Chanzo kinaweza kuwa audio service, kifaa, au session iliyokwama; hakuna app iliyothibitishwa kuizuia.";
+          fixSteps = [
+            "Hakuna app nyingine iliyothibitishwa. Funga programu zote za simu/rekodi kisha jaribu tena.",
+            "Zima na washa tena simu ili kuanzisha upya Android Audio Service.",
+            "Jaribu Recorder ya simu; ikiwa nayo inashindwa, tatizo linaweza kuwa kwenye mfumo au hardware ya microphone."
+          ];
+        } else {
+          detail += "; Android haikuweza kutoa orodha ya app zinazorekodi sauti kwenye kifaa hiki.";
+        }
+      }
     }
+    const activeAppText = activeAudioApps.map(app => `${app.appName} [${app.packageName}], silenced=${Boolean(app.silenced)}`);
     const fixText = fixSteps.length ? `\nHatua za kurekebisha:\n${fixSteps.map((step, index) => `${index + 1}. ${step}`).join("\n")}` : "";
     setMediaResults(current => ({ ...current, [kind]: `${outcome.toUpperCase()} — ${detail}${fixText}` }));
     await record({
@@ -286,7 +317,7 @@ export const AdminDiagnostics = () => {
       title: `${kind === "camera" ? "Camera" : "Microphone"} permission test ${outcome}`,
       message: detail, route: window.location.pathname, component: "AdminDiagnostics",
       suggestion: outcome === "passed" ? "Media capture ilifanya kazi kwenye WebView hii wakati wa test." : fixSteps.join(" "),
-      metadata: { permissionState, deviceCount, errorName: failureName || null, fixSteps, userAgent: navigator.userAgent, secureContext: window.isSecureContext, mediaDevicesAvailable: Boolean(navigator.mediaDevices), webView: /; wv\)|Android.*Version\//i.test(navigator.userAgent) },
+      metadata: { permissionState, deviceCount, errorName: failureName || null, fixSteps, activeAudioApps, audioInspection, userAgent: navigator.userAgent, secureContext: window.isSecureContext, mediaDevicesAvailable: Boolean(navigator.mediaDevices), webView: /; wv\\)|Android.*Version\\//i.test(navigator.userAgent) },
     });
     setMediaBusy(null);
     await load();
