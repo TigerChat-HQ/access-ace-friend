@@ -62,6 +62,8 @@ jobs:
             user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
             media_type text NOT NULL,
             audience text NOT NULL DEFAULT 'public',
+            reel_audio_url text,
+            archived_at timestamptz,
             is_draft boolean NOT NULL DEFAULT false,
             scheduled_at timestamptz
           );
