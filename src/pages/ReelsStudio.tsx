@@ -501,7 +501,7 @@ const ReelsStudio = () => {
         const transcript = result?.[0]?.transcript?.trim();
         if (result?.isFinal && transcript) additions.push({ start: videoTime, end: Math.min(duration || videoTime + 4, videoTime + 4), text: transcript });
       }
-      if (additions.length) setCaptions((items) => [...items, ...additions].sort((a, b) => a.start - b.start));
+      if (additions.length) { setCaptions((items) => [...items, ...additions].sort((a, b) => a.start - b.start)); setTimelineRendered(false); }
     };
     recognition.onerror = () => {
       setListeningCaptions(false);
