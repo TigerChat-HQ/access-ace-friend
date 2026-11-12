@@ -239,7 +239,7 @@ BEGIN
   SELECT jsonb_agg(
     CASE
       WHEN i=17 THEN '{"c":"w","k":false}'::jsonb
-      WHEN i=8 OR i=10 THEN '{"c":"b","k":false}'::jsonb
+      WHEN i=10 OR i=12 THEN '{"c":"b","k":false}'::jsonb
       ELSE 'null'::jsonb
     END ORDER BY i
   ) INTO v_board FROM generate_series(0,63) i;
@@ -247,23 +247,23 @@ BEGIN
     jsonb_set(
       jsonb_set(
         jsonb_set(v_board,'{17}','null'::jsonb),
-        '{8}','null'::jsonb
+        '{10}','null'::jsonb
       ),
-      '{10}','null'::jsonb
+      '{12}','null'::jsonb
     ),
-    '{19}','{"c":"w","k":true}'::jsonb
+    '{21}','{"c":"w","k":true}'::jsonb
   );
   INSERT INTO public.draft_matches(id,player_white,current_turn,revision,status,board,vs_ai)
   VALUES(v_match_id,v_user,'w',0,'active',v_board,true);
 
   SELECT * INTO v_result FROM public.commit_draft_move(
     v_match_id,0,v_expected,'b',
-    '{"from":17,"to":19,"captures":[8,10],"promote":true}'::jsonb,
+    '{"from":17,"to":21,"captures":[10,12],"promote":true}'::jsonb,
     'finished','white'
   );
   IF v_result.revision<>1 OR v_result.board<>v_expected
      OR v_result.winner<>'white' OR v_result.status<>'finished'
-     OR v_result.board->19->>'k'<>'true' THEN
+     OR v_result.board->21->>'k'<>'true' THEN
     RAISE EXCEPTION 'Promotion during a multi-capture was not validated and persisted correctly';
   END IF;
 END
