@@ -64,6 +64,7 @@ export const AdminDiagnostics = () => {
   const [title, setTitle] = useState("");
   const [suggestion, setSuggestion] = useState("");
   const [statusFilter, setStatusFilter] = useState("active");
+  const [platformFilter, setPlatformFilter] = useState("all");
   const [schemaResults, setSchemaResults] = useState<{name:string;status:"ok"|"missing"|"error"|"unregistered";detail?:string}[]>([]);
   const [mediaBusy, setMediaBusy] = useState<"camera"|"microphone"|null>(null);
   const [mediaResults, setMediaResults] = useState<Record<string, string>>({});
@@ -358,16 +359,25 @@ export const AdminDiagnostics = () => {
     }
   };
 
-  const visible = statusFilter === "active" ? items.filter(x => x.status === "new" || x.status === "investigating") : statusFilter === "all" ? items : items.filter(x => x.status === statusFilter);
+  const platformOf = (item: Diagnostic) => {
+    const platform = String(item.metadata?.platform || "").toLowerCase();
+    if (platform === "android" || item.source.startsWith("android_") || item.source === "apk") return "android";
+    if (platform === "web" || item.source === "website" || item.source === "browser" || item.source.startsWith("supabase_")) return "website";
+    return "unknown";
+  };
+  const platformItems = platformFilter === "all" ? items : items.filter(item => platformOf(item) === platformFilter);
+  const visible = (statusFilter === "active" ? platformItems.filter(x => x.status === "new" || x.status === "investigating") : statusFilter === "all" ? platformItems : platformItems.filter(x => x.status === statusFilter));
   const missingCount = schemaResults.filter(x => x.status === "missing").length;
   return <section className="space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex items-center gap-2"><Bug className="h-4 w-4 text-primary"/><h3 className="text-sm font-semibold">Admin Diagnostics Center</h3></div>
       <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw className={`mr-1 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}/>Refresh</Button>
     </div>
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       <div className="rounded-lg border border-border bg-card p-3"><p className="text-xs text-muted-foreground">Recorded issues</p><p className="text-xl font-bold">{items.length}</p></div>
       <div className="rounded-lg border border-border bg-card p-3"><p className="text-xs text-muted-foreground">Open issues</p><p className="text-xl font-bold">{items.filter(x=>x.status==="new"||x.status==="investigating").length}</p></div>
+      <div className="rounded-lg border border-border bg-card p-3"><p className="text-xs text-muted-foreground">Website errors</p><p className="text-xl font-bold">{items.filter(x=>platformOf(x)==="website").length}</p></div>
+      <div className="rounded-lg border border-border bg-card p-3"><p className="text-xs text-muted-foreground">Android APK errors</p><p className="text-xl font-bold">{items.filter(x=>platformOf(x)==="android").length}</p></div>
     </div>
     <div className="rounded-lg border border-border bg-card p-3 space-y-2">
       <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">01 · Vipimo vya vifaa</p><h4 className="text-sm font-semibold">Sauti na Kamera</h4><p className="text-xs text-muted-foreground">Kagua ruhusa na upate hatua mahsusi za kurekebisha hitilafu.</p></div>
@@ -431,13 +441,16 @@ export const AdminDiagnostics = () => {
     <div className="border-b border-border pb-2"><p className="text-[10px] font-bold uppercase tracking-wider text-primary">07 · Historia</p><h4 className="text-sm font-semibold">Rekodi za makosa</h4><p className="text-xs text-muted-foreground">Chuja, fuatilia, nakili au badilisha hali ya kila kosa.</p></div>
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex flex-wrap items-center gap-2"><h4 className="text-sm font-semibold">Issue log ({visible.length})</h4><Button size="sm" variant="outline" onClick={() => void copyAllErrors()} disabled={items.length === 0}><Copy className="mr-1 h-3.5 w-3.5"/>Copy all errors ({items.length})</Button></div>
-      <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="rounded-md border border-border bg-background px-2 py-1 text-xs"><option value="active">Active errors</option><option value="all">All / history</option><option value="new">New</option><option value="investigating">Investigating</option><option value="fixed">Fixed</option><option value="ignored">Ignored</option></select>
+      <div className="flex flex-wrap gap-2">
+        <select aria-label="Filter diagnostics by platform" value={platformFilter} onChange={e=>setPlatformFilter(e.target.value)} className="rounded-md border border-border bg-background px-2 py-1 text-xs"><option value="all">Website + APK</option><option value="website">Website only</option><option value="android">Android APK only</option><option value="unknown">Unknown platform</option></select>
+        <select aria-label="Filter diagnostics by status" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} className="rounded-md border border-border bg-background px-2 py-1 text-xs"><option value="active">Active errors</option><option value="all">All / history</option><option value="new">New</option><option value="investigating">Investigating</option><option value="fixed">Fixed</option><option value="ignored">Ignored</option></select>
+      </div>
     </div>
     {visible.map(item=><article key={item.id} className={`rounded-lg border bg-card p-3 space-y-2 ${item.status === "new" ? "border-emerald-500/50" : "border-border"}`}>
       <div className="flex flex-wrap items-center gap-1"><Badge variant={item.severity==="critical"||item.severity==="high"?"destructive":"secondary"}>{item.severity}</Badge><Badge variant="outline">{item.category}</Badge><Badge>{item.status}</Badge></div>
       <p className="text-sm font-bold flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0"/>{item.title}</p>
       {item.message && <p className="text-xs text-muted-foreground break-words">{item.message}</p>}
-      <p className="text-[11px] text-muted-foreground">{new Date(item.created_at).toLocaleString()} · {item.route ?? "unknown route"}{item.action_label ? ` · Click: ${item.action_label}` : ""}</p>
+      <p className="text-[11px] text-muted-foreground">{platformOf(item) === "android" ? "Android APK" : platformOf(item) === "website" ? "Website / PWA" : "Platform unknown"} · {item.source} · {new Date(item.created_at).toLocaleString()} · {item.route ?? "unknown route"}{item.action_label ? ` · Click: ${item.action_label}` : ""}</p>
       {item.component_name && <p className="text-xs">Component: {item.component_name}</p>}
       {item.suggestion && <p className="text-xs text-primary">Recommendation: {item.suggestion}</p>}
       <div className="flex flex-wrap gap-1">{["new","investigating","fixed","ignored"].filter(s=>s!==item.status).map(s=><Button key={s} size="sm" variant="outline" onClick={()=>void updateStatus(item.id,s)}>{s}</Button>)}</div>
