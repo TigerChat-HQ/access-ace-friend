@@ -19,6 +19,7 @@ DECLARE
   v_color text := p_piece->>'c';
   v_king boolean := coalesce((p_piece->>'k')::boolean, false);
   v_dirs integer[][];
+  v_dir integer[];
   v_dr integer;
   v_dc integer;
   v_mr integer;
@@ -41,15 +42,15 @@ BEGIN
     v_dirs := ARRAY[ARRAY[1,-1],ARRAY[1,1]];
   END IF;
 
-  FOREACH v_dr SLICE 1 IN ARRAY v_dirs LOOP
-    v_mr := v_r + v_dr[1];
-    v_mc := v_c + v_dr[2];
+  FOREACH v_dir SLICE 1 IN ARRAY v_dirs LOOP
+    v_mr := v_r + v_dir[1];
+    v_mc := v_c + v_dir[2];
 
     IF v_king THEN
       WHILE v_mr BETWEEN 0 AND 7 AND v_mc BETWEEN 0 AND 7
-        AND p_board->(v_mr*8+v_mc)::text = 'null' LOOP
-        v_mr := v_mr + v_dr[1];
-        v_mc := v_mc + v_dr[2];
+        AND p_board->(v_mr*8+v_mc) = 'null' LOOP
+        v_mr := v_mr + v_dir[1];
+        v_mc := v_mc + v_dir[2];
       END LOOP;
     END IF;
 
@@ -58,10 +59,10 @@ BEGIN
     v_mid_piece := p_board->v_mid;
     IF v_mid_piece IS NULL OR v_mid_piece='null'::jsonb OR v_mid_piece->>'c'=v_color THEN CONTINUE; END IF;
 
-    v_tr := v_mr + v_dr[1];
-    v_tc := v_mc + v_dr[2];
+    v_tr := v_mr + v_dir[1];
+    v_tc := v_mc + v_dir[2];
     WHILE v_tr BETWEEN 0 AND 7 AND v_tc BETWEEN 0 AND 7
-      AND p_board->(v_tr*8+v_tc)::text = 'null' LOOP
+      AND p_board->(v_tr*8+v_tc) = 'null' LOOP
       v_to := v_tr*8+v_tc;
       v_next_board := jsonb_set(p_board, ARRAY[p_from::text], 'null'::jsonb);
       v_next_board := jsonb_set(v_next_board, ARRAY[v_mid::text], 'null'::jsonb);
@@ -86,8 +87,8 @@ BEGIN
       END IF;
 
       IF NOT v_king THEN EXIT; END IF;
-      v_tr := v_tr + v_dr[1];
-      v_tc := v_tc + v_dr[2];
+      v_tr := v_tr + v_dir[1];
+      v_tc := v_tc + v_dir[2];
     END LOOP;
   END LOOP;
 END;
@@ -106,6 +107,7 @@ DECLARE
   v_dr integer;
   v_dc integer;
   v_dirs integer[][];
+  v_dir integer[];
   v_piece jsonb;
   v_step integer;
 BEGIN
@@ -127,7 +129,7 @@ BEGIN
     ELSE
       v_dirs := ARRAY[ARRAY[1,-1],ARRAY[1,1]];
     END IF;
-    FOREACH v_dr SLICE 1 IN ARRAY v_dirs LOOP
+    FOREACH v_dir SLICE 1 IN ARRAY v_dirs LOOP
       v_step := 1;
       LOOP
         EXIT WHEN v_r+v_dr[1]*v_step NOT BETWEEN 0 AND 7 OR v_c+v_dr[2]*v_step NOT BETWEEN 0 AND 7;
@@ -269,7 +271,7 @@ BEGIN
     v_new_piece:=jsonb_build_object('c',v_mover,'k',coalesce((v_piece->>'k')::boolean,false) OR v_promote);
     v_new_board:=jsonb_set(v_new_board,ARRAY[v_to::text],v_new_piece);
 
-    IF p_turn<>CASE WHEN v_mover='w' THEN 'b' ELSE 'w' END THEN
+    IF p_turn<>(CASE WHEN v_mover='w' THEN 'b' ELSE 'w' END) THEN
       RAISE EXCEPTION 'Invalid next turn';
     END IF;
     IF private.draughts_has_legal_move(v_new_board,CASE WHEN v_mover='w' THEN 'b' ELSE 'w' END) THEN
