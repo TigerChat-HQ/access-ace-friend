@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { renderReelTimeline } from "@/lib/reelTimelineEditor";
+import { MusicPicker } from "@/components/chat/MusicPicker";
 
 type TimedCaption = { start: number; end: number; text: string };
 type SpeechRecognitionLike = {
@@ -94,6 +95,30 @@ const ReelsStudio = () => {
   const [recordingCamera, setRecordingCamera] = useState(false);
 
   const markTimelineDirty = () => { if (timelineRendered) setRenderedEditsDirty(true); setTimelineRendered(false); };
+
+  const selectAudioTrack = (track: { url: string; title: string; start?: number }) => {
+    setAudioLibraryUrl(track.url);
+    setAudioUrl(track.url);
+    setAudioFile(null);
+    setAudioPath(null);
+    setAudioTitle(track.title);
+    setAudioStart(Math.max(0, track.start || 0));
+    markTimelineDirty();
+  };
+
+  const handleBuiltInMusicChange = (track: { url: string; title: string; start: number; end: number } | null) => {
+    if (!track) {
+      setAudioLibraryUrl(null);
+      setAudioUrl(null);
+      setAudioFile(null);
+      setAudioPath(null);
+      setAudioTitle("");
+      setAudioStart(0);
+      markTimelineDirty();
+      return;
+    }
+    selectAudioTrack({ url: track.url, title: track.title, start: track.start });
+  };
 
   const refreshDrafts = useCallback(async () => {
     if (!user) return;
@@ -856,8 +881,10 @@ const ReelsStudio = () => {
 
           <div className="rounded-2xl border border-border/60 bg-card p-4">
             <div className="mb-3 flex items-center gap-2"><AudioLines className="h-4 w-4 text-primary" /><h2 className="text-sm font-semibold text-foreground">Audio track</h2></div>
-            <input value={audioTitle} onChange={(e) => setAudioTitle(e.target.value)} placeholder="Track title (optional)" className="mb-2 w-full rounded-lg bg-background p-2 text-sm text-foreground" />
-            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border p-3 text-sm text-muted-foreground"><Upload className="h-4 w-4" /> Upload your original or licensed audio<input type="file" accept="audio/*" className="hidden" onChange={(e) => { setAudioFile(e.target.files?.[0] || null); setAudioPath(null); setAudioLibraryUrl(null); setAudioUrl(null); markTimelineDirty(); if (e.target.files?.[0] && !audioTitle) setAudioTitle(e.target.files[0].name); }} /></label>
+            <p className="mb-2 text-xs text-muted-foreground">Choose from the 20 background tracks already available in TigerChat (CC0), or add your own recording.</p>
+            <MusicPicker maxClip={90} value={audioLibraryUrl ? { url: audioLibraryUrl, title: audioTitle || "TigerChat music", start: audioStart, end: audioStart + 90 } : null} onChange={handleBuiltInMusicChange} />
+            {audioUrl && <div className="mt-2 rounded-lg bg-background p-2"><p className="mb-1 truncate text-xs text-foreground">{audioTitle || "Selected background music"}</p><audio src={audioUrl} controls preload="none" className="h-9 w-full" /></div>}
+            <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border p-3 text-sm text-muted-foreground"><Upload className="h-4 w-4" /> Upload your own audio instead<input type="file" accept="audio/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0] || null; setAudioFile(file); setAudioPath(null); setAudioLibraryUrl(null); setAudioUrl(file ? URL.createObjectURL(file) : null); markTimelineDirty(); if (file && !audioTitle) setAudioTitle(file.name); }} /></label>
             <button type="button" disabled={busy} onClick={() => void toggleVoiceover()} className={`mt-2 flex w-full items-center justify-center gap-2 rounded-xl p-3 text-sm font-semibold ${recordingVoice ? "bg-destructive text-destructive-foreground" : "bg-secondary text-secondary-foreground"}`}>
               <span className={recordingVoice ? "h-2 w-2 animate-pulse rounded-full bg-current" : "h-2 w-2 rounded-full bg-primary"} />
               {recordingVoice ? "Stop voiceover recording" : "Record voiceover"}
@@ -875,13 +902,13 @@ const ReelsStudio = () => {
                 {savedAudio.slice(0, 5).map((track) => (
                   <div key={track.id} className="flex items-center gap-2 rounded-lg bg-background p-2">
                     <span className="min-w-0 flex-1 truncate text-xs text-foreground">{track.audio_title}</span>
-                    <button type="button" onClick={() => { setAudioLibraryUrl(track.audio_url); setAudioUrl(track.audio_url); setAudioFile(null); setAudioPath(null); setAudioTitle(track.audio_title); }} className="text-xs font-semibold text-primary">Use</button>
+                    <button type="button" onClick={() => selectAudioTrack({ url: track.audio_url, title: track.audio_title, start: 0 })} className="text-xs font-semibold text-primary">Use</button>
                   </div>
                 ))}
                 {audioLibrary.slice(0, 8).map((track) => (
                   <div key={track.id} className="flex items-center gap-2 rounded-lg bg-background p-2">
                     <span className="min-w-0 flex-1 truncate text-xs text-foreground">{track.reel_audio_title || "Original audio"} · {track.usage_count || 0} remixes</span>
-                    <button type="button" onClick={() => { setAudioLibraryUrl(track.reel_audio_url); setAudioUrl(track.reel_audio_url); setAudioFile(null); setAudioPath(null); setAudioTitle(track.reel_audio_title || "Original audio"); }} className="text-xs font-semibold text-primary">Use</button>
+                    <button type="button" onClick={() => selectAudioTrack({ url: track.reel_audio_url, title: track.reel_audio_title || "Original audio", start: 0 })} className="text-xs font-semibold text-primary">Use</button>
                     <button type="button" onClick={async () => {
                       const { error } = await db.from("reel_audio_saves").insert({ user_id: user?.id, source_post_id: track.id, creator_id: track.user_id, audio_url: track.reel_audio_url, audio_title: track.reel_audio_title || "Original audio" });
                       if (error && error.code !== "23505") toast({ title: "Could not save audio", description: error.message, variant: "destructive" });
@@ -895,7 +922,7 @@ const ReelsStudio = () => {
                 ))}
               </div>
             )}
-            <p className="mt-2 text-[11px] text-muted-foreground">Use original or licensed audio only. Voiceover recordings are saved as the Reel audio track. A commercial music catalogue still requires a licensed provider.</p>
+            <p className="mt-2 text-[11px] text-muted-foreground">TigerChat’s built-in CC0 tracks can be used in Reels and remixed. You can also use your own audio or voiceover.</p>
           </div>
         </section>
 
