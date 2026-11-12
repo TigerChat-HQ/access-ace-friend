@@ -10,9 +10,9 @@ const json = (body: unknown, status = 200) =>
 
 type RenderEvent = { id: string; timestamp: string; type: string; details?: Record<string, unknown> };
 const redact = (value: string) => value
-  .replace(/Bearer\\s+[^\\s]+/gi, "Bearer [REDACTED]")
-  .replace(/(password|token|secret|authorization|api[_-]?key)(["']?\\s*[:=]\\s*["']?)[^&\\s,"']+/gi, "$1$2[REDACTED]")
-  .replace(/(https?:\\/\\/[^\\s?]+)\\?[^\\s]+/gi, "$1?[REDACTED]")
+  .replace(/Bearer\s+[^\s]+/gi, "Bearer [REDACTED]")
+  .replace(/(password|token|secret|authorization|api[_-]?key)(["']?\s*[:=]\s*["']?)[^&\s,"']+/gi, "$1$2[REDACTED]")
+  .replace(/(https?:\/\/[^\s?]+)\?[^\s]+/gi, "$1?[REDACTED]")
   .slice(0, 8000);
 const sha256 = async (value: string) => {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
@@ -25,7 +25,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const authorization = req.headers.get("Authorization") || "";
-    const token = authorization.replace(/^Bearer\\s+/i, "");
+    const token = authorization.replace(/^Bearer\s+/i, "");
     if (!token) return json({ error: "Authentication required" }, 401);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
