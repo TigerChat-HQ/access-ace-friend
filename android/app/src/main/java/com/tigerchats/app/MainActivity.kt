@@ -292,7 +292,7 @@ open class MainActivity : Activity() {
         if (!::webView.isInitialized) return
         webView.post {
             val detail = JSONObject().put("granted", granted)
-            webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('tiger:contacts-permission',{detail:$detail}))", null)
+            webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('tiger:contacts-permission',{detail:$detail})); document.querySelectorAll('iframe').forEach(function(frame){try{frame.contentWindow.dispatchEvent(new CustomEvent('tiger:contacts-permission',{detail:$detail}))}catch(e){}})", null)
         }
     }
 
