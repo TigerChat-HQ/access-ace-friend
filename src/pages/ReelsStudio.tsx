@@ -590,9 +590,9 @@ const ReelsStudio = () => {
         duetFile,
         filter: filterPreset,
         speed: playbackSpeed,
-        musicFile: audioFile,
+        musicFile: audioFile && !shareAudio ? audioFile : null,
         musicStartSeconds: audioStart,
-        originalVolume,
+        originalVolume: audioFile && !shareAudio ? originalVolume : 1,
         musicVolume,
         captions,
         onProgress: setRenderProgress,
@@ -733,6 +733,7 @@ const ReelsStudio = () => {
       if (timelineFiles.length > 1 && !timelineRendered) throw new Error("Render your multi-clip timeline before publishing.");
       if ((filterPreset !== "none" || playbackSpeed !== 1 || trimStart > 0 || (trimEnd !== null && duration > 0 && trimEnd < duration - 0.1)) && !timelineRendered) throw new Error("Render your trim, speed and filter edits before publishing.");
       if (videoFile && videoFile.size > 150 * 1024 * 1024) throw new Error("Video exceeds the 150 MB upload limit.");
+      const musicEmbeddedInVideo = Boolean(timelineRendered && audioFile && !shareAudio);
       const uploadedPaths: string[] = [];
       let publishedVideo: { url: string; path: string } | null = null;
       let publishedAudio: { url: string; path: string } | null = null;
@@ -765,15 +766,15 @@ const ReelsStudio = () => {
           media_type: "video",
           hashtags: hashtags(caption),
           reel_cover_url: publishedCover?.url || null,
-          reel_audio_url: (timelineRendered && audioFile && !shareAudio) ? null : (publishedAudio?.url || audioLibraryUrl || null),
+          reel_audio_url: musicEmbeddedInVideo ? null : (publishedAudio?.url || audioLibraryUrl || null),
           reel_audio_title: audioTitle || (audioFile?.name ?? null),
           reel_audio_shareable: Boolean(shareAudio && (publishedAudio?.url || audioLibraryUrl)),
           reel_original_post_id: originalReelId,
           reel_remix_type: remixType,
           reel_audio_start_seconds: audioStart,
           reel_audio_end_seconds: audioEnd,
-          reel_original_volume: originalVolume,
-          reel_music_volume: musicVolume,
+          reel_original_volume: musicEmbeddedInVideo ? 1 : originalVolume,
+          reel_music_volume: musicEmbeddedInVideo ? 1 : musicVolume,
           reel_trim_start_seconds: timelineRendered ? 0 : trimStart,
           reel_trim_end_seconds: timelineRendered ? null : trimEnd,
           is_draft: false,
