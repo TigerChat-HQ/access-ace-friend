@@ -14,6 +14,7 @@ export type ReelTimelineOptions = {
 };
 
 const waitFor = (target: HTMLMediaElement, event: string) => new Promise<void>((resolve, reject) => {
+  if (target.readyState >= HTMLMediaElement.HAVE_METADATA) { resolve(); return; }
   const cleanup = () => {
     target.removeEventListener(event, ready);
     target.removeEventListener("error", failed);
