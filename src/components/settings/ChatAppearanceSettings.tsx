@@ -3,7 +3,11 @@ import { Check, RotateCcw, Sparkles } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { ChatPrefs } from "@/hooks/useChatPreferences";
-import { getGlobalChatPreferences, resetGlobalChatPreferences, saveGlobalChatPreferences } from "@/lib/chat-global-preferences";
+import {
+  deleteGlobalChatPreferences,
+  loadGlobalChatPreferences,
+  persistGlobalChatPreferences,
+} from "@/lib/chat-global-preferences";
 import { cn } from "@/lib/utils";
 
 const wallpapers = [
@@ -20,39 +24,9 @@ const wallpapers = [
 ];
 
 const classicThemes = [
-  {
-    key: "classic-dark",
-    label: "Classic Dark",
-    description: "Black chat surface, white text and emerald accents",
-    wallpaper: "default",
-    bubble_color: "primary",
-    preview: "bg-[#090b10]",
-    incoming: "bg-[#20242d] text-white",
-    outgoing: "bg-[#123d32] text-white",
-    accent: "bg-emerald-400",
-  },
-  {
-    key: "classic-light",
-    label: "Classic Light",
-    description: "Clean light background with dark message text",
-    wallpaper: "light",
-    bubble_color: "blue",
-    preview: "bg-[#edf1f5]",
-    incoming: "bg-white text-slate-900",
-    outgoing: "bg-blue-600 text-white",
-    accent: "bg-blue-500",
-  },
-  {
-    key: "classic-blue",
-    label: "Classic Blue",
-    description: "Deep blue chat background with bright blue bubbles",
-    wallpaper: "ocean",
-    bubble_color: "blue",
-    preview: "bg-gradient-to-br from-[#071b38] to-[#075985]",
-    incoming: "bg-[#163b60] text-white",
-    outgoing: "bg-[#0879c9] text-white",
-    accent: "bg-sky-400",
-  },
+  { key: "classic-dark", label: "Classic Dark", description: "Black chat surface, white text and emerald accents", wallpaper: "default", bubble_color: "primary", preview: "bg-[#090b10]", incoming: "bg-[#20242d] text-white", outgoing: "bg-[#123d32] text-white", accent: "bg-emerald-400" },
+  { key: "classic-light", label: "Classic Light", description: "Clean light background with dark message text", wallpaper: "light", bubble_color: "blue", preview: "bg-[#edf1f5]", incoming: "bg-white text-slate-900", outgoing: "bg-blue-600 text-white", accent: "bg-blue-500" },
+  { key: "classic-blue", label: "Classic Blue", description: "Deep blue chat background with bright blue bubbles", wallpaper: "ocean", bubble_color: "blue", preview: "bg-gradient-to-br from-[#071b38] to-[#075985]", incoming: "bg-[#163b60] text-white", outgoing: "bg-[#0879c9] text-white", accent: "bg-sky-400" },
 ] as const;
 
 const colors = [
@@ -71,33 +45,48 @@ export const ChatAppearanceSettings = () => {
   const [prefs, setPrefs] = useState<ChatPrefs>(defaults);
 
   useEffect(() => {
-    if (user?.id) setPrefs({ ...defaults, ...getGlobalChatPreferences(user.id) });
+    let active = true;
+    if (user?.id) {
+      loadGlobalChatPreferences(user.id).then((saved) => {
+        if (active) setPrefs({ ...defaults, ...saved });
+      });
+    } else {
+      setPrefs(defaults);
+    }
+    return () => { active = false; };
   }, [user?.id]);
 
-  const update = (patch: Partial<ChatPrefs>) => {
+  const update = async (patch: Partial<ChatPrefs>) => {
     if (!user?.id) return;
-    const next = saveGlobalChatPreferences(user.id, patch);
-    setPrefs({ ...defaults, ...next });
-    toast({ title: "Default chat appearance saved", description: "New chats will use these settings. Existing chats keep their individual themes." });
+    const { error, preferences } = await persistGlobalChatPreferences(user.id, patch);
+    if (error) {
+      toast({ title: "Could not save chat appearance", description: error.message, variant: "destructive" });
+      return;
+    }
+    setPrefs({ ...defaults, ...preferences });
+    toast({ title: "Default chat appearance saved", description: "Your settings are synced to your account. Existing chats keep their individual themes." });
   };
 
   const applyClassicTheme = (theme: typeof classicThemes[number]) => {
-    update({ wallpaper: theme.wallpaper, bubble_color: theme.bubble_color });
-    toast({ title: `${theme.label} selected`, description: "This is now your default chat appearance." });
+    void update({ wallpaper: theme.wallpaper, bubble_color: theme.bubble_color });
   };
 
-  const reset = () => {
+  const reset = async () => {
     if (!user?.id) return;
-    resetGlobalChatPreferences(user.id);
+    const { error } = await deleteGlobalChatPreferences(user.id);
+    if (error) {
+      toast({ title: "Could not reset chat appearance", description: error.message, variant: "destructive" });
+      return;
+    }
     setPrefs(defaults);
-    toast({ title: "Chat appearance reset", description: "Classic Dark appearance restored." });
+    toast({ title: "Chat appearance reset", description: "Classic Dark appearance restored on your account." });
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3">
         <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Sparkles className="h-4 w-4 text-primary" /> Messenger + WhatsApp style</div>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">Choose a ready-made chat theme, then fine-tune wallpapers, message bubble colors and text size. Your selection is saved as the default for your chats; individual conversations can still keep their own settings.</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">Choose a ready-made chat theme, then fine-tune wallpapers, message bubble colors and text size. Your selection syncs to your account; individual conversations can still keep their own settings.</p>
       </div>
 
       <section>
@@ -106,26 +95,15 @@ export const ChatAppearanceSettings = () => {
           {classicThemes.map((theme) => {
             const selected = prefs.wallpaper === theme.wallpaper && prefs.bubble_color === theme.bubble_color;
             return (
-              <button
-                key={theme.key}
-                type="button"
-                onClick={() => applyClassicTheme(theme)}
-                aria-pressed={selected}
-                className={cn("overflow-hidden rounded-2xl border-2 text-left transition-all hover:-translate-y-0.5", selected ? "border-primary ring-2 ring-primary/25" : "border-border/70")}
-              >
+              <button key={theme.key} type="button" onClick={() => applyClassicTheme(theme)} aria-pressed={selected}
+                className={cn("overflow-hidden rounded-2xl border-2 text-left transition-all hover:-translate-y-0.5", selected ? "border-primary ring-2 ring-primary/25" : "border-border/70")}>
                 <div className={cn("space-y-2 p-3", theme.preview)}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-white">TigerChat</span>
-                    <span className={cn("h-2 w-2 rounded-full", theme.accent)} />
-                  </div>
+                  <div className="flex items-center justify-between"><span className="text-[11px] font-bold text-white">TigerChat</span><span className={cn("h-2 w-2 rounded-full", theme.accent)} /></div>
                   <div className={cn("w-fit max-w-[85%] rounded-xl px-3 py-2 text-[10px] shadow-lg", theme.incoming)}>Hello! 👋</div>
                   <div className={cn("ml-auto w-fit max-w-[85%] rounded-xl px-3 py-2 text-[10px] shadow-lg", theme.outgoing)}>Hi there!</div>
                 </div>
                 <div className="flex items-start justify-between gap-2 bg-card p-3">
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-foreground">{theme.label}</span>
-                    <span className="mt-1 block text-[11px] leading-4 text-muted-foreground">{theme.description}</span>
-                  </span>
+                  <span className="min-w-0"><span className="block text-sm font-semibold text-foreground">{theme.label}</span><span className="mt-1 block text-[11px] leading-4 text-muted-foreground">{theme.description}</span></span>
                   {selected && <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />}
                 </div>
               </button>
@@ -139,16 +117,10 @@ export const ChatAppearanceSettings = () => {
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {wallpapers.map((wallpaper) => {
             const selected = (prefs.wallpaper || "default") === wallpaper.key;
-            return (
-              <button key={wallpaper.key} type="button" onClick={() => update({ wallpaper: wallpaper.key })}
-                aria-pressed={selected}
-                className={cn("relative h-20 overflow-hidden rounded-xl border-2 text-xs font-semibold text-white", wallpaper.className, selected ? "border-primary ring-2 ring-primary/30" : "border-border/60")}>
-                <span className="absolute inset-0 flex items-end justify-between bg-black/20 p-2">
-                  <span className="drop-shadow">{wallpaper.label}</span>
-                  {selected && <Check className="h-4 w-4" />}
-                </span>
-              </button>
-            );
+            return <button key={wallpaper.key} type="button" onClick={() => void update({ wallpaper: wallpaper.key })} aria-pressed={selected}
+              className={cn("relative h-20 overflow-hidden rounded-xl border-2 text-xs font-semibold text-white", wallpaper.className, selected ? "border-primary ring-2 ring-primary/30" : "border-border/60")}>
+              <span className="absolute inset-0 flex items-end justify-between bg-black/20 p-2"><span className="drop-shadow">{wallpaper.label}</span>{selected && <Check className="h-4 w-4" />}</span>
+            </button>;
           })}
         </div>
       </section>
@@ -158,8 +130,7 @@ export const ChatAppearanceSettings = () => {
         <div className="flex flex-wrap gap-3">
           {colors.map((color) => {
             const selected = (prefs.bubble_color || "primary") === color.key;
-            return <button key={color.key} type="button" onClick={() => update({ bubble_color: color.key })}
-              aria-label={color.label} aria-pressed={selected}
+            return <button key={color.key} type="button" onClick={() => void update({ bubble_color: color.key })} aria-label={color.label} aria-pressed={selected}
               className={cn("flex h-11 w-11 items-center justify-center rounded-full text-white", color.className, selected && "ring-2 ring-foreground ring-offset-2 ring-offset-background")}>
               {selected && <Check className="h-5 w-5" />}
             </button>;
@@ -171,8 +142,7 @@ export const ChatAppearanceSettings = () => {
         <h3 className="mb-3 text-sm font-semibold text-foreground">Message text size</h3>
         <div className="grid grid-cols-3 gap-2">
           {(["small", "medium", "large"] as const).map((size) => (
-            <button key={size} type="button" onClick={() => update({ font_size: size })}
-              aria-pressed={prefs.font_size === size}
+            <button key={size} type="button" onClick={() => void update({ font_size: size })} aria-pressed={prefs.font_size === size}
               className={cn("rounded-xl border px-3 py-3 text-sm capitalize", prefs.font_size === size ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-surface-hover")}>
               {size === "small" ? "Small" : size === "medium" ? "Medium" : "Large"}
             </button>
@@ -180,7 +150,7 @@ export const ChatAppearanceSettings = () => {
         </div>
       </section>
 
-      <button type="button" onClick={reset} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground">
+      <button type="button" onClick={() => void reset()} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground">
         <RotateCcw className="h-4 w-4" /> Reset chat appearance
       </button>
     </div>

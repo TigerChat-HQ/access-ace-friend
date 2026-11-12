@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { getGlobalChatPreferences } from "@/lib/chat-global-preferences";
+import { loadGlobalChatPreferences } from "@/lib/chat-global-preferences";
 
 export interface ChatPrefs {
   wallpaper: string | null;
@@ -13,7 +13,6 @@ export interface ChatPrefs {
 }
 
 const db = supabase as unknown as SupabaseClient;
-
 const DEFAULT: ChatPrefs = { wallpaper: null, bubble_color: null, font_size: "medium", theme: "default", muted_until: null };
 
 export const useChatPreferences = (conversationId: string | null) => {
@@ -22,24 +21,34 @@ export const useChatPreferences = (conversationId: string | null) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
     if (!user || !conversationId) {
       setPrefs(DEFAULT);
       setLoading(false);
-      return;
+      return () => { active = false; };
     }
+
     setLoading(true);
-    supabase
-      .from("chat_preferences")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("conversation_id", conversationId)
-      .maybeSingle()
-      .then(({ data }) => {
-        const globalDefaults = getGlobalChatPreferences(user.id);
-        setPrefs({ ...DEFAULT, ...globalDefaults, ...(data as unknown as Partial<ChatPrefs> | null) });
-        setLoading(false);
-      });
-  }, [user, conversationId]);
+    Promise.all([
+      supabase
+        .from("chat_preferences")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("conversation_id", conversationId)
+        .maybeSingle(),
+      loadGlobalChatPreferences(user.id),
+    ]).then(([{ data }, globalDefaults]) => {
+      if (!active) return;
+      setPrefs({ ...DEFAULT, ...globalDefaults, ...(data as unknown as Partial<ChatPrefs> | null) });
+      setLoading(false);
+    }).catch(() => {
+      if (!active) return;
+      setPrefs({ ...DEFAULT, ...loadLocalFallback(user.id) });
+      setLoading(false);
+    });
+
+    return () => { active = false; };
+  }, [user?.id, conversationId]);
 
   const save = async (next: Partial<ChatPrefs>) => {
     if (!user || !conversationId) return { error: new Error("A conversation must be open.") };
@@ -58,4 +67,13 @@ export const useChatPreferences = (conversationId: string | null) => {
   };
 
   return { prefs, loading, save };
+};
+
+const loadLocalFallback = (userId: string) => {
+  try {
+    const raw = localStorage.getItem(`tigerchats:chat-defaults:${userId}`);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
 };
