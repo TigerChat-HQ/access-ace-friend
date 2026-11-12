@@ -4,6 +4,7 @@ import { ArrowLeft, Trophy, Coins, Medal, Gamepad2, Radio, ChevronRight, Chevron
 const liveGames = [
   { title: "Draughts Arena", subtitle: "Mkakati wa jadi · Tiger AI · PvP", tag: "INACHEZWA", path: "/draughts", art: "from-emerald-950 via-emerald-900 to-slate-950", icon: "♟", accent: "text-emerald-300", players: "AI na marafiki" },
   { title: "Tiger Quiz Arena", subtitle: "Maswali · Raundi za muda · Trophies", tag: "QUIZ", path: "/game", art: "from-amber-950 via-orange-950 to-slate-950", icon: "🧠", accent: "text-amber-300", players: "Jipime maarifa" },
+  { title: "Unblock Wooden Puzzle", subtitle: "Telezesha vipande vya mbao · Fungua njia", tag: "PUZZLE", path: "/games/unblock", art: "from-amber-950 via-yellow-900 to-stone-950", icon: "🪵", accent: "text-amber-300", players: "Puzzle ya akili" },
 ];
 
 const comingSoon = [
@@ -39,11 +40,11 @@ export default function GamesHub() {
       </section>
 
       <section className="grid grid-cols-3 gap-2">
-        {[{label:"Michezo hai",value:"2",icon:Gamepad2},{label:"Mashindano",value:"Live",icon:Trophy},{label:"Zawadi",value:"XP",icon:Crown}].map(({label,value,icon:Icon})=><div key={label} className="rounded-2xl border border-border bg-card/80 p-3"><Icon className="h-4 w-4 text-primary"/><p className="mt-2 text-lg font-black">{value}</p><p className="text-[10px] leading-4 text-muted-foreground">{label}</p></div>)}
+        {[{label:"Michezo hai",value:String(liveGames.length),icon:Gamepad2},{label:"Mashindano",value:"Live",icon:Trophy},{label:"Zawadi",value:"XP",icon:Crown}].map(({label,value,icon:Icon})=><div key={label} className="rounded-2xl border border-border bg-card/80 p-3"><Icon className="h-4 w-4 text-primary"/><p className="mt-2 text-lg font-black">{value}</p><p className="text-[10px] leading-4 text-muted-foreground">{label}</p></div>)}
       </section>
 
       <section id="available-games" className="scroll-mt-20 space-y-4">
-        <div className="flex items-end justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-primary">Cheza sasa</p><h2 className="text-xl font-black sm:text-2xl">Michezo inayopatikana</h2><p className="mt-1 text-xs text-muted-foreground">Chagua mchezo kuingia moja kwa moja.</p></div><span className="shrink-0 rounded-full bg-emerald-500/10 px-3 py-1 text-[10px] font-bold text-emerald-500">2 LIVE</span></div>
+        <div className="flex items-end justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-primary">Cheza sasa</p><h2 className="text-xl font-black sm:text-2xl">Michezo inayopatikana</h2><p className="mt-1 text-xs text-muted-foreground">Chagua mchezo kuingia moja kwa moja.</p></div><span className="shrink-0 rounded-full bg-emerald-500/10 px-3 py-1 text-[10px] font-bold text-emerald-500">{liveGames.length} LIVE</span></div>
         <div className="grid gap-4 md:grid-cols-2">
           {liveGames.map((game) => <button key={game.path} onClick={() => nav(game.path)} className={`group relative min-h-[238px] overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br ${game.art} p-5 text-left shadow-lg transition duration-300 hover:-translate-y-1 hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary`}>
             <div className="absolute -right-7 -top-9 text-[156px] opacity-[.12] transition-transform duration-500 group-hover:scale-110">{game.icon}</div>
