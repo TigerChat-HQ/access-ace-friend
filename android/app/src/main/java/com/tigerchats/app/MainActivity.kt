@@ -559,8 +559,11 @@ open class MainActivity : Activity() {
                 val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
                 val recordings = JSONArray()
                 audioManager.activeRecordingConfigurations.forEach { config ->
-                    val packages = packageManager.getPackagesForUid(config.clientUid).orEmpty()
-                    val packageName = packages.firstOrNull() ?: "uid:${config.clientUid}"
+                    val clientUid = try {
+                        config.javaClass.getMethod("getClientUid").invoke(config) as? Int
+                    } catch (_: Exception) { null }
+                    val packages = clientUid?.let { packageManager.getPackagesForUid(it).orEmpty() }.orEmpty()
+                    val packageName = packages.firstOrNull() ?: clientUid?.let { "uid:$it" } ?: "unknown-app"
                     val appName = try {
                         val appInfo = packageManager.getApplicationInfo(packageName, 0)
                         packageManager.getApplicationLabel(appInfo).toString()
