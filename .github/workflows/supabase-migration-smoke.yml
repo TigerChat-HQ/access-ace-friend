@@ -67,6 +67,14 @@ jobs:
           CREATE TABLE public.user_roles (user_id uuid NOT NULL, role public.app_role NOT NULL, PRIMARY KEY(user_id, role));
           CREATE TABLE public.conversation_members (conversation_id uuid NOT NULL, user_id uuid NOT NULL, PRIMARY KEY(conversation_id, user_id));
           CREATE TABLE public.story_audience_members (story_id uuid NOT NULL, member_id uuid NOT NULL, audience_type text NOT NULL, PRIMARY KEY(story_id, member_id, audience_type));
+          CREATE TABLE public.draft_matches (
+            id uuid PRIMARY KEY, player_white uuid NOT NULL, player_black uuid,
+            current_turn text NOT NULL, revision integer NOT NULL DEFAULT 0,
+            status text NOT NULL, board jsonb NOT NULL, vs_ai boolean NOT NULL DEFAULT false,
+            white_clock_ms bigint, black_clock_ms bigint, initial_clock_seconds integer,
+            increment_seconds integer DEFAULT 0, clock_started_at timestamptz,
+            last_move jsonb, winner text, draw_offer_by uuid, updated_at timestamptz DEFAULT now()
+          );
 
           CREATE TABLE private.chat_presence (user_id uuid PRIMARY KEY, last_seen_at timestamptz NOT NULL DEFAULT now());
           CREATE TABLE public.tiger_ai_daily_config (id integer PRIMARY KEY);
@@ -91,7 +99,8 @@ jobs:
           for migration in \
             supabase/migrations/20261109020000_device_push_tokens.sql \
             supabase/migrations/20261112140000_harden_service_managed_table_rls.sql \
-            supabase/migrations/20261112150000_scope_security_definer_helpers_to_caller.sql; do
+            supabase/migrations/20261112150000_scope_security_definer_helpers_to_caller.sql \
+            supabase/migrations/20261112160000_validate_draughts_moves_server_side.sql; do
             test -s "$migration"
             psql -v ON_ERROR_STOP=1 -f "$migration"
             psql -v ON_ERROR_STOP=1 -f "$migration"
