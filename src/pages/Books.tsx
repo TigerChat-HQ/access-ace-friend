@@ -160,6 +160,7 @@ export default function BooksPage() {
   const [readingProgress, setReadingProgress] = useState<Record<string, { progress_percent: number; last_chapter: number }>>(() => readStored("tiger-books-progress", {}));
   const [readingPercent, setReadingPercent] = useState(0);
   const [dailyChapters, setDailyChapters] = useState<Record<string, { episode_number: number; title: string; body: string; recap: string }>>({});
+  const userId = user?.id;
   const activeTheme = readerThemes.find((item) => item.id === theme) ?? readerThemes[0];
   const filteredBooks = useMemo(() => books.filter((book) => {
     const matchesCategory = category === "all" || book.category === category;
@@ -175,10 +176,10 @@ export default function BooksPage() {
   useEffect(() => { localStorage.setItem("tiger-books-progress", JSON.stringify(readingProgress)); }, [readingProgress]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
     let active = true;
     const loadProgress = async () => {
-      const { data, error } = await supabase.from("books_reading_progress" as any).select("book_id,progress_percent,last_chapter").eq("user_id", user.id);
+      const { data, error } = await supabase.from("books_reading_progress" as any).select("book_id,progress_percent,last_chapter").eq("user_id", userId);
       if (error) { console.warn("Books progress sync unavailable:", error.message); return; }
       if (!active) return;
       const merged: Record<string, { progress_percent: number; last_chapter: number }> = {};
@@ -186,11 +187,11 @@ export default function BooksPage() {
       setReadingProgress((current) => ({ ...current, ...merged }));
     };
     void loadProgress();
-    const channel = supabase.channel(`books-progress-${user.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "books_reading_progress", filter: `user_id=eq.${user.id}` }, () => void loadProgress())
+    const channel = supabase.channel(`books-progress-${userId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "books_reading_progress", filter: `user_id=eq.${userId}` }, () => void loadProgress())
       .subscribe();
     return () => { active = false; void supabase.removeChannel(channel); };
-  }, [user?.id]);
+  }, [userId]);
 
   useEffect(() => {
     let active = true;
@@ -208,7 +209,7 @@ export default function BooksPage() {
       .on("postgres_changes", { event: "*", schema: "public", table: "books_daily_chapters" }, () => void loadChapters())
       .subscribe();
     return () => { active = false; void supabase.removeChannel(channel); };
-  }, [user?.id]);
+  }, []);
 
   useEffect(() => {
     const bookId = new URLSearchParams(window.location.search).get("book");
