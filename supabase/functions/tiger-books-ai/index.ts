@@ -30,9 +30,9 @@ const stories: StorySpec[] = [
 const approvedSources: ApprovedSource[] = [
   {
     key: "law-child", category: "sheria", shortTitle: "Haki na ustawi wa mtoto",
-    claim: "The Law of the Child Act, 2009 (Act No. 21 of 2009), Cap. 13, inaweka masharti kuhusu haki na ustawi wa mtoto; pia inahusu malezi, kuasili, uangalizi, ajira ya watoto na watoto wanaokinzana na sheria.",
+    claim: "Kwa mujibu wa kifungu 8(1) cha Law of the Child Act, Cap. 13 R.E. 2023, wajibu wa kumtunza mtoto unajumuisha chakula, makazi, mavazi, matibabu na chanjo, elimu na mwongozo, uhuru, michezo na mapumziko.",
     sourceTitle: "Office of the Attorney General — OAG MIS",
-    reference: "The Law of the Child Act, Act No. 21 of 2009, Cap. 13; revised publication 25 Apr 2025",
+    reference: "The Law of the Child Act, Cap. 13 R.E. 2023, section 8(1); OAG revised publication 25 Apr 2025",
     sourceUrl: "https://oagmis.oag.go.tz/portal/revised-acts/revised/118",
     jurisdiction: "Tanzania Bara", readMoreUrl: "/books?book=law-child",
   },
