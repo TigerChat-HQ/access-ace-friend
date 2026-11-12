@@ -457,9 +457,16 @@ const ReelsStudio = () => {
   };
 
   const addTimelineClips = (files: File[]) => {
-    const valid = files.filter((file) => file.type.startsWith("video/") && file.size <= 150 * 1024 * 1024);
-    if (valid.length !== files.length) toast({ title: "Some clips were skipped", description: "Only videos under 150 MB each can be added.", variant: "destructive" });
-    setTimelineFiles((items) => [...items, ...valid].slice(0, 8));
+    let totalBytes = timelineFiles.reduce((sum, file) => sum + file.size, 0);
+    const accepted: File[] = [];
+    for (const file of files) {
+      if (!file.type.startsWith("video/") || file.size > 150 * 1024 * 1024) continue;
+      if (timelineFiles.length + accepted.length >= 5 || totalBytes + file.size > 300 * 1024 * 1024) continue;
+      accepted.push(file);
+      totalBytes += file.size;
+    }
+    if (accepted.length !== files.length) toast({ title: "Some clips were skipped", description: "The timeline supports up to 5 clips, 150 MB per clip and 300 MB total.", variant: "destructive" });
+    setTimelineFiles((items) => [...items, ...accepted]);
     markTimelineDirty();
   };
 
@@ -774,7 +781,7 @@ const ReelsStudio = () => {
           <div className="rounded-2xl border border-border/60 bg-card p-4 space-y-3">
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-foreground">Multi-clip timeline</h2>
-              <span className="text-[11px] text-muted-foreground">{timelineFiles.length}/8 clips</span>
+              <span className="text-[11px] text-muted-foreground">{timelineFiles.length}/5 clips</span>
             </div>
             <div className="space-y-2">
               {timelineFiles.map((file, index) => (
