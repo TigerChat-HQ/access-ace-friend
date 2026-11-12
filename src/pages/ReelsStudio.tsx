@@ -109,7 +109,7 @@ const ReelsStudio = () => {
     void (async () => {
       const [{ data: tracks }, { data: remixes }, { data: saved }] = await Promise.all([
         db.from("posts").select("id,user_id,reel_audio_url,reel_audio_title")
-          .eq("media_type", "video").eq("reel_audio_shareable", true).eq("audience", "public")
+          .eq("media_type", "video").eq("reel_audio_shareable", true).eq("audience", "public").is("archived_at", null)
           .not("reel_audio_url", "is", null).order("created_at", { ascending: false }).limit(30),
         db.from("posts").select("reel_original_post_id")
           .eq("reel_remix_type", "remix").not("reel_original_post_id", "is", null)
