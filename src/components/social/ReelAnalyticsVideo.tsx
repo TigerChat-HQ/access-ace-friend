@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { Volume2, VolumeX } from "lucide-react";
+import { claimFeedPlayback, getFeedMuted, releaseFeedPlayback, setFeedMuted } from "@/lib/feedVideoPlayback";
 import { supabase } from "@/integrations/supabase/client";
 
 type AnalyticsEvent = "impression" | "play" | "watch" | "retention_25" | "retention_50" | "retention_75" | "retention_100";
@@ -32,6 +34,7 @@ export const ReelAnalyticsVideo = ({
   const pendingWatch = useRef(0);
   const recorded = useRef(new Set<AnalyticsEvent>());
   const [currentTime, setCurrentTime] = useState(0);
+  const [muted, setMuted] = useState(getFeedMuted());
 
   const record = useCallback(async (eventType: AnalyticsEvent, watchSeconds = 0) => {
     try {
@@ -49,6 +52,19 @@ export const ReelAnalyticsVideo = ({
     if (!target) return;
     let observer: IntersectionObserver | undefined;
     const onVisible = (visible: boolean) => {
+      if (visible) {
+        const video = videoRef.current;
+        const audio = audioRef.current;
+        if (video) {
+          video.muted = Boolean(audioUrl) || getFeedMuted();
+          claimFeedPlayback(audioUrl && audio ? [audio] : [video]);
+          void video.play().catch(() => undefined);
+        }
+      } else {
+        videoRef.current?.pause();
+        audioRef.current?.pause();
+        releaseFeedPlayback(audioUrl && audioRef.current ? [audioRef.current] : videoRef.current ? [videoRef.current] : []);
+      }
       if (visible && !recorded.current.has("impression")) {
         recorded.current.add("impression");
         void record("impression");
@@ -59,7 +75,7 @@ export const ReelAnalyticsVideo = ({
       observer.observe(target);
     } else onVisible(true);
     return () => observer?.disconnect();
-  }, [record]);
+  }, [record, audioUrl]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -91,6 +107,13 @@ export const ReelAnalyticsVideo = ({
       void record("play");
     }
     lastSample.current = videoRef.current?.currentTime ?? 0;
+    if (audioUrl && audioRef.current) {
+      claimFeedPlayback([audioRef.current]);
+      audioRef.current.muted = getFeedMuted();
+    } else if (videoRef.current) {
+      claimFeedPlayback([videoRef.current]);
+      videoRef.current.muted = getFeedMuted();
+    }
     syncAudio();
   };
 
@@ -142,6 +165,7 @@ export const ReelAnalyticsVideo = ({
         onEnded={() => { audioRef.current?.pause(); flushWatch(); }}
       />
       {audioUrl && <audio ref={audioRef} src={audioUrl} preload="metadata" />}
+      {audioUrl && <button type="button" aria-label={muted ? "Unmute video" : "Mute video"} onClick={() => { const next = !muted; setMuted(next); setFeedMuted(next); if (audioRef.current) audioRef.current.muted = next; if (!next && videoRef.current && !videoRef.current.paused) syncAudio(); }} className="absolute right-3 bottom-3 z-10 rounded-full bg-black/70 p-2 text-white" >{muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}</button>}
       {activeCaption?.text && (
         <div aria-live="off" className="pointer-events-none absolute inset-x-4 bottom-16 mx-auto max-w-[90%] text-center">
           <span className="inline-block rounded-lg bg-black/75 px-3 py-2 text-base font-semibold text-white shadow-lg">{activeCaption.text}</span>

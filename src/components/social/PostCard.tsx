@@ -21,6 +21,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useBlocks } from "@/hooks/useBlocks";
+import { claimFeedPlayback, getFeedMuted, releaseFeedPlayback, setFeedMuted } from "@/lib/feedVideoPlayback";
 
 interface Props {
   post: FeedPost;
@@ -61,6 +62,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
   const [collaboratorNames, setCollaboratorNames] = useState<string[]>([]);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const touchStartX = useRef<number | null>(null);
+  const feedVideoRef = useRef<HTMLVideoElement>(null);
   const [saved, setSaved] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
   const [captionDraft, setCaptionDraft] = useState(post.caption || "");
@@ -118,6 +120,33 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
     : [];
   const mediaItems = storedMediaItems.length ? storedMediaItems : post.media_url ? [{ url: post.media_url, type: post.media_type, alt_text: post.alt_text }] : [];
   const activeMedia = mediaItems[carouselIndex] || mediaItems[0];
+
+  useEffect(() => {
+    const video = feedVideoRef.current;
+    if (!video || activeMedia?.type !== "video" || isReel) return;
+    video.muted = true;
+    const start = () => {
+      claimFeedPlayback([video]);
+      video.muted = getFeedMuted();
+      void video.play().catch(() => undefined);
+    };
+    const stop = () => {
+      video.pause();
+      releaseFeedPlayback([video]);
+    };
+    if (!("IntersectionObserver" in window)) {
+      start();
+      return stop;
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && entry.intersectionRatio >= 0.6) start();
+      else stop();
+    }, { threshold: [0, 0.6, 1] });
+    observer.observe(video);
+    return () => { observer.disconnect(); stop(); };
+  }, [activeMedia?.url, activeMedia?.type, isReel]);
+
+
 
   const handleLike = async () => {
     if (!user) return;
@@ -237,7 +266,7 @@ export const PostCard = ({ post, onChanged, isReel = false }: Props) => {
               className="relative w-full bg-black"
             />
           ) : (
-            <video src={activeMedia.url} poster={carouselIndex === 0 ? post.post_cover_url || reelPost.reel_cover_url || undefined : undefined} controls playsInline onDoubleClick={() => { if (!liked) void handleLike(); }} className="w-full max-h-[600px] bg-black" />
+            <video ref={feedVideoRef} src={activeMedia.url} poster={carouselIndex === 0 ? post.post_cover_url || reelPost.reel_cover_url || undefined : undefined} controls playsInline muted={getFeedMuted()} onVolumeChange={(event) => setFeedMuted(event.currentTarget.muted)} onDoubleClick={() => { if (!liked) void handleLike(); }} className="w-full max-h-[600px] bg-black" />
           )}
           {mediaItems.length > 1 && <><button type="button" aria-label="Previous media" onClick={() => setCarouselIndex((index) => (index - 1 + mediaItems.length) % mediaItems.length)} className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/60 px-3 py-2 text-white">‹</button><button type="button" aria-label="Next media" onClick={() => setCarouselIndex((index) => (index + 1) % mediaItems.length)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/60 px-3 py-2 text-white">›</button><span className="absolute right-3 top-3 rounded-full bg-black/65 px-2 py-1 text-[10px] text-white">{carouselIndex + 1}/{mediaItems.length}</span></>}
         </div>
