@@ -500,6 +500,9 @@ const ReelsStudio = () => {
       setVideoFile(next[0]);
       setVideoPath(null);
       setVideoUrl(URL.createObjectURL(next[0]));
+      setTrimStart(0);
+      setTrimEnd(null);
+      setDuration(0);
     }
     markTimelineDirty();
   };
