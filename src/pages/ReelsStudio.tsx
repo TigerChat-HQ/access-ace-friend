@@ -7,6 +7,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { renderReelTimeline } from "@/lib/reelTimelineEditor";
 import { MusicPicker } from "@/components/chat/MusicPicker";
+import { ReelFaceARPreview } from "@/components/reels/ReelFaceARPreview";
+import type { FaceEffect } from "@/lib/reelFaceTracking";
 
 type TimedCaption = { start: number; end: number; text: string };
 type SpeechRecognitionLike = {
@@ -45,7 +47,7 @@ type DraftRow = {
   trim_start_seconds: number;
   trim_end_seconds: number | null;
   captions: TimedCaption[];
-  editor_state?: { filter?: string; speed?: number; effect?: ReelEffect; template?: string; shareAudio?: boolean; audioLibraryUrl?: string | null; originalReelId?: string | null; remixType?: "remix" | "duet" | null };
+  editor_state?: { filter?: string; speed?: number; effect?: ReelEffect; template?: string; shareAudio?: boolean; audioLibraryUrl?: string | null; originalReelId?: string | null; remixType?: "remix" | "duet" | null; faceEffect?: FaceEffect };
   updated_at: string;
 };
 const db = supabase as unknown as SupabaseClient;
@@ -95,6 +97,8 @@ const ReelsStudio = () => {
   const [filterPreset, setFilterPreset] = useState("none");
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [effectPreset, setEffectPreset] = useState<ReelEffect>("none");
+  const [faceEffect, setFaceEffect] = useState<FaceEffect>("none");
+  const [faceTrackingStatus, setFaceTrackingStatus] = useState("Face effect off");
   const [templatePreset, setTemplatePreset] = useState("clean");
   const [timelineRendered, setTimelineRendered] = useState(false);
   const [renderedEditsDirty, setRenderedEditsDirty] = useState(false);
@@ -368,7 +372,7 @@ const ReelsStudio = () => {
     try {
       const assets = await ensureUploaded();
       if (!assets.nextVideoPath) throw new Error("Choose a video before saving a draft.");
-      if (renderedEditsDirty || (timelineFiles.length > 1 || filterPreset !== "none" || playbackSpeed !== 1 || trimStart > 0 || (trimEnd !== null && duration > 0 && trimEnd < duration - 0.1)) && !timelineRendered) throw new Error("Render your timeline and edits before saving the draft.");
+      if (renderedEditsDirty || (timelineFiles.length > 1 || filterPreset !== "none" || playbackSpeed !== 1 || trimStart > 0 || (trimEnd !== null && duration > 0 && trimEnd < duration - 0.1) || effectPreset !== "none" || faceEffect !== "none") && !timelineRendered) throw new Error("Render your timeline and edits before saving the draft.");
       const values = {
         user_id: user.id,
         caption,
@@ -383,7 +387,7 @@ const ReelsStudio = () => {
         trim_start_seconds: trimStart,
         trim_end_seconds: trimEnd,
         captions,
-        editor_state: { version: 3, filter: filterPreset, speed: playbackSpeed, effect: effectPreset, template: templatePreset, shareAudio, audioLibraryUrl, originalReelId, remixType },
+        editor_state: { version: 3, filter: filterPreset, speed: playbackSpeed, effect: effectPreset, template: templatePreset, faceEffect, shareAudio, audioLibraryUrl, originalReelId, remixType },
         updated_at: new Date().toISOString(),
       };
       const result = draftId
@@ -422,6 +426,7 @@ const ReelsStudio = () => {
     setFilterPreset(draft.editor_state?.filter || "none");
     setPlaybackSpeed(Number(draft.editor_state?.speed || 1));
     setEffectPreset(draft.editor_state?.effect || "none");
+    setFaceEffect(draft.editor_state?.faceEffect || "none");
     setTemplatePreset(draft.editor_state?.template || "clean");
     setShareAudio(Boolean(draft.editor_state?.shareAudio));
     setOriginalReelId(draft.editor_state?.originalReelId || null);
@@ -613,6 +618,7 @@ const ReelsStudio = () => {
         filter: filterPreset,
         speed: playbackSpeed,
         effect: effectPreset,
+        faceEffect,
         musicFile: audioFile && !shareAudio ? audioFile : null,
         musicStartSeconds: audioStart,
         originalVolume: audioFile && !shareAudio ? originalVolume : 1,
@@ -630,6 +636,7 @@ const ReelsStudio = () => {
       setFilterPreset("none");
       setPlaybackSpeed(1);
       setEffectPreset("none");
+      setFaceEffect("none");
       setTemplatePreset("clean");
       setTimelineRendered(true);
       setRenderedEditsDirty(false);
@@ -756,7 +763,7 @@ const ReelsStudio = () => {
       if (remixType === "duet" && !timelineRendered) throw new Error("Render the split-screen duet before publishing.");
       if (renderedEditsDirty) throw new Error("Your exported video is out of date. Render your latest edits before publishing.");
       if (timelineFiles.length > 1 && !timelineRendered) throw new Error("Render your multi-clip timeline before publishing.");
-      if ((filterPreset !== "none" || playbackSpeed !== 1 || trimStart > 0 || (trimEnd !== null && duration > 0 && trimEnd < duration - 0.1)) && !timelineRendered) throw new Error("Render your trim, speed and filter edits before publishing.");
+      if ((filterPreset !== "none" || playbackSpeed !== 1 || trimStart > 0 || (trimEnd !== null && duration > 0 && trimEnd < duration - 0.1) || effectPreset !== "none" || faceEffect !== "none") && !timelineRendered) throw new Error("Render your trim, speed and filter edits before publishing.");
       if (videoFile && videoFile.size > 150 * 1024 * 1024) throw new Error("Video exceeds the 150 MB upload limit.");
       const musicEmbeddedInVideo = Boolean(timelineRendered && audioFile && !shareAudio);
       const uploadedPaths: string[] = [];
@@ -856,7 +863,8 @@ const ReelsStudio = () => {
               </div>
             ) : cameraOpen ? (
               <div className="space-y-3">
-                <video ref={cameraPreviewRef} autoPlay playsInline muted className="max-h-[55dvh] w-full rounded-xl bg-black" />
+                {cameraStreamRef.current && <ReelFaceARPreview stream={cameraStreamRef.current} effect={faceEffect} onStatus={setFaceTrackingStatus} />}
+                <p className="text-center text-xs text-muted-foreground">{faceTrackingStatus}</p>
                 <div className="grid grid-cols-2 gap-2">
                   {!recordingCamera ? <button type="button" onClick={startCameraRecording} className="rounded-xl bg-primary px-3 py-3 text-sm font-semibold text-primary-foreground">Start recording</button> : <button type="button" onClick={finishCameraRecording} className="rounded-xl bg-destructive px-3 py-3 text-sm font-semibold text-destructive-foreground">Stop & use video</button>}
                   {!recordingCamera && <button type="button" onClick={closeCamera} className="rounded-xl border border-border px-3 py-3 text-sm text-foreground">Close camera</button>}
@@ -934,11 +942,20 @@ const ReelsStudio = () => {
                 </select>
               </label>
             </div>
-            <button type="button" onClick={() => void renderTimeline()} disabled={(!timelineFiles.length && !videoPath) || renderingTimeline || busy} className="w-full rounded-xl bg-secondary px-3 py-3 text-sm font-semibold text-secondary-foreground disabled:opacity-50">
+            <label className="block text-xs text-muted-foreground">Live AR face effect (face landmarks)
+                <select value={faceEffect} onChange={(event) => { setFaceEffect(event.target.value as FaceEffect); markTimelineDirty(); }} className="mt-1 w-full rounded-lg bg-background p-2 text-sm text-foreground">
+                  <option value="none">Off</option>
+                  <option value="glasses">Smart glasses</option>
+                  <option value="crown">Golden crown</option>
+                  <option value="moustache">Moustache</option>
+                  <option value="tiger-mask">Tiger mask</option>
+                </select>
+              </label>
+              <button type="button" onClick={() => void renderTimeline()} disabled={(!timelineFiles.length && !videoPath) || renderingTimeline || busy} className="w-full rounded-xl bg-secondary px-3 py-3 text-sm font-semibold text-secondary-foreground disabled:opacity-50">
               {renderingTimeline ? `Rendering edits… ${renderProgress}%` : "Render clips, trim, speed, filters & captions"}
             </button>
             {timelineRendered && <p className="text-xs text-emerald-600">Edits rendered into the publishable video file.</p>}
-            <p className="text-[11px] text-muted-foreground">Effects and templates are baked into the final video when you press Render. These are AR-inspired visual overlays; face tracking / live face masks are not included.</p>
+            <p className="text-[11px] text-muted-foreground">Effects, face-tracked AR overlays and templates are baked into the final video when you press Render. Face landmarks are processed locally in the browser; the tracking model is downloaded on first use.</p>
             <p className="text-[11px] text-muted-foreground">Export runs on this device. For large files, use fewer clips to avoid phone memory limits.</p>
           </div>
 
