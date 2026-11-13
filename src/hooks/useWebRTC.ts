@@ -72,6 +72,52 @@ const getCallIceServers = async (conversationId: string): Promise<RTCIceServer[]
 const RING_TIMEOUT_MS = 45000;
 const RECENT_CALL_WINDOW_MS = 60000;
 
+declare global {
+  interface Window {
+    TigerNative?: {
+      getAppVersion?: () => string;
+      getActiveAudioRecordingApps?: () => string;
+    };
+  }
+}
+
+const collectMediaFailureDiagnostics = async () => {
+  const native = window.TigerNative;
+  let activeRecordings: unknown = null;
+  let nativeDiagnosticError: string | null = null;
+  try {
+    const raw = native?.getActiveAudioRecordingApps?.();
+    if (raw) activeRecordings = JSON.parse(raw);
+  } catch (error) {
+    nativeDiagnosticError = error instanceof Error ? error.message : String(error);
+  }
+
+  let microphonePermission: string | null = null;
+  try {
+    if (navigator.permissions?.query) {
+      const permission = await navigator.permissions.query({ name: "microphone" as PermissionName });
+      microphonePermission = permission.state;
+    }
+  } catch {
+    // Android WebView versions may not expose microphone permission through Permissions API.
+  }
+
+  const audioInputs = await navigator.mediaDevices?.enumerateDevices?.()
+    .then((devices) => devices.filter((device) => device.kind === "audioinput").length)
+    .catch(() => -1) ?? -1;
+
+  return {
+    platform: /Android/i.test(navigator.userAgent) ? "android" : "web",
+    appVersion: native?.getAppVersion?.() || "web-or-unknown",
+    microphonePermission,
+    audioInputCount: audioInputs,
+    activeRecordings,
+    nativeDiagnosticError,
+    userAgent: navigator.userAgent,
+    capturedAt: new Date().toISOString(),
+  };
+};
+
 export interface CallInfo {
   callId: string;
   callerId: string;
@@ -238,16 +284,16 @@ export const useWebRTC = () => {
             });
             return audioOnlyStream;
           } catch (audioError) {
-            console.error("Camera and microphone capture both failed:", { firstError, retryError, audioError });
+            const nativeDiagnostics = await collectMediaFailureDiagnostics();
+            console.error("TigerChat media capture failed: camera and microphone could not start.", {
+              firstError, retryError, audioError, nativeDiagnostics,
+            });
             throw audioError;
           }
         }
-        console.error("Microphone capture failed:", {
-          firstError,
-          retryError,
-          audioInputs: await navigator.mediaDevices.enumerateDevices()
-            .then((devices) => devices.filter((device) => device.kind === "audioinput").length)
-            .catch(() => -1),
+        const nativeDiagnostics = await collectMediaFailureDiagnostics();
+        console.error("TigerChat microphone capture failed after fallback retry.", {
+          firstError, retryError, nativeDiagnostics,
         });
         throw retryError;
       }
