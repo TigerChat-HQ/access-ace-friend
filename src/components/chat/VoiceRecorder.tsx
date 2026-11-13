@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { acquireMicrophone } from "@/lib/audioCapture";
 import { Mic, Square, Send, Trash2, Loader2, RefreshCw } from "lucide-react";
 
 interface VoiceRecorderProps {
@@ -24,9 +25,13 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
   const startedAtRef = useRef(0);
   const mountedRef = useRef(true);
 
+  const releaseCaptureRef = useRef<(() => void) | null>(null);
+
   const releaseStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
+    releaseCaptureRef.current?.();
+    releaseCaptureRef.current = null;
   }, []);
 
   const startRecording = useCallback(async () => {
@@ -36,6 +41,9 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
     setIsStarting(true);
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error("Kifaa hiki hakiruhusu kurekodi sauti. Sasisha Android System WebView na ujaribu tena.");
+      // Acquire the app-wide microphone lease before asking Android for the device.
+      // This prevents a voice note and a WebRTC call from racing for the same mic.
+      releaseCaptureRef.current = acquireMicrophone("voice-note");
       // Android WebView devices/drivers sometimes reject advanced audio constraints with
       // "Could not start audio source". Retry with the browser's simplest microphone request.
       let stream: MediaStream;
