@@ -604,9 +604,7 @@ const ChessArena = () => {
     <main className="min-h-full overflow-y-auto bg-background px-3 pb-28 pt-4 sm:px-5">
       <div className="mx-auto max-w-6xl space-y-4">
         <header className="flex items-center justify-between gap-3">
-          <button onClick={exitToGames} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card/70 px-3 py-2 text-sm font-semibold transition hover:border-primary/40" aria-label={t.back}>
-            <ArrowLeft className="h-4 w-4" /> {t.back}
-          </button>
+          <div className="flex flex-wrap items-center gap-2"><button onClick={exitToGames} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card/70 px-3 py-2 text-sm font-semibold transition hover:border-primary/40" aria-label={t.back}><ArrowLeft className="h-4 w-4" /> {t.back}</button>{screen === "board" && <button onClick={() => { if (!finished && !window.confirm(t.confirmExit)) return; if (onlineChannelRef.current) { void supabase.removeChannel(onlineChannelRef.current); onlineChannelRef.current = null; } setOnlineRoom(null); setOnlineRole(null); setOnlineReady(false); setMode("ai"); setScreen("menu"); window.history.replaceState({}, "", "/games/chess"); }} className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-bold text-primary">{language === "sw" ? "Rudi kwenye menyu" : "Back to chess menu"}</button>}</div>
           <button onClick={() => setSound((value) => !value)} className="rounded-xl border border-border bg-card/70 p-2.5" aria-label={t.sound} title={t.sound}>
             {sound ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
           </button>
