@@ -434,7 +434,12 @@ export const useWebRTC = () => {
     try {
       const iceServers = await getCallIceServers(conversationId);
       const stream = await getMedia(callType === "video");
-      if (callIdRef.current !== info.callId) { stream.getTracks().forEach((track) => track.stop()); return; }
+      if (callIdRef.current !== info.callId) {
+        stream.getTracks().forEach((track) => track.stop());
+        audioCaptureReleaseRef.current?.();
+        audioCaptureReleaseRef.current = null;
+        return;
+      }
       localStreamRef.current = stream;
       setLocalStream(stream);
       const pc = createPeerConnection(info, iceServers);
@@ -473,7 +478,12 @@ export const useWebRTC = () => {
     try {
       const iceServers = await getCallIceServers(info.conversationId);
       const stream = await getMedia(info.callType === "video");
-      if (callIdRef.current !== info.callId) { stream.getTracks().forEach((track) => track.stop()); return; }
+      if (callIdRef.current !== info.callId) {
+        stream.getTracks().forEach((track) => track.stop());
+        audioCaptureReleaseRef.current?.();
+        audioCaptureReleaseRef.current = null;
+        return;
+      }
       localStreamRef.current = stream;
       setLocalStream(stream);
       const pc = createPeerConnection(info, iceServers);
