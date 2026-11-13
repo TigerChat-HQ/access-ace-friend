@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { acquireMicrophone } from "@/lib/audioCapture";
 
 type CallSignalData = {
   callId?: string;
@@ -135,6 +136,7 @@ export const useWebRTC = () => {
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const audioCaptureReleaseRef = useRef<(() => void) | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const callIdRef = useRef<string | null>(null);
@@ -170,6 +172,8 @@ export const useWebRTC = () => {
   const cleanupMedia = useCallback(() => {
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
+    audioCaptureReleaseRef.current?.();
+    audioCaptureReleaseRef.current = null;
     setLocalStream(null);
     pcRef.current?.close();
     pcRef.current = null;
@@ -234,6 +238,9 @@ export const useWebRTC = () => {
       throw new Error("Simu/WebView hii haitoi huduma ya microphone na camera. Hakikisha unatumia toleo jipya la TigerChats.");
     }
 
+    // A call owns the shared microphone until cleanupMedia stops its tracks.
+    audioCaptureReleaseRef.current = acquireMicrophone(video ? "video-call" : "voice-call");
+
     const preferred: MediaStreamConstraints = {
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       video: video ? { facingMode: facingRef.current, width: { ideal: 1280 }, height: { ideal: 720 } } : false,
@@ -252,7 +259,11 @@ export const useWebRTC = () => {
         "TrackStartError",
         "AbortError",
       ].includes(name);
-      if (!retryable) throw firstError;
+      if (!retryable) {
+        audioCaptureReleaseRef.current?.();
+        audioCaptureReleaseRef.current = null;
+        throw firstError;
+      }
 
       console.warn("Media capture failed with preferred constraints; retrying Android WebView defaults:", {
         errorName: name,
@@ -279,6 +290,8 @@ export const useWebRTC = () => {
             console.error("TigerChat media capture failed: camera and microphone could not start.", {
               firstError, retryError, audioError, nativeDiagnostics,
             });
+            audioCaptureReleaseRef.current?.();
+            audioCaptureReleaseRef.current = null;
             throw audioError;
           }
         }
@@ -286,6 +299,8 @@ export const useWebRTC = () => {
         console.error("TigerChat microphone capture failed after fallback retry.", {
           firstError, retryError, nativeDiagnostics,
         });
+        audioCaptureReleaseRef.current?.();
+        audioCaptureReleaseRef.current = null;
         throw retryError;
       }
     }
