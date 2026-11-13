@@ -19,6 +19,8 @@ import {
   VolumeX,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { ChessPiece3D } from "@/components/games/ChessPiece3D";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
@@ -41,7 +43,7 @@ const PIECE_NAMES: Record<PieceSymbol, string> = {
 };
 const PIECE_POINTS: Record<PieceSymbol, number> = { q: 9, r: 5, b: 3, n: 3, p: 1, k: 0 };
 
-type GameMode = "ai" | "local";
+type GameMode = "ai" | "local" | "online";
 type Screen = "menu" | "board";
 type LocalStats = { wins: number; losses: number; draws: number; games: number };
 type ManualEnd = { reason: "resign" | "time"; winner: Color };
@@ -110,6 +112,13 @@ const ChessArena = () => {
       noClock: sw ? "Bila saa" : "No clock",
       minutes: sw ? "dakika" : "min",
       start: sw ? "Anza mchezo" : "Start game",
+      online: sw ? "Cheza online" : "Play online",
+      onlineDesc: sw ? "Cheza na mpinzani kwenye simu tofauti kwa code." : "Play an opponent on another device using a room code.",
+      createRoom: sw ? "Tengeneza chumba" : "Create room",
+      joinRoom: sw ? "Jiunge na chumba" : "Join room",
+      roomCode: sw ? "Code ya chumba" : "Room code",
+      waiting: sw ? "Unasubiri mpinzani ajiunge…" : "Waiting for an opponent to join…",
+      copyInvite: sw ? "Nakili link ya mwaliko" : "Copy invite link",
       how: sw ? "Sheria za mchezo" : "How to play",
       rules: sw
         ? ["White huanza. Gusa kipande kisha gusa mraba wa kwenda.", "Gusa kipande ili kuona hatua zake halali.", "Promotion, castling na en passant vinafuata sheria za chess.", "Mchezo huisha kwa checkmate, sare au muda kuisha."]
@@ -181,6 +190,11 @@ const ChessArena = () => {
   const [stats, setStats] = useState<LocalStats>(EMPTY_STATS);
   const statsRef = useRef<LocalStats>(EMPTY_STATS);
   const [hydratedKey, setHydratedKey] = useState<string | null>(null);
+  const [onlineRoom, setOnlineRoom] = useState<string | null>(null);
+  const [onlineRole, setOnlineRole] = useState<"host" | "guest" | null>(null);
+  const [onlineRoomInput, setOnlineRoomInput] = useState("");
+  const [onlineReady, setOnlineReady] = useState(false);
+  const onlineChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   useEffect(() => {
     setHydratedKey(null);
@@ -307,6 +321,9 @@ const ChessArena = () => {
       setSelected(null);
       setPendingPromotion(null);
       if (sound) playMoveSound(Boolean(move.captured));
+      if (mode === "online" && onlineChannelRef.current) {
+        void onlineChannelRef.current.send({ type: "broadcast", event: "state", payload: { fen: current.fen(), pgn: current.pgn() } });
+      }
       if (current.isGameOver()) {
         if (current.isCheckmate()) recordResult(current.turn() === "w" ? "b" : "w");
         else recordResult(null, true);
@@ -314,7 +331,7 @@ const ChessArena = () => {
     } catch {
       // chess.js rejects illegal moves; the board remains unchanged.
     }
-  }, [manualEnd, recordResult, sound, timeControl, finishByClock]);
+  }, [manualEnd, recordResult, sound, timeControl, finishByClock, mode]);
 
   useEffect(() => {
     if (hydratedKey !== gameStorageKey || screen !== "board" || !timeControl || manualEnd || game.isGameOver()) return;
@@ -371,6 +388,7 @@ const ChessArena = () => {
   const finished = Boolean(manualEnd) || game.isGameOver();
   const playerName = (color: Color) => {
     if (mode === "ai") return color === humanColor ? t.you : t.tiger;
+    if (mode === "online") return color === (onlineRole === "host" ? "w" : "b") ? t.you : "Online opponent";
     return `${t.player} ${color === "w" ? "1" : "2"} · ${color === "w" ? t.white : t.black}`;
   };
   const activeName = playerName(game.turn());
@@ -382,10 +400,12 @@ const ChessArena = () => {
           : aiThinking ? t.thinking
             : game.isCheck() ? `${activeName} · ${t.check}`
               : mode === "ai" && game.turn() !== humanColor ? t.thinkingTurn
-                : `${activeName} · ${t.yourTurn}`;
+                : mode === "online" && game.turn() !== (onlineRole === "host" ? "w" : "b") ? (language === "sw" ? "Zamu ya mpinzani" : "Opponent’s turn")
+                  : `${activeName} · ${t.yourTurn}`;
 
   const handleSquare = (square: Square) => {
-    if (screen !== "board" || finished || aiThinking || (mode === "ai" && game.turn() !== humanColor)) return;
+    const myOnlineColor = onlineRole === "host" ? "w" : "b";
+    if (screen !== "board" || finished || aiThinking || (mode === "ai" && game.turn() !== humanColor) || (mode === "online" && (!onlineReady || game.turn() !== myOnlineColor))) return;
     const piece = game.get(square);
     if (selected) {
       const candidates = game.moves({ square: selected, verbose: true }).filter((move) => move.to === square);
@@ -418,7 +438,7 @@ const ChessArena = () => {
     const startingClocks = { w: startingClock, b: startingClock };
     clockRef.current = startingClocks;
     setClocks(startingClocks);
-    const orientation = nextMode === "ai" && humanColor === "b";
+    const orientation = (nextMode === "ai" && humanColor === "b") || (nextMode === "online" && onlineRole === "guest");
     setFlipped(orientation);
     lastTickRef.current = Date.now();
   };
@@ -476,9 +496,105 @@ const ChessArena = () => {
     black: history[index * 2 + 1],
   }));
 
+
+  const publishRoomState = useCallback(() => {
+    const channel = onlineChannelRef.current;
+    const current = gameRef.current;
+    if (channel && current) void channel.send({ type: "broadcast", event: "state", payload: { fen: current.fen(), pgn: current.pgn() } });
+  }, []);
+
+  useEffect(() => {
+    if (!onlineRoom || mode !== "online") return;
+    setOnlineReady(false);
+    const channel = supabase.channel(`tiger-chess-room:${onlineRoom}`, { config: { broadcast: { self: false } } });
+    channel
+      .on("broadcast", { event: "state" }, ({ payload }) => {
+        if (typeof payload?.fen !== "string") return;
+        try {
+          const restored = new Chess(payload.fen);
+          gameRef.current = restored;
+          setFen(restored.fen());
+          setLastMove(null);
+          setOnlineReady(true);
+        } catch { /* Ignore malformed or incompatible remote positions. */ }
+      })
+      .on("broadcast", { event: "state_request" }, () => {
+        if (onlineRole === "host") publishRoomState();
+      })
+      .on("broadcast", { event: "player_joined" }, () => {
+        setOnlineReady(true);
+        if (onlineRole === "host") publishRoomState();
+      })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          if (onlineRole === "guest") void channel.send({ type: "broadcast", event: "player_joined", payload: {} });
+          else publishRoomState();
+        }
+      });
+    onlineChannelRef.current = channel;
+    return () => {
+      onlineChannelRef.current = null;
+      void supabase.removeChannel(channel);
+      setOnlineReady(false);
+    };
+  }, [onlineRoom, mode, onlineRole, publishRoomState]);
+
+  const createOnlineRoom = () => {
+    const code = crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase();
+    setOnlineRole("host");
+    setOnlineRoom(code);
+    setMode("online");
+    startGame("online");
+    window.history.replaceState({}, "", `/games/chess?chessRoom=${code}`);
+  };
+
+  const joinOnlineRoom = () => {
+    const code = onlineRoomInput.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+    if (code.length < 6) {
+      toast({ title: t.roomCode, description: "Enter a valid 6–8 character room code.", variant: "destructive" });
+      return;
+    }
+    const fresh = new Chess();
+    gameRef.current = fresh;
+    setFen(fresh.fen());
+    setOnlineRole("guest");
+    setOnlineRoom(code);
+    setMode("online");
+    setScreen("board");
+    setFlipped(true);
+    setManualEnd(null);
+    setLastMove(null);
+    setSelected(null);
+    setPendingPromotion(null);
+    window.history.replaceState({}, "", `/games/chess?chessRoom=${code}`);
+  };
+
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("chessRoom");
+    if (code && /^[A-Z0-9]{6,12}$/i.test(code)) {
+      setOnlineRoom(code.toUpperCase());
+      setOnlineRole("guest");
+      setMode("online");
+      setScreen("board");
+      setFlipped(true);
+    }
+  }, []);
+
+  const copyOnlineInvite = async () => {
+    if (!onlineRoom) return;
+    const link = `${window.location.origin}/games/chess?chessRoom=${onlineRoom}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      toast({ title: t.copyInvite });
+    } catch {
+      toast({ title: "Could not copy invite link", variant: "destructive" });
+    }
+  };
+
   const exitToGames = () => {
     if (screen === "board" && !finished && !window.confirm(t.confirmExit)) return;
-    navigate("/games");
+    if (onlineChannelRef.current) { void supabase.removeChannel(onlineChannelRef.current); onlineChannelRef.current = null; }
+    navigate("/games", { replace: false });
   };
 
   if (hydratedKey !== gameStorageKey) {
@@ -489,9 +605,7 @@ const ChessArena = () => {
     <main className="min-h-full overflow-y-auto bg-background px-3 pb-28 pt-4 sm:px-5">
       <div className="mx-auto max-w-6xl space-y-4">
         <header className="flex items-center justify-between gap-3">
-          <button onClick={exitToGames} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card/70 px-3 py-2 text-sm font-semibold transition hover:border-primary/40" aria-label={t.back}>
-            <ArrowLeft className="h-4 w-4" /> {t.back}
-          </button>
+          <div className="flex flex-wrap items-center gap-2"><button onClick={exitToGames} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card/70 px-3 py-2 text-sm font-semibold transition hover:border-primary/40" aria-label={t.back}><ArrowLeft className="h-4 w-4" /> {t.back}</button>{screen === "board" && <button onClick={() => { if (!finished && !window.confirm(t.confirmExit)) return; if (onlineChannelRef.current) { void supabase.removeChannel(onlineChannelRef.current); onlineChannelRef.current = null; } setOnlineRoom(null); setOnlineRole(null); setOnlineReady(false); setMode("ai"); setScreen("menu"); window.history.replaceState({}, "", "/games/chess"); }} className="rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-bold text-primary">{language === "sw" ? "Rudi kwenye menyu" : "Back to chess menu"}</button>}</div>
           <button onClick={() => setSound((value) => !value)} className="rounded-xl border border-border bg-card/70 p-2.5" aria-label={t.sound} title={t.sound}>
             {sound ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
           </button>
@@ -510,7 +624,7 @@ const ChessArena = () => {
                 <h2 className="text-lg font-black">{t.chooseMode}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">{t.subtitle}</p>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-3">
                 <button onClick={() => setMode("ai")} className={`rounded-2xl border p-4 text-left transition ${mode === "ai" ? "border-primary/50 bg-primary/10 shadow-[0_0_26px_hsl(var(--primary)/.10)]" : "border-border bg-background/50 hover:border-primary/30"}`}>
                   <Bot className="h-7 w-7 text-primary" />
                   <p className="mt-3 font-black">{t.againstAi}</p>
@@ -521,7 +635,19 @@ const ChessArena = () => {
                   <p className="mt-3 font-black">{t.local}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{t.localDesc}</p>
                 </button>
+                <button onClick={() => setMode("online")} className={`rounded-2xl border p-4 text-left transition ${mode === "online" ? "border-primary/50 bg-primary/10 shadow-[0_0_26px_hsl(var(--primary)/.10)]" : "border-border bg-background/50 hover:border-primary/30"}`}>
+                  <Users className="h-7 w-7 text-emerald-500" />
+                  <p className="mt-3 font-black">{t.online}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t.onlineDesc}</p>
+                </button>
               </div>
+
+              {mode === "online" && (
+                <div className="space-y-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-4">
+                  <button onClick={createOnlineRoom} className="w-full rounded-xl bg-emerald-600 px-4 py-3 font-black text-white">{t.createRoom}</button>
+                  <div className="flex gap-2"><input value={onlineRoomInput} onChange={(event) => setOnlineRoomInput(event.target.value.toUpperCase())} maxLength={12} placeholder={t.roomCode} className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-3 text-sm uppercase tracking-[.2em]" /><button onClick={joinOnlineRoom} className="rounded-xl border border-emerald-500/40 px-4 text-sm font-bold text-emerald-600">{t.joinRoom}</button></div>
+                </div>
+              )}
 
               {mode === "ai" && (
                 <div className="space-y-4 rounded-2xl border border-border/70 bg-background/50 p-4">
@@ -547,9 +673,9 @@ const ChessArena = () => {
                 </div>
               </div>
 
-              <button onClick={() => startGame(mode)} className="w-full rounded-xl bg-primary px-4 py-3.5 text-sm font-black text-primary-foreground shadow-[0_8px_24px_hsl(var(--primary)/.22)] transition hover:opacity-90 active:scale-[.99]">
+              {mode !== "online" && <button onClick={() => startGame(mode)} className="w-full rounded-xl bg-primary px-4 py-3.5 text-sm font-black text-primary-foreground shadow-[0_8px_24px_hsl(var(--primary)/.22)] transition hover:opacity-90 active:scale-[.99]">
                 <Sparkles className="mr-2 inline h-4 w-4" /> {t.start}
-              </button>
+              </button>}
             </section>
 
             <div className="space-y-4">
@@ -584,8 +710,8 @@ const ChessArena = () => {
                 </div>
               </div>
 
-              <div className="overflow-hidden rounded-2xl border border-border shadow-[0_14px_42px_rgba(0,0,0,.25)]">
-                <div className="grid aspect-square grid-cols-8 grid-rows-8">
+              <div className="rounded-[22px] border border-amber-100/20 bg-[linear-gradient(145deg,#f5d99c_0%,#95632f_24%,#382016_52%,#b98545_76%,#25150e_100%)] p-2 shadow-[0_24px_50px_rgba(0,0,0,.62),inset_0_2px_4px_rgba(255,255,255,.55),inset_0_-7px_12px_rgba(0,0,0,.65)] sm:p-3">
+                <div className="grid aspect-square grid-cols-8 grid-rows-8 overflow-hidden rounded-lg ring-1 ring-black/50 shadow-[inset_0_8px_20px_rgba(0,0,0,.32)]" style={{ transform: "perspective(1400px) rotateX(2deg)", transformOrigin: "center bottom" }}>
                   {rowIndexes.flatMap((rankIndex) => fileIndexes.map((fileIndex) => {
                     const square = `${FILES[fileIndex]}${rankIndex + 1}` as Square;
                     const piece = game.get(square);
@@ -601,17 +727,19 @@ const ChessArena = () => {
                       onClick={() => handleSquare(square)}
                       disabled={finished || aiThinking || (mode === "ai" && game.turn() !== humanColor)}
                       aria-label={`${fileLabel}${rankLabel}${piece ? ` ${piece.color === "w" ? t.white : t.black} ${PIECE_NAMES[piece.type]}` : ""}${isTarget ? ", legal move" : ""}`}
-                      className={`relative flex min-w-0 items-center justify-center overflow-hidden transition focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-primary disabled:cursor-default ${isLight ? "bg-[#dce7d5] text-[#15211a]" : "bg-[#66816b] text-white"} ${isLast ? "!bg-amber-300/80" : ""} ${isSelected ? "!bg-sky-300 ring-4 ring-inset ring-sky-500/70" : ""} ${isCheck ? "!bg-rose-500/80" : ""}`}
+                      className={`relative flex min-w-0 items-center justify-center overflow-hidden transition duration-150 focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-primary disabled:cursor-default ${isLight ? "bg-[linear-gradient(145deg,#f3e7c7,#c6ad7d_72%,#a98a58)] text-[#15211a]" : "bg-[linear-gradient(145deg,#566b62,#243c36_72%,#152720)] text-white"} ${isLast ? "!bg-amber-300/80" : ""} ${isSelected ? "!bg-sky-300 ring-4 ring-inset ring-sky-500/70" : ""} ${isCheck ? "!bg-rose-500/80" : ""}`}
                     >
                       {fileIndex === (orientation === "w" ? 0 : 7) && <span className="pointer-events-none absolute left-1 top-0.5 text-[8px] font-black opacity-60 sm:text-[10px]">{rankLabel}</span>}
                       {rankIndex === (orientation === "w" ? 0 : 7) && <span className="pointer-events-none absolute bottom-0 right-1 text-[8px] font-black opacity-60 sm:text-[10px]">{fileLabel}</span>}
                       {isTarget && !piece && <span className="pointer-events-none absolute h-[22%] w-[22%] rounded-full bg-black/25" />}
                       {isTarget && piece && <span className="pointer-events-none absolute inset-[5%] rounded-full border-[3px] border-black/25" />}
-                      {piece && <span className={`relative z-[1] select-none font-serif text-[clamp(1.8rem,9vw,4rem)] leading-none drop-shadow-[0_2px_1px_rgba(0,0,0,.2)] ${piece.color === "w" ? "text-white [text-shadow:0_1px_2px_rgba(0,0,0,.55)]" : "text-[#17202a] [text-shadow:0_1px_1px_rgba(255,255,255,.24)]"}`}>{PIECE_GLYPHS[piece.color][piece.type]}</span>}
+                      {piece && <ChessPiece3D color={piece.color} type={piece.type} className="relative z-[1] drop-shadow-[0_5px_4px_rgba(0,0,0,.55)] transition-transform duration-200" />}
                     </button>;
                   }))}
                 </div>
               </div>
+
+              {mode === "online" && <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-3"><div><p className="text-xs font-black text-emerald-600">{onlineReady ? "Opponent connected" : t.waiting}</p><p className="font-mono text-xs tracking-[.2em] text-muted-foreground">{onlineRoom}</p></div><button onClick={copyOnlineInvite} className="rounded-xl border border-emerald-500/30 px-3 py-2 text-xs font-bold text-emerald-600"><Copy className="mr-1 inline h-4 w-4" />{t.copyInvite}</button></div>}
 
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border bg-card/80 p-3">
                 <p className="min-w-0 flex-1 text-sm font-bold" aria-live="polite">{status}</p>
