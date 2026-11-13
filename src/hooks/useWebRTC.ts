@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { acquireMicrophone } from "@/lib/audioCapture";
 
 type CallSignalData = {
   callId?: string;
@@ -72,6 +73,43 @@ const getCallIceServers = async (conversationId: string): Promise<RTCIceServer[]
 const RING_TIMEOUT_MS = 45000;
 const RECENT_CALL_WINDOW_MS = 60000;
 
+const collectMediaFailureDiagnostics = async () => {
+  const native = window.TigerNative;
+  let activeRecordings: unknown = null;
+  let nativeDiagnosticError: string | null = null;
+  try {
+    const raw = native?.getActiveAudioRecordingApps?.();
+    if (raw) activeRecordings = JSON.parse(raw);
+  } catch (error) {
+    nativeDiagnosticError = error instanceof Error ? error.message : String(error);
+  }
+
+  let microphonePermission: string | null = null;
+  try {
+    if (navigator.permissions?.query) {
+      const permission = await navigator.permissions.query({ name: "microphone" as PermissionName });
+      microphonePermission = permission.state;
+    }
+  } catch {
+    // Android WebView versions may not expose microphone permission through Permissions API.
+  }
+
+  const audioInputs = await navigator.mediaDevices?.enumerateDevices?.()
+    .then((devices) => devices.filter((device) => device.kind === "audioinput").length)
+    .catch(() => -1) ?? -1;
+
+  return {
+    platform: /Android/i.test(navigator.userAgent) ? "android" : "web",
+    appVersion: native?.getAppVersion?.() || "web-or-unknown",
+    microphonePermission,
+    audioInputCount: audioInputs,
+    activeRecordings,
+    nativeDiagnosticError,
+    userAgent: navigator.userAgent,
+    capturedAt: new Date().toISOString(),
+  };
+};
+
 export interface CallInfo {
   callId: string;
   callerId: string;
@@ -98,6 +136,7 @@ export const useWebRTC = () => {
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const audioCaptureReleaseRef = useRef<(() => void) | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const callIdRef = useRef<string | null>(null);
@@ -133,6 +172,8 @@ export const useWebRTC = () => {
   const cleanupMedia = useCallback(() => {
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
+    audioCaptureReleaseRef.current?.();
+    audioCaptureReleaseRef.current = null;
     setLocalStream(null);
     pcRef.current?.close();
     pcRef.current = null;
@@ -197,6 +238,9 @@ export const useWebRTC = () => {
       throw new Error("Simu/WebView hii haitoi huduma ya microphone na camera. Hakikisha unatumia toleo jipya la TigerChats.");
     }
 
+    // A call owns the shared microphone until cleanupMedia stops its tracks.
+    audioCaptureReleaseRef.current = acquireMicrophone(video ? "video-call" : "voice-call");
+
     const preferred: MediaStreamConstraints = {
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       video: video ? { facingMode: facingRef.current, width: { ideal: 1280 }, height: { ideal: 720 } } : false,
@@ -215,7 +259,11 @@ export const useWebRTC = () => {
         "TrackStartError",
         "AbortError",
       ].includes(name);
-      if (!retryable) throw firstError;
+      if (!retryable) {
+        audioCaptureReleaseRef.current?.();
+        audioCaptureReleaseRef.current = null;
+        throw firstError;
+      }
 
       console.warn("Media capture failed with preferred constraints; retrying Android WebView defaults:", {
         errorName: name,
@@ -238,17 +286,21 @@ export const useWebRTC = () => {
             });
             return audioOnlyStream;
           } catch (audioError) {
-            console.error("Camera and microphone capture both failed:", { firstError, retryError, audioError });
+            const nativeDiagnostics = await collectMediaFailureDiagnostics();
+            console.error("TigerChat media capture failed: camera and microphone could not start.", {
+              firstError, retryError, audioError, nativeDiagnostics,
+            });
+            audioCaptureReleaseRef.current?.();
+            audioCaptureReleaseRef.current = null;
             throw audioError;
           }
         }
-        console.error("Microphone capture failed:", {
-          firstError,
-          retryError,
-          audioInputs: await navigator.mediaDevices.enumerateDevices()
-            .then((devices) => devices.filter((device) => device.kind === "audioinput").length)
-            .catch(() => -1),
+        const nativeDiagnostics = await collectMediaFailureDiagnostics();
+        console.error("TigerChat microphone capture failed after fallback retry.", {
+          firstError, retryError, nativeDiagnostics,
         });
+        audioCaptureReleaseRef.current?.();
+        audioCaptureReleaseRef.current = null;
         throw retryError;
       }
     }
@@ -382,7 +434,12 @@ export const useWebRTC = () => {
     try {
       const iceServers = await getCallIceServers(conversationId);
       const stream = await getMedia(callType === "video");
-      if (callIdRef.current !== info.callId) { stream.getTracks().forEach((track) => track.stop()); return; }
+      if (callIdRef.current !== info.callId) {
+        stream.getTracks().forEach((track) => track.stop());
+        audioCaptureReleaseRef.current?.();
+        audioCaptureReleaseRef.current = null;
+        return;
+      }
       localStreamRef.current = stream;
       setLocalStream(stream);
       const pc = createPeerConnection(info, iceServers);
@@ -421,7 +478,12 @@ export const useWebRTC = () => {
     try {
       const iceServers = await getCallIceServers(info.conversationId);
       const stream = await getMedia(info.callType === "video");
-      if (callIdRef.current !== info.callId) { stream.getTracks().forEach((track) => track.stop()); return; }
+      if (callIdRef.current !== info.callId) {
+        stream.getTracks().forEach((track) => track.stop());
+        audioCaptureReleaseRef.current?.();
+        audioCaptureReleaseRef.current = null;
+        return;
+      }
       localStreamRef.current = stream;
       setLocalStream(stream);
       const pc = createPeerConnection(info, iceServers);
