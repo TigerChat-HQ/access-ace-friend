@@ -72,15 +72,6 @@ const getCallIceServers = async (conversationId: string): Promise<RTCIceServer[]
 const RING_TIMEOUT_MS = 45000;
 const RECENT_CALL_WINDOW_MS = 60000;
 
-declare global {
-  interface Window {
-    TigerNative?: {
-      getAppVersion?: () => string;
-      getActiveAudioRecordingApps?: () => string;
-    };
-  }
-}
-
 const collectMediaFailureDiagnostics = async () => {
   const native = window.TigerNative;
   let activeRecordings: unknown = null;
