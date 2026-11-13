@@ -400,7 +400,8 @@ const ChessArena = () => {
           : aiThinking ? t.thinking
             : game.isCheck() ? `${activeName} · ${t.check}`
               : mode === "ai" && game.turn() !== humanColor ? t.thinkingTurn
-                : `${activeName} · ${t.yourTurn}`;
+                : mode === "online" && game.turn() !== (onlineRole === "host" ? "w" : "b") ? (language === "sw" ? "Zamu ya mpinzani" : "Opponent’s turn")
+                  : `${activeName} · ${t.yourTurn}`;
 
   const handleSquare = (square: Square) => {
     const myOnlineColor = onlineRole === "host" ? "w" : "b";
@@ -539,7 +540,7 @@ const ChessArena = () => {
   }, [onlineRoom, mode, onlineRole, publishRoomState]);
 
   const createOnlineRoom = () => {
-    const code = crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
+    const code = crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase();
     setOnlineRole("host");
     setOnlineRoom(code);
     setMode("online");
@@ -548,7 +549,7 @@ const ChessArena = () => {
   };
 
   const joinOnlineRoom = () => {
-    const code = onlineRoomInput.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+    const code = onlineRoomInput.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
     if (code.length < 6) {
       toast({ title: t.roomCode, description: "Enter a valid 6–8 character room code.", variant: "destructive" });
       return;
@@ -570,7 +571,7 @@ const ChessArena = () => {
 
   useEffect(() => {
     const code = new URLSearchParams(window.location.search).get("chessRoom");
-    if (code && /^[A-Z0-9]{6,8}$/i.test(code)) {
+    if (code && /^[A-Z0-9]{6,12}$/i.test(code)) {
       setOnlineRoom(code.toUpperCase());
       setOnlineRole("guest");
       setMode("online");
@@ -644,7 +645,7 @@ const ChessArena = () => {
               {mode === "online" && (
                 <div className="space-y-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-4">
                   <button onClick={createOnlineRoom} className="w-full rounded-xl bg-emerald-600 px-4 py-3 font-black text-white">{t.createRoom}</button>
-                  <div className="flex gap-2"><input value={onlineRoomInput} onChange={(event) => setOnlineRoomInput(event.target.value.toUpperCase())} maxLength={8} placeholder={t.roomCode} className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-3 text-sm uppercase tracking-[.2em]" /><button onClick={joinOnlineRoom} className="rounded-xl border border-emerald-500/40 px-4 text-sm font-bold text-emerald-600">{t.joinRoom}</button></div>
+                  <div className="flex gap-2"><input value={onlineRoomInput} onChange={(event) => setOnlineRoomInput(event.target.value.toUpperCase())} maxLength={12} placeholder={t.roomCode} className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-3 text-sm uppercase tracking-[.2em]" /><button onClick={joinOnlineRoom} className="rounded-xl border border-emerald-500/40 px-4 text-sm font-bold text-emerald-600">{t.joinRoom}</button></div>
                 </div>
               )}
 
