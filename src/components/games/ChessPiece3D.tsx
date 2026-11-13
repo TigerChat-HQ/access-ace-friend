@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type { Color, PieceSymbol } from "chess.js";
 
 const shapes: Record<PieceSymbol, string> = {
@@ -11,7 +12,8 @@ const shapes: Record<PieceSymbol, string> = {
 
 export function ChessPiece3D({ color, type, className = "" }: { color: Color; type: PieceSymbol; className?: string }) {
   const light = color === "w";
-  const id = `chess-${color}-${type}`;
+  const reactId = useId().replace(/:/g, "");
+  const id = `chess-${color}-${type}-${reactId}`;
   return (
     <svg viewBox="0 0 100 100" role="img" aria-label={`${light ? "White" : "Black"} ${type}`} className={`h-[88%] w-[88%] overflow-visible select-none ${className}`} aria-hidden="false">
       <defs>
