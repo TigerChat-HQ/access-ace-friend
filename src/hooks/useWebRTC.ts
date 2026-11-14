@@ -772,12 +772,15 @@ export const useWebRTC = () => {
         }
         case "answer": {
           if (callId !== callIdRef.current) return;
+          // Native callers must enter CONNECTING as soon as the callee answers.
+          // Keep this transition shared with the browser path; otherwise the
+          // native call remains OUTGOING and skips connecting-state recovery.
+          if (statusRef.current !== "connected") { statusRef.current = "connecting"; setCallStatus("connecting"); }
           if (nativeCallRef.current) {
             if (typeof data.sdp === "string") await applyNativeRemoteDescription("answer", data.sdp);
             return;
           }
           if (!pcRef.current || pcRef.current.signalingState !== "have-local-offer") return;
-          if (statusRef.current !== "connected") { statusRef.current = "connecting"; setCallStatus("connecting"); }
           await pcRef.current.setRemoteDescription({ sdp: data.sdp, type: data.type });
           await flushRemoteIce();
           break;
