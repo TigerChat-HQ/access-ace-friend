@@ -7,6 +7,8 @@
  */
 type MicrophoneOwner = "voice-note" | "voice-call" | "video-call";
 
+import { supabase } from "@/integrations/supabase/client";
+
 type ActiveLease = {
   owner: MicrophoneOwner;
   token: symbol;
@@ -37,6 +39,81 @@ export function acquireMicrophone(owner: MicrophoneOwner): () => void {
     released = true;
     if (activeLease?.token === lease.token) activeLease = null;
   };
+}
+
+/**
+ * Cross-device/session microphone lock shared by the website and Android WebView.
+ * Each signed-in account gets one private-in-practice topic name derived from its
+ * user id. Presence disappears automatically when a client disconnects.
+ */
+export async function acquireSharedMicrophone(owner: MicrophoneOwner): Promise<() => void> {
+  const localRelease = acquireMicrophone(owner);
+  let channel: ReturnType<typeof supabase.channel> | null = null;
+  try {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw sessionError;
+    if (!session?.user?.id) throw new Error("Ingia kwenye akaunti yako ya TigerChat ili kutumia microphone.");
+
+    const bytes = new TextEncoder().encode(session.user.id);
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    const accountKey = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+    const clientId = typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const topic = `tiger-audio:${accountKey}`;
+
+    channel = supabase.channel(topic, { config: { presence: { key: clientId } } });
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error("TigerChat imeshindwa kuunganisha ulinzi wa microphone. Kagua intaneti kisha jaribu tena.")), 8000);
+      channel!.subscribe((status, err) => {
+        if (status === "SUBSCRIBED") {
+          clearTimeout(timeout);
+          resolve();
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          clearTimeout(timeout);
+          reject(err ?? new Error("TigerChat Realtime microphone lock haijaunganishwa."));
+        }
+      });
+    });
+
+    const hasOtherOwner = () => Object.values(channel!.presenceState<{ owner: string; clientId: string }>())
+      .flat()
+      .some((presence) => presence.clientId !== clientId && Boolean(presence.owner));
+
+    if (hasOtherOwner()) {
+      throw new Error("Microphone tayari inatumika kwenye website au APK nyingine ya akaunti hii ya TigerChat. Maliza matumizi hayo kwanza.");
+    }
+
+    const tracked = await channel.track({
+      owner,
+      clientId,
+      device: window.TigerNative?.getAppVersion?.() ? "android-app" : "website",
+      startedAt: new Date().toISOString(),
+    });
+    if (tracked !== "ok") throw new Error("TigerChat imeshindwa kutangaza matumizi ya microphone kwenye vifaa vingine.");
+
+    // Allow simultaneous clients to publish presence; if both raced, both back off.
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    if (hasOtherOwner()) {
+      throw new Error("Kifaa kingine cha TigerChat kimeanza kutumia microphone. Simamisha sauti huko kwanza.");
+    }
+
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      localRelease();
+      if (channel) {
+        const activeChannel = channel;
+        channel = null;
+        void activeChannel.untrack().finally(() => supabase.removeChannel(activeChannel));
+      }
+    };
+  } catch (error) {
+    localRelease();
+    if (channel) void supabase.removeChannel(channel);
+    throw error;
+  }
 }
 
 /** Current owner for UI diagnostics and deterministic tests. */
