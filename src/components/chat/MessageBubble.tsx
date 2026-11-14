@@ -41,6 +41,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
   const [transcript, setTranscript] = useState<string | null>(null);
   const [transcribing, setTranscribing] = useState(false);
   const [transcriptionError, setTranscriptionError] = useState("");
+  const [showTranscriptionConsent, setShowTranscriptionConsent] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
   const hasTranslation = !isMe && !!translatedText && translatedText !== message.text;
@@ -76,11 +77,8 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
   }, [isVoice, message.id]);
 
   const handleTranscribe = async () => {
-    if (transcript) {
-      setTranscriptVisible((visible) => !visible);
-      return;
-    }
-    if (!mediaUrl || !window.confirm("Voice note itatumwa kwa Google Gemini AI ili kuandika maneno yake na itashughulikiwa chini ya masharti ya faragha ya mtoa huduma. TigerChat haihifadhi faili la sauti kwenye jedwali la transcript; maandishi yatabaki kwenye akaunti yako tu. Unakubali kuendelea?")) return;
+    if (!mediaUrl) return;
+    setShowTranscriptionConsent(false);
     setTranscribing(true);
     setTranscriptionError("");
     try {
@@ -194,9 +192,18 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
             <button type="button" aria-label="Change playback speed" onClick={cyclePlaybackRate} className="shrink-0 rounded-full px-1.5 py-1 text-[10px] font-semibold bg-white/10 hover:bg-white/20">{playbackRate}×</button>
           </div>
           <div className="mt-2">
-            <button type="button" onClick={() => void handleTranscribe()} disabled={transcribing} className="text-[11px] underline underline-offset-2 opacity-80 hover:opacity-100 disabled:opacity-50">
-              {transcribing ? "Inaandika sauti..." : transcript ? (transcriptVisible ? "Ficha maandishi" : "Onyesha maandishi") : "Andika maneno ya sauti"}
+            <button type="button" onClick={() => transcript ? setTranscriptVisible((visible) => !visible) : setShowTranscriptionConsent((visible) => !visible)} disabled={transcribing} className="text-[11px] underline underline-offset-2 opacity-80 hover:opacity-100 disabled:opacity-50">
+              {transcribing ? "Inaandika sauti..." : transcript ? (transcriptVisible ? "Ficha maandishi" : "Onyesha maandishi") : showTranscriptionConsent ? "Ficha ruhusa" : "Andika maneno ya sauti"}
             </button>
+            {showTranscriptionConsent && !transcript && (
+              <div className="mt-2 rounded-lg bg-white/10 p-2">
+                <p className="text-[11px] leading-relaxed">Sauti itatumwa kwa Google Gemini AI na itashughulikiwa chini ya masharti ya faragha ya mtoa huduma. TigerChat haihifadhi faili la sauti kwenye jedwali la transcript; maandishi yataonekana kwenye akaunti yako tu.</p>
+                <div className="mt-2 flex gap-2">
+                  <button type="button" onClick={() => void handleTranscribe()} disabled={transcribing} className="rounded-md bg-primary px-2 py-1 text-[10px] font-semibold text-primary-foreground">Kubali na endelea</button>
+                  <button type="button" onClick={() => setShowTranscriptionConsent(false)} className="rounded-md bg-white/10 px-2 py-1 text-[10px]">Ghairi</button>
+                </div>
+              </div>
+            )}
             {transcriptionError && <p role="alert" className="mt-1 text-[11px] text-red-300">{transcriptionError}</p>}
             {transcriptVisible && transcript && <p dir="auto" className="mt-2 rounded-lg bg-white/10 p-2 text-xs whitespace-pre-wrap">{transcript}</p>}
           </div>
