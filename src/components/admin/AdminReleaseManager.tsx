@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { appReleasesTable } from "@/lib/app-releases-db";
 
 type ReleaseRow = { id: string; version: string; title: string; summary: string; created_at: string; is_active: boolean };
 export const AdminReleaseManager = () => {
@@ -19,14 +20,14 @@ export const AdminReleaseManager = () => {
   const [releases, setReleases] = useState<ReleaseRow[]>([]);
 
   const load = useCallback(async () => {
-    const { data, error } = await (supabase as any).from("app_releases")
+    const { data, error } = await appReleasesTable(supabase)
       .select("id,version,title,summary,created_at,is_active").eq("platform", "android")
       .order("created_at", { ascending: false }).limit(8);
     if (error) {
       toast({ title: "Imeshindikana kusoma matoleo", description: error.message, variant: "destructive" });
       return;
     }
-    setReleases((data || []) as ReleaseRow[]);
+    setReleases((data || []) as unknown as ReleaseRow[]);
   }, [toast]);
 
   useEffect(() => { void load(); }, [load]);
