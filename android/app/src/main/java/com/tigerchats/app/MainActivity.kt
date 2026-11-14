@@ -745,6 +745,11 @@ open class MainActivity : Activity() {
         }
 
         @JavascriptInterface
+        fun nativeWebRtcSetRemoteAudioEnabled(enabled: Boolean) {
+            runOnUiThread { nativeWebRtcEngine?.setRemoteAudioEnabled(enabled) }
+        }
+
+        @JavascriptInterface
         fun nativeWebRtcSetVideoEnabled(enabled: Boolean) {
             runOnUiThread { nativeWebRtcEngine?.setVideoEnabled(enabled) }
         }
