@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, Volume2, VolumeX, SwitchCamera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { playRingtone, playRingbackTone } from "@/lib/ringtones";
+import { setNativeRemoteAudioEnabled } from "@/lib/nativeWebRtc";
 import type { CallInfo, CallStatus } from "@/hooks/useWebRTC";
 
 interface CallDialogProps {
@@ -11,6 +12,7 @@ interface CallDialogProps {
   isMuted: boolean;
   isVideoOn: boolean;
   nativeVideo?: boolean;
+  nativeMedia?: boolean;
   duration: number;
   remoteStream: MediaStream;
   localStream: MediaStream | null;
@@ -46,6 +48,7 @@ export const CallDialog = ({
   isMuted,
   isVideoOn,
   nativeVideo = false,
+  nativeMedia = false,
   duration,
   remoteStream,
   localStream,
@@ -65,6 +68,10 @@ export const CallDialog = ({
   const contactAvatar = callInfo.callerAvatar || "??";
 
   useCallRingtone(callStatus === "incoming" ? "incoming" : callStatus === "ringing" ? "outgoing" : null);
+
+  useEffect(() => {
+    if (nativeMedia) setNativeRemoteAudioEnabled(soundOn);
+  }, [nativeMedia, soundOn]);
 
   useEffect(() => {
     if (!nativeVideo) return;
