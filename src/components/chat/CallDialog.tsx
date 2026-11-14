@@ -67,7 +67,7 @@ export const CallDialog = ({
   const contactName = callInfo.callerName || "Unknown";
   const contactAvatar = callInfo.callerAvatar || "??";
 
-  useCallRingtone(callStatus === "incoming" ? "incoming" : (callStatus === "outgoing" || callStatus === "ringing") ? "outgoing" : null);
+  useCallRingtone(callStatus === "incoming" ? "incoming" : callStatus === "ringing" ? "outgoing" : null);
 
   useEffect(() => {
     if (!nativeVideo) return;
