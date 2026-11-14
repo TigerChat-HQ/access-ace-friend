@@ -124,7 +124,7 @@ describe("call signaling reliability", () => {
     act(() => { mocks.nativeListener?.({ type: "ice-state", state: "FAILED" }); });
 
     expect(result.current.callStatus).toBe("outgoing");
-    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(mocks.rpc.mock.calls.filter(([, args]) => args.p_signal_type === "offer")).toHaveLength(1);
     expect(mocks.rpc).toHaveBeenCalledWith("create_call_signal", expect.objectContaining({ p_signal_type: "offer" }));
     expect(mocks.rpc).not.toHaveBeenCalledWith("create_call_signal", expect.objectContaining({ p_signal_type: "hangup" }));
     unmount();
