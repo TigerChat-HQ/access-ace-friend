@@ -25,8 +25,8 @@ export function acquireMicrophone(owner: MicrophoneOwner): () => void {
   if (activeLease) {
     throw new Error(
       activeLease.owner === "voice-note"
-        ? "Simamisha Voice Note inayoendelea kabla ya kuanzisha simu."
-        : "Microphone tayari inatumiwa na simu ya TigerChat. Maliza simu kwanza."
+        ? "Simamisha Voice Note inayoendelea kabla ya kutumia microphone tena."
+        : "Microphone tayari inatumiwa na shughuli nyingine ya TigerChat. Maliza kwanza."
     );
   }
 
