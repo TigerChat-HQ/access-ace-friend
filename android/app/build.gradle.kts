@@ -55,4 +55,6 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-messaging")
+    // Native Android WebRTC engine for APK voice and video calls.
+    implementation("io.github.webrtc-sdk:android:150.7871.04")
 }
