@@ -497,6 +497,20 @@ export const useWebRTC = () => {
     }
     try {
       const iceServers = await getCallIceServers(conversationId);
+      if (useNativeVoiceTransport(callType)) {
+        await startNativeVoiceTransport(info, iceServers);
+        const offer = await createNativeWebRtcDescription("offer");
+        await sendSignal(info, "offer", { sdp: offer.sdp, type: offer.type }, "pending");
+        if (calleeOnline && callIdRef.current === info.callId && statusRef.current === "outgoing") {
+          statusRef.current = "ringing";
+          setCallStatus("ringing");
+        }
+        await flushLocalIce(info);
+        ringTimerRef.current = setTimeout(() => {
+          if (statusRef.current === "outgoing" || statusRef.current === "ringing") void endCall();
+        }, RING_TIMEOUT_MS);
+        return;
+      }
       const stream = await getMedia(callType === "video");
       if (callIdRef.current !== info.callId) {
         stream.getTracks().forEach((track) => track.stop());
@@ -529,7 +543,7 @@ export const useWebRTC = () => {
       setCallStatus("idle");
       setActiveCall(null);
     }
-  }, [user, createPeerConnection, cleanupMedia, sendSignal, flushLocalIce, endCall]);
+  }, [user, createPeerConnection, cleanupMedia, sendSignal, flushLocalIce, endCall, startNativeVoiceTransport]);
 
   const acceptCall = useCallback(async (info: CallInfo, offer: RTCSessionDescriptionInit) => {
     if (!user) return;
@@ -541,6 +555,15 @@ export const useWebRTC = () => {
     signalReadyCallId.current = null;
     try {
       const iceServers = await getCallIceServers(info.conversationId);
+      if (useNativeVoiceTransport(info.callType)) {
+        await startNativeVoiceTransport(info, iceServers);
+        await applyNativeRemoteDescription("offer", offer.sdp || "");
+        const answer = await createNativeWebRtcDescription("answer");
+        await sendSignal(info, "answer", { sdp: answer.sdp, type: answer.type });
+        await flushLocalIce(info);
+        ringTimerRef.current = setTimeout(() => { if (statusRef.current === "connecting") void endCall(); }, RING_TIMEOUT_MS);
+        return;
+      }
       const stream = await getMedia(info.callType === "video");
       if (callIdRef.current !== info.callId) {
         stream.getTracks().forEach((track) => track.stop());
@@ -565,7 +588,7 @@ export const useWebRTC = () => {
       try { await sendSignal(info, "reject", {}, "ended"); }
       finally { finish(); }
     }
-  }, [user, createPeerConnection, sendSignal, flushLocalIce, finish, endCall]);
+  }, [user, createPeerConnection, sendSignal, flushLocalIce, finish, endCall, startNativeVoiceTransport, applyNativeRemoteDescription]);
 
   const acceptIncomingCall = useCallback(() => {
     const info = callRef.current;
@@ -581,6 +604,10 @@ export const useWebRTC = () => {
   }, [sendSignal, finish]);
 
   const toggleMute = useCallback(() => {
+    if (nativeCallRef.current) {
+      setIsMuted((muted) => { setNativeWebRtcMuted(!muted); return !muted; });
+      return;
+    }
     const track = localStreamRef.current?.getAudioTracks()[0];
     if (track) { track.enabled = !track.enabled; setIsMuted(!track.enabled); }
   }, []);
@@ -661,7 +688,12 @@ export const useWebRTC = () => {
           break;
         }
         case "answer": {
-          if (callId !== callIdRef.current || !pcRef.current || pcRef.current.signalingState !== "have-local-offer") return;
+          if (callId !== callIdRef.current) return;
+          if (nativeCallRef.current) {
+            if (typeof data.sdp === "string") await applyNativeRemoteDescription("answer", data.sdp);
+            return;
+          }
+          if (!pcRef.current || pcRef.current.signalingState !== "have-local-offer") return;
           if (statusRef.current !== "connected") { statusRef.current = "connecting"; setCallStatus("connecting"); }
           await pcRef.current.setRemoteDescription({ sdp: data.sdp, type: data.type });
           await flushRemoteIce();
@@ -669,6 +701,13 @@ export const useWebRTC = () => {
         }
         case "ice-candidate": {
           if (callId !== callIdRef.current || !data.candidate) return;
+          if (nativeCallRef.current) {
+            if (nativeRemoteReadyRef.current) {
+              try { addNativeIceCandidate(data.candidate); }
+              catch (error) { console.warn("Native ICE candidate rejected:", error); }
+            } else nativeIceQueueRef.current.push(data.candidate);
+            break;
+          }
           if (pcRef.current?.remoteDescription) {
             try { await pcRef.current.addIceCandidate(data.candidate); }
             catch (error) { console.warn("ICE candidate rejected:", error); }
@@ -704,7 +743,7 @@ export const useWebRTC = () => {
       });
 
     return () => { disposed = true; void supabase.removeChannel(channel); };
-  }, [user, finish, endCall, sendSignal, getSignalKey]);
+  }, [user, finish, endCall, sendSignal, getSignalKey, applyNativeRemoteDescription]);
 
   useEffect(() => () => { cleanupMedia(); }, [user?.id, cleanupMedia]);
 
