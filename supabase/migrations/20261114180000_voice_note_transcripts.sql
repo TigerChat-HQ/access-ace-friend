@@ -29,7 +29,7 @@ with check (
     select 1 from public.messages m
     join public.conversation_members cm on cm.conversation_id = m.conversation_id
     where m.id = message_id
-      and m.conversation_id = conversation_id
+      and m.conversation_id = voice_note_transcripts.conversation_id
       and m.message_type = 'voice'
       and cm.user_id = (select auth.uid())
   )
@@ -45,7 +45,7 @@ with check (
     select 1 from public.messages m
     join public.conversation_members cm on cm.conversation_id = m.conversation_id
     where m.id = message_id
-      and m.conversation_id = conversation_id
+      and m.conversation_id = voice_note_transcripts.conversation_id
       and m.message_type = 'voice'
       and cm.user_id = (select auth.uid())
   )
