@@ -63,6 +63,23 @@ export async function acquireSharedMicrophone(owner: MicrophoneOwner): Promise<(
     const topic = `tiger-audio:${accountKey}`;
 
     channel = supabase.channel(topic, { config: { presence: { key: clientId } } });
+    let syncVersion = 0;
+    const syncWaiters: Array<() => void> = [];
+    channel.on("presence", { event: "sync" }, () => {
+      syncVersion += 1;
+      syncWaiters.splice(0).forEach((resolve) => resolve());
+    });
+    const waitForSyncAfter = (version: number, timeoutMs: number) => new Promise<void>((resolve, reject) => {
+      if (syncVersion > version) return resolve();
+      const timeout = setTimeout(() => {
+        const index = syncWaiters.indexOf(done);
+        if (index >= 0) syncWaiters.splice(index, 1);
+        reject(new Error("TigerChat haijapata uthibitisho wa vifaa vingine. Kagua intaneti kisha jaribu tena."));
+      }, timeoutMs);
+      const done = () => { clearTimeout(timeout); resolve(); };
+      syncWaiters.push(done);
+    });
+
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error("TigerChat imeshindwa kuunganisha ulinzi wa microphone. Kagua intaneti kisha jaribu tena.")), 8000);
       channel!.subscribe((status, err) => {
@@ -75,6 +92,7 @@ export async function acquireSharedMicrophone(owner: MicrophoneOwner): Promise<(
         }
       });
     });
+    await waitForSyncAfter(0, 5000);
 
     const hasOtherOwner = () => Object.values(channel!.presenceState<{ owner: string; clientId: string }>())
       .flat()
@@ -84,6 +102,7 @@ export async function acquireSharedMicrophone(owner: MicrophoneOwner): Promise<(
       throw new Error("Microphone tayari inatumika kwenye website au APK nyingine ya akaunti hii ya TigerChat. Maliza matumizi hayo kwanza.");
     }
 
+    const beforeTrack = syncVersion;
     const tracked = await channel.track({
       owner,
       clientId,
@@ -92,8 +111,8 @@ export async function acquireSharedMicrophone(owner: MicrophoneOwner): Promise<(
     });
     if (tracked !== "ok") throw new Error("TigerChat imeshindwa kutangaza matumizi ya microphone kwenye vifaa vingine.");
 
-    // Allow simultaneous clients to publish presence; if both raced, both back off.
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    // Wait for server-confirmed presence sync; simultaneous starters both back off.
+    await waitForSyncAfter(beforeTrack, 5000);
     if (hasOtherOwner()) {
       throw new Error("Kifaa kingine cha TigerChat kimeanza kutumia microphone. Simamisha sauti huko kwanza.");
     }
