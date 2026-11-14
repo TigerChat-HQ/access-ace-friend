@@ -559,6 +559,7 @@ export const useWebRTC = () => {
         if (statusRef.current === "outgoing" || statusRef.current === "ringing") void endCall();
       }, RING_TIMEOUT_MS);
     } catch (error) {
+      if (callIdRef.current !== info.callId) return;
       console.error("Failed to start call:", error);
       alert(describeMediaError(error, callType === "video"));
       cleanupMedia();
@@ -608,6 +609,7 @@ export const useWebRTC = () => {
       await flushLocalIce(info);
       ringTimerRef.current = setTimeout(() => { if (statusRef.current === "connecting") void endCall(); }, RING_TIMEOUT_MS);
     } catch (error) {
+      if (callIdRef.current !== info.callId) return;
       console.error("Failed to accept call:", error);
       alert(describeMediaError(error, info.callType === "video"));
       try { await sendSignal(info, "reject", {}, "ended"); }
