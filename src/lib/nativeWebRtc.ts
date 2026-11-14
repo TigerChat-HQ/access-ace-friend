@@ -132,7 +132,7 @@ export const createNativeWebRtcDescription = async (
   if (event.sdpType !== kind || typeof event.sdp !== "string" || !event.sdp.trim()) {
     throw new Error("Native WebRTC returned an invalid local SDP description.");
   }
-  return { ...event, type: kind };
+  return { ...event, sdp: event.sdp, type: kind };
 };
 
 export const restartNativeWebRtcIce = (): void => {
