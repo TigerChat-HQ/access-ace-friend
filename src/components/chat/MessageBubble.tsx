@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Message } from "@/types/chat";
+import { useVoiceNotePlayer } from "@/contexts/VoiceNotePlayerContext";
 import { cn } from "@/lib/utils";
 import { playChatEmojiSound } from "@/lib/chat-emoji";
 import { getMediaDisplayUrl, isDataSaverEnabled } from "@/lib/data-saver";
@@ -31,16 +32,15 @@ interface MessageBubbleProps {
 
 export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDelete, myBubbleClass, translatedText, onStatusClick, reactions = [], isPinned = false, onReact, onTogglePin, onEdit, isEdited = false }: MessageBubbleProps) => {
   const isMe = message.senderId === "me";
-  const [playing, setPlaying] = useState(false);
-  const [playbackRate, setPlaybackRate] = useState(1);
-  const [audioProgress, setAudioProgress] = useState(0);
-  const [audioDuration, setAudioDuration] = useState(0);
+  const { activeVoiceNoteId, isVoiceNotePlaying, currentTime, duration, playbackRate, registerVoiceNote, playVoiceNote, togglePlayback, seekTo, cyclePlaybackRate } = useVoiceNotePlayer();
+  const playing = activeVoiceNoteId === message.id && isVoiceNotePlaying;
+  const audioProgress = activeVoiceNoteId === message.id ? currentTime : 0;
+  const audioDuration = activeVoiceNoteId === message.id ? duration : 0;
   const [transcriptVisible, setTranscriptVisible] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
   const hasTranslation = !isMe && !!translatedText && translatedText !== message.text;
   const displayText = hasTranslation && !showOriginal ? translatedText : message.text;
-  const audioRef = useRef<HTMLAudioElement>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const dataSaver = isDataSaverEnabled();
   const mediaUrl = message.mediaUrl ? getMediaDisplayUrl(message.mediaUrl, dataSaver) : undefined;
@@ -53,24 +53,18 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
     if (Math.abs(dx) >= 58 && Math.abs(dy) <= 48) onReply(message);
   };
 
-  const playbackStorageKey = `tigerchat:voice-position:${message.id}`;
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    try {
-      const saved = Number(localStorage.getItem(playbackStorageKey));
-      if (Number.isFinite(saved) && saved > 0) audio.currentTime = saved;
-    } catch { /* storage may be unavailable */ }
-  }, [playbackStorageKey, mediaUrl]);
+    if (!isVoice || !mediaUrl) return;
+    return registerVoiceNote({ id: message.id, src: mediaUrl, label: message.text || "Voice note" });
+  }, [isVoice, mediaUrl, message.id, message.text, registerVoiceNote]);
 
   const formatAudioTime = (seconds: number) => Number.isFinite(seconds)
     ? `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, "0")}`
     : "0:00";
 
   const toggleAudio = () => {
-    if (!audioRef.current) return;
-    if (playing) audioRef.current.pause();
-    else void audioRef.current.play().catch(() => setPlaying(false));
+    if (activeVoiceNoteId === message.id) togglePlayback();
+    else playVoiceNote(message.id);
   };
 
   const isFile = message.type === "file";
@@ -143,15 +137,15 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
 
         {isVoice && message.mediaUrl ? (
           <div className="flex items-center gap-3 min-w-[160px]">
-            <audio ref={audioRef} src={mediaUrl || message.mediaUrl} data-tiger-voice="true" preload={dataSaver ? "none" : "metadata"} onLoadedMetadata={(event) => setAudioDuration(event.currentTarget.duration || 0)} onTimeUpdate={(event) => { const current = event.currentTarget.currentTime; setAudioProgress(current); try { localStorage.setItem(playbackStorageKey, String(current)); } catch { /* storage may be unavailable */ } }} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => { setPlaying(false); setAudioProgress(0); try { localStorage.removeItem(playbackStorageKey); } catch { /* storage may be unavailable */ } const audios = Array.from(document.querySelectorAll<HTMLAudioElement>("audio[data-tiger-voice]")); const next = audios[audios.indexOf(audioRef.current!) + 1]; if (next) void next.play().catch(() => undefined); }} className="hidden" />
+            
             <button onClick={toggleAudio} className="shrink-0">
               {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
             </button>
             <div className="flex-1 min-w-0 flex flex-col gap-1">
-              <input aria-label="Seek voice message" type="range" min={0} max={audioDuration || 0} step={0.1} value={Math.min(audioProgress, audioDuration || 0)} onChange={(event) => { const next = Number(event.target.value); if (audioRef.current) audioRef.current.currentTime = next; setAudioProgress(next); }} className="w-full h-1 accent-current cursor-pointer" />
+              <input aria-label="Seek voice message" type="range" min={0} max={audioDuration || 0} step={0.1} value={Math.min(audioProgress, audioDuration || 0)} onChange={(event) => { const next = Number(event.target.value); seekTo(next); }} className="w-full h-1 accent-current cursor-pointer" />
               <div className="flex items-center justify-between text-[10px] opacity-60"><span>{formatAudioTime(audioProgress)}</span><span>{formatAudioTime(audioDuration) || message.text || "0:00"}</span></div>
             </div>
-            <button type="button" aria-label="Change playback speed" onClick={() => { const next = playbackRate === 1 ? 1.5 : playbackRate === 1.5 ? 2 : 1; setPlaybackRate(next); if (audioRef.current) audioRef.current.playbackRate = next; }} className="shrink-0 rounded-full px-1.5 py-1 text-[10px] font-semibold bg-white/10 hover:bg-white/20">{playbackRate}×</button>
+            <button type="button" aria-label="Change playback speed" onClick={cyclePlaybackRate} className="shrink-0 rounded-full px-1.5 py-1 text-[10px] font-semibold bg-white/10 hover:bg-white/20">{playbackRate}×</button>
           </div>
         ) : isImage && message.mediaUrl ? (
           <div>
