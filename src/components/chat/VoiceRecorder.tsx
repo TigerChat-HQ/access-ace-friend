@@ -27,7 +27,9 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
 
   const releaseCaptureRef = useRef<(() => void) | null>(null);
   const nativeRecordingRef = useRef(false);
-  const nativeBridge = (window as Window & { TigerNative?: { startVoiceNoteRecording?: () => void; stopVoiceNoteRecording?: () => void; cancelVoiceNoteRecording?: () => void } }).TigerNative;
+  const nativeBridge = typeof window !== "undefined"
+    ? (window as Window & { TigerNative?: { startVoiceNoteRecording?: () => void; stopVoiceNoteRecording?: () => void; cancelVoiceNoteRecording?: () => void } }).TigerNative
+    : undefined;
 
 
   const releaseStream = useCallback(() => {
@@ -47,6 +49,7 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
       // The browser path below remains unchanged for the Website.
       releaseCaptureRef.current = await acquireSharedMicrophone("voice-note");
       if (nativeBridge?.startVoiceNoteRecording) {
+        nativeRecordingRef.current = true;
         nativeBridge.startVoiceNoteRecording();
         return;
       }
