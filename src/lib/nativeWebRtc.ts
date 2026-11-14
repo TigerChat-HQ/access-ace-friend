@@ -20,6 +20,7 @@ export interface NativeIceCandidate {
 
 export interface NativeWebRtcEvent {
   type: string;
+  sdpType?: "offer" | "answer";
   stage?: string;
   message?: string;
   state?: string;
@@ -122,10 +123,16 @@ export const createNativeWebRtcDescription = async (
 ): Promise<NativeWebRtcEvent & { sdp: string; type: "offer" | "answer" }> => {
   const bridge = getNativeBridge();
   if (!bridge) throw new Error("Native WebRTC bridge haipatikani.");
-  return waitForEvent("local-description", () => {
+  const event = await waitForEvent("local-description", () => {
     if (kind === "offer") bridge.nativeWebRtcCreateOffer();
     else bridge.nativeWebRtcCreateAnswer();
   });
+  // Android's event envelope uses `type` for "local-description".
+  // The SDP description type is carried separately as `sdpType`.
+  if (event.sdpType !== kind || typeof event.sdp !== "string" || !event.sdp.trim()) {
+    throw new Error("Native WebRTC returned an invalid local SDP description.");
+  }
+  return { ...event, sdp: event.sdp, type: kind };
 };
 
 export const restartNativeWebRtcIce = (): void => {
