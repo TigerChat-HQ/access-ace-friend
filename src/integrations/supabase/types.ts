@@ -822,6 +822,57 @@ export type Database = {
           },
         ]
       }
+      voice_note_transcripts: {
+        Row: {
+          id: string
+          message_id: string
+          conversation_id: string
+          transcriber_id: string
+          transcript: string
+          language: string | null
+          provider: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          message_id: string
+          conversation_id: string
+          transcriber_id: string
+          transcript: string
+          language?: string | null
+          provider?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          message_id?: string
+          conversation_id?: string
+          transcriber_id?: string
+          transcript?: string
+          language?: string | null
+          provider?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_note_transcripts_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_note_transcripts_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           actor_id: string
