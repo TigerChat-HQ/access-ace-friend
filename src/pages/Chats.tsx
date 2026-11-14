@@ -40,6 +40,7 @@ import { ChatTranslationControls } from "@/components/chat/ChatTranslationContro
 import { ChatPolls } from "@/components/chat/ChatPolls";
 import { playChatEmojiSound, CHAT_EMOJI_SOUND_KEY } from "@/lib/chat-emoji";
 import { CallHistoryDialog } from "@/components/chat/CallHistoryDialog";
+import { TigerAICustomerCareChat } from "@/components/chat/TigerAICustomerCareChat";
 
 type Story = Tables<"stories"> & { profile?: Tables<"profiles"> };
 type MessageMetadata = { read_at?: string | null; is_read?: boolean | null; delivered_at?: string | null; reply_to_id?: string | null };
@@ -86,6 +87,7 @@ const Chats = () => {
   };
 
   const [search, setSearch] = useState("");
+  const [activeTigerAI, setActiveTigerAI] = useState(false);
   const [chatFilter, setChatFilter] = useState<ChatFilter>("all");
   const [favoriteChats, setFavoriteChats] = useState<string[]>(() => readFavoriteChats());
   const [stories, setStories] = useState<Story[]>([]);
@@ -533,7 +535,7 @@ const Chats = () => {
     return () => window.removeEventListener("tiger:native-start-call", onNativeCall);
   }, [activeChat, activeConvo, activeConvoName, activeConvoAvatar, webrtc.startCall]);
 
-  const showSidebar = !activeChat;
+  const showSidebar = !activeChat && !activeTigerAI;
   const matchSet = new Set(matchIds);
   const activeMatchId = matchIds[matchIdx];
 
@@ -599,6 +601,18 @@ const Chats = () => {
         <StoriesBar stories={storyBarData} onStoryClick={(index) => setStoryViewerIndex(index)} onAddStory={() => setStoryUploadOpen(true)} />
 
         <div className="flex-1 overflow-y-auto scrollbar-thin">
+          {!showArchivedChats && (
+            <button type="button" onClick={() => { setActiveChat(null); setActiveTigerAI(true); }} className={`flex w-full items-center gap-3 border-b border-border/40 px-3 py-3 text-left transition-colors hover:bg-surface-hover ${activeTigerAI ? "border-l-2 border-primary bg-primary/5" : ""}`}>
+              <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10">
+                <img src={tigerLogo} alt="" className="h-10 w-10 object-contain" />
+                <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background bg-emerald-500" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2"><span className="truncate text-sm font-semibold text-foreground">Tiger AI Customer Care</span><span className="shrink-0 text-[10px] text-primary">AI</span></div>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">Msaada wa TigerChat · Uliza chochote</p>
+              </div>
+            </button>
+          )}
           {convosLoading ? (
             <div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
           ) : showArchivedChats ? (
@@ -644,7 +658,7 @@ const Chats = () => {
                     : undefined,
                 }}
                 isActive={activeChat === convo.id}
-                onClick={() => setActiveChat(convo.id)}
+                onClick={() => { setActiveTigerAI(false); setActiveChat(convo.id); }}
                 isFavorite={favoriteChats.includes(convo.id)}
                 onToggleFavorite={() => toggleFavoriteChat(convo.id)}
               />
@@ -654,7 +668,9 @@ const Chats = () => {
       </div>
 
       <div className={`${!showSidebar ? "flex" : "hidden"} md:flex min-h-0 min-w-0 flex-1 flex-col`}>
-        {activeConvo ? (
+        {activeTigerAI ? (
+          <TigerAICustomerCareChat onBack={() => setActiveTigerAI(false)} />
+        ) : activeConvo ? (
           <div className="flex h-full min-h-0 flex-col">
             <div className="tiger-page-header glass">
               <button onClick={() => setActiveChat(null)} className="tiger-header-action md:hidden hover:bg-surface-hover hover:text-foreground" aria-label="Back to chats"><ArrowLeft className="w-5 h-5 text-foreground" /></button>
