@@ -127,6 +127,34 @@ describe("call signaling reliability", () => {
     expect(mocks.insert).not.toHaveBeenCalledWith(expect.objectContaining({ signal_type: "hangup" }));
     unmount();
   });
+  it("restarts native ICE after remote SDP is set instead of hanging up immediately", async () => {
+    mocks.nativeAvailable = true;
+    const { result, unmount } = renderHook(() => useWebRTC());
+    await act(async () => {
+      await result.current.startCall("callee", "chat", "voice", "Callee", "CA");
+    });
+    const callId = mocks.insert.mock.calls[0][0].signal_data.callId;
+
+    await act(async () => {
+      mocks.handlers[1]({ new: {
+        caller_id: "receiver",
+        callee_id: "callee",
+        conversation_id: "chat",
+        call_type: "voice",
+        signal_type: "answer",
+        signal_data: { from: "callee", callId, type: "answer", sdp: "remote-answer-sdp" },
+      } });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(result.current.callStatus).toBe("connecting");
+
+    act(() => { mocks.nativeListener?.({ type: "ice-state", state: "FAILED" }); });
+
+    expect(mocks.nativeRestart).toHaveBeenCalledTimes(1);
+    expect(mocks.insert).not.toHaveBeenCalledWith(expect.objectContaining({ signal_type: "hangup" }));
+    unmount();
+  });
   it("keeps the provider hook order stable across rerenders and call transitions", async () => {
     const { result, rerender, unmount } = renderHook(() => useCall(), { wrapper: CallProvider });
     expect(result.current.callStatus).toBe("idle");
