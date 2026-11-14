@@ -1,0 +1,38 @@
+name: TigerChat and TIGER CITY 3D build
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'public/games/tiger-city-3d/**'
+      - 'scripts/build-tiger-city-web.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/tiger-city-web-build.yml'
+  push:
+    branches:
+      - feat/tiger-city-3d-games-arena
+    paths:
+      - 'src/**'
+      - 'public/games/tiger-city-3d/**'
+      - 'scripts/build-tiger-city-web.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/tiger-city-web-build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Verify Godot Web export exists
+        run: test -s public/games/tiger-city-3d/index.html
