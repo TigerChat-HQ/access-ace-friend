@@ -49,6 +49,7 @@ open class MainActivity : Activity() {
     private var nativeVoiceNoteRecorder: MediaRecorder? = null
     private var nativeVoiceNoteFile: File? = null
     private var nativeVoiceNoteStartedAt: Long = 0L
+    private var nativeWebRtcEngine: NativeWebRtcEngine? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -455,6 +456,8 @@ open class MainActivity : Activity() {
         pendingMediaPermissionRequests.clear()
         mediaPermissionDialogOpen = false
         stopNativeVoiceNote(deleteFile = true)
+        nativeWebRtcEngine?.dispose()
+        nativeWebRtcEngine = null
         if (::webView.isInitialized) {
             webView.stopLoading()
             webView.destroy()
@@ -590,6 +593,67 @@ open class MainActivity : Activity() {
     }
 
     inner class NativeBridge {
+        @JavascriptInterface
+        fun nativeWebRtcStart(iceServersJson: String, withVideo: Boolean) {
+            runOnUiThread {
+                val missing = mutableListOf<String>()
+                if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) missing += Manifest.permission.RECORD_AUDIO
+                if (withVideo && ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) missing += Manifest.permission.CAMERA
+                if (missing.isNotEmpty()) {
+                    dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject().put("type", "error").put("stage", "permission").put("message", "Ruhusu microphone na camera kwenye mipangilio ya app."))
+                    return@runOnUiThread
+                }
+                try {
+                    nativeWebRtcEngine?.dispose()
+                    nativeWebRtcEngine = NativeWebRtcEngine(this@MainActivity) { type, data ->
+                        dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject(data.toString()).put("type", type))
+                    }
+                    nativeWebRtcEngine?.start(iceServersJson, withVideo)
+                } catch (error: Exception) {
+                    dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject().put("type", "error").put("stage", "initialization").put("message", error.message ?: "Native WebRTC initialization failed"))
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun nativeWebRtcCreateOffer() { runOnUiThread { nativeWebRtcEngine?.createOffer() } }
+
+        @JavascriptInterface
+        fun nativeWebRtcCreateAnswer() { runOnUiThread { nativeWebRtcEngine?.createAnswer() } }
+
+        @JavascriptInterface
+        fun nativeWebRtcSetRemoteDescription(type: String, sdp: String) {
+            runOnUiThread { nativeWebRtcEngine?.setRemoteDescription(type, sdp) }
+        }
+
+        @JavascriptInterface
+        fun nativeWebRtcAddIceCandidate(candidateJson: String) {
+            runOnUiThread { nativeWebRtcEngine?.addIceCandidate(candidateJson) }
+        }
+
+        @JavascriptInterface
+        fun nativeWebRtcSetMuted(muted: Boolean) {
+            runOnUiThread { nativeWebRtcEngine?.setAudioEnabled(!muted) }
+        }
+
+        @JavascriptInterface
+        fun nativeWebRtcSetVideoEnabled(enabled: Boolean) {
+            runOnUiThread { nativeWebRtcEngine?.setVideoEnabled(enabled) }
+        }
+
+        @JavascriptInterface
+        fun nativeWebRtcSwitchCamera() {
+            runOnUiThread { nativeWebRtcEngine?.switchCamera() }
+        }
+
+        @JavascriptInterface
+        fun nativeWebRtcClose() {
+            runOnUiThread {
+                nativeWebRtcEngine?.dispose()
+                nativeWebRtcEngine = null
+            }
+        }
+
         @JavascriptInterface
         fun startVoiceNoteRecording() {
             runOnUiThread {
