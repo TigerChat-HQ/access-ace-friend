@@ -137,6 +137,7 @@ export const useWebRTC = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isNativeVideoCall, setIsNativeVideoCall] = useState(false);
+  const [isNativeCall, setIsNativeCall] = useState(false);
   const [duration, setDuration] = useState(0);
   const [remoteStream, setRemoteStream] = useState<MediaStream>(() => new MediaStream());
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -186,6 +187,7 @@ export const useWebRTC = () => {
     nativeUnsubscribeRef.current = null;
     if (nativeCallRef.current) closeNativeWebRtc();
     nativeCallRef.current = false;
+    setIsNativeCall(false);
     nativeRemoteReadyRef.current = false;
     nativeIceQueueRef.current = [];
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -260,6 +262,7 @@ export const useWebRTC = () => {
     audioCaptureReleaseRef.current = await acquireSharedMicrophone(info.callType === "video" ? "video-call" : "voice-call");
     setIsNativeVideoCall(info.callType === "video");
     nativeCallRef.current = true;
+    setIsNativeCall(true);
     nativeRemoteReadyRef.current = false;
     nativeIceQueueRef.current = [];
     nativeUnsubscribeRef.current?.();
@@ -296,6 +299,7 @@ export const useWebRTC = () => {
       nativeUnsubscribeRef.current?.();
       nativeUnsubscribeRef.current = null;
       nativeCallRef.current = false;
+      setIsNativeCall(false);
       setIsNativeVideoCall(false);
       setNativeWebRtcVideoLayout(false);
       audioCaptureReleaseRef.current?.();
@@ -781,7 +785,7 @@ export const useWebRTC = () => {
   useEffect(() => () => { cleanupMedia(); }, [user?.id, cleanupMedia]);
 
   return {
-    callStatus, activeCall, isMuted, isVideoOn, isNativeVideoCall, duration,
+    callStatus, activeCall, isMuted, isVideoOn, isNativeVideoCall, isNativeCall, duration,
     localVideoRef, remoteVideoRef, remoteStream, localStream,
     startCall, acceptCall, acceptIncomingCall, rejectCall, endCall, toggleMute, toggleVideo, switchCamera,
   };
