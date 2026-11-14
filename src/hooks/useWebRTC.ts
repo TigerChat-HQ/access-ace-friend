@@ -168,8 +168,6 @@ export const useWebRTC = () => {
   const callIdRef = useRef<string | null>(null);
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
   const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const qualityTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const networkProfileRef = useRef<"normal" | "low-data">("normal");
   const ringTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const iceQueue = useRef<RTCIceCandidateInit[]>([]);
@@ -225,8 +223,6 @@ export const useWebRTC = () => {
     processedSignalIds.current.clear();
     setRemoteStream(new MediaStream());
     if (durationTimerRef.current) { clearInterval(durationTimerRef.current); durationTimerRef.current = null; }
-    if (qualityTimerRef.current) { clearInterval(qualityTimerRef.current); qualityTimerRef.current = null; }
-    networkProfileRef.current = "normal";
     if (ringTimerRef.current) { clearTimeout(ringTimerRef.current); ringTimerRef.current = null; }
     if (disconnectTimerRef.current) { clearTimeout(disconnectTimerRef.current); disconnectTimerRef.current = null; }
     setDuration(0);
@@ -329,7 +325,7 @@ export const useWebRTC = () => {
             console.error("Native ICE failed after remote SDP; attempting recovery.", { callId: info.callId });
             if (user?.id === info.callerId) restartNativeWebRtcIce();
             if (!disconnectTimerRef.current) {
-              disconnectTimerRef.current = setTimeout(() => { void endCall(); }, 45000);
+              disconnectTimerRef.current = setTimeout(() => { void endCall(); }, 15000);
             }
           }
         } else if (event.state === "DISCONNECTED" && nativeRemoteReadyRef.current && !disconnectTimerRef.current) {
@@ -506,60 +502,19 @@ export const useWebRTC = () => {
       });
     };
 
-    const adaptVideoForNetwork = async () => {
-      if (pc.signalingState === "closed") return;
-      try {
-        const stats = await pc.getStats();
-        let availableBitrate: number | null = null;
-        let roundTripTime: number | null = null;
-        let packetLoss = 0;
-        for (const report of stats.values()) {
-          if (report.type === "candidate-pair" && (report as RTCStats & { nominated?: boolean }).nominated && report.state === "succeeded") {
-            const pair = report as RTCStats & { availableOutgoingBitrate?: number; currentRoundTripTime?: number };
-            if (typeof pair.availableOutgoingBitrate === "number") availableBitrate = pair.availableOutgoingBitrate;
-            if (typeof pair.currentRoundTripTime === "number") roundTripTime = pair.currentRoundTripTime;
-          }
-          if (report.type === "inbound-rtp" && (report as RTCStats & { kind?: string }).kind === "video") {
-            const inbound = report as RTCStats & { packetsLost?: number; packetsReceived?: number };
-            const lost = Math.max(0, inbound.packetsLost ?? 0);
-            const received = Math.max(0, inbound.packetsReceived ?? 0);
-            if (lost + received > 0) packetLoss = Math.max(packetLoss, lost / (lost + received));
-          }
-        }
-        const lowData = (availableBitrate !== null && availableBitrate < 500_000) ||
-          (roundTripTime !== null && roundTripTime > 0.45) || packetLoss > 0.08;
-        const nextProfile = lowData ? "low-data" : "normal";
-        if (networkProfileRef.current === nextProfile) return;
-        const sender = pc.getSenders().find((item) => item.track?.kind === "video");
-        if (!sender) return;
-        const parameters = sender.getParameters();
-        if (!parameters.encodings?.length) return;
-        parameters.encodings[0].maxBitrate = lowData ? 240_000 : 650_000;
-        parameters.encodings[0].maxFramerate = lowData ? 12 : 24;
-        parameters.encodings[0].scaleResolutionDownBy = lowData ? 2 : 1;
-        await sender.setParameters(parameters);
-        networkProfileRef.current = nextProfile;
-        console.info("TigerChat call network profile changed:", nextProfile);
-      } catch (error) {
-        console.warn("Could not adapt call video to current network:", error);
-      }
-    };
-
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
       if (state === "connected") {
         markConnected();
-        if (!qualityTimerRef.current) {
-          void adaptVideoForNetwork();
-          qualityTimerRef.current = setInterval(() => { void adaptVideoForNetwork(); }, 5000);
-        }
-      } else if (state === "disconnected" || state === "failed") {
+      } else if (state === "disconnected") {
         try {
           pc.restartIce();
         } catch (error: unknown) {
           console.warn("ICE restart could not be requested:", error);
         }
-        if (!disconnectTimerRef.current) disconnectTimerRef.current = setTimeout(() => { void endCall(); }, 45000);
+        if (!disconnectTimerRef.current) disconnectTimerRef.current = setTimeout(() => { void endCall(); }, 15000);
+      } else if (state === "failed") {
+        void endCall();
       }
     };
 
@@ -567,10 +522,8 @@ export const useWebRTC = () => {
       const state = pc.iceConnectionState;
       if (state === "connected" || state === "completed") {
         markConnected();
-        if (disconnectTimerRef.current) { clearTimeout(disconnectTimerRef.current); disconnectTimerRef.current = null; }
-      } else if (state === "disconnected" || state === "failed") {
-        try { pc.restartIce(); } catch (error) { console.warn("ICE recovery request failed:", error); }
-        if (!disconnectTimerRef.current) disconnectTimerRef.current = setTimeout(() => { void endCall(); }, 45000);
+      } else if (state === "failed") {
+        void endCall();
       }
     };
     return pc;
