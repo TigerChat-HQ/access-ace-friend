@@ -4,6 +4,29 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   insert: vi.fn(), handlers: [] as Array<(payload: unknown) => void>,
   media: vi.fn(), stop: vi.fn(), profile: vi.fn(), invoke: vi.fn(),
+  nativeAvailable: false,
+  nativeListener: null as null | ((event: { type: string; state?: string }) => void),
+  nativeStart: vi.fn(),
+  nativeDescription: vi.fn(),
+  nativeRemote: vi.fn(),
+  nativeRestart: vi.fn(),
+}));
+vi.mock("@/lib/nativeWebRtc", () => ({
+  addNativeIceCandidate: vi.fn(),
+  closeNativeWebRtc: vi.fn(),
+  createNativeWebRtcDescription: mocks.nativeDescription,
+  isNativeWebRtcAvailable: () => mocks.nativeAvailable,
+  setNativeRemoteDescription: mocks.nativeRemote,
+  setNativeWebRtcMuted: vi.fn(),
+  setNativeWebRtcVideoEnabled: vi.fn(),
+  setNativeWebRtcVideoLayout: vi.fn(),
+  restartNativeWebRtcIce: mocks.nativeRestart,
+  switchNativeWebRtcCamera: vi.fn(),
+  startNativeWebRtc: mocks.nativeStart,
+  subscribeNativeWebRtc: (listener: (event: { type: string; state?: string }) => void) => {
+    mocks.nativeListener = listener;
+    return () => { if (mocks.nativeListener === listener) mocks.nativeListener = null; };
+  },
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "receiver" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
@@ -56,6 +79,12 @@ describe("call signaling reliability", () => {
     mocks.stop.mockClear();
     mocks.profile.mockReset().mockResolvedValue({ data: { display_name: "Caller" } });
     mocks.invoke.mockReset().mockResolvedValue({ data: null, error: new Error("TURN not configured in unit test") });
+    mocks.nativeAvailable = false;
+    mocks.nativeListener = null;
+    mocks.nativeStart.mockReset().mockResolvedValue({ type: "ready" });
+    mocks.nativeDescription.mockReset().mockResolvedValue({ type: "offer", sdp: "native-offer-sdp" });
+    mocks.nativeRemote.mockReset().mockResolvedValue(undefined);
+    mocks.nativeRestart.mockReset();
     mocks.media.mockReset().mockResolvedValue(new FakeStream());
     vi.stubGlobal("MediaStream", FakeStream);
     vi.stubGlobal("RTCPeerConnection", FakePeer);
@@ -79,6 +108,23 @@ describe("call signaling reliability", () => {
     await act(async () => { await result.current.endCall(); });
     expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({ signal_type: "hangup", signal_data: expect.objectContaining({ reason: "missed", callId: "call" }) }));
     expect(result.current.callStatus).toBe("ended");
+    unmount();
+  });
+  it("keeps an outgoing native call alive when ICE fails before the callee answers", async () => {
+    mocks.nativeAvailable = true;
+    const { result, unmount } = renderHook(() => useWebRTC());
+    await act(async () => {
+      await result.current.startCall("callee", "chat", "voice", "Callee", "CA");
+    });
+    expect(result.current.callStatus).toBe("outgoing");
+    expect(mocks.nativeListener).toBeTypeOf("function");
+
+    act(() => { mocks.nativeListener?.({ type: "ice-state", state: "FAILED" }); });
+
+    expect(result.current.callStatus).toBe("outgoing");
+    expect(mocks.insert).toHaveBeenCalledTimes(1);
+    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({ signal_type: "offer" }));
+    expect(mocks.insert).not.toHaveBeenCalledWith(expect.objectContaining({ signal_type: "hangup" }));
     unmount();
   });
   it("keeps the provider hook order stable across rerenders and call transitions", async () => {
