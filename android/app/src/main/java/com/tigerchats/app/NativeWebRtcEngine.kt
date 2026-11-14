@@ -16,6 +16,7 @@ import org.webrtc.MediaConstraints
 import org.webrtc.PeerConnection
 import org.webrtc.PeerConnectionFactory
 import org.webrtc.RtpReceiver
+import org.webrtc.RtpSender
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
 import org.webrtc.SurfaceTextureHelper
@@ -81,7 +82,7 @@ internal class NativeWebRtcEngine(
                 ?: throw IllegalStateException("Android WebRTC haikuweza kuunda PeerConnection.")
             audioSource = factory.createAudioSource(MediaConstraints())
             audioTrack = factory.createAudioTrack("tiger_native_audio", audioSource).also {
-                peerConnection?.addTrack(it, listOf("tiger_native_stream"))
+                peerConnection?.addTrack(it, listOf("tiger_native_stream"))?.let { sender -> configureSender(sender, 32_000) }
             }
             if (withVideo) startCamera()
             emit("ready", JSONObject().put("video", withVideo))
@@ -101,11 +102,26 @@ internal class NativeWebRtcEngine(
         surfaceTextureHelper = SurfaceTextureHelper.create("TigerWebRtcCapture", eglBase.eglBaseContext)
         videoSource = factory.createVideoSource(cameraCapturer!!.isScreencast)
         cameraCapturer!!.initialize(surfaceTextureHelper, appContext, videoSource!!.capturerObserver)
-        cameraCapturer!!.startCapture(1280, 720, 30)
+        // Start with a mobile-friendly profile; the sender bitrate cap prevents large
+        // bursts on constrained cellular networks and keeps voice usable alongside video.
+        cameraCapturer!!.startCapture(640, 360, 24)
         videoTrack = factory.createVideoTrack("tiger_native_video", videoSource).also {
-            peerConnection?.addTrack(it, listOf("tiger_native_stream"))
+            peerConnection?.addTrack(it, listOf("tiger_native_stream"))?.let { sender -> configureSender(sender, 420_000, 20) }
             it.setEnabled(localVideoEnabled)
             localVideoSink?.let(it::addSink)
+        }
+    }
+
+    private fun configureSender(sender: RtpSender, maxBitrateBps: Int, maxFramerate: Int? = null) {
+        try {
+            val parameters = sender.parameters
+            parameters.encodings.forEach { encoding ->
+                encoding.maxBitrateBps = maxBitrateBps
+                if (maxFramerate != null) encoding.maxFramerate = maxFramerate
+            }
+            if (!sender.setParameters(parameters)) Log.w(TAG, "Could not apply conservative RTP bitrate profile")
+        } catch (error: Exception) {
+            Log.w(TAG, "Could not configure RTP bitrate profile", error)
         }
     }
 
