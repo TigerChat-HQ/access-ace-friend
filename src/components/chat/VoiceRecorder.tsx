@@ -37,12 +37,13 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
   const pausedAtRef = useRef(0);
   const pauseStartedRef = useRef(0);
   const dataSaverRef = useRef(isDataSaverEnabled());
+  const nativeAmplitudeTimerRef = useRef<number | null>(null);
 
   const releaseCaptureRef = useRef<(() => void) | null>(null);
   const nativeRecordingRef = useRef(false);
   const nativeAudioChunksRef = useRef<string[]>([]);
   const nativeBridge = typeof window !== "undefined"
-    ? (window as Window & { TigerNative?: { startVoiceNoteRecording?: () => void; stopVoiceNoteRecording?: () => void; cancelVoiceNoteRecording?: () => void } }).TigerNative
+    ? (window as Window & { TigerNative?: { startVoiceNoteRecording?: () => void; stopVoiceNoteRecording?: () => void; cancelVoiceNoteRecording?: () => void; pauseVoiceNoteRecording?: () => void; resumeVoiceNoteRecording?: () => void; getVoiceNoteAmplitude?: () => number } }).TigerNative
     : undefined;
 
 
@@ -67,6 +68,10 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
     streamRef.current = null;
     releaseCaptureRef.current?.();
     releaseCaptureRef.current = null;
+    if (animationRef.current !== null) cancelAnimationFrame(animationRef.current);
+    animationRef.current = null;
+    analyserRef.current = null;
+    if (audioContextRef.current) { void audioContextRef.current.close().catch(() => undefined); audioContextRef.current = null; }
   }, []);
 
   const startRecording = useCallback(async () => {
@@ -77,6 +82,7 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
     try {
       // Acquire the shared lease, then use Android's native recorder inside the APK.
       // The browser path below remains unchanged for the Website.
+      playCue("start");
       releaseCaptureRef.current = await acquireSharedMicrophone("voice-note");
       if (nativeBridge?.startVoiceNoteRecording) {
         nativeRecordingRef.current = true;
@@ -100,6 +106,33 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
       }
       if (!mountedRef.current) { stream.getTracks().forEach((track) => track.stop()); releaseCaptureRef.current?.(); releaseCaptureRef.current = null; return; }
       streamRef.current = stream;
+      try {
+        const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (AudioContextClass) {
+          const context = new AudioContextClass();
+          const analyser = context.createAnalyser();
+          analyser.fftSize = 256;
+          context.createMediaStreamSource(stream).connect(analyser);
+          audioContextRef.current = context;
+          analyserRef.current = analyser;
+          const samples = new Uint8Array(analyser.fftSize);
+          let frameCount = 0;
+          const draw = () => {
+            if (!analyserRef.current) return;
+            analyser.getByteTimeDomainData(samples);
+            frameCount += 1;
+            if (frameCount % 3 === 0) {
+              const next = Array.from({ length: 32 }, (_, index) => {
+                const sample = samples[Math.min(samples.length - 1, Math.floor(index * samples.length / 32))] ?? 128;
+                return Math.max(4, Math.min(28, 4 + Math.round(Math.abs(sample - 128) / 128 * 24)));
+              });
+              setLevels(next);
+            }
+            animationRef.current = requestAnimationFrame(draw);
+          };
+          animationRef.current = requestAnimationFrame(draw);
+        }
+      } catch { /* waveform is optional; recording continues */ }
       const mimeType = supportedAudioMimeType();
       const recorder = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), audioBitsPerSecond: dataSaverRef.current ? 24000 : 64000 });
       recorderRef.current = recorder;
@@ -159,14 +192,26 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
       nativeAudioChunksRef.current = [];
       nativeRecordingRef.current = true;
       startedAtRef.current = Date.now();
+      pausedAtRef.current = 0;
+      pauseStartedRef.current = 0;
+      setIsPaused(false);
       setIsStarting(false);
       setIsRecording(true);
+      if (nativeBridge?.getVoiceNoteAmplitude) {
+        if (nativeAmplitudeTimerRef.current !== null) window.clearInterval(nativeAmplitudeTimerRef.current);
+        nativeAmplitudeTimerRef.current = window.setInterval(() => {
+          const amplitude = Math.max(0, Math.min(32767, nativeBridge.getVoiceNoteAmplitude?.() ?? 0));
+          const normalized = Math.min(1, amplitude / 12000);
+          setLevels(Array.from({ length: 32 }, (_, index) => Math.max(4, Math.min(28, 4 + Math.round(normalized * (8 + ((index * 7) % 17))))));
+        }, 120);
+      }
     };
     const onNativeChunk = (event: Event) => {
       const detail = (event as CustomEvent<{ data: string }>).detail;
       if (detail?.data) nativeAudioChunksRef.current.push(detail.data);
     };
     const onNativeComplete = (event: Event) => {
+      if (nativeAmplitudeTimerRef.current !== null) { window.clearInterval(nativeAmplitudeTimerRef.current); nativeAmplitudeTimerRef.current = null; }
       const detail = (event as CustomEvent<{ mimeType: string; durationMs: number }>).detail;
       try {
         const binary = atob(nativeAudioChunksRef.current.join(""));
@@ -190,6 +235,7 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
       }
     };
     const onNativeError = (event: Event) => {
+      if (nativeAmplitudeTimerRef.current !== null) { window.clearInterval(nativeAmplitudeTimerRef.current); nativeAmplitudeTimerRef.current = null; }
       const detail = (event as CustomEvent<{ message?: string; code?: string }>).detail;
       nativeRecordingRef.current = false;
       releaseCaptureRef.current?.();
@@ -212,6 +258,7 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
       window.removeEventListener("tiger:native-voice-note-chunk", onNativeChunk);
       window.removeEventListener("tiger:native-voice-note-complete", onNativeComplete);
       window.removeEventListener("tiger:native-voice-note-error", onNativeError);
+      if (nativeAmplitudeTimerRef.current !== null) window.clearInterval(nativeAmplitudeTimerRef.current);
       if (nativeRecordingRef.current) nativeBridge?.cancelVoiceNoteRecording?.();
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
       if (recorderRef.current?.state === "recording") { try { recorderRef.current.stop(); } catch { /* already stopped */ } }
@@ -226,8 +273,21 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
   }, [isRecording, isPaused]);
 
   const togglePause = () => {
+    if (nativeRecordingRef.current) {
+      if (isPaused) {
+        nativeBridge?.resumeVoiceNoteRecording?.();
+        if (pauseStartedRef.current) pausedAtRef.current += Date.now() - pauseStartedRef.current;
+        pauseStartedRef.current = 0;
+        setIsPaused(false);
+      } else {
+        nativeBridge?.pauseVoiceNoteRecording?.();
+        pauseStartedRef.current = Date.now();
+        setIsPaused(true);
+      }
+      return;
+    }
     const recorder = recorderRef.current;
-    if (!recorder || nativeRecordingRef.current) return;
+    if (!recorder) return;
     if (recorder.state === "recording" && typeof recorder.pause === "function") { recorder.pause(); pauseStartedRef.current = Date.now(); setIsPaused(true); }
     else if (recorder.state === "paused" && typeof recorder.resume === "function") { recorder.resume(); if (pauseStartedRef.current) pausedAtRef.current += Date.now() - pauseStartedRef.current; pauseStartedRef.current = 0; setIsPaused(false); }
   };
@@ -256,7 +316,7 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
         </div>
         {error && <p role="alert" className="mt-1 text-[11px] leading-tight text-destructive">{error}</p>}
       </div>
-      {isRecording && !nativeRecordingRef.current && <button type="button" onClick={togglePause} aria-label={isPaused ? "Resume recording" : "Pause recording"} className="p-2 rounded-full hover:bg-surface-hover">{isPaused ? <Mic className="w-4 h-4" /> : <Pause className="w-4 h-4" />}</button>}
+      {isRecording && <button type="button" onClick={togglePause} aria-label={isPaused ? "Resume recording" : "Pause recording"} className="p-2 rounded-full hover:bg-surface-hover">{isPaused ? <Mic className="w-4 h-4" /> : <Pause className="w-4 h-4" />}</button>}
       {isRecording ? <button type="button" onClick={stopRecording} aria-label="Stop recording" className="p-2.5 rounded-full bg-destructive text-destructive-foreground"><Square className="w-4 h-4" /></button>
         : audioBlob ? <><button type="button" onClick={() => { if (!previewRef.current) return; if (previewPlaying) previewRef.current.pause(); else void previewRef.current.play().catch(() => setError("Imeshindikana kucheza preview.")); }} aria-label={previewPlaying ? "Pause preview" : "Play preview"} className="p-2.5 rounded-full bg-surface-hover">{previewPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}</button><audio ref={previewRef} src={previewUrlRef.current || undefined} onPlay={() => setPreviewPlaying(true)} onPause={() => setPreviewPlaying(false)} onEnded={() => setPreviewPlaying(false)} className="hidden" /><button type="button" onClick={() => { setAudioBlob(null); setDuration(0); setPreviewPlaying(false); void startRecording(); }} aria-label="Record again" className="p-2.5 rounded-full bg-surface-hover"><RotateCcw className="w-4 h-4" /></button><button type="button" onClick={handleSend} aria-label="Send voice message" className="p-2.5 rounded-full bg-primary text-primary-foreground neon-glow"><Send className="w-4 h-4" /></button></>
         : <button type="button" onClick={() => void startRecording()} disabled={isStarting} aria-label="Retry voice recording" className="p-2.5 rounded-full bg-primary text-primary-foreground disabled:opacity-50">{isStarting ? <Loader2 className="w-4 h-4 animate-spin" /> : error ? <RefreshCw className="w-4 h-4" /> : <Mic className="w-4 h-4" />}</button>}
