@@ -10,5 +10,5 @@ export type ReleaseDbTable = {
   select: (columns: string) => ReleaseDbQuery<unknown[]>;
   insert: (values: Record<string, unknown>) => Promise<ReleaseDbResult<unknown>>;
 };
-export const appReleasesTable = () =>
-  (undefined as unknown as { from: (table: string) => ReleaseDbTable }).from("app_releases");
+export const appReleasesTable = (client: unknown) =>
+  (client as { from: (table: string) => ReleaseDbTable }).from("app_releases");
