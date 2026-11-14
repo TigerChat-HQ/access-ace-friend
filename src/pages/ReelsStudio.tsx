@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { renderReelTimeline } from "@/lib/reelTimelineEditor";
+import { acquireSharedMicrophone } from "@/lib/audioCapture";
 import { MusicPicker } from "@/components/chat/MusicPicker";
 import { ReelFaceARPreview } from "@/components/reels/ReelFaceARPreview";
 import type { FaceEffect } from "@/lib/reelFaceTracking";
@@ -62,6 +63,9 @@ const ReelsStudio = () => {
   const voiceRecorderRef = useRef<MediaRecorder | null>(null);
   const voiceStreamRef = useRef<MediaStream | null>(null);
   const voiceChunksRef = useRef<Blob[]>([]);
+  const voiceAudioReleaseRef = useRef<(() => void) | null>(null);
+  const cameraAudioReleaseRef = useRef<(() => void) | null>(null);
+  const speechAudioReleaseRef = useRef<(() => void) | null>(null);
   const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cameraRecorderRef = useRef<MediaRecorder | null>(null);
@@ -240,8 +244,14 @@ const ReelsStudio = () => {
   useEffect(() => () => {
     if (voiceRecorderRef.current?.state === "recording") voiceRecorderRef.current.stop();
     voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+    voiceAudioReleaseRef.current?.();
+    voiceAudioReleaseRef.current = null;
     speechRecognitionRef.current?.stop();
     cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+    cameraAudioReleaseRef.current?.();
+    cameraAudioReleaseRef.current = null;
+    speechAudioReleaseRef.current?.();
+    speechAudioReleaseRef.current = null;
   }, []);
 
   const uploadAsset = async (file: File, folder: string) => {
@@ -455,14 +465,19 @@ const ReelsStudio = () => {
       toast({ title: "Camera unavailable", description: "Use the camera/gallery upload picker on this device.", variant: "destructive" });
       return;
     }
+    let release: (() => void) | null = null;
     try {
+      release = await acquireSharedMicrophone("video-call");
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "user" }, width: { ideal: 1080 }, height: { ideal: 1920 } },
         audio: true,
       });
+      cameraAudioReleaseRef.current = release;
+      release = null;
       cameraStreamRef.current = stream;
       setCameraOpen(true);
     } catch (error) {
+      release?.();
       toast({ title: "Camera permission denied", description: error instanceof Error ? error.message : "Allow camera and microphone access, then try again.", variant: "destructive" });
     }
   };
@@ -472,6 +487,8 @@ const ReelsStudio = () => {
   const stopCameraStream = () => {
     cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
     cameraStreamRef.current = null;
+    cameraAudioReleaseRef.current?.();
+    cameraAudioReleaseRef.current = null;
     setCameraOpen(false);
     setRecordingCamera(false);
   };
@@ -654,8 +671,12 @@ const ReelsStudio = () => {
       toast({ title: "Voiceover is not supported", description: "Use a browser that supports microphone recording.", variant: "destructive" });
       return;
     }
+    let release: (() => void) | null = null;
     try {
+      release = await acquireSharedMicrophone("voice-note");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      voiceAudioReleaseRef.current = release;
+      release = null;
       voiceStreamRef.current = stream;
       voiceChunksRef.current = [];
       const preferredType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((type) => MediaRecorder.isTypeSupported(type));
@@ -665,6 +686,8 @@ const ReelsStudio = () => {
       recorder.onerror = () => {
         setRecordingVoice(false);
         stream.getTracks().forEach((track) => track.stop());
+        voiceAudioReleaseRef.current?.();
+        voiceAudioReleaseRef.current = null;
         toast({ title: "Voiceover recording failed", description: "Check microphone permission and try again.", variant: "destructive" });
       };
       recorder.onstop = () => {
@@ -672,6 +695,8 @@ const ReelsStudio = () => {
         const blob = new Blob(voiceChunksRef.current, { type });
         stream.getTracks().forEach((track) => track.stop());
         voiceStreamRef.current = null;
+        voiceAudioReleaseRef.current?.();
+        voiceAudioReleaseRef.current = null;
         if (blob.size) {
           const extension = type.includes("mp4") ? "m4a" : "webm";
           const file = new File([blob], `tiger-voiceover-${Date.now()}.${extension}`, { type });
@@ -690,12 +715,13 @@ const ReelsStudio = () => {
       recorder.start(500);
       setRecordingVoice(true);
     } catch (error) {
+      release?.();
       toast({ title: "Microphone unavailable", description: error instanceof Error ? error.message : "Allow microphone access and try again.", variant: "destructive" });
     }
   };
 
 
-  const toggleAutoCaptions = () => {
+  const toggleAutoCaptions = async () => {
     if (listeningCaptions) {
       speechRecognitionRef.current?.stop();
       setListeningCaptions(false);
@@ -707,35 +733,50 @@ const ReelsStudio = () => {
       toast({ title: "Automatic captions are unavailable", description: "This browser does not support speech recognition. You can still add timed captions manually.", variant: "destructive" });
       return;
     }
-    if (recordingVoice) {
-      toast({ title: "Stop voiceover first", description: "Use automatic captions or voiceover recording one at a time." });
+    if (recordingVoice || recordingCamera || cameraOpen) {
+      toast({ title: "Stop camera or voice recording first", description: "Use automatic captions, camera recording and voiceover one at a time." });
       return;
     }
-    const recognition = new SpeechRecognitionCtor();
-    recognition.lang = navigator.language || "en-US";
-    recognition.continuous = true;
-    recognition.interimResults = false;
-    recognition.onresult = (event) => {
-      const videoTime = videoRef.current?.currentTime ?? 0;
-      const additions: TimedCaption[] = [];
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        const result = event.results[index];
-        const transcript = result?.[0]?.transcript?.trim();
-        if (result?.isFinal && transcript) additions.push({ start: videoTime, end: Math.min(duration || videoTime + 4, videoTime + 4), text: transcript });
-      }
-      if (additions.length) { setCaptions((items) => [...items, ...additions].sort((a, b) => a.start - b.start)); markTimelineDirty(); }
-    };
-    recognition.onerror = () => {
-      setListeningCaptions(false);
-      toast({ title: "Caption recognition stopped", description: "Check microphone permission or continue with timed captions manually.", variant: "destructive" });
-    };
-    recognition.onend = () => setListeningCaptions(false);
-    speechRecognitionRef.current = recognition;
+    let release: (() => void) | null = null;
     try {
+      release = await acquireSharedMicrophone("voice-note");
+      const recognition = new SpeechRecognitionCtor();
+      recognition.lang = navigator.language || "en-US";
+      recognition.continuous = true;
+      recognition.interimResults = false;
+      recognition.onresult = (event) => {
+        const videoTime = videoRef.current?.currentTime ?? 0;
+        const additions: TimedCaption[] = [];
+        for (let index = event.resultIndex; index < event.results.length; index += 1) {
+          const result = event.results[index];
+          const transcript = result?.[0]?.transcript?.trim();
+          if (result?.isFinal && transcript) additions.push({ start: videoTime, end: Math.min(duration || videoTime + 4, videoTime + 4), text: transcript });
+        }
+        if (additions.length) { setCaptions((items) => [...items, ...additions].sort((a, b) => a.start - b.start)); markTimelineDirty(); }
+      };
+      const releaseSpeechMic = () => {
+        speechAudioReleaseRef.current?.();
+        speechAudioReleaseRef.current = null;
+      };
+      recognition.onerror = () => {
+        setListeningCaptions(false);
+        releaseSpeechMic();
+        toast({ title: "Caption recognition stopped", description: "Check microphone permission or continue with timed captions manually.", variant: "destructive" });
+      };
+      recognition.onend = () => {
+        setListeningCaptions(false);
+        releaseSpeechMic();
+      };
+      speechRecognitionRef.current = recognition;
+      speechAudioReleaseRef.current = release;
+      release = null;
       recognition.start();
       setListeningCaptions(true);
       toast({ title: "Listening for speech", description: "Play the video near your microphone. Captions will be added with approximate timestamps." });
     } catch (error) {
+      release?.();
+      speechAudioReleaseRef.current?.();
+      speechAudioReleaseRef.current = null;
       setListeningCaptions(false);
       toast({ title: "Could not start captions", description: error instanceof Error ? error.message : "Try again.", variant: "destructive" });
     }

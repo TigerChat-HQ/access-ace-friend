@@ -7,9 +7,32 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "receiver" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
+  auth: { getSession: async () => ({ data: { session: { user: { id: "receiver" } } }, error: null }) },
   from: () => ({ insert: mocks.insert, select: () => ({ eq: () => ({ maybeSingle: mocks.profile }) }) }),
   channel: () => {
-    const channel = { on: (_event: unknown, _filter: unknown, cb: (p: unknown) => void) => { mocks.handlers.push(cb); return channel; }, subscribe: () => channel };
+    let presence: Record<string, unknown[]> = {};
+    let presenceSync: ((payload: unknown) => void) | null = null;
+    const channel = {
+      on: (event: string, _filter: unknown, cb: (p: unknown) => void) => {
+        if (event === "presence") presenceSync = cb;
+        else mocks.handlers.push(cb);
+        return channel;
+      },
+      subscribe: (cb?: (status: string) => void) => {
+        if (presenceSync) {
+          cb?.("SUBSCRIBED");
+          queueMicrotask(() => presenceSync?.({}));
+        }
+        return channel;
+      },
+      presenceState: () => presence,
+      track: async (payload: unknown) => {
+        presence = { client: [payload] };
+        queueMicrotask(() => presenceSync?.({}));
+        return "ok";
+      },
+      untrack: async () => { presence = {}; },
+    };
     return channel;
   }, removeChannel: vi.fn(),
   functions: { invoke: mocks.invoke },
