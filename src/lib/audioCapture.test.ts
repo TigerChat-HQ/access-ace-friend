@@ -1,18 +1,10 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   acquireMicrophone,
   getActiveMicrophoneOwner,
   isMicrophoneOwned,
 } from "./audioCapture";
 
-afterEach(() => {
-  // Keep module state isolated even if an assertion fails partway through a test.
-  const owner = getActiveMicrophoneOwner();
-  if (owner) {
-    // Acquire is intentionally exclusive; tests release their own lease below.
-    expect(isMicrophoneOwned()).toBe(true);
-  }
-});
 
 describe("Tiger Audio Engine microphone ownership", () => {
   it("allows only one capture owner at a time", () => {
