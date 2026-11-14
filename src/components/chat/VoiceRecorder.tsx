@@ -202,7 +202,10 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
         nativeAmplitudeTimerRef.current = window.setInterval(() => {
           const amplitude = Math.max(0, Math.min(32767, nativeBridge.getVoiceNoteAmplitude?.() ?? 0));
           const normalized = Math.min(1, amplitude / 12000);
-          setLevels(Array.from({ length: 32 }, (_, index) => Math.max(4, Math.min(28, 4 + Math.round(normalized * (8 + ((index * 7) % 17))))));
+          setLevels(Array.from({ length: 32 }, (_, index) => {
+            const scale = 0.25 + (index % 4) * 0.25;
+            return Math.max(4, Math.min(28, 4 + Math.round(normalized * 24 * scale)));
+          }));
         }, 120);
       }
     };
