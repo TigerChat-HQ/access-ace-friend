@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BellRing, Clock3, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,6 +35,8 @@ export const AppUpdatePrompt = () => {
   const { user } = useAuth();
   const [release, setRelease] = useState<AppRelease | null>(null);
   const [reminderOpen, setReminderOpen] = useState(false);
+  const reminderTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => { if (reminderTimer.current !== undefined) window.clearTimeout(reminderTimer.current); }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -69,7 +71,15 @@ export const AppUpdatePrompt = () => {
   const snooze = (hours: number) => {
     if (!user || !release) return;
     const state = readState(user.id);
-    saveState(user.id, { ...state, remindAt: Date.now() + hours * 60 * 60 * 1000 });
+    const remindAt = Date.now() + hours * 60 * 60 * 1000;
+    saveState(user.id, { ...state, remindAt });
+    if (reminderTimer.current !== undefined) window.clearTimeout(reminderTimer.current);
+    reminderTimer.current = window.setTimeout(() => {
+      const latestState = readState(user.id);
+      if (latestState.version !== release.version || latestState.shownToday >= 3) return;
+      saveState(user.id, { ...latestState, remindAt: 0, shownToday: latestState.shownToday + 1 });
+      setRelease(release);
+    }, Math.max(0, remindAt - Date.now()));
     setRelease(null);
     setReminderOpen(false);
   };
