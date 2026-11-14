@@ -14,6 +14,7 @@ import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { NativePushRegistration } from "@/components/NativePushRegistration";
 import { FloatingChatWidget } from "@/components/chat/FloatingChatWidget";
 import { VoiceNotePlayerProvider } from "@/contexts/VoiceNotePlayerContext";
+import { AppUpdatePrompt } from "@/components/AppUpdatePrompt";
 
 export const AppShell = () => {
   const { user } = useAuth();
@@ -208,6 +209,7 @@ export const AppShell = () => {
     <AppLockGate><CallProvider><AnnouncementGate><VoiceNotePlayerProvider key={user?.id ?? "signed-out"}>
       <div className="flex min-h-0 bg-background" style={{ height: "var(--tiger-viewport-height, 100dvh)" }}>
         <NativePushRegistration />
+        <AppUpdatePrompt />
         <aside className={`hidden h-full w-56 shrink-0 flex-col gap-2 border-r border-border bg-card p-4 ${location.search.includes("bubble=1") ? "" : "lg:flex"}`}>
           <div className="mb-4 flex items-center gap-2 py-4 font-bold"><img src={logo} alt="" className="h-9 w-9" />TIGERCHATS</div>
           {items.map(({ to, icon: Icon, label }) => <Button key={label} asChild variant={location.pathname === to ? "secondary" : "ghost"} className="justify-start"><NavLink to={to} end={to === "/"}><Icon className="mr-3 h-4 w-4" />{label}</NavLink></Button>)}
