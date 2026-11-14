@@ -34,7 +34,7 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
         val data = message.data
         val title = data["title"]?.takeIf { it.isNotBlank() } ?: "TIGERCHATS"
         val body = data["body"]?.takeIf { it.isNotBlank() } ?: "You have a new message"
-        val path = safeConversationPath(data["path"])
+        val path = safeNotificationPath(data["path"])
         val kind = data["kind"] ?: "message"
         val overlayEnabled = kind == "message" && getSharedPreferences(TigerOverlayService.PREFS, Context.MODE_PRIVATE)
             .getBoolean(TigerOverlayService.KEY_ENABLED, false)
@@ -47,6 +47,7 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
                     action = TigerOverlayService.ACTION_MESSAGE
                     putExtra(TigerOverlayService.EXTRA_AVATAR, data["avatar_url"].orEmpty())
                     putExtra(TigerOverlayService.EXTRA_UNREAD, unread)
+                    putExtra(TigerOverlayService.EXTRA_PATH, path)
                 })
             } catch (error: Exception) {
                 android.util.Log.w(TAG, "Could not update overlay bubble", error)
@@ -55,11 +56,13 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
         showMessageNotification(title, body, path, kind == "message", overlayEnabled)
     }
 
-    private fun safeConversationPath(rawPath: String?): String {
+    private fun safeNotificationPath(rawPath: String?): String {
         val candidate = rawPath?.takeIf { it.startsWith("/") && !it.startsWith("//") } ?: "/chats"
-        val conversationId = Regex("[?&]c=([0-9a-fA-F-]{36})")
-            .find(candidate)?.groupValues?.getOrNull(1) ?: return "/chats"
-        return "/chats?c=$conversationId"
+        val conversationId = Regex("[?&]c=([0-9a-fA-F-]{36})").find(candidate)?.groupValues?.getOrNull(1)
+        if (candidate.startsWith("/chats") && conversationId != null) return "/chats?c=$conversationId"
+        val postId = Regex("^/post/([0-9a-fA-F-]{36})").find(candidate)?.groupValues?.getOrNull(1)
+        if (postId != null) return "/post/$postId"
+        return "/chats"
     }
 
     private fun ensureMessageChannel(): String {
