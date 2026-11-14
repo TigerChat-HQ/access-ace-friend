@@ -65,9 +65,13 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
   useEffect(() => {
     if (!isVoice) return;
     let current = true;
-    void supabase.from("voice_note_transcripts").select("transcript").eq("message_id", message.id).maybeSingle()
-      .then(({ data }) => { if (current && data?.transcript) setTranscript(data.transcript); })
-      .catch(() => undefined);
+    const loadTranscript = async () => {
+      try {
+        const { data } = await supabase.from("voice_note_transcripts").select("transcript").eq("message_id", message.id).maybeSingle();
+        if (current && data?.transcript) setTranscript(data.transcript);
+      } catch { /* transcript is optional and private */ }
+    };
+    void loadTranscript();
     return () => { current = false; };
   }, [isVoice, message.id]);
 
