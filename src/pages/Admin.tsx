@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import {
   ArrowLeft, Trash2, Users, FileText, MessageSquare, Search, Shield, ShieldOff, Flag,
-  TrendingUp, Heart, Eye, Crown, BarChart3, Gamepad2, ChevronRight, ArrowLeft as BackArrow,
+  TrendingUp, Heart, Eye, Crown, BarChart3, Gamepad2, Smartphone, ChevronRight, ArrowLeft as BackArrow,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import { AnnouncementComposer } from "@/components/admin/AnnouncementComposer";
 import { GameAdmin } from "@/components/admin/GameAdmin";
 import { DraughtsAdminControl } from "@/components/admin/DraughtsAdminControl";
 import { ReportReplyDialog } from "@/components/admin/ReportReplyDialog";
+import { AdminReleaseManager } from "@/components/admin/AdminReleaseManager";
 
 type AdminPost = Tables<"posts">;
 type AdminUser = Tables<"profiles">;
@@ -187,6 +188,7 @@ const Admin = () => {
         )}
 
         {selectedSection === "content" && (isSuperiorAdmin || isAdmin) && <AnnouncementComposer />}
+        {selectedSection === "releases" && <AdminReleaseManager />}
         {selectedSection === "overview" && <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
           <Stat icon={Users} label="Users" value={stats.users} />
           <Stat icon={FileText} label="Posts" value={stats.posts} />
@@ -401,6 +403,7 @@ const adminSections: { id: string; title: string; description: string; icon: Luc
   { id: "content", title: "Content & Communication", description: "Matangazo, reports, majibu na posts za hivi karibuni.", icon: FileText },
   { id: "draughts", title: "Draughts & Tournaments", description: "Michezo inayoendelea, waiting rooms, seasons na badges.", icon: Shield },
   { id: "games", title: "Games & Quiz Settings", description: "Maswali ya mchezo na viwango vya zawadi.", icon: Gamepad2 },
+  { id: "releases", title: "App Updates & Release Notes", description: "Chapisha maelezo ya matoleo mapya yatakayoonekana kwa watumiaji wa APK.", icon: Smartphone },
 ];
 
 const Stat = ({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number }) => (
