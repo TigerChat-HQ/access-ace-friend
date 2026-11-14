@@ -127,24 +127,31 @@ describe("call signaling reliability", () => {
     expect(mocks.insert).not.toHaveBeenCalledWith(expect.objectContaining({ signal_type: "hangup" }));
     unmount();
   });
-  it("does not immediately hang up an incoming native call when ICE fails after remote SDP", async () => {
+  it("moves native answered calls to connecting and restarts ICE after remote SDP", async () => {
     mocks.nativeAvailable = true;
     const { result, unmount } = renderHook(() => useWebRTC());
     await act(async () => {
-      await result.current.acceptCall({
-        callId: "incoming-native-call",
-        callerId: "caller",
-        calleeId: "receiver",
-        conversationId: "chat",
-        callType: "voice",
-      }, { type: "offer", sdp: "remote-offer-sdp" });
+      await result.current.startCall("callee", "chat", "voice", "Callee", "CA");
     });
-    expect(result.current.callStatus).toBe("connecting");
+    const callId = result.current.activeCall?.callId;
+    expect(callId).toBeTruthy();
+
+    const answerSignal = { new: {
+      caller_id: "receiver",
+      callee_id: "callee",
+      conversation_id: "chat",
+      call_type: "voice",
+      signal_type: "answer",
+      signal_data: { from: "callee", callId, type: "answer", sdp: "remote-answer-sdp" },
+    } };
+    await act(async () => {
+      mocks.handlers.forEach((handler) => handler(answerSignal));
+    });
+    await waitFor(() => expect(result.current.callStatus).toBe("connecting"));
 
     act(() => { mocks.nativeListener?.({ type: "ice-state", state: "FAILED" }); });
 
-    expect(result.current.callStatus).toBe("connecting");
-    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({ signal_type: "answer" }));
+    expect(mocks.nativeRestart).toHaveBeenCalledTimes(1);
     expect(mocks.insert).not.toHaveBeenCalledWith(expect.objectContaining({ signal_type: "hangup" }));
     unmount();
   });
