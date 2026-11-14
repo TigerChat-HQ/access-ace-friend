@@ -4,6 +4,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { acquireSharedMicrophone } from "@/lib/audioCapture";
+import {
+  addNativeIceCandidate, closeNativeWebRtc, createNativeWebRtcDescription,
+  isNativeWebRtcAvailable, setNativeRemoteDescription, setNativeWebRtcMuted,
+  setNativeWebRtcVideoEnabled, setNativeWebRtcVideoLayout, switchNativeWebRtcCamera,
+  startNativeWebRtc, subscribeNativeWebRtc,
+} from "@/lib/nativeWebRtc";
 
 type CallSignalData = {
   callId?: string;
@@ -130,6 +136,8 @@ export const useWebRTC = () => {
   const [activeCall, setActiveCall] = useState<CallInfo | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOn, setIsVideoOn] = useState(true);
+  const [isNativeVideoCall, setIsNativeVideoCall] = useState(false);
+  const [isNativeCall, setIsNativeCall] = useState(false);
   const [duration, setDuration] = useState(0);
   const [remoteStream, setRemoteStream] = useState<MediaStream>(() => new MediaStream());
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -151,6 +159,11 @@ export const useWebRTC = () => {
   const statusRef = useRef<CallStatus>("idle");
   const callRef = useRef<CallInfo | null>(null);
   const facingRef = useRef<"user" | "environment">("user");
+  // Android APK calls use native media; browser calls keep browser WebRTC.
+  const nativeCallRef = useRef(false);
+  const nativeRemoteReadyRef = useRef(false);
+  const nativeIceQueueRef = useRef<RTCIceCandidateInit[]>([]);
+  const nativeUnsubscribeRef = useRef<(() => void) | null>(null);
 
   const getSignalKey = useCallback((signal: CallSignal, fallbackCallId?: string) => {
     // Each ICE candidate is a distinct signal; deduplicating by callId drops all but the first.
@@ -170,6 +183,13 @@ export const useWebRTC = () => {
   });
 
   const cleanupMedia = useCallback(() => {
+    nativeUnsubscribeRef.current?.();
+    nativeUnsubscribeRef.current = null;
+    if (nativeCallRef.current) closeNativeWebRtc();
+    nativeCallRef.current = false;
+    setIsNativeCall(false);
+    nativeRemoteReadyRef.current = false;
+    nativeIceQueueRef.current = [];
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
     audioCaptureReleaseRef.current?.();
@@ -192,6 +212,7 @@ export const useWebRTC = () => {
 
   const finish = useCallback(() => {
     cleanupMedia();
+    setIsNativeVideoCall(false);
     callIdRef.current = null;
     statusRef.current = "ended";
     setCallStatus("ended");
@@ -232,6 +253,74 @@ export const useWebRTC = () => {
     } catch (error) { console.error("Could not send call end:", error); }
     finally { finish(); }
   }, [sendSignal, finish]);
+
+  const useNativeTransport = (_callType: "voice" | "video") => isNativeWebRtcAvailable();
+
+  const startNativeTransport = useCallback(async (info: CallInfo, iceServers: RTCIceServer[]) => {
+    // Keep the existing cross-session microphone lease so the same TigerChat
+    // account cannot capture audio simultaneously from its website and APK.
+    audioCaptureReleaseRef.current = await acquireSharedMicrophone(info.callType === "video" ? "video-call" : "voice-call");
+    setIsNativeVideoCall(info.callType === "video");
+    nativeCallRef.current = true;
+    setIsNativeCall(true);
+    nativeRemoteReadyRef.current = false;
+    nativeIceQueueRef.current = [];
+    nativeUnsubscribeRef.current?.();
+    nativeUnsubscribeRef.current = subscribeNativeWebRtc((event) => {
+      if (callIdRef.current !== info.callId) return;
+      if (event.type === "ice-candidate" && typeof event.candidate === "string") {
+        const candidate: RTCIceCandidateInit = {
+          candidate: event.candidate,
+          sdpMid: typeof event.sdpMid === "string" ? event.sdpMid : null,
+          sdpMLineIndex: typeof event.sdpMLineIndex === "number" ? event.sdpMLineIndex : null,
+        };
+        if (signalReadyCallId.current !== info.callId) localIceQueue.current.push({ info, candidate });
+        else void sendSignal(info, "ice-candidate", { candidate }).catch((error) => console.error("Native ICE signal failed:", error));
+      } else if (event.type === "ice-state") {
+        if (event.state === "CONNECTED" || event.state === "COMPLETED") {
+          if (statusRef.current !== "connected") {
+            statusRef.current = "connected";
+            setCallStatus("connected");
+            if (ringTimerRef.current) { clearTimeout(ringTimerRef.current); ringTimerRef.current = null; }
+            if (disconnectTimerRef.current) { clearTimeout(disconnectTimerRef.current); disconnectTimerRef.current = null; }
+            if (!durationTimerRef.current) durationTimerRef.current = setInterval(() => setDuration((value) => value + 1), 1000);
+          }
+        } else if (event.state === "FAILED") void endCall();
+        else if (event.state === "DISCONNECTED" && !disconnectTimerRef.current)
+          disconnectTimerRef.current = setTimeout(() => { void endCall(); }, 15000);
+      } else if (event.type === "error") {
+        console.error("Native WebRTC error:", event.stage, event.message);
+      }
+    });
+    try {
+      await startNativeWebRtc(iceServers, info.callType === "video");
+      if (info.callType === "video") setNativeWebRtcVideoLayout(true);
+    } catch (error) {
+      nativeUnsubscribeRef.current?.();
+      nativeUnsubscribeRef.current = null;
+      nativeCallRef.current = false;
+      setIsNativeCall(false);
+      setIsNativeVideoCall(false);
+      setNativeWebRtcVideoLayout(false);
+      audioCaptureReleaseRef.current?.();
+      audioCaptureReleaseRef.current = null;
+      throw error;
+    }
+  }, [sendSignal, endCall]);
+
+  const applyNativeRemoteDescription = useCallback(async (type: "offer" | "answer", sdp: string) => {
+    await setNativeRemoteDescription(type, sdp);
+    nativeRemoteReadyRef.current = true;
+    // ICE may arrive while an incoming call is ringing, before native media starts.
+    nativeIceQueueRef.current = [...iceQueue.current, ...nativeIceQueueRef.current];
+    iceQueue.current = [];
+    const queued = nativeIceQueueRef.current;
+    nativeIceQueueRef.current = [];
+    for (const candidate of queued) {
+      try { addNativeIceCandidate(candidate); }
+      catch (error) { console.warn("Queued native ICE candidate rejected:", error); }
+    }
+  }, []);
 
   const getMedia = async (video: boolean) => {
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -433,6 +522,20 @@ export const useWebRTC = () => {
     }
     try {
       const iceServers = await getCallIceServers(conversationId);
+      if (useNativeTransport(callType)) {
+        await startNativeTransport(info, iceServers);
+        const offer = await createNativeWebRtcDescription("offer");
+        await sendSignal(info, "offer", { sdp: offer.sdp, type: offer.type }, "pending");
+        if (calleeOnline && callIdRef.current === info.callId && statusRef.current === "outgoing") {
+          statusRef.current = "ringing";
+          setCallStatus("ringing");
+        }
+        await flushLocalIce(info);
+        ringTimerRef.current = setTimeout(() => {
+          if (statusRef.current === "outgoing" || statusRef.current === "ringing") void endCall();
+        }, RING_TIMEOUT_MS);
+        return;
+      }
       const stream = await getMedia(callType === "video");
       if (callIdRef.current !== info.callId) {
         stream.getTracks().forEach((track) => track.stop());
@@ -456,6 +559,7 @@ export const useWebRTC = () => {
         if (statusRef.current === "outgoing" || statusRef.current === "ringing") void endCall();
       }, RING_TIMEOUT_MS);
     } catch (error) {
+      if (callIdRef.current !== info.callId) return;
       console.error("Failed to start call:", error);
       alert(describeMediaError(error, callType === "video"));
       cleanupMedia();
@@ -465,7 +569,7 @@ export const useWebRTC = () => {
       setCallStatus("idle");
       setActiveCall(null);
     }
-  }, [user, createPeerConnection, cleanupMedia, sendSignal, flushLocalIce, endCall]);
+  }, [user, createPeerConnection, cleanupMedia, sendSignal, flushLocalIce, endCall, startNativeTransport]);
 
   const acceptCall = useCallback(async (info: CallInfo, offer: RTCSessionDescriptionInit) => {
     if (!user) return;
@@ -477,6 +581,15 @@ export const useWebRTC = () => {
     signalReadyCallId.current = null;
     try {
       const iceServers = await getCallIceServers(info.conversationId);
+      if (useNativeTransport(info.callType)) {
+        await startNativeTransport(info, iceServers);
+        await applyNativeRemoteDescription("offer", offer.sdp || "");
+        const answer = await createNativeWebRtcDescription("answer");
+        await sendSignal(info, "answer", { sdp: answer.sdp, type: answer.type });
+        await flushLocalIce(info);
+        ringTimerRef.current = setTimeout(() => { if (statusRef.current === "connecting") void endCall(); }, RING_TIMEOUT_MS);
+        return;
+      }
       const stream = await getMedia(info.callType === "video");
       if (callIdRef.current !== info.callId) {
         stream.getTracks().forEach((track) => track.stop());
@@ -496,12 +609,13 @@ export const useWebRTC = () => {
       await flushLocalIce(info);
       ringTimerRef.current = setTimeout(() => { if (statusRef.current === "connecting") void endCall(); }, RING_TIMEOUT_MS);
     } catch (error) {
+      if (callIdRef.current !== info.callId) return;
       console.error("Failed to accept call:", error);
       alert(describeMediaError(error, info.callType === "video"));
       try { await sendSignal(info, "reject", {}, "ended"); }
       finally { finish(); }
     }
-  }, [user, createPeerConnection, sendSignal, flushLocalIce, finish, endCall]);
+  }, [user, createPeerConnection, sendSignal, flushLocalIce, finish, endCall, startNativeTransport, applyNativeRemoteDescription]);
 
   const acceptIncomingCall = useCallback(() => {
     const info = callRef.current;
@@ -517,16 +631,32 @@ export const useWebRTC = () => {
   }, [sendSignal, finish]);
 
   const toggleMute = useCallback(() => {
+    if (nativeCallRef.current) {
+      const nextMuted = !isMuted;
+      setNativeWebRtcMuted(nextMuted);
+      setIsMuted(nextMuted);
+      return;
+    }
     const track = localStreamRef.current?.getAudioTracks()[0];
     if (track) { track.enabled = !track.enabled; setIsMuted(!track.enabled); }
-  }, []);
+  }, [isMuted]);
 
   const toggleVideo = useCallback(() => {
+    if (nativeCallRef.current) {
+      const nextEnabled = !isVideoOn;
+      setNativeWebRtcVideoEnabled(nextEnabled);
+      setIsVideoOn(nextEnabled);
+      return;
+    }
     const track = localStreamRef.current?.getVideoTracks()[0];
     if (track) { track.enabled = !track.enabled; setIsVideoOn(track.enabled); }
-  }, []);
+  }, [isVideoOn]);
 
   const switchCamera = useCallback(async () => {
+    if (nativeCallRef.current) {
+      switchNativeWebRtcCamera();
+      return;
+    }
     const pc = pcRef.current;
     const stream = localStreamRef.current;
     if (!pc || !stream || !stream.getVideoTracks()[0]) return;
@@ -597,7 +727,12 @@ export const useWebRTC = () => {
           break;
         }
         case "answer": {
-          if (callId !== callIdRef.current || !pcRef.current || pcRef.current.signalingState !== "have-local-offer") return;
+          if (callId !== callIdRef.current) return;
+          if (nativeCallRef.current) {
+            if (typeof data.sdp === "string") await applyNativeRemoteDescription("answer", data.sdp);
+            return;
+          }
+          if (!pcRef.current || pcRef.current.signalingState !== "have-local-offer") return;
           if (statusRef.current !== "connected") { statusRef.current = "connecting"; setCallStatus("connecting"); }
           await pcRef.current.setRemoteDescription({ sdp: data.sdp, type: data.type });
           await flushRemoteIce();
@@ -605,6 +740,13 @@ export const useWebRTC = () => {
         }
         case "ice-candidate": {
           if (callId !== callIdRef.current || !data.candidate) return;
+          if (nativeCallRef.current) {
+            if (nativeRemoteReadyRef.current) {
+              try { addNativeIceCandidate(data.candidate); }
+              catch (error) { console.warn("Native ICE candidate rejected:", error); }
+            } else nativeIceQueueRef.current.push(data.candidate);
+            break;
+          }
           if (pcRef.current?.remoteDescription) {
             try { await pcRef.current.addIceCandidate(data.candidate); }
             catch (error) { console.warn("ICE candidate rejected:", error); }
@@ -640,12 +782,12 @@ export const useWebRTC = () => {
       });
 
     return () => { disposed = true; void supabase.removeChannel(channel); };
-  }, [user, finish, endCall, sendSignal, getSignalKey]);
+  }, [user, finish, endCall, sendSignal, getSignalKey, applyNativeRemoteDescription]);
 
   useEffect(() => () => { cleanupMedia(); }, [user?.id, cleanupMedia]);
 
   return {
-    callStatus, activeCall, isMuted, isVideoOn, duration,
+    callStatus, activeCall, isMuted, isVideoOn, isNativeVideoCall, isNativeCall, duration,
     localVideoRef, remoteVideoRef, remoteStream, localStream,
     startCall, acceptCall, acceptIncomingCall, rejectCall, endCall, toggleMute, toggleVideo, switchCamera,
   };
