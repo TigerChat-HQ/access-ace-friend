@@ -32,6 +32,9 @@ interface MessageBubbleProps {
 export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDelete, myBubbleClass, translatedText, onStatusClick, reactions = [], isPinned = false, onReact, onTogglePin, onEdit, isEdited = false }: MessageBubbleProps) => {
   const isMe = message.senderId === "me";
   const [playing, setPlaying] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [audioProgress, setAudioProgress] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
   const [imgLoaded, setImgLoaded] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
   const hasTranslation = !isMe && !!translatedText && translatedText !== message.text;
@@ -50,15 +53,16 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
   };
 
   const waveformHeights = useMemo(
-    () => Array.from({ length: 16 }, () => Math.random() * 12 + 4),
+    () => Array.from({ length: 28 }, (_, index) => 5 + ((index * 17 + 11) % 13)),
     []
   );
+
+  const formatAudioTime = (seconds: number) => Number.isFinite(seconds) ? `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, "0")}` : "0:00";
 
   const toggleAudio = () => {
     if (!audioRef.current) return;
     if (playing) audioRef.current.pause();
-    else void audioRef.current.play();
-    setPlaying(!playing);
+    else void audioRef.current.play().catch(() => setPlaying(false));
   };
 
   const isFile = message.type === "file";
@@ -131,16 +135,15 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
 
         {isVoice && message.mediaUrl ? (
           <div className="flex items-center gap-3 min-w-[160px]">
-            <audio ref={audioRef} src={mediaUrl || message.mediaUrl} onEnded={() => setPlaying(false)} className="hidden" />
+            <audio ref={audioRef} src={mediaUrl || message.mediaUrl} preload={dataSaver ? "none" : "metadata"} onLoadedMetadata={(event) => setAudioDuration(event.currentTarget.duration || 0)} onTimeUpdate={(event) => setAudioProgress(event.currentTarget.currentTime)} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => { setPlaying(false); setAudioProgress(0); }} className="hidden" />
             <button onClick={toggleAudio} className="shrink-0">
               {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
             </button>
-            <div className="flex-1 flex items-center gap-0.5">
-              {waveformHeights.map((height, index) => (
-                <div key={index} className={cn("w-1 rounded-full", isMe ? "bg-primary-foreground/60" : "bg-foreground/40")} style={{ height: `${height}px` }} />
-              ))}
+            <div className="flex-1 min-w-0 flex flex-col gap-1">
+              <input aria-label="Seek voice message" type="range" min={0} max={audioDuration || 0} step={0.1} value={Math.min(audioProgress, audioDuration || 0)} onChange={(event) => { const next = Number(event.target.value); if (audioRef.current) audioRef.current.currentTime = next; setAudioProgress(next); }} className="w-full h-1 accent-current cursor-pointer" />
+              <div className="flex items-center justify-between text-[10px] opacity-60"><span>{formatAudioTime(audioProgress)}</span><span>{formatAudioTime(audioDuration) || message.text || "0:00"}</span></div>
             </div>
-            <span className="text-[10px] opacity-60">{message.text || "0:00"}</span>
+            <button type="button" aria-label="Change playback speed" onClick={() => { const next = playbackRate === 1 ? 1.5 : playbackRate === 1.5 ? 2 : 1; setPlaybackRate(next); if (audioRef.current) audioRef.current.playbackRate = next; }} className="shrink-0 rounded-full px-1.5 py-1 text-[10px] font-semibold bg-white/10 hover:bg-white/20">{playbackRate}×</button>
           </div>
         ) : isImage && message.mediaUrl ? (
           <div>
