@@ -59,7 +59,7 @@ open class MainActivity : Activity() {
     private lateinit var appRoot: FrameLayout
     private lateinit var nativeVideoLayer: FrameLayout
     private var nativeRemoteRenderer: SurfaceViewRenderer? = null
-    private var nativeLocalRenderer: TextureViewRenderer? = null
+    private var nativeLocalRenderer: SurfaceViewRenderer? = null
     private var pendingNativeWebRtcIceServers: String? = null
     private var pendingNativeWebRtcWithVideo: Boolean = false
 
@@ -343,13 +343,13 @@ open class MainActivity : Activity() {
 
     private fun prepareNativeVideoRenderers(engine: NativeWebRtcEngine) {
         releaseNativeVideoRenderers()
-        val remote = TextureViewRenderer(this).apply {
+        val remote = SurfaceViewRenderer(this).apply {
             init(engine.eglContext, null)
             setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL)
             setEnableHardwareScaler(true)
             setMirror(false)
         }
-        val local = TextureViewRenderer(this).apply {
+        val local = SurfaceViewRenderer(this).apply {
             init(engine.eglContext, null)
             setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL)
             setEnableHardwareScaler(true)
