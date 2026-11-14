@@ -315,7 +315,7 @@ export const useWebRTC = () => {
       audioCaptureReleaseRef.current = null;
       throw error;
     }
-  }, [sendSignal, endCall]);
+  }, [sendSignal, endCall, user?.id]);
 
   const applyNativeRemoteDescription = useCallback(async (type: "offer" | "answer", sdp: string) => {
     await setNativeRemoteDescription(type, sdp);
