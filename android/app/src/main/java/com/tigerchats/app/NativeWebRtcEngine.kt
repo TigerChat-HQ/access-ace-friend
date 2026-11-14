@@ -50,6 +50,7 @@ internal class NativeWebRtcEngine(
     private var localVideoSink: VideoSink? = null
     private var remoteVideoSink: VideoSink? = null
     private var remoteVideoTrack: VideoTrack? = null
+    private var remoteAudioTrack: AudioTrack? = null
 
     val eglContext: EglBase.Context get() = eglBase.eglBaseContext
 
@@ -158,6 +159,7 @@ internal class NativeWebRtcEngine(
     }
 
     fun setAudioEnabled(enabled: Boolean) { audioTrack?.setEnabled(enabled) }
+    fun setRemoteAudioEnabled(enabled: Boolean) { remoteAudioTrack?.setEnabled(enabled) }
     fun setVideoEnabled(enabled: Boolean) {
         localVideoEnabled = enabled
         videoTrack?.setEnabled(enabled)
@@ -224,7 +226,10 @@ internal class NativeWebRtcEngine(
                 remoteVideoSink?.let(track::addSink)
                 emit("remote-video-track", JSONObject().put("id", track.id()))
             }
-            is AudioTrack -> emit("remote-audio-track", JSONObject().put("id", track.id()))
+            is AudioTrack -> {
+                remoteAudioTrack = track
+                emit("remote-audio-track", JSONObject().put("id", track.id()))
+            }
         }
     }
 
@@ -253,6 +258,7 @@ internal class NativeWebRtcEngine(
         localVideoSink?.let { sink -> videoTrack?.removeSink(sink) }
         remoteVideoSink?.let { sink -> remoteVideoTrack?.removeSink(sink) }
         remoteVideoTrack = null
+        remoteAudioTrack = null
         try { cameraCapturer?.stopCapture() } catch (error: Exception) { Log.w(TAG, "Camera stop failed", error) }
         try { cameraCapturer?.dispose() } catch (_: Exception) { }
         cameraCapturer = null
