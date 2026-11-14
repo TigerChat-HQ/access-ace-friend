@@ -55,20 +55,20 @@ export const VoiceNotePlayerProvider = ({ children }: { children: React.ReactNod
     setCurrentTime(0);
     setDuration(0);
     setActive(item);
-    setIsPlaying(true);
+    const audio = audioRef.current;
+    if (audio) {
+      audio.src = item.src;
+      audio.currentTime = 0;
+      audio.playbackRate = playbackRate;
+      void audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+    } else {
+      setIsPlaying(false);
+    }
   }, []);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio || !active) return;
-    audio.src = active.src;
-    audio.playbackRate = playbackRate;
-    try {
-      const saved = Number(localStorage.getItem(`tigerchat:voice-position:${active.id}`));
-      if (Number.isFinite(saved) && saved > 0) audio.currentTime = saved;
-    } catch { /* storage may be unavailable */ }
-    void audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
-  }, [active?.id, active?.src]);
+    if (audioRef.current) audioRef.current.playbackRate = playbackRate;
+  }, [playbackRate]);
 
   const togglePlayback = useCallback(() => {
     const audio = audioRef.current;
@@ -100,12 +100,20 @@ export const VoiceNotePlayerProvider = ({ children }: { children: React.ReactNod
       setCurrentTime(0);
       setDuration(0);
       setActive(next);
-      setIsPlaying(true);
+      const audio = audioRef.current;
+      if (audio) {
+        audio.src = next.src;
+        audio.currentTime = 0;
+        audio.playbackRate = playbackRate;
+        void audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+      } else {
+        setIsPlaying(false);
+      }
     } else {
       setIsPlaying(false);
       setCurrentTime(0);
     }
-  }, [queueIndex]);
+  }, [queueIndex, playbackRate]);
 
   const value = useMemo<VoiceNotePlayerValue>(() => ({
     activeVoiceNoteId: active?.id ?? null,
