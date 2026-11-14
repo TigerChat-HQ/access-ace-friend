@@ -46,6 +46,7 @@ internal class NativeWebRtcEngine(
     private var cameraCapturer: CameraVideoCapturer? = null
     private var surfaceTextureHelper: SurfaceTextureHelper? = null
     private var localVideoEnabled = true
+    private var remoteAudioEnabled = true
     private var facingFront = true
     private var localVideoSink: VideoSink? = null
     private var remoteVideoSink: VideoSink? = null
@@ -103,6 +104,7 @@ internal class NativeWebRtcEngine(
         cameraCapturer!!.startCapture(1280, 720, 30)
         videoTrack = factory.createVideoTrack("tiger_native_video", videoSource).also {
             peerConnection?.addTrack(it, listOf("tiger_native_stream"))
+            it.setEnabled(localVideoEnabled)
             localVideoSink?.let(it::addSink)
         }
     }
@@ -159,7 +161,10 @@ internal class NativeWebRtcEngine(
     }
 
     fun setAudioEnabled(enabled: Boolean) { audioTrack?.setEnabled(enabled) }
-    fun setRemoteAudioEnabled(enabled: Boolean) { remoteAudioTrack?.setEnabled(enabled) }
+    fun setRemoteAudioEnabled(enabled: Boolean) {
+        remoteAudioEnabled = enabled
+        remoteAudioTrack?.setEnabled(enabled)
+    }
     fun setVideoEnabled(enabled: Boolean) {
         localVideoEnabled = enabled
         videoTrack?.setEnabled(enabled)
@@ -228,6 +233,7 @@ internal class NativeWebRtcEngine(
             }
             is AudioTrack -> {
                 remoteAudioTrack = track
+                track.setEnabled(remoteAudioEnabled)
                 emit("remote-audio-track", JSONObject().put("id", track.id()))
             }
         }
