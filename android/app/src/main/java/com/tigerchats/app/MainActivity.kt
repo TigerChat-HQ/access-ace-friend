@@ -558,8 +558,7 @@ open class MainActivity : Activity() {
         pendingMediaPermissionRequests.clear()
         mediaPermissionDialogOpen = false
         stopNativeVoiceNote(deleteFile = true)
-        nativeWebRtcEngine?.dispose()
-        nativeWebRtcEngine = null
+        disposeNativeWebRtcEngine()
         if (::webView.isInitialized) {
             webView.stopLoading()
             webView.destroy()
