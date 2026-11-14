@@ -9,6 +9,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.media.AudioManager
+import android.media.MediaRecorder
+import android.util.Base64
+import java.io.File
 import android.net.http.SslError
 import android.os.Build
 import android.os.Bundle
@@ -43,6 +46,9 @@ open class MainActivity : Activity() {
     // Queue overlapping WebView media requests while Android's permission dialog is open.
     private val pendingMediaPermissionRequests = mutableListOf<PermissionRequest>()
     private var mediaPermissionDialogOpen = false
+    private var nativeVoiceNoteRecorder: MediaRecorder? = null
+    private var nativeVoiceNoteFile: File? = null
+    private var nativeVoiceNoteStartedAt: Long = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -248,6 +254,16 @@ open class MainActivity : Activity() {
             publishContactsPermission(granted)
             return
         }
+        if (requestCode == NATIVE_VOICE_PERMISSION_REQUEST_CODE) {
+            val granted = grantResults.isNotEmpty() &&
+                grantResults[0] == PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+            if (granted) NativeBridge().startVoiceNoteRecording()
+            else dispatchNativeVoiceNoteEvent("tiger:native-voice-note-error", JSONObject()
+                .put("message", "Ruhusa ya microphone imekataliwa kwenye Android.")
+                .put("code", "permission_denied"))
+            return
+        }
         if (requestCode != MEDIA_PERMISSION_REQUEST_CODE) return
         mediaPermissionDialogOpen = false
         val requests = pendingMediaPermissionRequests.toList()
@@ -438,6 +454,7 @@ open class MainActivity : Activity() {
         pendingMediaPermissionRequests.forEach { request -> try { request.deny() } catch (_: Exception) { } }
         pendingMediaPermissionRequests.clear()
         mediaPermissionDialogOpen = false
+        stopNativeVoiceNote(deleteFile = true)
         if (::webView.isInitialized) {
             webView.stopLoading()
             webView.destroy()
@@ -542,7 +559,132 @@ open class MainActivity : Activity() {
         webView.post { webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('tiger:native-fcm-token',{detail:$encoded}))", null) }
     }
 
+    private fun dispatchNativeVoiceNoteEvent(name: String, detail: JSONObject = JSONObject()) {
+        if (!::webView.isInitialized) return
+        val payload = detail.toString()
+        webView.post {
+            if (!isFinishing && !isDestroyed) {
+                webView.evaluateJavascript(
+                    "window.dispatchEvent(new CustomEvent('" + name + "',{detail:" + payload + "}))",
+                    null,
+                )
+            }
+        }
+    }
+
+    private fun stopNativeVoiceNote(deleteFile: Boolean): File? {
+        val recorder = nativeVoiceNoteRecorder
+        val file = nativeVoiceNoteFile
+        nativeVoiceNoteRecorder = null
+        nativeVoiceNoteFile = null
+        if (recorder != null) {
+            try { recorder.stop() } catch (error: Exception) {
+                android.util.Log.w(TAG, "Native voice note stop failed", error)
+            } finally {
+                try { recorder.reset() } catch (_: Exception) { }
+                try { recorder.release() } catch (_: Exception) { }
+            }
+        }
+        if (deleteFile) file?.delete()
+        return file
+    }
+
     inner class NativeBridge {
+        @JavascriptInterface
+        fun startVoiceNoteRecording() {
+            runOnUiThread {
+                if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(this@MainActivity, arrayOf(Manifest.permission.RECORD_AUDIO), NATIVE_VOICE_PERMISSION_REQUEST_CODE)
+                    return@runOnUiThread
+                }
+                if (nativeVoiceNoteRecorder != null) {
+                    dispatchNativeVoiceNoteEvent("tiger:native-voice-note-error", JSONObject().put("message", "Tayari kuna rekodi inayoendelea.").put("code", "already_recording"))
+                    return@runOnUiThread
+                }
+                val output = File(cacheDir, "tiger-voice-${UUID.randomUUID()}.m4a")
+                var recorder: MediaRecorder? = null
+                try {
+                    val createdRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(this@MainActivity) else MediaRecorder()
+                    recorder = createdRecorder
+                    createdRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+                    createdRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                    createdRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                    createdRecorder.setAudioEncodingBitRate(96000)
+                    createdRecorder.setAudioSamplingRate(44100)
+                    createdRecorder.setOutputFile(output.absolutePath)
+                    createdRecorder.prepare()
+                    createdRecorder.start()
+                    nativeVoiceNoteRecorder = createdRecorder
+                    nativeVoiceNoteFile = output
+                    nativeVoiceNoteStartedAt = System.currentTimeMillis()
+                    android.util.Log.i(TAG, "Native Android voice note recording started")
+                    dispatchNativeVoiceNoteEvent("tiger:native-voice-note-started")
+                } catch (error: Exception) {
+                    try { recorder?.reset() } catch (_: Exception) { }
+                    try { recorder?.release() } catch (_: Exception) { }
+                    try { output.delete() } catch (_: Exception) { }
+                    android.util.Log.e(TAG, "Native Android voice note start failed", error)
+                    dispatchNativeVoiceNoteEvent("tiger:native-voice-note-error", JSONObject()
+                        .put("message", error.message ?: error.javaClass.simpleName)
+                        .put("code", error.javaClass.simpleName))
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun stopVoiceNoteRecording() {
+            runOnUiThread {
+                val duration = (System.currentTimeMillis() - nativeVoiceNoteStartedAt).coerceAtLeast(0L)
+                val file = stopNativeVoiceNote(deleteFile = false)
+                nativeVoiceNoteStartedAt = 0L
+                if (file == null || !file.exists() || file.length() <= 0L) {
+                    file?.delete()
+                    dispatchNativeVoiceNoteEvent("tiger:native-voice-note-error", JSONObject()
+                        .put("message", "Hakuna sauti iliyorekodiwa. Jaribu tena.")
+                        .put("code", "empty_recording"))
+                    return@runOnUiThread
+                }
+                try {
+                    if (file.length() > 12L * 1024L * 1024L) {
+                        dispatchNativeVoiceNoteEvent("tiger:native-voice-note-error", JSONObject()
+                            .put("message", "Rekodi ni kubwa sana. Fupisha voice note kisha ujaribu tena.")
+                            .put("code", "recording_too_large"))
+                        return@runOnUiThread
+                    }
+                    val encoded = Base64.encodeToString(file.readBytes(), Base64.NO_WRAP)
+                    // Keep each WebView bridge event comfortably below Android Binder transaction limits.
+                    val chunkSize = 256 * 1024
+                    var offset = 0
+                    while (offset < encoded.length) {
+                        val end = minOf(offset + chunkSize, encoded.length)
+                        dispatchNativeVoiceNoteEvent("tiger:native-voice-note-chunk", JSONObject()
+                            .put("data", encoded.substring(offset, end)))
+                        offset = end
+                    }
+                    dispatchNativeVoiceNoteEvent("tiger:native-voice-note-complete", JSONObject()
+                        .put("mimeType", "audio/mp4")
+                        .put("durationMs", duration))
+                    android.util.Log.i(TAG, "Native Android voice note completed; bytes=${file.length()}")
+                } catch (error: Exception) {
+                    android.util.Log.e(TAG, "Native Android voice note export failed", error)
+                    dispatchNativeVoiceNoteEvent("tiger:native-voice-note-error", JSONObject()
+                        .put("message", error.message ?: "Imeshindikana kuandaa sauti.")
+                        .put("code", error.javaClass.simpleName))
+                } finally {
+                    file.delete()
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun cancelVoiceNoteRecording() {
+            runOnUiThread {
+                stopNativeVoiceNote(deleteFile = true)
+                nativeVoiceNoteStartedAt = 0L
+                dispatchNativeVoiceNoteEvent("tiger:native-voice-note-cancelled")
+            }
+        }
+
         @JavascriptInterface
         fun hasOverlayPermission(): Boolean =
             Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this@MainActivity)
@@ -732,6 +874,7 @@ open class MainActivity : Activity() {
         const val EXTRA_QUICK_REPLY = "tiger_quick_reply"
         const val EXTRA_NATIVE_CALL_TYPE = "tiger_native_call_type"
         private const val MEDIA_PERMISSION_REQUEST_CODE = 7302
+        private const val NATIVE_VOICE_PERMISSION_REQUEST_CODE = 7304
         private const val CONTACTS_PERMISSION_REQUEST_CODE = 7303
         private const val TAG = "TigerChatMedia"
         private const val NATIVE_DIAGNOSTICS_PREFS = "tiger_native_diagnostics"

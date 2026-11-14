@@ -26,6 +26,12 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
   const mountedRef = useRef(true);
 
   const releaseCaptureRef = useRef<(() => void) | null>(null);
+  const nativeRecordingRef = useRef(false);
+  const nativeAudioChunksRef = useRef<string[]>([]);
+  const nativeBridge = typeof window !== "undefined"
+    ? (window as Window & { TigerNative?: { startVoiceNoteRecording?: () => void; stopVoiceNoteRecording?: () => void; cancelVoiceNoteRecording?: () => void } }).TigerNative
+    : undefined;
+
 
   const releaseStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -40,10 +46,17 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
     setDuration(0);
     setIsStarting(true);
     try {
+      // Acquire the shared lease, then use Android's native recorder inside the APK.
+      // The browser path below remains unchanged for the Website.
+      releaseCaptureRef.current = await acquireSharedMicrophone("voice-note");
+      if (nativeBridge?.startVoiceNoteRecording) {
+        nativeRecordingRef.current = true;
+        nativeBridge.startVoiceNoteRecording();
+        return;
+      }
       if (!navigator.mediaDevices?.getUserMedia) throw new Error("Kifaa hiki hakiruhusu kurekodi sauti. Sasisha Android System WebView na ujaribu tena.");
       // Acquire the app-wide microphone lease before asking Android for the device.
       // This prevents a voice note and a WebRTC call from racing for the same mic.
-      releaseCaptureRef.current = await acquireSharedMicrophone("voice-note");
       // Android WebView devices/drivers sometimes reject advanced audio constraints with
       // "Could not start audio source". Retry with the browser's simplest microphone request.
       let stream: MediaStream;
@@ -98,15 +111,74 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
 
   useEffect(() => {
     mountedRef.current = true;
+    const onNativeStarted = () => {
+      nativeAudioChunksRef.current = [];
+      nativeRecordingRef.current = true;
+      startedAtRef.current = Date.now();
+      setIsStarting(false);
+      setIsRecording(true);
+    };
+    const onNativeChunk = (event: Event) => {
+      const detail = (event as CustomEvent<{ data: string }>).detail;
+      if (detail?.data) nativeAudioChunksRef.current.push(detail.data);
+    };
+    const onNativeComplete = (event: Event) => {
+      const detail = (event as CustomEvent<{ mimeType: string; durationMs: number }>).detail;
+      try {
+        const binary = atob(nativeAudioChunksRef.current.join(""));
+        nativeAudioChunksRef.current = [];
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+        const blob = new Blob([bytes], { type: detail.mimeType || "audio/mp4" });
+        if (mountedRef.current) {
+          if (blob.size) setAudioBlob(blob);
+          else setError("Hakuna sauti iliyorekodiwa. Jaribu tena.");
+          setDuration(Math.max(1, Math.round((detail.durationMs || 0) / 1000)));
+          setIsRecording(false);
+          setIsStarting(false);
+        }
+      } catch {
+        if (mountedRef.current) setError("Imeshindikana kuandaa voice note kutoka kwenye Android.");
+      } finally {
+        nativeRecordingRef.current = false;
+        releaseCaptureRef.current?.();
+        releaseCaptureRef.current = null;
+      }
+    };
+    const onNativeError = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string; code?: string }>).detail;
+      nativeRecordingRef.current = false;
+      releaseCaptureRef.current?.();
+      releaseCaptureRef.current = null;
+      if (mountedRef.current) {
+        setError(detail?.message || "Android imeshindwa kuanzisha microphone.");
+        setIsRecording(false);
+        setIsStarting(false);
+      }
+    };
+    window.addEventListener("tiger:native-voice-note-started", onNativeStarted);
+    window.addEventListener("tiger:native-voice-note-chunk", onNativeChunk);
+    window.addEventListener("tiger:native-voice-note-complete", onNativeComplete);
+    window.addEventListener("tiger:native-voice-note-error", onNativeError);
+    mountedRef.current = true;
     void startRecording();
     return () => {
       mountedRef.current = false;
+      window.removeEventListener("tiger:native-voice-note-started", onNativeStarted);
+      window.removeEventListener("tiger:native-voice-note-chunk", onNativeChunk);
+      window.removeEventListener("tiger:native-voice-note-complete", onNativeComplete);
+      window.removeEventListener("tiger:native-voice-note-error", onNativeError);
+      if (nativeRecordingRef.current) nativeBridge?.cancelVoiceNoteRecording?.();
       if (recorderRef.current?.state === "recording") { try { recorderRef.current.stop(); } catch { /* already stopped */ } }
       releaseStream();
     };
   }, [startRecording, releaseStream]);
 
   const stopRecording = () => {
+    if (nativeRecordingRef.current && nativeBridge?.stopVoiceNoteRecording) {
+      nativeBridge.stopVoiceNoteRecording();
+      return;
+    }
     if (recorderRef.current?.state === "recording") {
       try { recorderRef.current.stop(); } catch { setError("Imeshindikana kusimamisha kurekodi."); }
     }
@@ -117,7 +189,7 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
 
   return (
     <div className="flex items-center gap-3 p-3 border-t border-border/50 glass">
-      <button type="button" onClick={onCancel} aria-label="Cancel voice recording" className="p-2 rounded-full hover:bg-surface-hover text-destructive transition-colors"><Trash2 className="w-5 h-5" /></button>
+      <button type="button" onClick={() => { if (nativeRecordingRef.current) nativeBridge?.cancelVoiceNoteRecording?.(); releaseCaptureRef.current?.(); releaseCaptureRef.current = null; onCancel(); }} aria-label="Cancel voice recording" className="p-2 rounded-full hover:bg-surface-hover text-destructive transition-colors"><Trash2 className="w-5 h-5" /></button>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-3">
           {isRecording && <div className="w-2.5 h-2.5 rounded-full bg-destructive animate-pulse shrink-0" />}
