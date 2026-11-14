@@ -289,6 +289,9 @@ export const useWebRTC = () => {
   const applyNativeRemoteDescription = useCallback(async (type: "offer" | "answer", sdp: string) => {
     await setNativeRemoteDescription(type, sdp);
     nativeRemoteReadyRef.current = true;
+    // ICE may arrive while an incoming call is ringing, before native media starts.
+    nativeIceQueueRef.current = [...iceQueue.current, ...nativeIceQueueRef.current];
+    iceQueue.current = [];
     const queued = nativeIceQueueRef.current;
     nativeIceQueueRef.current = [];
     for (const candidate of queued) {
