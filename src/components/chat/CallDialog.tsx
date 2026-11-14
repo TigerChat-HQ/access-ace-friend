@@ -70,10 +70,6 @@ export const CallDialog = ({
   useCallRingtone(callStatus === "incoming" ? "incoming" : callStatus === "ringing" ? "outgoing" : null);
 
   useEffect(() => {
-    if (nativeMedia) setNativeRemoteAudioEnabled(soundOn);
-  }, [nativeMedia, soundOn]);
-
-  useEffect(() => {
     if (!nativeVideo) return;
     const root = document.getElementById("root");
     const previousRootVisibility = root?.style.visibility ?? "";
@@ -92,6 +88,11 @@ export const CallDialog = ({
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const [soundOn, setSoundOn] = useState(true);
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
+
+  useEffect(() => {
+    if (nativeMedia) setNativeRemoteAudioEnabled(soundOn);
+  }, [nativeMedia, soundOn]);
+
 
   useEffect(() => {
     if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
