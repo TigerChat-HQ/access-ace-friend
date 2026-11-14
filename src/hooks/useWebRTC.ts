@@ -776,7 +776,17 @@ export const useWebRTC = () => {
           // Native callers must enter CONNECTING as soon as the callee answers.
           // Keep this transition shared with the browser path; otherwise the
           // native call remains OUTGOING and skips connecting-state recovery.
-          if (statusRef.current !== "connected") { statusRef.current = "connecting"; setCallStatus("connecting"); }
+          if (statusRef.current !== "connected") {
+            statusRef.current = "connecting";
+            setCallStatus("connecting");
+            // Replace the unanswered-ring timer with a connection-establishment
+            // timeout. The original ring timer must not silently expire while
+            // the call is connecting after the callee has answered.
+            if (ringTimerRef.current) clearTimeout(ringTimerRef.current);
+            ringTimerRef.current = setTimeout(() => {
+              if (statusRef.current === "connecting") void endCall();
+            }, RING_TIMEOUT_MS);
+          }
           if (nativeCallRef.current) {
             if (typeof data.sdp === "string") await applyNativeRemoteDescription("answer", data.sdp);
             return;
