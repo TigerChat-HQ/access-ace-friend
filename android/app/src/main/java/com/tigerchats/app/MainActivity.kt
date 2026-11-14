@@ -729,6 +729,9 @@ open class MainActivity : Activity() {
         fun nativeWebRtcCreateAnswer() { runOnUiThread { nativeWebRtcEngine?.createAnswer() } }
 
         @JavascriptInterface
+        fun nativeWebRtcRestartIce() { runOnUiThread { nativeWebRtcEngine?.restartIce() } }
+
+        @JavascriptInterface
         fun nativeWebRtcSetRemoteDescription(type: String, sdp: String) {
             runOnUiThread { nativeWebRtcEngine?.setRemoteDescription(type, sdp) }
         }
