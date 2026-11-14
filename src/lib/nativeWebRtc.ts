@@ -106,7 +106,8 @@ export const startNativeWebRtc = async (
 ): Promise<NativeWebRtcEvent> => {
   const bridge = getNativeBridge();
   if (!bridge) throw new Error("Native WebRTC bridge haipatikani kwenye kifaa hiki.");
-  return waitForEvent("ready", () => bridge.nativeWebRtcStart(JSON.stringify(iceServers), withVideo));
+  // Android may show a permission prompt; allow time for the user to respond.
+  return waitForEvent("ready", () => bridge.nativeWebRtcStart(JSON.stringify(iceServers), withVideo), 120_000);
 };
 
 export const createNativeWebRtcDescription = async (
