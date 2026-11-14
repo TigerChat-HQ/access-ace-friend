@@ -30,7 +30,7 @@ import android.view.WindowManager
 import android.view.View
 import android.view.Gravity
 import android.widget.FrameLayout
-import org.webrtc.TextureViewRenderer
+import org.webrtc.SurfaceViewRenderer
 import org.webrtc.RendererCommon
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ActivityCompat
@@ -58,7 +58,7 @@ open class MainActivity : Activity() {
     private var nativeWebRtcEngine: NativeWebRtcEngine? = null
     private lateinit var appRoot: FrameLayout
     private lateinit var nativeVideoLayer: FrameLayout
-    private var nativeRemoteRenderer: TextureViewRenderer? = null
+    private var nativeRemoteRenderer: SurfaceViewRenderer? = null
     private var nativeLocalRenderer: TextureViewRenderer? = null
     private var pendingNativeWebRtcIceServers: String? = null
     private var pendingNativeWebRtcWithVideo: Boolean = false
@@ -1053,11 +1053,6 @@ open class MainActivity : Activity() {
             }
         }
 
-    }
-
-    override fun onDestroy() {
-        disposeNativeWebRtcEngine()
-        super.onDestroy()
     }
 
     @Deprecated("Deprecated in Android API")
