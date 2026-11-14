@@ -35,6 +35,7 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
   const previewUrlRef = useRef<string | null>(null);
   const elapsedRef = useRef(0);
   const pausedAtRef = useRef(0);
+  const pauseStartedRef = useRef(0);
   const dataSaverRef = useRef(isDataSaverEnabled());
 
   const releaseCaptureRef = useRef<(() => void) | null>(null);
@@ -211,13 +212,27 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
       window.removeEventListener("tiger:native-voice-note-chunk", onNativeChunk);
       window.removeEventListener("tiger:native-voice-note-complete", onNativeComplete);
       window.removeEventListener("tiger:native-voice-note-error", onNativeError);
-      if (nativeRecordingRef.current) nativeBridge?.cancelVoiceNoteRecording?.();\n      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+      if (nativeRecordingRef.current) nativeBridge?.cancelVoiceNoteRecording?.();
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
       if (recorderRef.current?.state === "recording") { try { recorderRef.current.stop(); } catch { /* already stopped */ } }
       releaseStream();
     };
   }, [startRecording, releaseStream]);
 
-  useEffect(() => {\n    if (!isRecording || isPaused) return;\n    const timer = window.setInterval(() => setDuration(Math.floor((Date.now() - startedAtRef.current - pausedAtRef.current) / 1000)), 250);\n    return () => window.clearInterval(timer);\n  }, [isRecording, isPaused]);\n\n  const togglePause = () => {\n    const recorder = recorderRef.current;\n    if (!recorder || nativeRecordingRef.current) return;\n    if (recorder.state === "recording" && typeof recorder.pause === "function") { recorder.pause(); setIsPaused(true); }\n    else if (recorder.state === "paused" && typeof recorder.resume === "function") { recorder.resume(); setIsPaused(false); }\n  };\n\n  const stopRecording = () => {
+  useEffect(() => {
+    if (!isRecording || isPaused) return;
+    const timer = window.setInterval(() => setDuration(Math.floor((Date.now() - startedAtRef.current - pausedAtRef.current) / 1000)), 250);
+    return () => window.clearInterval(timer);
+  }, [isRecording, isPaused]);
+
+  const togglePause = () => {
+    const recorder = recorderRef.current;
+    if (!recorder || nativeRecordingRef.current) return;
+    if (recorder.state === "recording" && typeof recorder.pause === "function") { recorder.pause(); setIsPaused(true); }
+    else if (recorder.state === "paused" && typeof recorder.resume === "function") { recorder.resume(); setIsPaused(false); }
+  };
+
+  const stopRecording = () => {
     if (nativeRecordingRef.current && nativeBridge?.stopVoiceNoteRecording) {
       nativeBridge.stopVoiceNoteRecording();
       return;
@@ -241,7 +256,8 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
         </div>
         {error && <p role="alert" className="mt-1 text-[11px] leading-tight text-destructive">{error}</p>}
       </div>
-      {isRecording && !nativeRecordingRef.current && <button type="button" onClick={togglePause} aria-label={isPaused ? "Resume recording" : "Pause recording"} className="p-2 rounded-full hover:bg-surface-hover">{isPaused ? <Mic className="w-4 h-4" /> : <Pause className="w-4 h-4" />}</button>}\n      {isRecording ? <button type="button" onClick={stopRecording} aria-label="Stop recording" className="p-2.5 rounded-full bg-destructive text-destructive-foreground"><Square className="w-4 h-4" /></button>
+      {isRecording && !nativeRecordingRef.current && <button type="button" onClick={togglePause} aria-label={isPaused ? "Resume recording" : "Pause recording"} className="p-2 rounded-full hover:bg-surface-hover">{isPaused ? <Mic className="w-4 h-4" /> : <Pause className="w-4 h-4" />}</button>}
+      {isRecording ? <button type="button" onClick={stopRecording} aria-label="Stop recording" className="p-2.5 rounded-full bg-destructive text-destructive-foreground"><Square className="w-4 h-4" /></button>
         : audioBlob ? <><button type="button" onClick={() => { if (!previewRef.current) return; if (previewPlaying) previewRef.current.pause(); else void previewRef.current.play().catch(() => setError("Imeshindikana kucheza preview.")); }} aria-label={previewPlaying ? "Pause preview" : "Play preview"} className="p-2.5 rounded-full bg-surface-hover">{previewPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}</button><audio ref={previewRef} src={previewUrlRef.current || undefined} onPlay={() => setPreviewPlaying(true)} onPause={() => setPreviewPlaying(false)} onEnded={() => setPreviewPlaying(false)} className="hidden" /><button type="button" onClick={() => { setAudioBlob(null); setDuration(0); setPreviewPlaying(false); void startRecording(); }} aria-label="Record again" className="p-2.5 rounded-full bg-surface-hover"><RotateCcw className="w-4 h-4" /></button><button type="button" onClick={handleSend} aria-label="Send voice message" className="p-2.5 rounded-full bg-primary text-primary-foreground neon-glow"><Send className="w-4 h-4" /></button>
         : <button type="button" onClick={() => void startRecording()} disabled={isStarting} aria-label="Retry voice recording" className="p-2.5 rounded-full bg-primary text-primary-foreground disabled:opacity-50">{isStarting ? <Loader2 className="w-4 h-4 animate-spin" /> : error ? <RefreshCw className="w-4 h-4" /> : <Mic className="w-4 h-4" />}</button>}
     </div>
