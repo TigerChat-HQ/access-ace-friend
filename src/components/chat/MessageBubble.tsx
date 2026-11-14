@@ -181,6 +181,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
         )}
 
         {isVoice && message.mediaUrl ? (
+          <>
           <div className="flex items-center gap-3 min-w-[160px]">
             
             <button onClick={toggleAudio} className="shrink-0">
@@ -199,6 +200,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
             {transcriptionError && <p role="alert" className="mt-1 text-[11px] text-red-300">{transcriptionError}</p>}
             {transcriptVisible && transcript && <p dir="auto" className="mt-2 rounded-lg bg-white/10 p-2 text-xs whitespace-pre-wrap">{transcript}</p>}
           </div>
+          </>
         ) : isImage && message.mediaUrl ? (
           <div>
             <div className="relative overflow-hidden rounded-lg">
