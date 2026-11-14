@@ -27,7 +27,9 @@ export const AppShell = () => {
   useEffect(() => {
     if (!location.search.includes("bubble=1") || location.pathname !== "/") return;
     const embeddedPath = new URLSearchParams(location.search).get("path");
-    if (embeddedPath === "/chats") navigate("/chats?bubble=1", { replace: true });
+    if (embeddedPath?.startsWith("/") && !embeddedPath.startsWith("//")) {
+      navigate(embeddedPath + (embeddedPath.includes("?") ? "&" : "?") + "bubble=1", { replace: true });
+    }
   }, [location.pathname, location.search, navigate]);
 
   useEffect(() => {
@@ -194,7 +196,7 @@ export const AppShell = () => {
     };
   }, []);
 
-  const hideBar = location.pathname.startsWith("/chats") && (location.search.includes("c=") || location.search.includes("bubble=1"));
+  const hideBar = location.search.includes("bubble=1") || (location.pathname.startsWith("/chats") && location.search.includes("c="));
   const items = [
     { to: "/", icon: Home, label: "Home", badge: 0 },
     { to: "/chats", icon: MessageCircle, label: "Chats", badge: unreadMessages },
