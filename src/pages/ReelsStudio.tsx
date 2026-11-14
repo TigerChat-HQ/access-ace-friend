@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { renderReelTimeline } from "@/lib/reelTimelineEditor";
+import { acquireSharedMicrophone } from "@/lib/audioCapture";
 import { MusicPicker } from "@/components/chat/MusicPicker";
 import { ReelFaceARPreview } from "@/components/reels/ReelFaceARPreview";
 import type { FaceEffect } from "@/lib/reelFaceTracking";
@@ -62,6 +63,8 @@ const ReelsStudio = () => {
   const voiceRecorderRef = useRef<MediaRecorder | null>(null);
   const voiceStreamRef = useRef<MediaStream | null>(null);
   const voiceChunksRef = useRef<Blob[]>([]);
+  const voiceAudioReleaseRef = useRef<(() => void) | null>(null);
+  const cameraAudioReleaseRef = useRef<(() => void) | null>(null);
   const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const cameraRecorderRef = useRef<MediaRecorder | null>(null);
@@ -240,8 +243,12 @@ const ReelsStudio = () => {
   useEffect(() => () => {
     if (voiceRecorderRef.current?.state === "recording") voiceRecorderRef.current.stop();
     voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+    voiceAudioReleaseRef.current?.();
+    voiceAudioReleaseRef.current = null;
     speechRecognitionRef.current?.stop();
     cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+    cameraAudioReleaseRef.current?.();
+    cameraAudioReleaseRef.current = null;
   }, []);
 
   const uploadAsset = async (file: File, folder: string) => {
@@ -455,14 +462,19 @@ const ReelsStudio = () => {
       toast({ title: "Camera unavailable", description: "Use the camera/gallery upload picker on this device.", variant: "destructive" });
       return;
     }
+    let release: (() => void) | null = null;
     try {
+      release = await acquireSharedMicrophone("video-call");
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "user" }, width: { ideal: 1080 }, height: { ideal: 1920 } },
         audio: true,
       });
+      cameraAudioReleaseRef.current = release;
+      release = null;
       cameraStreamRef.current = stream;
       setCameraOpen(true);
     } catch (error) {
+      release?.();
       toast({ title: "Camera permission denied", description: error instanceof Error ? error.message : "Allow camera and microphone access, then try again.", variant: "destructive" });
     }
   };
@@ -472,6 +484,8 @@ const ReelsStudio = () => {
   const stopCameraStream = () => {
     cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
     cameraStreamRef.current = null;
+    cameraAudioReleaseRef.current?.();
+    cameraAudioReleaseRef.current = null;
     setCameraOpen(false);
     setRecordingCamera(false);
   };
@@ -654,8 +668,12 @@ const ReelsStudio = () => {
       toast({ title: "Voiceover is not supported", description: "Use a browser that supports microphone recording.", variant: "destructive" });
       return;
     }
+    let release: (() => void) | null = null;
     try {
+      release = await acquireSharedMicrophone("voice-note");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      voiceAudioReleaseRef.current = release;
+      release = null;
       voiceStreamRef.current = stream;
       voiceChunksRef.current = [];
       const preferredType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((type) => MediaRecorder.isTypeSupported(type));
@@ -665,6 +683,8 @@ const ReelsStudio = () => {
       recorder.onerror = () => {
         setRecordingVoice(false);
         stream.getTracks().forEach((track) => track.stop());
+        voiceAudioReleaseRef.current?.();
+        voiceAudioReleaseRef.current = null;
         toast({ title: "Voiceover recording failed", description: "Check microphone permission and try again.", variant: "destructive" });
       };
       recorder.onstop = () => {
@@ -672,6 +692,8 @@ const ReelsStudio = () => {
         const blob = new Blob(voiceChunksRef.current, { type });
         stream.getTracks().forEach((track) => track.stop());
         voiceStreamRef.current = null;
+        voiceAudioReleaseRef.current?.();
+        voiceAudioReleaseRef.current = null;
         if (blob.size) {
           const extension = type.includes("mp4") ? "m4a" : "webm";
           const file = new File([blob], `tiger-voiceover-${Date.now()}.${extension}`, { type });
@@ -690,6 +712,7 @@ const ReelsStudio = () => {
       recorder.start(500);
       setRecordingVoice(true);
     } catch (error) {
+      release?.();
       toast({ title: "Microphone unavailable", description: error instanceof Error ? error.message : "Allow microphone access and try again.", variant: "destructive" });
     }
   };
