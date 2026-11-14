@@ -254,7 +254,7 @@ export const useWebRTC = () => {
     finally { finish(); }
   }, [sendSignal, finish]);
 
-  const useNativeTransport = (_callType: "voice" | "video") => isNativeWebRtcAvailable();
+  const shouldUseNativeTransport = (_callType: "voice" | "video") => isNativeWebRtcAvailable();
 
   const startNativeTransport = useCallback(async (info: CallInfo, iceServers: RTCIceServer[]) => {
     // Keep the existing cross-session microphone lease so the same TigerChat
@@ -522,7 +522,7 @@ export const useWebRTC = () => {
     }
     try {
       const iceServers = await getCallIceServers(conversationId);
-      if (useNativeTransport(callType)) {
+      if (shouldUseNativeTransport(callType)) {
         await startNativeTransport(info, iceServers);
         const offer = await createNativeWebRtcDescription("offer");
         await sendSignal(info, "offer", { sdp: offer.sdp, type: offer.type }, "pending");
@@ -581,7 +581,7 @@ export const useWebRTC = () => {
     signalReadyCallId.current = null;
     try {
       const iceServers = await getCallIceServers(info.conversationId);
-      if (useNativeTransport(info.callType)) {
+      if (shouldUseNativeTransport(info.callType)) {
         await startNativeTransport(info, iceServers);
         await applyNativeRemoteDescription("offer", offer.sdp || "");
         const answer = await createNativeWebRtcDescription("answer");
