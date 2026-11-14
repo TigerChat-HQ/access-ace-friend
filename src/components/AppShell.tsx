@@ -205,7 +205,7 @@ export const AppShell = () => {
   ];
 
   return (
-    <AppLockGate><CallProvider><AnnouncementGate><VoiceNotePlayerProvider>
+    <AppLockGate><CallProvider><AnnouncementGate><VoiceNotePlayerProvider key={user?.id ?? "signed-out"}>
       <div className="flex min-h-0 bg-background" style={{ height: "var(--tiger-viewport-height, 100dvh)" }}>
         <NativePushRegistration />
         <aside className={`hidden h-full w-56 shrink-0 flex-col gap-2 border-r border-border bg-card p-4 ${location.search.includes("bubble=1") ? "" : "lg:flex"}`}>
