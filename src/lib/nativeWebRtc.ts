@@ -129,7 +129,7 @@ export const setNativeRemoteDescription = async (
   type: "offer" | "answer",
   sdp: string,
 ): Promise<void> => {
-  const bridge = window.TigerNative;
+  const bridge = getNativeBridge();
   if (!bridge) throw new Error("Native WebRTC bridge haipatikani.");
   await waitForEvent("remote-description-set", () => bridge.nativeWebRtcSetRemoteDescription(type, sdp));
 };
