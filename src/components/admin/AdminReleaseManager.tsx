@@ -43,7 +43,7 @@ export const AdminReleaseManager = () => {
       return;
     }
     setSaving(true);
-    const { error } = await (supabase as any).from("app_releases").insert({
+    const { error } = await appReleasesTable(supabase).insert({
       platform: "android", version: version.trim(), title: title.trim(), summary: summary.trim(),
       features: features.split("\n").map((item) => item.trim()).filter(Boolean).slice(0, 5),
       update_url: updateUrl.trim(), is_active: true,
