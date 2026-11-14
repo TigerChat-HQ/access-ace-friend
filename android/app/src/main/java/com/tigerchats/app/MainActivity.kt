@@ -652,8 +652,16 @@ open class MainActivity : Activity() {
                         return@runOnUiThread
                     }
                     val encoded = Base64.encodeToString(file.readBytes(), Base64.NO_WRAP)
+                    // Keep each WebView bridge event comfortably below Android Binder transaction limits.
+                    val chunkSize = 256 * 1024
+                    var offset = 0
+                    while (offset < encoded.length) {
+                        val end = minOf(offset + chunkSize, encoded.length)
+                        dispatchNativeVoiceNoteEvent("tiger:native-voice-note-chunk", JSONObject()
+                            .put("data", encoded.substring(offset, end)))
+                        offset = end
+                    }
                     dispatchNativeVoiceNoteEvent("tiger:native-voice-note-complete", JSONObject()
-                        .put("base64", encoded)
                         .put("mimeType", "audio/mp4")
                         .put("durationMs", duration))
                     android.util.Log.i(TAG, "Native Android voice note completed; bytes=${file.length()}")
