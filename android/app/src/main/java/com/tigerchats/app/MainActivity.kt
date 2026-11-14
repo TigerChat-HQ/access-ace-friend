@@ -350,6 +350,7 @@ open class MainActivity : Activity() {
             setMirror(false)
         }
         val local = SurfaceViewRenderer(this).apply {
+            setZOrderMediaOverlay(true)
             init(engine.eglContext, null)
             setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL)
             setEnableHardwareScaler(true)
@@ -393,6 +394,9 @@ open class MainActivity : Activity() {
             disposeNativeWebRtcEngine()
             val engine = NativeWebRtcEngine(this) { type, data ->
                 if (type == "error" && withVideo) runOnUiThread { nativeVideoLayer.visibility = View.GONE }
+                if (type == "camera-switched") {
+                    runOnUiThread { nativeLocalRenderer?.setMirror(data.optBoolean("front")) }
+                }
                 dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject(data.toString()).put("type", type))
             }
             nativeWebRtcEngine = engine
