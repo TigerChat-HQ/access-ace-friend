@@ -3,6 +3,7 @@ import { BellRing, Clock3, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { appReleasesTable } from "@/lib/app-releases-db";
 
 type AppRelease = { id: string; version: string; title: string; summary: string; features: string[] | null; update_url: string | null };
 type PromptState = { version: string; day: string; shownToday: number; remindAt: number; seenVersion: string };
@@ -43,12 +44,12 @@ export const AppUpdatePrompt = () => {
     if (!installedVersion) return;
     let cancelled = false;
     const checkRelease = async () => {
-      const { data, error } = await (supabase as any).from("app_releases")
+      const { data, error } = await appReleasesTable(supabase)
         .select("id,version,title,summary,features,update_url")
         .eq("is_active", true).in("platform", ["android", "all"])
         .order("created_at", { ascending: false }).limit(1).maybeSingle();
       if (cancelled || error || !data) return;
-      const latest = data as AppRelease;
+      const latest = data as unknown as AppRelease;
       if (compareVersions(latest.version, installedVersion) <= 0) return;
       const today = localDay();
       const previous = readState(user.id);
