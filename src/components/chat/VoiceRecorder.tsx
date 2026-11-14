@@ -27,6 +27,7 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
 
   const releaseCaptureRef = useRef<(() => void) | null>(null);
   const nativeRecordingRef = useRef(false);
+  const nativeAudioChunksRef = useRef<string[]>([]);
   const nativeBridge = typeof window !== "undefined"
     ? (window as Window & { TigerNative?: { startVoiceNoteRecording?: () => void; stopVoiceNoteRecording?: () => void; cancelVoiceNoteRecording?: () => void } }).TigerNative
     : undefined;
@@ -111,15 +112,21 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
   useEffect(() => {
     mountedRef.current = true;
     const onNativeStarted = () => {
+      nativeAudioChunksRef.current = [];
       nativeRecordingRef.current = true;
       startedAtRef.current = Date.now();
       setIsStarting(false);
       setIsRecording(true);
     };
+    const onNativeChunk = (event: Event) => {
+      const detail = (event as CustomEvent<{ data: string }>).detail;
+      if (detail?.data) nativeAudioChunksRef.current.push(detail.data);
+    };
     const onNativeComplete = (event: Event) => {
-      const detail = (event as CustomEvent<{ base64: string; mimeType: string; durationMs: number }>).detail;
+      const detail = (event as CustomEvent<{ mimeType: string; durationMs: number }>).detail;
       try {
-        const binary = atob(detail.base64);
+        const binary = atob(nativeAudioChunksRef.current.join(""));
+        nativeAudioChunksRef.current = [];
         const bytes = new Uint8Array(binary.length);
         for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
         const blob = new Blob([bytes], { type: detail.mimeType || "audio/mp4" });
@@ -150,6 +157,7 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
       }
     };
     window.addEventListener("tiger:native-voice-note-started", onNativeStarted);
+    window.addEventListener("tiger:native-voice-note-chunk", onNativeChunk);
     window.addEventListener("tiger:native-voice-note-complete", onNativeComplete);
     window.addEventListener("tiger:native-voice-note-error", onNativeError);
     mountedRef.current = true;
@@ -157,6 +165,7 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
     return () => {
       mountedRef.current = false;
       window.removeEventListener("tiger:native-voice-note-started", onNativeStarted);
+      window.removeEventListener("tiger:native-voice-note-chunk", onNativeChunk);
       window.removeEventListener("tiger:native-voice-note-complete", onNativeComplete);
       window.removeEventListener("tiger:native-voice-note-error", onNativeError);
       if (nativeRecordingRef.current) nativeBridge?.cancelVoiceNoteRecording?.();
