@@ -20,9 +20,9 @@ begin
     raise exception using errcode='42501', message='Call signal rejected: sign-in session is missing.';
   end if;
   if p_caller_id is null or p_callee_id is null or p_caller_id=p_callee_id
-     or p_conversation_id is null or p_call_type not in ('voice','video')
-     or p_signal_type not in ('offer','answer','ice-candidate','reject','hangup')
-     or p_status not in ('pending','active','ended')
+     or p_conversation_id is null or p_call_type is null or p_call_type not in ('voice','video')
+     or p_signal_type is null or p_signal_type not in ('offer','answer','ice-candidate','reject','hangup')
+     or p_status is null or p_status not in ('pending','active','ended')
      or p_signal_data is null or jsonb_typeof(p_signal_data)<>'object' then
     raise exception using errcode='22023', message='Call signal rejected: invalid call fields.';
   end if;
