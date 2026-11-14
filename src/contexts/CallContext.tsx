@@ -19,6 +19,7 @@ export const CallProvider = ({ children }: { children: ReactNode }) => {
           isMuted={webrtc.isMuted}
           isVideoOn={webrtc.isVideoOn}
           nativeVideo={webrtc.isNativeVideoCall}
+          nativeMedia={webrtc.isNativeCall}
           duration={webrtc.duration}
           remoteStream={webrtc.remoteStream}
           localStream={webrtc.localStream}
