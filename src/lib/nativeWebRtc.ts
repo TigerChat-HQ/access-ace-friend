@@ -74,32 +74,30 @@ const waitForEvent = <T extends NativeWebRtcEvent>(
   timeoutMs = OPERATION_TIMEOUT_MS,
 ): Promise<T> =>
   new Promise<T>((resolve, reject) => {
-    let timeout: ReturnType<typeof setTimeout>;
+    const timeout = setTimeout(() => {
+      unsubscribe();
+      reject(new Error(`Native WebRTC timed out waiting for ${expectedType}.`));
+    }, timeoutMs);
     const unsubscribe = subscribeNativeWebRtc((event) => {
       if (event.type === "error" || event.type === "cancelled") {
-        cleanup();
+        clearTimeout(timeout);
+        unsubscribe();
         reject(new Error(event.type === "cancelled"
           ? "Native WebRTC call was cancelled."
           : event.message || `Native WebRTC error during ${event.stage || "operation"}.`));
         return;
       }
       if (event.type === expectedType) {
-        cleanup();
+        clearTimeout(timeout);
+        unsubscribe();
         resolve(event as T);
       }
     });
-    const cleanup = () => {
-      clearTimeout(timeout);
-      unsubscribe();
-    };
-    timeout = setTimeout(() => {
-      cleanup();
-      reject(new Error(`Native WebRTC timed out waiting for ${expectedType}.`));
-    }, timeoutMs);
     try {
       invoke();
     } catch (error) {
-      cleanup();
+      clearTimeout(timeout);
+      unsubscribe();
       reject(error);
     }
   });
