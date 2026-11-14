@@ -13,10 +13,20 @@ create table if not exists public.app_releases (
   unique (platform, version)
 );
 alter table public.app_releases enable row level security;
-grant select on public.app_releases to authenticated;
+grant select, insert, update, delete on public.app_releases to authenticated;
 drop policy if exists "Authenticated users can read active app releases" on public.app_releases;
 create policy "Authenticated users can read active app releases"
 on public.app_releases for select to authenticated
 using (is_active = true);
 create index if not exists app_releases_active_platform_created_idx
 on public.app_releases (platform, is_active, created_at desc);
+
+drop policy if exists "Admins publish app releases" on public.app_releases;
+create policy "Admins publish app releases"
+on public.app_releases for all to authenticated
+using (
+  exists (select 1 from public.user_roles ur where ur.user_id = (select auth.uid()) and ur.role in ('admin', 'superior_admin'))
+)
+with check (
+  exists (select 1 from public.user_roles ur where ur.user_id = (select auth.uid()) and ur.role in ('admin', 'superior_admin'))
+);
