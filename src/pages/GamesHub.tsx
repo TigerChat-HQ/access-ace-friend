@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Trophy, Coins, Medal, Gamepad2, Radio, ChevronRight, Clock3, Users, Crown, Search, Star } from "lucide-react";
 
 const liveGames = [
+  { title: "TIGER CITY 3D", subtitle: "3D city builder · Playable prototype", detail: "Jenga mji · Weka majengo · Tekeleza kampeni", tag: "BETA", path: "/games/tiger-city-3d", icon: "🏙️", players: "Build your city", category: "Simulation", art: "from-amber-500/50 via-sky-950 to-[#080d1b]", accent: "text-amber-200", artwork: "🏙️" },
   { title: "Draughts Arena", subtitle: "Strategy · AI / PvP", detail: "Mkakati wa jadi · Tiger AI · PvP", tag: "ONLINE", path: "/draughts", icon: "♟", players: "AI na marafiki", category: "Strategy", art: "from-blue-600/50 via-indigo-950 to-[#080d1b]", accent: "text-cyan-200", artwork: "♟" },
   { title: "Tiger Quiz", subtitle: "Quiz · AI / Multiplayer", detail: "Maswali · Raundi za muda · Trophies", tag: "ONLINE", path: "/game", icon: "?", players: "Jipime maarifa", category: "Quiz", art: "from-fuchsia-600/50 via-violet-950 to-[#10091d]", accent: "text-violet-200", artwork: "?" },
   { title: "Connect Four", subtitle: "Strategy · Multiplayer", detail: "Unganisha nne · Online PvP · Tiger AI", tag: "ONLINE", path: "/games/connect-four", icon: "●", players: "AI na marafiki", category: "Strategy", art: "from-sky-500/50 via-blue-950 to-[#080d1b]", accent: "text-sky-200", artwork: "🔴" },
@@ -11,7 +12,7 @@ const liveGames = [
   { title: "Unblock", subtitle: "Puzzle · Progressive Levels", detail: "Telezesha vipande vya mbao · Fungua njia", tag: "POPULAR", path: "/games/unblock", icon: "🪵", players: "Puzzle ya akili", category: "Puzzle", art: "from-amber-700/50 via-stone-900 to-[#0b101b]", accent: "text-amber-100", artwork: "🪵" },
 ];
 
-const categories = ["All Games", "Strategy", "Quiz", "Puzzle"];
+const categories = ["All Games", "Strategy", "Quiz", "Puzzle", "Simulation"];
 const comingSoon = [
   { title: "Word Puzzle", subtitle: "Maneno, lugha na changamoto za akili", icon: "🔤", label: "Puzzle", tone: "border-violet-400/20 bg-violet-400/5" },
   { title: "Snake Rush", subtitle: "Mchezo wa kasi na alama nyingi", icon: "🐍", label: "Arcade", tone: "border-lime-400/20 bg-lime-400/5" },
