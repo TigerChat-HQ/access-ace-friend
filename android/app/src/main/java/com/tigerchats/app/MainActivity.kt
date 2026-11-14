@@ -770,7 +770,14 @@ open class MainActivity : Activity() {
 
         @JavascriptInterface
         fun nativeWebRtcClose() {
-            runOnUiThread { disposeNativeWebRtcEngine() }
+            runOnUiThread {
+                // A call may be cancelled while the Android permission dialog is open.
+                // Clear the pending request so a late grant cannot start a ghost call.
+                pendingNativeWebRtcIceServers = null
+                pendingNativeWebRtcWithVideo = false
+                disposeNativeWebRtcEngine()
+                dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject().put("type", "cancelled"))
+            }
         }
 
         @JavascriptInterface
