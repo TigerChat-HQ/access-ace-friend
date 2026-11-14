@@ -592,8 +592,9 @@ open class MainActivity : Activity() {
                     return@runOnUiThread
                 }
                 val output = File(cacheDir, "tiger-voice-${UUID.randomUUID()}.m4a")
+                var recorder: MediaRecorder? = null
                 try {
-                    val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(this@MainActivity) else MediaRecorder()
+                    recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(this@MainActivity) else MediaRecorder()
                     recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
                     recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
                     recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
@@ -608,6 +609,8 @@ open class MainActivity : Activity() {
                     android.util.Log.i(TAG, "Native Android voice note recording started")
                     dispatchNativeVoiceNoteEvent("tiger:native-voice-note-started")
                 } catch (error: Exception) {
+                    try { recorder?.reset() } catch (_: Exception) { }
+                    try { recorder?.release() } catch (_: Exception) { }
                     try { output.delete() } catch (_: Exception) { }
                     android.util.Log.e(TAG, "Native Android voice note start failed", error)
                     dispatchNativeVoiceNoteEvent("tiger:native-voice-note-error", JSONObject()
