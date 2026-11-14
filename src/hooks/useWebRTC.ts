@@ -291,7 +291,8 @@ export const useWebRTC = () => {
         else void sendSignal(info, "ice-candidate", { candidate }).catch((error) => console.error("Native ICE signal failed:", error));
       } else if (event.type === "renegotiation-needed") {
         // The caller owns offer generation to avoid offer glare during ICE recovery.
-        if (user?.id === info.callerId && statusRef.current === "connected") {
+        // A restart can happen before the first media packet, while the call is connecting.
+        if (user?.id === info.callerId && ["connecting", "connected"].includes(statusRef.current)) {
           void createNativeWebRtcDescription("offer")
             .then((offer) => sendSignal(info, "offer", { sdp: offer.sdp, type: offer.type, renegotiate: true }))
             .catch((error) => console.warn("Native ICE renegotiation failed:", error));
@@ -305,8 +306,23 @@ export const useWebRTC = () => {
             if (disconnectTimerRef.current) { clearTimeout(disconnectTimerRef.current); disconnectTimerRef.current = null; }
             if (!durationTimerRef.current) durationTimerRef.current = setInterval(() => setDuration((value) => value + 1), 1000);
           }
-        } else if (event.state === "FAILED") void endCall();
-        else if (event.state === "DISCONNECTED" && !disconnectTimerRef.current) {
+        } else if (event.state === "FAILED") {
+          // ICE can report FAILED locally before the callee has answered and before
+          // this peer has a remote description. That is not a failed call yet:
+          // keep ringing and let the normal no-answer timer decide the outcome.
+          if (!nativeRemoteReadyRef.current) {
+            console.warn("Native ICE failed before remote SDP; keeping the call pending.", {
+              callId: info.callId,
+              status: statusRef.current,
+            });
+          } else {
+            console.error("Native ICE failed after remote SDP; attempting recovery.", { callId: info.callId });
+            if (user?.id === info.callerId) restartNativeWebRtcIce();
+            if (!disconnectTimerRef.current) {
+              disconnectTimerRef.current = setTimeout(() => { void endCall(); }, 15000);
+            }
+          }
+        } else if (event.state === "DISCONNECTED" && nativeRemoteReadyRef.current && !disconnectTimerRef.current) {
           if (user?.id === info.callerId) restartNativeWebRtcIce();
           disconnectTimerRef.current = setTimeout(() => { void endCall(); }, 15000);
         }
