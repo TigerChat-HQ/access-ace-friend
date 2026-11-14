@@ -135,19 +135,18 @@ describe("call signaling reliability", () => {
     });
     const callId = mocks.insert.mock.calls[0][0].signal_data.callId;
 
+    const answerSignal = { new: {
+      caller_id: "receiver",
+      callee_id: "callee",
+      conversation_id: "chat",
+      call_type: "voice",
+      signal_type: "answer",
+      signal_data: { from: "callee", callId, type: "answer", sdp: "remote-answer-sdp" },
+    } };
     await act(async () => {
-      mocks.handlers[1]({ new: {
-        caller_id: "receiver",
-        callee_id: "callee",
-        conversation_id: "chat",
-        call_type: "voice",
-        signal_type: "answer",
-        signal_data: { from: "callee", callId, type: "answer", sdp: "remote-answer-sdp" },
-      } });
-      await Promise.resolve();
-      await Promise.resolve();
+      mocks.handlers.forEach((handler) => handler(answerSignal));
     });
-    expect(result.current.callStatus).toBe("connecting");
+    await waitFor(() => expect(result.current.callStatus).toBe("connecting"));
 
     act(() => { mocks.nativeListener?.({ type: "ice-state", state: "FAILED" }); });
 
