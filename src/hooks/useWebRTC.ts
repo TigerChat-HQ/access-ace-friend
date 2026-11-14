@@ -620,12 +620,14 @@ export const useWebRTC = () => {
 
   const toggleMute = useCallback(() => {
     if (nativeCallRef.current) {
-      setIsMuted((muted) => { setNativeWebRtcMuted(!muted); return !muted; });
+      const nextMuted = !isMuted;
+      setNativeWebRtcMuted(nextMuted);
+      setIsMuted(nextMuted);
       return;
     }
     const track = localStreamRef.current?.getAudioTracks()[0];
     if (track) { track.enabled = !track.enabled; setIsMuted(!track.enabled); }
-  }, []);
+  }, [isMuted]);
 
   const toggleVideo = useCallback(() => {
     const track = localStreamRef.current?.getVideoTracks()[0];
