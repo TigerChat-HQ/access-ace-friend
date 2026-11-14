@@ -10,7 +10,7 @@ interface CallDialogProps {
   callStatus: CallStatus;
   isMuted: boolean;
   isVideoOn: boolean;
-  nativeVideo: boolean;
+  nativeVideo?: boolean;
   duration: number;
   remoteStream: MediaStream;
   localStream: MediaStream | null;
@@ -45,7 +45,7 @@ export const CallDialog = ({
   callStatus,
   isMuted,
   isVideoOn,
-  nativeVideo,
+  nativeVideo = false,
   duration,
   remoteStream,
   localStream,
