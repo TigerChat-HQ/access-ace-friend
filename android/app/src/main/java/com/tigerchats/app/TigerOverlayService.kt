@@ -20,6 +20,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.math.abs
@@ -32,6 +33,7 @@ class TigerOverlayService : Service() {
     private var badge: TextView? = null
     private var panel: FrameLayout? = null
     private var panelWebView: WebView? = null
+    private var miniWindowReady = false
     private var latestPath: String = "/chats"
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -125,7 +127,7 @@ class TigerOverlayService : Service() {
             latestPath = safeMiniPath(intent.getStringExtra(EXTRA_PATH))
             updateUnread(count)
             if (avatarUrl.isNotBlank()) loadSenderAvatar(avatarUrl)
-            panelWebView?.loadUrl(SITE_URL + latestPath)
+            navigateMiniWindow()
         }
         return START_STICKY
     }
@@ -150,7 +152,15 @@ class TigerOverlayService : Service() {
         root.addView(header, FrameLayout.LayoutParams(-1, dp(48), Gravity.TOP))
         val web = WebView(this).apply {
             settings.javaScriptEnabled = true; settings.domStorageEnabled = true
-            settings.loadsImagesAutomatically = true; webViewClient = WebViewClient()
+            settings.loadsImagesAutomatically = true
+            webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView, url: String) {
+                    super.onPageFinished(view, url)
+                    if (android.net.Uri.parse(url).host != android.net.Uri.parse(SITE_URL).host) return
+                    miniWindowReady = true
+                    navigateMiniWindow()
+                }
+            }
         }
         root.addView(web, FrameLayout.LayoutParams(-1, -1).apply { topMargin = dp(48) })
         val params = WindowManager.LayoutParams(
@@ -160,7 +170,10 @@ class TigerOverlayService : Service() {
         ).apply { gravity = Gravity.CENTER; softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE }
         try {
             windowManager?.addView(root, params); panel = root; panelWebView = web
-            web.loadUrl(SITE_URL + safeMiniPath(latestPath))
+            miniWindowReady = false
+            // Always load the SPA entry point first. Direct /chats and /post requests can
+            // be rejected by static hosting before React Router gets a chance to handle them.
+            web.loadUrl(SITE_URL + "/")
         } catch (error: Exception) {
             android.util.Log.e("TigerOverlay", "Could not open mini chat window", error); web.destroy()
         }
@@ -169,7 +182,18 @@ class TigerOverlayService : Service() {
     private fun closeMiniWindow() {
         panel?.let { try { windowManager?.removeView(it) } catch (_: Exception) { } }
         panelWebView?.apply { stopLoading(); loadUrl("about:blank"); destroy() }
-        panel = null; panelWebView = null
+        panel = null; panelWebView = null; miniWindowReady = false
+    }
+
+    private fun navigateMiniWindow() {
+        val web = panelWebView ?: return
+        if (!miniWindowReady) return
+        val target = safeMiniPath(latestPath)
+        val quotedTarget = JSONObject.quote(target)
+        web.evaluateJavascript(
+            "window.history.replaceState({}, '', $quotedTarget); window.dispatchEvent(new PopStateEvent('popstate'));",
+            null,
+        )
     }
 
     private fun safeMiniPath(raw: String?): String {
