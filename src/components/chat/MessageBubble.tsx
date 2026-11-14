@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Message } from "@/types/chat";
 import { useVoiceNotePlayer } from "@/contexts/VoiceNotePlayerContext";
+import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { playChatEmojiSound } from "@/lib/chat-emoji";
 import { getMediaDisplayUrl, isDataSaverEnabled } from "@/lib/data-saver";
@@ -37,6 +38,9 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
   const audioProgress = activeVoiceNoteId === message.id ? currentTime : 0;
   const audioDuration = activeVoiceNoteId === message.id ? duration : 0;
   const [transcriptVisible, setTranscriptVisible] = useState(false);
+  const [transcript, setTranscript] = useState<string | null>(null);
+  const [transcribing, setTranscribing] = useState(false);
+  const [transcriptionError, setTranscriptionError] = useState("");
   const [imgLoaded, setImgLoaded] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
   const hasTranslation = !isMe && !!translatedText && translatedText !== message.text;
@@ -57,6 +61,43 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
     if (!isVoice || !mediaUrl) return;
     return registerVoiceNote({ id: message.id, src: mediaUrl, label: message.text || "Voice note" });
   }, [isVoice, mediaUrl, message.id, message.text, registerVoiceNote]);
+
+  useEffect(() => {
+    if (!isVoice) return;
+    let current = true;
+    void supabase.from("voice_note_transcripts").select("transcript").eq("message_id", message.id).maybeSingle()
+      .then(({ data }) => { if (current && data?.transcript) setTranscript(data.transcript); })
+      .catch(() => undefined);
+    return () => { current = false; };
+  }, [isVoice, message.id]);
+
+  const handleTranscribe = async () => {
+    if (transcript) {
+      setTranscriptVisible((visible) => !visible);
+      return;
+    }
+    if (!mediaUrl || !window.confirm("Voice note itatumwa kwa Gemini AI ili kuandika maneno yake. Sauti yenyewe haitahifadhiwa kwenye jedwali la transcript. Unakubali kuendelea?")) return;
+    setTranscribing(true);
+    setTranscriptionError("");
+    try {
+      const audioResponse = await fetch(mediaUrl);
+      if (!audioResponse.ok) throw new Error("Imeshindikana kupakua voice note.");
+      const audioBlob = await audioResponse.blob();
+      if (!audioBlob.size || audioBlob.size > 8 * 1024 * 1024) throw new Error("Voice note lazima iwe chini ya MB 8 ili kuandikwa.");
+      const form = new FormData();
+      form.append("messageId", message.id);
+      form.append("audio", audioBlob, audioBlob.type.includes("webm") ? "voice-note.webm" : "voice-note.m4a");
+      const { data, error } = await supabase.functions.invoke<{ transcript: string }>("transcribe-voice-note", { body: form });
+      if (error) throw error;
+      if (!data?.transcript) throw new Error("Hakuna maneno yaliyotambuliwa kwenye sauti hii.");
+      setTranscript(data.transcript);
+      setTranscriptVisible(true);
+    } catch (error) {
+      setTranscriptionError(error instanceof Error ? error.message : "Imeshindikana kuandika maneno ya sauti.");
+    } finally {
+      setTranscribing(false);
+    }
+  };
 
   const formatAudioTime = (seconds: number) => Number.isFinite(seconds)
     ? `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, "0")}`
@@ -146,6 +187,13 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
               <div className="flex items-center justify-between text-[10px] opacity-60"><span>{formatAudioTime(audioProgress)}</span><span>{formatAudioTime(audioDuration) || message.text || "0:00"}</span></div>
             </div>
             <button type="button" aria-label="Change playback speed" onClick={cyclePlaybackRate} className="shrink-0 rounded-full px-1.5 py-1 text-[10px] font-semibold bg-white/10 hover:bg-white/20">{playbackRate}×</button>
+          </div>
+          <div className="mt-2">
+            <button type="button" onClick={() => void handleTranscribe()} disabled={transcribing} className="text-[11px] underline underline-offset-2 opacity-80 hover:opacity-100 disabled:opacity-50">
+              {transcribing ? "Inaandika sauti..." : transcript ? (transcriptVisible ? "Ficha maandishi" : "Onyesha maandishi") : "Andika maneno ya sauti"}
+            </button>
+            {transcriptionError && <p role="alert" className="mt-1 text-[11px] text-red-300">{transcriptionError}</p>}
+            {transcriptVisible && transcript && <p dir="auto" className="mt-2 rounded-lg bg-white/10 p-2 text-xs whitespace-pre-wrap">{transcript}</p>}
           </div>
         ) : isImage && message.mediaUrl ? (
           <div>
