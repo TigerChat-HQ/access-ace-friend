@@ -53,12 +53,19 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
     if (Math.abs(dx) >= 58 && Math.abs(dy) <= 48) onReply(message);
   };
 
-  const waveformHeights = useMemo(
-    () => Array.from({ length: 28 }, (_, index) => 5 + ((index * 17 + 11) % 13)),
-    []
-  );
+  const playbackStorageKey = `tigerchat:voice-position:${message.id}`;
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    try {
+      const saved = Number(localStorage.getItem(playbackStorageKey));
+      if (Number.isFinite(saved) && saved > 0) audio.currentTime = saved;
+    } catch { /* storage may be unavailable */ }
+  }, [playbackStorageKey, mediaUrl]);
 
-  const playbackStorageKey = `tigerchat:voice-position:${message.id}`;\n  useEffect(() => {\n    const audio = audioRef.current; if (!audio) return;\n    try { const saved = Number(localStorage.getItem(playbackStorageKey)); if (Number.isFinite(saved) && saved > 0) audio.currentTime = saved; } catch { /* storage may be unavailable */ }\n  }, [playbackStorageKey, mediaUrl]);\n\n  const formatAudioTime = (seconds: number) => Number.isFinite(seconds) ? `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, "0")}` : "0:00";
+  const formatAudioTime = (seconds: number) => Number.isFinite(seconds)
+    ? `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, "0")}`
+    : "0:00";
 
   const toggleAudio = () => {
     if (!audioRef.current) return;
