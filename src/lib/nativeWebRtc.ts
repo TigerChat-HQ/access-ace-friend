@@ -44,11 +44,8 @@ export interface TigerNativeWebRtcBridge {
   nativeWebRtcClose(): void;
 }
 
-declare global {
-  interface Window {
-    TigerNative?: TigerNativeWebRtcBridge;
-  }
-}
+const getNativeBridge = (): TigerNativeWebRtcBridge | undefined =>
+  (window as Window & { TigerNative?: TigerNativeWebRtcBridge }).TigerNative;
 
 const EVENT_NAME = "tiger:native-webrtc";
 const OPERATION_TIMEOUT_MS = 15_000;
@@ -56,7 +53,7 @@ const OPERATION_TIMEOUT_MS = 15_000;
 export const isNativeWebRtcAvailable = (): boolean =>
   typeof window !== "undefined" &&
   /Android/i.test(window.navigator.userAgent) &&
-  typeof window.TigerNative?.nativeWebRtcStart === "function";
+  typeof getNativeBridge()?.nativeWebRtcStart === "function";
 
 export const subscribeNativeWebRtc = (
   listener: (event: NativeWebRtcEvent) => void,
@@ -107,7 +104,7 @@ export const startNativeWebRtc = async (
   iceServers: NativeIceServer[],
   withVideo: boolean,
 ): Promise<NativeWebRtcEvent> => {
-  const bridge = window.TigerNative;
+  const bridge = getNativeBridge();
   if (!bridge) throw new Error("Native WebRTC bridge haipatikani kwenye kifaa hiki.");
   return waitForEvent("ready", () => bridge.nativeWebRtcStart(JSON.stringify(iceServers), withVideo));
 };
@@ -139,17 +136,17 @@ export const addNativeIceCandidate = (candidate: NativeIceCandidate): void => {
 };
 
 export const setNativeWebRtcMuted = (muted: boolean): void => {
-  window.TigerNative?.nativeWebRtcSetMuted(muted);
+  getNativeBridge()?.nativeWebRtcSetMuted(muted);
 };
 
 export const setNativeWebRtcVideoEnabled = (enabled: boolean): void => {
-  window.TigerNative?.nativeWebRtcSetVideoEnabled(enabled);
+  getNativeBridge()?.nativeWebRtcSetVideoEnabled(enabled);
 };
 
 export const switchNativeWebRtcCamera = (): void => {
-  window.TigerNative?.nativeWebRtcSwitchCamera();
+  getNativeBridge()?.nativeWebRtcSwitchCamera();
 };
 
 export const closeNativeWebRtc = (): void => {
-  window.TigerNative?.nativeWebRtcClose();
+  getNativeBridge()?.nativeWebRtcClose();
 };
