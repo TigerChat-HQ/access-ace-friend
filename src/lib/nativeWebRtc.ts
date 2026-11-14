@@ -39,6 +39,7 @@ export interface TigerNativeWebRtcBridge {
   nativeWebRtcSetRemoteDescription(type: string, sdp: string): void;
   nativeWebRtcAddIceCandidate(candidateJson: string): void;
   nativeWebRtcSetMuted(muted: boolean): void;
+  nativeWebRtcSetRemoteAudioEnabled(enabled: boolean): void;
   nativeWebRtcSetVideoEnabled(enabled: boolean): void;
   nativeWebRtcSetVideoLayout(enabled: boolean): void;
   nativeWebRtcSwitchCamera(): void;
@@ -140,6 +141,10 @@ export const addNativeIceCandidate = (candidate: RTCIceCandidateInit): void => {
 
 export const setNativeWebRtcMuted = (muted: boolean): void => {
   getNativeBridge()?.nativeWebRtcSetMuted(muted);
+};
+
+export const setNativeRemoteAudioEnabled = (enabled: boolean): void => {
+  getNativeBridge()?.nativeWebRtcSetRemoteAudioEnabled(enabled);
 };
 
 export const setNativeWebRtcVideoEnabled = (enabled: boolean): void => {
