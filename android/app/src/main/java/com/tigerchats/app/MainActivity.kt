@@ -594,16 +594,17 @@ open class MainActivity : Activity() {
                 val output = File(cacheDir, "tiger-voice-${UUID.randomUUID()}.m4a")
                 var recorder: MediaRecorder? = null
                 try {
-                    recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(this@MainActivity) else MediaRecorder()
-                    recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
-                    recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-                    recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                    recorder.setAudioEncodingBitRate(96000)
-                    recorder.setAudioSamplingRate(44100)
-                    recorder.setOutputFile(output.absolutePath)
-                    recorder.prepare()
-                    recorder.start()
-                    nativeVoiceNoteRecorder = recorder
+                    val createdRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(this@MainActivity) else MediaRecorder()
+                    recorder = createdRecorder
+                    createdRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+                    createdRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                    createdRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                    createdRecorder.setAudioEncodingBitRate(96000)
+                    createdRecorder.setAudioSamplingRate(44100)
+                    createdRecorder.setOutputFile(output.absolutePath)
+                    createdRecorder.prepare()
+                    createdRecorder.start()
+                    nativeVoiceNoteRecorder = createdRecorder
                     nativeVoiceNoteFile = output
                     nativeVoiceNoteStartedAt = System.currentTimeMillis()
                     android.util.Log.i(TAG, "Native Android voice note recording started")
