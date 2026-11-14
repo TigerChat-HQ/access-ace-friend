@@ -7,7 +7,7 @@ import { acquireSharedMicrophone } from "@/lib/audioCapture";
 import {
   addNativeIceCandidate, closeNativeWebRtc, createNativeWebRtcDescription,
   isNativeWebRtcAvailable, setNativeRemoteDescription, setNativeWebRtcMuted,
-  setNativeWebRtcVideoEnabled, setNativeWebRtcVideoLayout, switchNativeWebRtcCamera,
+  setNativeWebRtcVideoEnabled, setNativeWebRtcVideoLayout, restartNativeWebRtcIce, switchNativeWebRtcCamera,
   startNativeWebRtc, subscribeNativeWebRtc,
 } from "@/lib/nativeWebRtc";
 
@@ -276,6 +276,13 @@ export const useWebRTC = () => {
         };
         if (signalReadyCallId.current !== info.callId) localIceQueue.current.push({ info, candidate });
         else void sendSignal(info, "ice-candidate", { candidate }).catch((error) => console.error("Native ICE signal failed:", error));
+      } else if (event.type === "renegotiation-needed") {
+        // The caller owns offer generation to avoid offer glare during ICE recovery.
+        if (user?.id === info.callerId && statusRef.current === "connected") {
+          void createNativeWebRtcDescription("offer")
+            .then((offer) => sendSignal(info, "offer", { sdp: offer.sdp, type: offer.type, renegotiate: true }))
+            .catch((error) => console.warn("Native ICE renegotiation failed:", error));
+        }
       } else if (event.type === "ice-state") {
         if (event.state === "CONNECTED" || event.state === "COMPLETED") {
           if (statusRef.current !== "connected") {
@@ -286,8 +293,10 @@ export const useWebRTC = () => {
             if (!durationTimerRef.current) durationTimerRef.current = setInterval(() => setDuration((value) => value + 1), 1000);
           }
         } else if (event.state === "FAILED") void endCall();
-        else if (event.state === "DISCONNECTED" && !disconnectTimerRef.current)
+        else if (event.state === "DISCONNECTED" && !disconnectTimerRef.current) {
+          if (user?.id === info.callerId) restartNativeWebRtcIce();
           disconnectTimerRef.current = setTimeout(() => { void endCall(); }, 15000);
+        }
       } else if (event.type === "error") {
         console.error("Native WebRTC error:", event.stage, event.message);
       }
@@ -695,6 +704,12 @@ export const useWebRTC = () => {
       switch (signal.signal_type) {
         case "offer": {
           if (signal.callee_id !== user.id) return;
+          if (data.renegotiate && callId === callIdRef.current && nativeCallRef.current && callRef.current) {
+            await applyNativeRemoteDescription("offer", typeof data.sdp === "string" ? data.sdp : "");
+            const answer = await createNativeWebRtcDescription("answer");
+            await sendSignal(callRef.current, "answer", { sdp: answer.sdp, type: answer.type });
+            return;
+          }
           if (data.renegotiate && callId === callIdRef.current && pcRef.current && callRef.current) {
             const pc = pcRef.current;
             await pc.setRemoteDescription({ sdp: data.sdp, type: data.type });
