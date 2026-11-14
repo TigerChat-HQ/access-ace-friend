@@ -21,7 +21,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
       subscribe: (cb?: (status: string) => void) => {
         if (presenceSync) {
           cb?.("SUBSCRIBED");
-          queueMicrotask(() => presenceSync?.());
+          queueMicrotask(() => presenceSync?.({}));
         }
         return channel;
       },
