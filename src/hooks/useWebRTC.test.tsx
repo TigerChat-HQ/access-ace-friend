@@ -155,6 +155,41 @@ describe("call signaling reliability", () => {
     expect(mocks.insert).not.toHaveBeenCalledWith(expect.objectContaining({ signal_type: "hangup" }));
     unmount();
   });
+  it("processes a second native offer for ICE renegotiation in the same call", async () => {
+    mocks.nativeAvailable = true;
+    const { result, unmount } = renderHook(() => useWebRTC());
+    const callId = "incoming-native-renegotiation";
+
+    const initialOffer = { new: {
+      id: "offer-row-initial",
+      caller_id: "caller",
+      callee_id: "receiver",
+      conversation_id: "chat",
+      call_type: "voice",
+      signal_type: "offer",
+      signal_data: { from: "caller", callId, type: "offer", sdp: "initial-offer-sdp" },
+    } };
+    await act(async () => { mocks.handlers.forEach((handler) => handler(initialOffer)); });
+    await waitFor(() => expect(result.current.callStatus).toBe("incoming"));
+
+    await act(async () => { await result.current.acceptIncomingCall(); });
+    expect(result.current.callStatus).toBe("connecting");
+    expect(mocks.nativeRemote).toHaveBeenCalledTimes(1);
+
+    const restartOffer = { new: {
+      id: "offer-row-restart",
+      caller_id: "caller",
+      callee_id: "receiver",
+      conversation_id: "chat",
+      call_type: "voice",
+      signal_type: "offer",
+      signal_data: { from: "caller", callId, type: "offer", sdp: "restart-offer-sdp", renegotiate: true },
+    } };
+    await act(async () => { mocks.handlers.forEach((handler) => handler(restartOffer)); });
+    await waitFor(() => expect(mocks.nativeRemote).toHaveBeenCalledTimes(2));
+    expect(mocks.insert.mock.calls.filter((call) => call[0].signal_type === "answer")).toHaveLength(2);
+    unmount();
+  });
   it("keeps the provider hook order stable across rerenders and call transitions", async () => {
     const { result, rerender, unmount } = renderHook(() => useCall(), { wrapper: CallProvider });
     expect(result.current.callStatus).toBe("idle");
