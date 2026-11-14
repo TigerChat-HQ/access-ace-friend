@@ -49,6 +49,9 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const dataSaver = isDataSaverEnabled();
   const mediaUrl = message.mediaUrl ? getMediaDisplayUrl(message.mediaUrl, dataSaver) : undefined;
+  const isFile = message.type === "file";
+  const isImage = message.type === "image";
+  const isVoice = message.type === "voice";
   const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => { const touch = event.touches[0]; touchStartRef.current = { x: touch.clientX, y: touch.clientY }; };
   const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
     const start = touchStartRef.current; touchStartRef.current = null;
@@ -110,9 +113,6 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
     else playVoiceNote(message.id);
   };
 
-  const isFile = message.type === "file";
-  const isImage = message.type === "image";
-  const isVoice = message.type === "voice";
   const isEmojiOnly = !!message.text && /^(?:\p{Extended_Pictographic}|\uFE0F|\u200D|\s)+$/u.test(message.text.trim()) && Array.from(message.text.trim()).length <= 8;
 
   return (
