@@ -80,7 +80,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
       setTranscriptVisible((visible) => !visible);
       return;
     }
-    if (!mediaUrl || !window.confirm("Voice note itatumwa kwa Gemini AI ili kuandika maneno yake. Sauti yenyewe haitahifadhiwa kwenye jedwali la transcript. Unakubali kuendelea?")) return;
+    if (!mediaUrl || !window.confirm("Voice note itatumwa kwa Google Gemini AI ili kuandika maneno yake na itashughulikiwa chini ya masharti ya faragha ya mtoa huduma. TigerChat haihifadhi faili la sauti kwenye jedwali la transcript; maandishi yatabaki kwenye akaunti yako tu. Unakubali kuendelea?")) return;
     setTranscribing(true);
     setTranscriptionError("");
     try {
