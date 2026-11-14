@@ -2,22 +2,33 @@ package com.tigerchats.app
 
 import android.app.Service
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.TextView
+import java.net.HttpURLConnection
+import java.net.URL
 import kotlin.math.abs
 
-/** User-enabled, draggable TigerChat launcher shown above other apps. */
+/** Single circular TigerChat overlay. Shows the app logo when idle and sender avatar + unread badge on messages. */
 class TigerOverlayService : Service() {
     private var windowManager: WindowManager? = null
-    private var bubble: TextView? = null
+    private var bubble: FrameLayout? = null
+    private var avatar: ImageView? = null
+    private var badge: TextView? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate() {
         super.onCreate()
@@ -26,27 +37,50 @@ class TigerOverlayService : Service() {
             return
         }
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        val view = TextView(this).apply {
-            text = "🐯"
-            textSize = 25f
-            gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            setBackgroundColor(Color.rgb(0, 190, 135))
-            contentDescription = "Open TigerChat"
-            isClickable = true
+        val root = FrameLayout(this).apply {
+            background = oval(Color.rgb(0, 190, 135))
+            clipToOutline = true
             elevation = dp(8).toFloat()
+            contentDescription = "Open TigerChat"
         }
-        view.setOnClickListener {
+        val image = ImageView(this).apply {
+            setImageResource(R.drawable.tigerchats_logo)
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            background = oval(Color.rgb(0, 190, 135))
+            clipToOutline = true
+            contentDescription = "TigerChat"
+        }
+        root.addView(image, FrameLayout.LayoutParams(-1, -1))
+        val count = TextView(this).apply {
+            text = ""
+            textSize = 10f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(dp(4), 0, dp(4), 0)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(20).toFloat()
+                setColor(Color.rgb(220, 38, 38))
+                setStroke(dp(1), Color.WHITE)
+            }
+            visibility = View.GONE
+        }
+        val badgeParams = FrameLayout.LayoutParams(-2, dp(19), Gravity.TOP or Gravity.END)
+        root.addView(count, badgeParams)
+        avatar = image
+        badge = count
+        root.setOnClickListener {
             val launch = packageManager.getLaunchIntentForPackage(packageName)
                 ?: Intent(this@TigerOverlayService, MainActivity::class.java)
             launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             startActivity(launch)
         }
+
         val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         else WindowManager.LayoutParams.TYPE_PHONE
         val layout = WindowManager.LayoutParams(
-            dp(54), dp(54), overlayType,
+            dp(58), dp(58), overlayType,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
@@ -58,13 +92,11 @@ class TigerOverlayService : Service() {
         var downY = 0f
         var startX = 0
         var startY = 0
-        view.setOnTouchListener { target: View, event: MotionEvent ->
+        root.setOnTouchListener { target: View, event: MotionEvent ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    downX = event.rawX
-                    downY = event.rawY
-                    startX = layout.x
-                    startY = layout.y
+                    downX = event.rawX; downY = event.rawY
+                    startX = layout.x; startY = layout.y
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -80,17 +112,75 @@ class TigerOverlayService : Service() {
                 else -> false
             }
         }
-        bubble = view
-        try { windowManager?.addView(view, layout) } catch (_: Exception) { stopSelf() }
+        bubble = root
+        try { windowManager?.addView(root, layout) } catch (_: Exception) { stopSelf() }
+        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+        updateUnread(prefs.getInt(KEY_UNREAD, 0))
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_MESSAGE) {
+            val count = intent.getIntExtra(EXTRA_UNREAD, 1)
+            val avatarUrl = intent.getStringExtra(EXTRA_AVATAR).orEmpty()
+            updateUnread(count)
+            if (avatarUrl.isNotBlank()) loadSenderAvatar(avatarUrl)
+        }
+        return START_STICKY
+    }
+
+    private fun updateUnread(count: Int) {
+        mainHandler.post {
+            badge?.apply {
+                if (count > 0) {
+                    text = if (count > 99) "99+" else count.toString()
+                    visibility = View.VISIBLE
+                } else visibility = View.GONE
+            }
+        }
+    }
+
+    private fun loadSenderAvatar(rawUrl: String) {
+        Thread {
+            var connection: HttpURLConnection? = null
+            try {
+                val url = URL(rawUrl)
+                connection = (url.openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 5000
+                    readTimeout = 5000
+                    instanceFollowRedirects = true
+                }
+                connection.inputStream.use { stream ->
+                    val bitmap = BitmapFactory.decodeStream(stream)
+                    if (bitmap != null) mainHandler.post { avatar?.setImageBitmap(bitmap) }
+                }
+            } catch (error: Exception) {
+                android.util.Log.w("TigerOverlay", "Could not load sender avatar", error)
+            } finally {
+                connection?.disconnect()
+            }
+        }.start()
+    }
+
+    private fun oval(color: Int) = GradientDrawable().apply {
+        shape = GradientDrawable.OVAL
+        setColor(color)
     }
 
     override fun onDestroy() {
         bubble?.let { view -> try { windowManager?.removeView(view) } catch (_: Exception) { } }
-        bubble = null
-        windowManager = null
+        bubble = null; avatar = null; badge = null; windowManager = null
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    companion object {
+        const val ACTION_MESSAGE = "com.tigerchats.app.OVERLAY_MESSAGE"
+        const val EXTRA_AVATAR = "avatar_url"
+        const val EXTRA_UNREAD = "unread_count"
+        const val PREFS = "tiger_overlay"
+        const val KEY_ENABLED = "enabled"
+        const val KEY_UNREAD = "unread_count"
+    }
 }
