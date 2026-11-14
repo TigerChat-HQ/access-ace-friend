@@ -179,9 +179,10 @@ export const useWebRTC = () => {
   const nativeUnsubscribeRef = useRef<(() => void) | null>(null);
 
   const getSignalKey = useCallback((signal: CallSignal, fallbackCallId?: string) => {
-    // Each ICE candidate is a distinct signal; deduplicating by callId drops all but the first.
-    if (signal.signal_type === "ice-candidate") return signal.id;
-    const callId = signal?.signal_data?.callId || signal?.callId || fallbackCallId || signal?.id;
+    // Every inserted row is a distinct signal. In particular, ICE-restart offers
+    // reuse the callId but must not be deduplicated against the initial offer.
+    if (signal.id) return signal.id;
+    const callId = signal?.signal_data?.callId || signal?.callId || fallbackCallId;
     return callId ? `${signal?.signal_type ?? "signal"}:${callId}` : null;
   }, []);
 
