@@ -112,7 +112,7 @@ export const startNativeWebRtc = async (
 
 export const createNativeWebRtcDescription = async (
   kind: "offer" | "answer",
-): Promise<NativeWebRtcEvent & { sdp: string; type: string }> => {
+): Promise<NativeWebRtcEvent & { sdp: string; type: "offer" | "answer" }> => {
   const bridge = window.TigerNative;
   if (!bridge) throw new Error("Native WebRTC bridge haipatikani.");
   return waitForEvent("local-description", () => {
@@ -130,9 +130,10 @@ export const setNativeRemoteDescription = async (
   await waitForEvent("remote-description-set", () => bridge.nativeWebRtcSetRemoteDescription(type, sdp));
 };
 
-export const addNativeIceCandidate = (candidate: NativeIceCandidate): void => {
-  const bridge = window.TigerNative;
+export const addNativeIceCandidate = (candidate: RTCIceCandidateInit): void => {
+  const bridge = getNativeBridge();
   if (!bridge) throw new Error("Native WebRTC bridge haipatikani.");
+  if (!candidate.candidate) return;
   bridge.nativeWebRtcAddIceCandidate(JSON.stringify(candidate));
 };
 
