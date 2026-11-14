@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Phone, PhoneOff, Video, VideoOff, Mic, MicOff, Volume2, VolumeX, SwitchCamera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { playRingtone, playRingbackTone } from "@/lib/ringtones";
+import { setNativeRemoteAudioEnabled } from "@/lib/nativeWebRtc";
 import type { CallInfo, CallStatus } from "@/hooks/useWebRTC";
 
 interface CallDialogProps {
@@ -9,6 +11,8 @@ interface CallDialogProps {
   callStatus: CallStatus;
   isMuted: boolean;
   isVideoOn: boolean;
+  nativeVideo?: boolean;
+  nativeMedia?: boolean;
   duration: number;
   remoteStream: MediaStream;
   localStream: MediaStream | null;
@@ -43,6 +47,8 @@ export const CallDialog = ({
   callStatus,
   isMuted,
   isVideoOn,
+  nativeVideo = false,
+  nativeMedia = false,
   duration,
   remoteStream,
   localStream,
@@ -63,9 +69,30 @@ export const CallDialog = ({
 
   useCallRingtone(callStatus === "incoming" ? "incoming" : callStatus === "ringing" ? "outgoing" : null);
 
+  useEffect(() => {
+    if (!nativeVideo) return;
+    const root = document.getElementById("root");
+    const previousRootVisibility = root?.style.visibility ?? "";
+    const previousBodyBackground = document.body.style.background;
+    const previousHtmlBackground = document.documentElement.style.background;
+    if (root) root.style.visibility = "hidden";
+    document.body.style.background = "transparent";
+    document.documentElement.style.background = "transparent";
+    return () => {
+      if (root) root.style.visibility = previousRootVisibility;
+      document.body.style.background = previousBodyBackground;
+      document.documentElement.style.background = previousHtmlBackground;
+    };
+  }, [nativeVideo]);
+
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const [soundOn, setSoundOn] = useState(true);
   const [playbackBlocked, setPlaybackBlocked] = useState(false);
+
+  useEffect(() => {
+    if (nativeMedia) setNativeRemoteAudioEnabled(soundOn);
+  }, [nativeMedia, soundOn]);
+
 
   useEffect(() => {
     if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
@@ -104,13 +131,13 @@ export const CallDialog = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col items-center justify-between gap-6 px-3 py-6 sm:py-12 overflow-y-auto">
-      <div className="absolute inset-0 bg-gradient-to-b from-primary/10 via-background to-background animate-pulse opacity-50" />
+  return createPortal((
+    <div className={`fixed inset-0 z-50 ${nativeVideo ? "bg-transparent" : "bg-background"} flex flex-col items-center justify-between gap-6 px-3 py-6 sm:py-12 overflow-y-auto`}>
+      {!nativeVideo && <div className="absolute inset-0 bg-gradient-to-b from-primary/10 via-background to-background animate-pulse opacity-50" />}
 
       {!isVideo && <audio ref={remoteAudioRef} autoPlay />}
       {/* Remote video (full screen background when connected) */}
-      {isVideo && callStatus === "connected" && (
+      {isVideo && !nativeVideo && callStatus === "connected" && (
         <video
           ref={remoteVideoRef}
           autoPlay
@@ -120,7 +147,7 @@ export const CallDialog = ({
       )}
 
       {/* Local video preview (small pip) */}
-      {isVideo && isVideoOn && (callStatus === "connected" || callStatus === "connecting" || isOutgoing) && (
+      {isVideo && !nativeVideo && isVideoOn && (callStatus === "connected" || callStatus === "connecting" || isOutgoing) && (
         <video
           ref={localVideoRef}
           autoPlay
@@ -228,5 +255,5 @@ export const CallDialog = ({
         )}
       </div>
     </div>
-  );
+  ), document.body);
 };
