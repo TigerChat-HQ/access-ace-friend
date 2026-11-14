@@ -228,8 +228,8 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
   const togglePause = () => {
     const recorder = recorderRef.current;
     if (!recorder || nativeRecordingRef.current) return;
-    if (recorder.state === "recording" && typeof recorder.pause === "function") { recorder.pause(); setIsPaused(true); }
-    else if (recorder.state === "paused" && typeof recorder.resume === "function") { recorder.resume(); setIsPaused(false); }
+    if (recorder.state === "recording" && typeof recorder.pause === "function") { recorder.pause(); pauseStartedRef.current = Date.now(); setIsPaused(true); }
+    else if (recorder.state === "paused" && typeof recorder.resume === "function") { recorder.resume(); if (pauseStartedRef.current) pausedAtRef.current += Date.now() - pauseStartedRef.current; pauseStartedRef.current = 0; setIsPaused(false); }
   };
 
   const stopRecording = () => {
