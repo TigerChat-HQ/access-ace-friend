@@ -1,0 +1,155 @@
+/**
+ * Typed adapter for the Android WebRTC JavaScript bridge.
+ *
+ * Supabase remains the signaling transport. This adapter only controls native
+ * media/PeerConnection operations and translates Android bridge events.
+ * Browser callers must continue using the existing WebRTC implementation.
+ */
+
+export interface NativeIceServer {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
+}
+
+export interface NativeIceCandidate {
+  candidate: string;
+  sdpMid?: string | null;
+  sdpMLineIndex?: number | null;
+}
+
+export interface NativeWebRtcEvent {
+  type: string;
+  stage?: string;
+  message?: string;
+  state?: string;
+  video?: boolean;
+  sdp?: string;
+  id?: string;
+  candidate?: string;
+  sdpMid?: string | null;
+  sdpMLineIndex?: number | null;
+  [key: string]: unknown;
+}
+
+export interface TigerNativeWebRtcBridge {
+  nativeWebRtcStart(iceServersJson: string, withVideo: boolean): void;
+  nativeWebRtcCreateOffer(): void;
+  nativeWebRtcCreateAnswer(): void;
+  nativeWebRtcSetRemoteDescription(type: string, sdp: string): void;
+  nativeWebRtcAddIceCandidate(candidateJson: string): void;
+  nativeWebRtcSetMuted(muted: boolean): void;
+  nativeWebRtcSetVideoEnabled(enabled: boolean): void;
+  nativeWebRtcSwitchCamera(): void;
+  nativeWebRtcClose(): void;
+}
+
+declare global {
+  interface Window {
+    TigerNative?: TigerNativeWebRtcBridge;
+  }
+}
+
+const EVENT_NAME = "tiger:native-webrtc";
+const OPERATION_TIMEOUT_MS = 15_000;
+
+export const isNativeWebRtcAvailable = (): boolean =>
+  typeof window !== "undefined" &&
+  /Android/i.test(window.navigator.userAgent) &&
+  typeof window.TigerNative?.nativeWebRtcStart === "function";
+
+export const subscribeNativeWebRtc = (
+  listener: (event: NativeWebRtcEvent) => void,
+): (() => void) => {
+  const handler = (raw: Event) => {
+    const detail = (raw as CustomEvent<NativeWebRtcEvent>).detail;
+    if (detail && typeof detail.type === "string") listener(detail);
+  };
+  window.addEventListener(EVENT_NAME, handler);
+  return () => window.removeEventListener(EVENT_NAME, handler);
+};
+
+const waitForEvent = <T extends NativeWebRtcEvent>(
+  expectedType: string,
+  invoke: () => void,
+  timeoutMs = OPERATION_TIMEOUT_MS,
+): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    let timeout: ReturnType<typeof setTimeout>;
+    const unsubscribe = subscribeNativeWebRtc((event) => {
+      if (event.type === "error") {
+        cleanup();
+        reject(new Error(event.message || `Native WebRTC error during ${event.stage || "operation"}.`));
+        return;
+      }
+      if (event.type === expectedType) {
+        cleanup();
+        resolve(event as T);
+      }
+    });
+    const cleanup = () => {
+      clearTimeout(timeout);
+      unsubscribe();
+    };
+    timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Native WebRTC timed out waiting for ${expectedType}.`));
+    }, timeoutMs);
+    try {
+      invoke();
+    } catch (error) {
+      cleanup();
+      reject(error);
+    }
+  });
+
+export const startNativeWebRtc = async (
+  iceServers: NativeIceServer[],
+  withVideo: boolean,
+): Promise<NativeWebRtcEvent> => {
+  const bridge = window.TigerNative;
+  if (!bridge) throw new Error("Native WebRTC bridge haipatikani kwenye kifaa hiki.");
+  return waitForEvent("ready", () => bridge.nativeWebRtcStart(JSON.stringify(iceServers), withVideo));
+};
+
+export const createNativeWebRtcDescription = async (
+  kind: "offer" | "answer",
+): Promise<NativeWebRtcEvent & { sdp: string; type: string }> => {
+  const bridge = window.TigerNative;
+  if (!bridge) throw new Error("Native WebRTC bridge haipatikani.");
+  return waitForEvent("local-description", () => {
+    if (kind === "offer") bridge.nativeWebRtcCreateOffer();
+    else bridge.nativeWebRtcCreateAnswer();
+  });
+};
+
+export const setNativeRemoteDescription = async (
+  type: "offer" | "answer",
+  sdp: string,
+): Promise<void> => {
+  const bridge = window.TigerNative;
+  if (!bridge) throw new Error("Native WebRTC bridge haipatikani.");
+  await waitForEvent("remote-description-set", () => bridge.nativeWebRtcSetRemoteDescription(type, sdp));
+};
+
+export const addNativeIceCandidate = (candidate: NativeIceCandidate): void => {
+  const bridge = window.TigerNative;
+  if (!bridge) throw new Error("Native WebRTC bridge haipatikani.");
+  bridge.nativeWebRtcAddIceCandidate(JSON.stringify(candidate));
+};
+
+export const setNativeWebRtcMuted = (muted: boolean): void => {
+  window.TigerNative?.nativeWebRtcSetMuted(muted);
+};
+
+export const setNativeWebRtcVideoEnabled = (enabled: boolean): void => {
+  window.TigerNative?.nativeWebRtcSetVideoEnabled(enabled);
+};
+
+export const switchNativeWebRtcCamera = (): void => {
+  window.TigerNative?.nativeWebRtcSwitchCamera();
+};
+
+export const closeNativeWebRtc = (): void => {
+  window.TigerNative?.nativeWebRtcClose();
+};
