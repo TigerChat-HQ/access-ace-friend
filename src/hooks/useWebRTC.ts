@@ -253,6 +253,9 @@ export const useWebRTC = () => {
     callType === "voice" && isNativeWebRtcAvailable();
 
   const startNativeVoiceTransport = useCallback(async (info: CallInfo, iceServers: RTCIceServer[]) => {
+    // Keep the existing cross-session microphone lease so the same TigerChat
+    // account cannot capture audio simultaneously from its website and APK.
+    audioCaptureReleaseRef.current = await acquireSharedMicrophone("voice-call");
     nativeCallRef.current = true;
     nativeRemoteReadyRef.current = false;
     nativeIceQueueRef.current = [];
@@ -283,7 +286,16 @@ export const useWebRTC = () => {
         console.error("Native WebRTC error:", event.stage, event.message);
       }
     });
-    await startNativeWebRtc(iceServers, false);
+    try {
+      await startNativeWebRtc(iceServers, false);
+    } catch (error) {
+      nativeUnsubscribeRef.current?.();
+      nativeUnsubscribeRef.current = null;
+      nativeCallRef.current = false;
+      audioCaptureReleaseRef.current?.();
+      audioCaptureReleaseRef.current = null;
+      throw error;
+    }
   }, [sendSignal, endCall]);
 
   const applyNativeRemoteDescription = useCallback(async (type: "offer" | "answer", sdp: string) => {
