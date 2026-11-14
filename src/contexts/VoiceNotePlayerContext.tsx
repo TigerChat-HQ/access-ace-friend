@@ -64,7 +64,7 @@ export const VoiceNotePlayerProvider = ({ children }: { children: React.ReactNod
     } else {
       setIsPlaying(false);
     }
-  }, []);
+  }, [playbackRate]);
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.playbackRate = playbackRate;
