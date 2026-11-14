@@ -158,7 +158,7 @@ export const useWebRTC = () => {
   const statusRef = useRef<CallStatus>("idle");
   const callRef = useRef<CallInfo | null>(null);
   const facingRef = useRef<"user" | "environment">("user");
-  // Native transport is Android voice-only until native video rendering is implemented.
+  // Android APK calls use native media; browser calls keep browser WebRTC.
   const nativeCallRef = useRef(false);
   const nativeRemoteReadyRef = useRef(false);
   const nativeIceQueueRef = useRef<RTCIceCandidateInit[]>([]);
