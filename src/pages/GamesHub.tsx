@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Trophy, Coins, Medal, Gamepad2, Radio, ChevronRight, Clock3, Users, Crown, Search, Star } from "lucide-react";
 
 const liveGames = [
-  { title: "TIGER CITY 3D", subtitle: "Ultra-realistic city builder · Offline / Online", detail: "Jenga mji wako · Barabara · Magari · Uchumi", tag: "NEW", path: "/games/tiger-city-3d", icon: "🏙️", players: "Build your city", category: "Simulation", art: "from-amber-500/50 via-sky-950 to-[#080d1b]", accent: "text-amber-200", artwork: "🏙️" },
+  { title: "TIGER CITY 3D", subtitle: "3D city builder · Playable prototype", detail: "Jenga mji · Weka majengo · Tekeleza kampeni", tag: "BETA", path: "/games/tiger-city-3d", icon: "🏙️", players: "Build your city", category: "Simulation", art: "from-amber-500/50 via-sky-950 to-[#080d1b]", accent: "text-amber-200", artwork: "🏙️" },
   { title: "Draughts Arena", subtitle: "Strategy · AI / PvP", detail: "Mkakati wa jadi · Tiger AI · PvP", tag: "ONLINE", path: "/draughts", icon: "♟", players: "AI na marafiki", category: "Strategy", art: "from-blue-600/50 via-indigo-950 to-[#080d1b]", accent: "text-cyan-200", artwork: "♟" },
   { title: "Tiger Quiz", subtitle: "Quiz · AI / Multiplayer", detail: "Maswali · Raundi za muda · Trophies", tag: "ONLINE", path: "/game", icon: "?", players: "Jipime maarifa", category: "Quiz", art: "from-fuchsia-600/50 via-violet-950 to-[#10091d]", accent: "text-violet-200", artwork: "?" },
   { title: "Connect Four", subtitle: "Strategy · Multiplayer", detail: "Unganisha nne · Online PvP · Tiger AI", tag: "ONLINE", path: "/games/connect-four", icon: "●", players: "AI na marafiki", category: "Strategy", art: "from-sky-500/50 via-blue-950 to-[#080d1b]", accent: "text-sky-200", artwork: "🔴" },
