@@ -399,7 +399,9 @@ open class MainActivity : Activity() {
                 if (type == "camera-switched") {
                     runOnUiThread { nativeLocalRenderer?.setMirror(data.optBoolean("front")) }
                 }
-                dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject(data.toString()).put("type", type))
+                val payload = JSONObject(data.toString())
+                if (type == "local-description") payload.put("sdpType", payload.optString("type"))
+                dispatchNativeVoiceNoteEvent("tiger:native-webrtc", payload.put("type", type))
             }
             nativeWebRtcEngine = engine
             if (withVideo) prepareNativeVideoRenderers(engine)
