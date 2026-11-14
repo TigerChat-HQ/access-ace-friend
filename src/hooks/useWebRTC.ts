@@ -4,6 +4,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { acquireSharedMicrophone } from "@/lib/audioCapture";
+import {
+  addNativeIceCandidate, closeNativeWebRtc, createNativeWebRtcDescription,
+  isNativeWebRtcAvailable, setNativeRemoteDescription, setNativeWebRtcMuted,
+  startNativeWebRtc, subscribeNativeWebRtc,
+} from "@/lib/nativeWebRtc";
 
 type CallSignalData = {
   callId?: string;
@@ -151,6 +156,11 @@ export const useWebRTC = () => {
   const statusRef = useRef<CallStatus>("idle");
   const callRef = useRef<CallInfo | null>(null);
   const facingRef = useRef<"user" | "environment">("user");
+  // Native transport is Android voice-only until native video rendering is implemented.
+  const nativeCallRef = useRef(false);
+  const nativeRemoteReadyRef = useRef(false);
+  const nativeIceQueueRef = useRef<RTCIceCandidateInit[]>([]);
+  const nativeUnsubscribeRef = useRef<(() => void) | null>(null);
 
   const getSignalKey = useCallback((signal: CallSignal, fallbackCallId?: string) => {
     // Each ICE candidate is a distinct signal; deduplicating by callId drops all but the first.
@@ -170,6 +180,12 @@ export const useWebRTC = () => {
   });
 
   const cleanupMedia = useCallback(() => {
+    nativeUnsubscribeRef.current?.();
+    nativeUnsubscribeRef.current = null;
+    if (nativeCallRef.current) closeNativeWebRtc();
+    nativeCallRef.current = false;
+    nativeRemoteReadyRef.current = false;
+    nativeIceQueueRef.current = [];
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
     audioCaptureReleaseRef.current?.();
@@ -232,6 +248,54 @@ export const useWebRTC = () => {
     } catch (error) { console.error("Could not send call end:", error); }
     finally { finish(); }
   }, [sendSignal, finish]);
+
+  const useNativeVoiceTransport = (callType: "voice" | "video") =>
+    callType === "voice" && isNativeWebRtcAvailable();
+
+  const startNativeVoiceTransport = useCallback(async (info: CallInfo, iceServers: RTCIceServer[]) => {
+    nativeCallRef.current = true;
+    nativeRemoteReadyRef.current = false;
+    nativeIceQueueRef.current = [];
+    nativeUnsubscribeRef.current?.();
+    nativeUnsubscribeRef.current = subscribeNativeWebRtc((event) => {
+      if (callIdRef.current !== info.callId) return;
+      if (event.type === "ice-candidate" && typeof event.candidate === "string") {
+        const candidate: RTCIceCandidateInit = {
+          candidate: event.candidate,
+          sdpMid: typeof event.sdpMid === "string" ? event.sdpMid : null,
+          sdpMLineIndex: typeof event.sdpMLineIndex === "number" ? event.sdpMLineIndex : null,
+        };
+        if (signalReadyCallId.current !== info.callId) localIceQueue.current.push({ info, candidate });
+        else void sendSignal(info, "ice-candidate", { candidate }).catch((error) => console.error("Native ICE signal failed:", error));
+      } else if (event.type === "ice-state") {
+        if (event.state === "CONNECTED" || event.state === "COMPLETED") {
+          if (statusRef.current !== "connected") {
+            statusRef.current = "connected";
+            setCallStatus("connected");
+            if (ringTimerRef.current) { clearTimeout(ringTimerRef.current); ringTimerRef.current = null; }
+            if (disconnectTimerRef.current) { clearTimeout(disconnectTimerRef.current); disconnectTimerRef.current = null; }
+            if (!durationTimerRef.current) durationTimerRef.current = setInterval(() => setDuration((value) => value + 1), 1000);
+          }
+        } else if (event.state === "FAILED") void endCall();
+        else if (event.state === "DISCONNECTED" && !disconnectTimerRef.current)
+          disconnectTimerRef.current = setTimeout(() => { void endCall(); }, 15000);
+      } else if (event.type === "error") {
+        console.error("Native WebRTC error:", event.stage, event.message);
+      }
+    });
+    await startNativeWebRtc(iceServers, false);
+  }, [sendSignal, endCall]);
+
+  const applyNativeRemoteDescription = useCallback(async (type: "offer" | "answer", sdp: string) => {
+    await setNativeRemoteDescription(type, sdp);
+    nativeRemoteReadyRef.current = true;
+    const queued = nativeIceQueueRef.current;
+    nativeIceQueueRef.current = [];
+    for (const candidate of queued) {
+      try { addNativeIceCandidate(candidate); }
+      catch (error) { console.warn("Queued native ICE candidate rejected:", error); }
+    }
+  }, []);
 
   const getMedia = async (video: boolean) => {
     if (!navigator.mediaDevices?.getUserMedia) {
