@@ -66,6 +66,25 @@ Deno.serve(async (req: Request) => {
     if (messageError || !message) return reply({ error: "Voice note not found or access denied" }, 404);
     if (message.message_type !== "voice") return reply({ error: "Only voice notes can be transcribed" }, 400);
 
+    const { data: cachedTranscript } = await supabase
+      .from("voice_note_transcripts")
+      .select("transcript, language, created_at")
+      .eq("message_id", message.id)
+      .eq("transcriber_id", user.id)
+      .maybeSingle();
+    if (cachedTranscript) {
+      return reply({ transcript: cachedTranscript.transcript, language: cachedTranscript.language, savedAt: cachedTranscript.created_at, cached: true });
+    }
+
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count: recentCount, error: rateLimitError } = await supabase
+      .from("voice_note_transcripts")
+      .select("id", { count: "exact", head: true })
+      .eq("transcriber_id", user.id)
+      .gte("created_at", hourAgo);
+    if (rateLimitError) return reply({ error: "Could not verify transcription usage limit" }, 500);
+    if ((recentCount ?? 0) >= 20) return reply({ error: "Umefikia kikomo cha transcription 20 kwa saa. Jaribu tena baadaye." }, 429);
+
     const base64Audio = toBase64(new Uint8Array(await audio.arrayBuffer()));
     const geminiResponse = await fetch(
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
