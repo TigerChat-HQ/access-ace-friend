@@ -56,7 +56,7 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
         if (!["NotReadableError", "AbortError", "OverconstrainedError"].includes(firstName)) throw firstError;
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       }
-      if (!mountedRef.current) { stream.getTracks().forEach((track) => track.stop()); return; }
+      if (!mountedRef.current) { stream.getTracks().forEach((track) => track.stop()); releaseCaptureRef.current?.(); releaseCaptureRef.current = null; return; }
       streamRef.current = stream;
       const mimeType = supportedAudioMimeType();
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
