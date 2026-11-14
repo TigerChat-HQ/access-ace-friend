@@ -13,11 +13,11 @@ describe("call media playback", () => {
     const props = { callInfo: { callId: "call", callerId: "a", calleeId: "b", conversationId: "chat", callType: "voice" as const }, callStatus: "connecting" as const,
       isMuted: false, isVideoOn: true, duration: 0, remoteStream, localStream, remoteVideoRef, localVideoRef,
       onAccept: vi.fn(), onReject: vi.fn(), onEnd: vi.fn(), onToggleMute: vi.fn(), onToggleVideo: vi.fn(), onSwitchCamera: vi.fn() };
-    const { container, rerender } = render(<CallDialog {...props} />);
+    const { rerender } = render(<CallDialog {...props} />);
     await waitFor(() => expect(play).toHaveBeenCalled());
-    expect(container.querySelector("audio")?.srcObject).toBe(remoteStream);
+    expect(document.body.querySelector("audio")?.srcObject).toBe(remoteStream);
     rerender(<CallDialog {...props} callInfo={{ ...props.callInfo, callType: "video" }} callStatus="connected" />);
-    expect(remoteVideoRef.current?.srcObject).toBe(remoteStream);
+    expect(document.body.querySelector("video")?.srcObject).toBe(remoteStream);
     expect(localVideoRef.current?.srcObject).toBe(localStream);
     play.mockRestore();
   });

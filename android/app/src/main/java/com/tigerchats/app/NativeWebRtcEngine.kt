@@ -21,6 +21,7 @@ import org.webrtc.SessionDescription
 import org.webrtc.SurfaceTextureHelper
 import org.webrtc.VideoSource
 import org.webrtc.VideoTrack
+import org.webrtc.VideoSink
 import org.webrtc.audio.JavaAudioDeviceModule
 
 /**
@@ -45,7 +46,14 @@ internal class NativeWebRtcEngine(
     private var cameraCapturer: CameraVideoCapturer? = null
     private var surfaceTextureHelper: SurfaceTextureHelper? = null
     private var localVideoEnabled = true
+    private var remoteAudioEnabled = true
     private var facingFront = true
+    private var localVideoSink: VideoSink? = null
+    private var remoteVideoSink: VideoSink? = null
+    private var remoteVideoTrack: VideoTrack? = null
+    private var remoteAudioTrack: AudioTrack? = null
+
+    val eglContext: EglBase.Context get() = eglBase.eglBaseContext
 
     init {
         val options = PeerConnectionFactory.InitializationOptions.builder(appContext)
@@ -96,11 +104,14 @@ internal class NativeWebRtcEngine(
         cameraCapturer!!.startCapture(1280, 720, 30)
         videoTrack = factory.createVideoTrack("tiger_native_video", videoSource).also {
             peerConnection?.addTrack(it, listOf("tiger_native_stream"))
+            it.setEnabled(localVideoEnabled)
+            localVideoSink?.let(it::addSink)
         }
     }
 
     fun createOffer() = createDescription(offer = true)
     fun createAnswer() = createDescription(offer = false)
+    fun restartIce() { peerConnection?.restartIce() }
 
     private fun createDescription(offer: Boolean) {
         val pc = peerConnection ?: return emitError("sdp", IllegalStateException("Native call haijaanzishwa."))
@@ -151,9 +162,23 @@ internal class NativeWebRtcEngine(
     }
 
     fun setAudioEnabled(enabled: Boolean) { audioTrack?.setEnabled(enabled) }
+    fun setRemoteAudioEnabled(enabled: Boolean) {
+        remoteAudioEnabled = enabled
+        remoteAudioTrack?.setEnabled(enabled)
+    }
     fun setVideoEnabled(enabled: Boolean) {
         localVideoEnabled = enabled
         videoTrack?.setEnabled(enabled)
+    }
+
+    @Synchronized
+    fun attachRenderers(localSink: VideoSink?, remoteSink: VideoSink?) {
+        localVideoSink?.let { sink -> videoTrack?.removeSink(sink) }
+        remoteVideoSink?.let { sink -> remoteVideoTrack?.removeSink(sink) }
+        localVideoSink = localSink
+        remoteVideoSink = remoteSink
+        localSink?.let { sink -> videoTrack?.addSink(sink) }
+        remoteSink?.let { sink -> remoteVideoTrack?.addSink(sink) }
     }
 
     @Synchronized
@@ -191,14 +216,27 @@ internal class NativeWebRtcEngine(
         override fun onDataChannel(channel: org.webrtc.DataChannel) = Unit
         override fun onRenegotiationNeeded() { emit("renegotiation-needed", JSONObject()) }
         override fun onAddTrack(receiver: RtpReceiver, streams: Array<out org.webrtc.MediaStream>) {
-            val track = receiver.track()
-            if (track is VideoTrack) emit("remote-video-track", JSONObject().put("id", track.id()))
-            if (track is AudioTrack) emit("remote-audio-track", JSONObject().put("id", track.id()))
+            handleRemoteTrack(receiver.track())
         }
         override fun onTrack(transceiver: org.webrtc.RtpTransceiver) {
-            val track = transceiver.receiver.track()
-            if (track is VideoTrack) emit("remote-video-track", JSONObject().put("id", track.id()))
-            if (track is AudioTrack) emit("remote-audio-track", JSONObject().put("id", track.id()))
+            handleRemoteTrack(transceiver.receiver.track())
+        }
+    }
+
+    @Synchronized
+    private fun handleRemoteTrack(track: org.webrtc.MediaStreamTrack?) {
+        when (track) {
+            is VideoTrack -> {
+                remoteVideoTrack?.let { old -> remoteVideoSink?.let(old::removeSink) }
+                remoteVideoTrack = track
+                remoteVideoSink?.let(track::addSink)
+                emit("remote-video-track", JSONObject().put("id", track.id()))
+            }
+            is AudioTrack -> {
+                remoteAudioTrack = track
+                track.setEnabled(remoteAudioEnabled)
+                emit("remote-audio-track", JSONObject().put("id", track.id()))
+            }
         }
     }
 
@@ -224,6 +262,10 @@ internal class NativeWebRtcEngine(
 
     @Synchronized
     fun close() {
+        localVideoSink?.let { sink -> videoTrack?.removeSink(sink) }
+        remoteVideoSink?.let { sink -> remoteVideoTrack?.removeSink(sink) }
+        remoteVideoTrack = null
+        remoteAudioTrack = null
         try { cameraCapturer?.stopCapture() } catch (error: Exception) { Log.w(TAG, "Camera stop failed", error) }
         try { cameraCapturer?.dispose() } catch (_: Exception) { }
         cameraCapturer = null
