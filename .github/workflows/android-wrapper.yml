@@ -27,9 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
-      # Android v1.0.35 release build.
-      TIGER_VERSION_CODE: 35
-      TIGER_VERSION_NAME: 1.0.35
+      # Android v1.0.36 release build.
+      TIGER_VERSION_CODE: 36
+      TIGER_VERSION_NAME: 1.0.36
     steps:
       - uses: actions/checkout@v4
         with:
