@@ -7,6 +7,7 @@ import { acquireSharedMicrophone } from "@/lib/audioCapture";
 import {
   addNativeIceCandidate, closeNativeWebRtc, createNativeWebRtcDescription,
   isNativeWebRtcAvailable, setNativeRemoteDescription, setNativeWebRtcMuted,
+  setNativeWebRtcVideoEnabled, setNativeWebRtcVideoLayout, switchNativeWebRtcCamera,
   startNativeWebRtc, subscribeNativeWebRtc,
 } from "@/lib/nativeWebRtc";
 
@@ -135,6 +136,7 @@ export const useWebRTC = () => {
   const [activeCall, setActiveCall] = useState<CallInfo | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOn, setIsVideoOn] = useState(true);
+  const [isNativeVideoCall, setIsNativeVideoCall] = useState(false);
   const [duration, setDuration] = useState(0);
   const [remoteStream, setRemoteStream] = useState<MediaStream>(() => new MediaStream());
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -208,6 +210,7 @@ export const useWebRTC = () => {
 
   const finish = useCallback(() => {
     cleanupMedia();
+    setIsNativeVideoCall(false);
     callIdRef.current = null;
     statusRef.current = "ended";
     setCallStatus("ended");
@@ -249,13 +252,13 @@ export const useWebRTC = () => {
     finally { finish(); }
   }, [sendSignal, finish]);
 
-  const useNativeVoiceTransport = (callType: "voice" | "video") =>
-    callType === "voice" && isNativeWebRtcAvailable();
+  const useNativeTransport = (_callType: "voice" | "video") => isNativeWebRtcAvailable();
 
-  const startNativeVoiceTransport = useCallback(async (info: CallInfo, iceServers: RTCIceServer[]) => {
+  const startNativeTransport = useCallback(async (info: CallInfo, iceServers: RTCIceServer[]) => {
     // Keep the existing cross-session microphone lease so the same TigerChat
     // account cannot capture audio simultaneously from its website and APK.
-    audioCaptureReleaseRef.current = await acquireSharedMicrophone("voice-call");
+    audioCaptureReleaseRef.current = await acquireSharedMicrophone(info.callType === "video" ? "video-call" : "voice-call");
+    setIsNativeVideoCall(info.callType === "video");
     nativeCallRef.current = true;
     nativeRemoteReadyRef.current = false;
     nativeIceQueueRef.current = [];
@@ -287,11 +290,14 @@ export const useWebRTC = () => {
       }
     });
     try {
-      await startNativeWebRtc(iceServers, false);
+      await startNativeWebRtc(iceServers, info.callType === "video");
+      if (info.callType === "video") setNativeWebRtcVideoLayout(true);
     } catch (error) {
       nativeUnsubscribeRef.current?.();
       nativeUnsubscribeRef.current = null;
       nativeCallRef.current = false;
+      setIsNativeVideoCall(false);
+      setNativeWebRtcVideoLayout(false);
       audioCaptureReleaseRef.current?.();
       audioCaptureReleaseRef.current = null;
       throw error;
@@ -512,8 +518,8 @@ export const useWebRTC = () => {
     }
     try {
       const iceServers = await getCallIceServers(conversationId);
-      if (useNativeVoiceTransport(callType)) {
-        await startNativeVoiceTransport(info, iceServers);
+      if (useNativeTransport(callType)) {
+        await startNativeTransport(info, iceServers);
         const offer = await createNativeWebRtcDescription("offer");
         await sendSignal(info, "offer", { sdp: offer.sdp, type: offer.type }, "pending");
         if (calleeOnline && callIdRef.current === info.callId && statusRef.current === "outgoing") {
@@ -558,7 +564,7 @@ export const useWebRTC = () => {
       setCallStatus("idle");
       setActiveCall(null);
     }
-  }, [user, createPeerConnection, cleanupMedia, sendSignal, flushLocalIce, endCall, startNativeVoiceTransport]);
+  }, [user, createPeerConnection, cleanupMedia, sendSignal, flushLocalIce, endCall, startNativeTransport]);
 
   const acceptCall = useCallback(async (info: CallInfo, offer: RTCSessionDescriptionInit) => {
     if (!user) return;
@@ -570,8 +576,8 @@ export const useWebRTC = () => {
     signalReadyCallId.current = null;
     try {
       const iceServers = await getCallIceServers(info.conversationId);
-      if (useNativeVoiceTransport(info.callType)) {
-        await startNativeVoiceTransport(info, iceServers);
+      if (useNativeTransport(info.callType)) {
+        await startNativeTransport(info, iceServers);
         await applyNativeRemoteDescription("offer", offer.sdp || "");
         const answer = await createNativeWebRtcDescription("answer");
         await sendSignal(info, "answer", { sdp: answer.sdp, type: answer.type });
@@ -603,7 +609,7 @@ export const useWebRTC = () => {
       try { await sendSignal(info, "reject", {}, "ended"); }
       finally { finish(); }
     }
-  }, [user, createPeerConnection, sendSignal, flushLocalIce, finish, endCall, startNativeVoiceTransport, applyNativeRemoteDescription]);
+  }, [user, createPeerConnection, sendSignal, flushLocalIce, finish, endCall, startNativeTransport, applyNativeRemoteDescription]);
 
   const acceptIncomingCall = useCallback(() => {
     const info = callRef.current;
@@ -630,11 +636,21 @@ export const useWebRTC = () => {
   }, [isMuted]);
 
   const toggleVideo = useCallback(() => {
+    if (nativeCallRef.current) {
+      const nextEnabled = !isVideoOn;
+      setNativeWebRtcVideoEnabled(nextEnabled);
+      setIsVideoOn(nextEnabled);
+      return;
+    }
     const track = localStreamRef.current?.getVideoTracks()[0];
     if (track) { track.enabled = !track.enabled; setIsVideoOn(track.enabled); }
-  }, []);
+  }, [isVideoOn]);
 
   const switchCamera = useCallback(async () => {
+    if (nativeCallRef.current) {
+      switchNativeWebRtcCamera();
+      return;
+    }
     const pc = pcRef.current;
     const stream = localStreamRef.current;
     if (!pc || !stream || !stream.getVideoTracks()[0]) return;
@@ -765,7 +781,7 @@ export const useWebRTC = () => {
   useEffect(() => () => { cleanupMedia(); }, [user?.id, cleanupMedia]);
 
   return {
-    callStatus, activeCall, isMuted, isVideoOn, duration,
+    callStatus, activeCall, isMuted, isVideoOn, isNativeVideoCall, duration,
     localVideoRef, remoteVideoRef, remoteStream, localStream,
     startCall, acceptCall, acceptIncomingCall, rejectCall, endCall, toggleMute, toggleVideo, switchCamera,
   };
