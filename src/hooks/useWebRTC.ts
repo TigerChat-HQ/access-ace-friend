@@ -47,51 +47,22 @@ type SignalInsert = {
 };
 
 const insertSignal = async (data: SignalInsert) => {
-  const { error } = await db.from("call_signals").insert(data);
+  // The server derives signal_data.from from auth.uid(), validates both
+  // participants against this exact conversation, and inserts atomically.
+  // This keeps call authorization server-side without weakening table RLS.
+  const { error } = await db.rpc("create_call_signal", {
+    p_caller_id: data.caller_id,
+    p_callee_id: data.callee_id,
+    p_conversation_id: data.conversation_id,
+    p_call_type: data.call_type,
+    p_signal_type: data.signal_type,
+    p_signal_data: data.signal_data ?? {},
+    p_status: data.status ?? "active",
+  });
   if (error) {
-    // RLS 42501 must be diagnosed against the live JWT and exact chat membership.
-    // Never weaken the database policy or retry with elevated credentials.
-    let rlsDiagnostics: Record<string, unknown> | undefined;
-    if (error.code === "42501") {
-      try {
-        const [{ data: authData, error: authError }, { data: members, error: membersError }] = await Promise.all([
-          db.auth.getUser(),
-          data.conversation_id
-            ? db.from("conversation_members").select("user_id")
-                .eq("conversation_id", data.conversation_id)
-                .in("user_id", [data.caller_id, data.callee_id])
-            : Promise.resolve({ data: null, error: new Error("Missing conversation_id") }),
-        ]);
-        const authenticatedUserId = authData.user?.id ?? null;
-        const memberIds = (members || []).map((member: { user_id: string }) => member.user_id);
-        rlsDiagnostics = {
-          authenticatedUserId,
-          authError: authError?.message ?? null,
-          callerMatchesSession: authenticatedUserId === data.caller_id,
-          senderMatchesSession: data.signal_data?.from === authenticatedUserId,
-          conversationIdPresent: Boolean(data.conversation_id),
-          callerIsConversationMember: memberIds.includes(data.caller_id),
-          calleeIsConversationMember: memberIds.includes(data.callee_id),
-          membershipLookupError: membersError?.message ?? null,
-          signalType: data.signal_type,
-          callType: data.call_type,
-          status: data.status,
-        };
-      } catch (diagnosticError) {
-        rlsDiagnostics = {
-          diagnosticError: diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError),
-          signalType: data.signal_type,
-        };
-      }
-    }
-    // Keep PostgREST details and safe authorization diagnostics for Android Logcat/WebView inspection.
-    console.error("Call signaling insert failed:", {
-      code: error.code,
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-      signalType: data.signal_type,
-      rlsDiagnostics,
+    console.error("Call signaling RPC failed:", {
+      code: error.code, message: error.message, details: error.details,
+      hint: error.hint, signalType: data.signal_type,
     });
     const code = error.code ? ` (${error.code})` : "";
     throw new Error(`Call signaling failed${code}: ${error.message || "Supabase rejected the call signal."}`);
