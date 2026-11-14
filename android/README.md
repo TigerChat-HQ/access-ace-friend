@@ -20,7 +20,7 @@ Open the `android/` directory in Android Studio (JDK 17, Android SDK 35), allow 
 
 - Android FCM data messages with `kind=message` and a conversation path create a conversation shortcut and a system-bubble notification when the custom background overlay is off.
 - Android 11+ is required for system bubbles. The user must also allow bubbles for TIGERCHATS in Android notification settings; Android may choose to show a normal notification instead.
-- When the user enables the custom background overlay, it is used instead of the system bubble to avoid showing two chat heads. Drag the collapsed bubble to move it; on release it snaps to the nearest screen edge. Drag the expanded panel by its header to reposition it; the position is kept for the next notification and clamped away from system bars.
+- When the user enables the custom background overlay, the Android wrapper hides the in-app web launcher and suppresses the Android conversation bubble, leaving one circular overlay only. It shows the full TIGERCHATS app icon while idle, then the sender avatar and unread count for incoming messages. The bubble remains draggable.
 - Calls and other notification kinds remain regular notifications unless the custom background overlay is enabled.
 - The bubble opens the hosted TIGERCHATS chat route, so the same account and backend are used.
 

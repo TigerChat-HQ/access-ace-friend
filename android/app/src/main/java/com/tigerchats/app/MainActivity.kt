@@ -971,6 +971,9 @@ open class MainActivity : Activity() {
         @JavascriptInterface
         fun setOverlayBubbleEnabled(enabled: Boolean) {
             runOnUiThread {
+                getSharedPreferences(TigerOverlayService.PREFS, MODE_PRIVATE).edit()
+                    .putBoolean(TigerOverlayService.KEY_ENABLED, enabled)
+                    .apply()
                 if (!enabled) {
                     stopService(Intent(this@MainActivity, TigerOverlayService::class.java))
                 } else if (hasOverlayPermission()) {

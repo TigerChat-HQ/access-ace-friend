@@ -34,16 +34,35 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
         val data = message.data
         val title = data["title"]?.takeIf { it.isNotBlank() } ?: "TIGERCHATS"
         val body = data["body"]?.takeIf { it.isNotBlank() } ?: "You have a new message"
-        val path = safeConversationPath(data["path"])
+        val path = safeNotificationPath(data["path"])
         val kind = data["kind"] ?: "message"
-        showMessageNotification(title, body, path, kind == "message")
+        val overlayEnabled = kind == "message" && getSharedPreferences(TigerOverlayService.PREFS, Context.MODE_PRIVATE)
+            .getBoolean(TigerOverlayService.KEY_ENABLED, false)
+        if (overlayEnabled) {
+            val prefs = getSharedPreferences(TigerOverlayService.PREFS, Context.MODE_PRIVATE)
+            val unread = prefs.getInt(TigerOverlayService.KEY_UNREAD, 0) + 1
+            prefs.edit().putInt(TigerOverlayService.KEY_UNREAD, unread).apply()
+            try {
+                startService(Intent(this, TigerOverlayService::class.java).apply {
+                    action = TigerOverlayService.ACTION_MESSAGE
+                    putExtra(TigerOverlayService.EXTRA_AVATAR, data["avatar_url"].orEmpty())
+                    putExtra(TigerOverlayService.EXTRA_UNREAD, unread)
+                    putExtra(TigerOverlayService.EXTRA_PATH, path)
+                })
+            } catch (error: Exception) {
+                android.util.Log.w(TAG, "Could not update overlay bubble", error)
+            }
+        }
+        showMessageNotification(title, body, path, kind == "message", overlayEnabled)
     }
 
-    private fun safeConversationPath(rawPath: String?): String {
+    private fun safeNotificationPath(rawPath: String?): String {
         val candidate = rawPath?.takeIf { it.startsWith("/") && !it.startsWith("//") } ?: "/chats"
-        val conversationId = Regex("[?&]c=([0-9a-fA-F-]{36})")
-            .find(candidate)?.groupValues?.getOrNull(1) ?: return "/chats"
-        return "/chats?c=$conversationId"
+        val conversationId = Regex("[?&]c=([0-9a-fA-F-]{36})").find(candidate)?.groupValues?.getOrNull(1)
+        if (candidate.startsWith("/chats") && conversationId != null) return "/chats?c=$conversationId"
+        val postId = Regex("^/post/([0-9a-fA-F-]{36})").find(candidate)?.groupValues?.getOrNull(1)
+        if (postId != null) return "/post/$postId"
+        return "/chats"
     }
 
     private fun ensureMessageChannel(): String {
@@ -120,7 +139,7 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
             .build()
     }
 
-    private fun showMessageNotification(title: String, body: String, path: String, allowReply: Boolean) {
+    private fun showMessageNotification(title: String, body: String, path: String, allowReply: Boolean, overlayEnabled: Boolean) {
         val conversationId = conversationShortcutId(path)?.removePrefix("tiger-chat-")
         val openIntent = Intent(this, MainActivity::class.java)
             .putExtra("path", path)
@@ -157,7 +176,7 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
         if (allowReply) builder.addAction(quickReplyAction(path))
 
         val shortcutId = if (allowReply) createConversationShortcut(title, path) else null
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && shortcutId != null) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && shortcutId != null && !overlayEnabled) {
             val bubbleIntent = Intent(openIntent)
             val bubblePendingIntent = PendingIntent.getActivity(
                 this,

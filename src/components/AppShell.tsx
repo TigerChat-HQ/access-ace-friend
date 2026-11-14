@@ -27,7 +27,9 @@ export const AppShell = () => {
   useEffect(() => {
     if (!location.search.includes("bubble=1") || location.pathname !== "/") return;
     const embeddedPath = new URLSearchParams(location.search).get("path");
-    if (embeddedPath === "/chats") navigate("/chats?bubble=1", { replace: true });
+    if (embeddedPath?.startsWith("/") && !embeddedPath.startsWith("//")) {
+      navigate(embeddedPath + (embeddedPath.includes("?") ? "&" : "?") + "bubble=1", { replace: true });
+    }
   }, [location.pathname, location.search, navigate]);
 
   useEffect(() => {
@@ -194,7 +196,7 @@ export const AppShell = () => {
     };
   }, []);
 
-  const hideBar = location.pathname.startsWith("/chats") && (location.search.includes("c=") || location.search.includes("bubble=1"));
+  const hideBar = location.search.includes("bubble=1") || (location.pathname.startsWith("/chats") && location.search.includes("c="));
   const items = [
     { to: "/", icon: Home, label: "Home", badge: 0 },
     { to: "/chats", icon: MessageCircle, label: "Chats", badge: unreadMessages },
@@ -219,7 +221,7 @@ export const AppShell = () => {
         <div className="tiger-app-safe-area flex min-h-0 min-w-0 flex-1 flex-col">
           <OfflineIndicator />
           <main className="min-h-0 min-w-0 flex-1 overflow-hidden"><div className="h-full min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-y-contain" style={{ WebkitOverflowScrolling: "touch" }}><Outlet /></div></main>
-          {user && <FloatingChatWidget unreadMessages={unreadMessages} />}
+          {user && !(typeof window !== "undefined" && Boolean((window as Window & { TigerNative?: unknown }).TigerNative)) && <FloatingChatWidget unreadMessages={unreadMessages} />}
           {!hideBar && <nav aria-label="Main navigation" className="flex shrink-0 items-center border-t border-border/50 bg-card/80 px-1 pt-1 backdrop-blur-md pb-[calc(0.375rem+env(safe-area-inset-bottom,0px))] lg:hidden">
             {items.map(({ to, icon: Icon, label, badge }) => <NavLink key={label} to={to} end={to === "/"} className={({ isActive }) => `relative flex h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-lg px-0.5 transition-colors ${isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
               <span className="relative flex h-5 w-5 items-center justify-center"><Icon className="h-5 w-5" />{badge > 0 && <span className="absolute -right-2 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground shadow-[0_0_8px_hsl(var(--primary)/0.6)]">{badge > 99 ? "99+" : badge}</span>}</span>
