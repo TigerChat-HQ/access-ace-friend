@@ -7,6 +7,7 @@ import android.app.ApplicationExitInfo
 import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.net.Uri
 import android.media.AudioManager
 import android.media.MediaRecorder
@@ -26,6 +27,11 @@ import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.view.WindowManager
+import android.view.View
+import android.view.Gravity
+import android.widget.FrameLayout
+import org.webrtc.TextureViewRenderer
+import org.webrtc.RendererCommon
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -50,6 +56,10 @@ open class MainActivity : Activity() {
     private var nativeVoiceNoteFile: File? = null
     private var nativeVoiceNoteStartedAt: Long = 0L
     private var nativeWebRtcEngine: NativeWebRtcEngine? = null
+    private lateinit var appRoot: FrameLayout
+    private lateinit var nativeVideoLayer: FrameLayout
+    private var nativeRemoteRenderer: TextureViewRenderer? = null
+    private var nativeLocalRenderer: TextureViewRenderer? = null
     private var pendingNativeWebRtcIceServers: String? = null
     private var pendingNativeWebRtcWithVideo: Boolean = false
 
@@ -206,7 +216,18 @@ open class MainActivity : Activity() {
             }
         }
         webView.addJavascriptInterface(NativeBridge(), "TigerNative")
-        setContentView(webView)
+        appRoot = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
+        nativeVideoLayer = FrameLayout(this).apply {
+            setBackgroundColor(Color.BLACK)
+            visibility = View.GONE
+        }
+        appRoot.addView(nativeVideoLayer, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT,
+        ))
+        appRoot.addView(webView, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT,
+        ))
+        setContentView(appRoot)
         // Use Android's measured WebView height as the authoritative viewport while the IME resizes the Activity.
         webView.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
             (view as? WebView)?.let(::applyNativeViewportHeight)
@@ -318,14 +339,67 @@ open class MainActivity : Activity() {
         if (denied) showMediaPermissionSettingsPrompt()
     }
 
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun prepareNativeVideoRenderers(engine: NativeWebRtcEngine) {
+        releaseNativeVideoRenderers()
+        val remote = TextureViewRenderer(this).apply {
+            init(engine.eglContext, null)
+            setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL)
+            setEnableHardwareScaler(true)
+            setMirror(false)
+        }
+        val local = TextureViewRenderer(this).apply {
+            init(engine.eglContext, null)
+            setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL)
+            setEnableHardwareScaler(true)
+            setMirror(true)
+        }
+        nativeVideoLayer.removeAllViews()
+        nativeVideoLayer.addView(remote, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT,
+        ))
+        nativeVideoLayer.addView(local, FrameLayout.LayoutParams(dp(116), dp(164), Gravity.TOP or Gravity.END).apply {
+            setMargins(0, dp(16), dp(16), 0)
+        })
+        nativeRemoteRenderer = remote
+        nativeLocalRenderer = local
+        engine.attachRenderers(local, remote)
+        nativeVideoLayer.visibility = View.VISIBLE
+        webView.setBackgroundColor(Color.TRANSPARENT)
+    }
+
+    private fun releaseNativeVideoRenderers() {
+        nativeWebRtcEngine?.attachRenderers(null, null)
+        nativeRemoteRenderer?.release()
+        nativeLocalRenderer?.release()
+        nativeRemoteRenderer = null
+        nativeLocalRenderer = null
+        if (::nativeVideoLayer.isInitialized) {
+            nativeVideoLayer.removeAllViews()
+            nativeVideoLayer.visibility = View.GONE
+        }
+        if (::webView.isInitialized) webView.setBackgroundColor(Color.WHITE)
+    }
+
+    private fun disposeNativeWebRtcEngine() {
+        nativeWebRtcEngine?.dispose()
+        nativeWebRtcEngine = null
+        releaseNativeVideoRenderers()
+    }
+
     private fun startNativeWebRtcEngine(iceServersJson: String, withVideo: Boolean) {
         try {
-            nativeWebRtcEngine?.dispose()
-            nativeWebRtcEngine = NativeWebRtcEngine(this) { type, data ->
+            disposeNativeWebRtcEngine()
+            val engine = NativeWebRtcEngine(this) { type, data ->
+                if (type == "error" && withVideo) runOnUiThread { nativeVideoLayer.visibility = View.GONE }
                 dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject(data.toString()).put("type", type))
             }
-            nativeWebRtcEngine?.start(iceServersJson, withVideo)
+            nativeWebRtcEngine = engine
+            if (withVideo) prepareNativeVideoRenderers(engine)
+            engine.start(iceServersJson, withVideo)
         } catch (error: Exception) {
+            disposeNativeWebRtcEngine()
             dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject()
                 .put("type", "error")
                 .put("stage", "initialization")
@@ -676,16 +750,23 @@ open class MainActivity : Activity() {
         }
 
         @JavascriptInterface
+        fun nativeWebRtcSetVideoLayout(enabled: Boolean) {
+            runOnUiThread {
+                if (::nativeVideoLayer.isInitialized) {
+                    nativeVideoLayer.visibility = if (enabled) View.VISIBLE else View.GONE
+                    webView.setBackgroundColor(if (enabled) Color.TRANSPARENT else Color.WHITE)
+                }
+            }
+        }
+
+        @JavascriptInterface
         fun nativeWebRtcSwitchCamera() {
             runOnUiThread { nativeWebRtcEngine?.switchCamera() }
         }
 
         @JavascriptInterface
         fun nativeWebRtcClose() {
-            runOnUiThread {
-                nativeWebRtcEngine?.dispose()
-                nativeWebRtcEngine = null
-            }
+            runOnUiThread { disposeNativeWebRtcEngine() }
         }
 
         @JavascriptInterface
@@ -961,6 +1042,11 @@ open class MainActivity : Activity() {
             }
         }
 
+    }
+
+    override fun onDestroy() {
+        disposeNativeWebRtcEngine()
+        super.onDestroy()
     }
 
     @Deprecated("Deprecated in Android API")
