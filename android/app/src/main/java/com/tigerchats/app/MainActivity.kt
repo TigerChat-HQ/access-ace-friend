@@ -50,6 +50,8 @@ open class MainActivity : Activity() {
     private var nativeVoiceNoteFile: File? = null
     private var nativeVoiceNoteStartedAt: Long = 0L
     private var nativeWebRtcEngine: NativeWebRtcEngine? = null
+    private var pendingNativeWebRtcIceServers: String? = null
+    private var pendingNativeWebRtcWithVideo: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -255,6 +257,17 @@ open class MainActivity : Activity() {
             publishContactsPermission(granted)
             return
         }
+        if (requestCode == NATIVE_WEBRTC_PERMISSION_REQUEST_CODE) {
+            val iceServers = pendingNativeWebRtcIceServers
+            val withVideo = pendingNativeWebRtcWithVideo
+            pendingNativeWebRtcIceServers = null
+            pendingNativeWebRtcWithVideo = false
+            val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED &&
+                (!withVideo || ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
+            if (granted && iceServers != null) startNativeWebRtcEngine(iceServers, withVideo)
+            else dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject().put("type", "error").put("stage", "permission").put("message", "Ruhusa ya microphone${if (withVideo) " na camera" else ""} imekataliwa. Ruhusu kwenye mipangilio ya TigerChats kisha jaribu tena."))
+            return
+        }
         if (requestCode == NATIVE_VOICE_PERMISSION_REQUEST_CODE) {
             val granted = grantResults.isNotEmpty() &&
                 grantResults[0] == PackageManager.PERMISSION_GRANTED &&
@@ -303,6 +316,21 @@ open class MainActivity : Activity() {
             }
         }
         if (denied) showMediaPermissionSettingsPrompt()
+    }
+
+    private fun startNativeWebRtcEngine(iceServersJson: String, withVideo: Boolean) {
+        try {
+            nativeWebRtcEngine?.dispose()
+            nativeWebRtcEngine = NativeWebRtcEngine(this) { type, data ->
+                dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject(data.toString()).put("type", type))
+            }
+            nativeWebRtcEngine?.start(iceServersJson, withVideo)
+        } catch (error: Exception) {
+            dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject()
+                .put("type", "error")
+                .put("stage", "initialization")
+                .put("message", error.message ?: "Native WebRTC initialization failed"))
+        }
     }
 
     private fun publishContactsPermission(granted: Boolean) {
@@ -596,22 +624,28 @@ open class MainActivity : Activity() {
         @JavascriptInterface
         fun nativeWebRtcStart(iceServersJson: String, withVideo: Boolean) {
             runOnUiThread {
-                val missing = mutableListOf<String>()
-                if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) missing += Manifest.permission.RECORD_AUDIO
-                if (withVideo && ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) missing += Manifest.permission.CAMERA
+                val required = buildList {
+                    add(Manifest.permission.RECORD_AUDIO)
+                    if (withVideo) add(Manifest.permission.CAMERA)
+                }
+                val missing = required.filter {
+                    ContextCompat.checkSelfPermission(this@MainActivity, it) != PackageManager.PERMISSION_GRANTED
+                }
                 if (missing.isNotEmpty()) {
-                    dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject().put("type", "error").put("stage", "permission").put("message", "Ruhusu microphone na camera kwenye mipangilio ya app."))
+                    // Match the native voice-note flow: request Android permission first,
+                    // then resume the exact pending call-engine startup after the user responds.
+                    pendingNativeWebRtcIceServers = iceServersJson
+                    pendingNativeWebRtcWithVideo = withVideo
+                    try {
+                        ActivityCompat.requestPermissions(this@MainActivity, missing.toTypedArray(), NATIVE_WEBRTC_PERMISSION_REQUEST_CODE)
+                    } catch (error: Exception) {
+                        pendingNativeWebRtcIceServers = null
+                        pendingNativeWebRtcWithVideo = false
+                        dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject().put("type", "error").put("stage", "permission").put("message", error.message ?: "Android haikuweza kuomba ruhusa za media."))
+                    }
                     return@runOnUiThread
                 }
-                try {
-                    nativeWebRtcEngine?.dispose()
-                    nativeWebRtcEngine = NativeWebRtcEngine(this@MainActivity) { type, data ->
-                        dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject(data.toString()).put("type", type))
-                    }
-                    nativeWebRtcEngine?.start(iceServersJson, withVideo)
-                } catch (error: Exception) {
-                    dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject().put("type", "error").put("stage", "initialization").put("message", error.message ?: "Native WebRTC initialization failed"))
-                }
+                startNativeWebRtcEngine(iceServersJson, withVideo)
             }
         }
 
@@ -939,6 +973,7 @@ open class MainActivity : Activity() {
         const val EXTRA_NATIVE_CALL_TYPE = "tiger_native_call_type"
         private const val MEDIA_PERMISSION_REQUEST_CODE = 7302
         private const val NATIVE_VOICE_PERMISSION_REQUEST_CODE = 7304
+        private const val NATIVE_WEBRTC_PERMISSION_REQUEST_CODE = 7305
         private const val CONTACTS_PERMISSION_REQUEST_CODE = 7303
         private const val TAG = "TigerChatMedia"
         private const val NATIVE_DIAGNOSTICS_PREFS = "tiger_native_diagnostics"
