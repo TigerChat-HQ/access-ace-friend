@@ -46,7 +46,7 @@ export interface TigerNativeWebRtcBridge {
 }
 
 const getNativeBridge = (): TigerNativeWebRtcBridge | undefined =>
-  (window as Window & { TigerNative?: TigerNativeWebRtcBridge }).TigerNative;
+  (window as unknown as { TigerNative?: TigerNativeWebRtcBridge }).TigerNative;
 
 const EVENT_NAME = "tiger:native-webrtc";
 const OPERATION_TIMEOUT_MS = 15_000;
@@ -114,7 +114,7 @@ export const startNativeWebRtc = async (
 export const createNativeWebRtcDescription = async (
   kind: "offer" | "answer",
 ): Promise<NativeWebRtcEvent & { sdp: string; type: "offer" | "answer" }> => {
-  const bridge = window.TigerNative;
+  const bridge = getNativeBridge();
   if (!bridge) throw new Error("Native WebRTC bridge haipatikani.");
   return waitForEvent("local-description", () => {
     if (kind === "offer") bridge.nativeWebRtcCreateOffer();
