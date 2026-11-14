@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Message } from "@/types/chat";
 import { cn } from "@/lib/utils";
 import { playChatEmojiSound } from "@/lib/chat-emoji";
@@ -35,6 +35,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
   const [playbackRate, setPlaybackRate] = useState(1);
   const [audioProgress, setAudioProgress] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
+  const [transcriptVisible, setTranscriptVisible] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
   const hasTranslation = !isMe && !!translatedText && translatedText !== message.text;
@@ -57,7 +58,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
     []
   );
 
-  const formatAudioTime = (seconds: number) => Number.isFinite(seconds) ? `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, "0")}` : "0:00";
+  const playbackStorageKey = `tigerchat:voice-position:${message.id}`;\n  useEffect(() => {\n    const audio = audioRef.current; if (!audio) return;\n    try { const saved = Number(localStorage.getItem(playbackStorageKey)); if (Number.isFinite(saved) && saved > 0) audio.currentTime = saved; } catch { /* storage may be unavailable */ }\n  }, [playbackStorageKey, mediaUrl]);\n\n  const formatAudioTime = (seconds: number) => Number.isFinite(seconds) ? `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, "0")}` : "0:00";
 
   const toggleAudio = () => {
     if (!audioRef.current) return;
@@ -135,7 +136,7 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
 
         {isVoice && message.mediaUrl ? (
           <div className="flex items-center gap-3 min-w-[160px]">
-            <audio ref={audioRef} src={mediaUrl || message.mediaUrl} preload={dataSaver ? "none" : "metadata"} onLoadedMetadata={(event) => setAudioDuration(event.currentTarget.duration || 0)} onTimeUpdate={(event) => setAudioProgress(event.currentTarget.currentTime)} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => { setPlaying(false); setAudioProgress(0); }} className="hidden" />
+            <audio ref={audioRef} src={mediaUrl || message.mediaUrl} data-tiger-voice="true" preload={dataSaver ? "none" : "metadata"} onLoadedMetadata={(event) => setAudioDuration(event.currentTarget.duration || 0)} onTimeUpdate={(event) => { const current = event.currentTarget.currentTime; setAudioProgress(current); try { localStorage.setItem(playbackStorageKey, String(current)); } catch { /* storage may be unavailable */ } }} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => { setPlaying(false); setAudioProgress(0); try { localStorage.removeItem(playbackStorageKey); } catch { /* storage may be unavailable */ } const audios = Array.from(document.querySelectorAll<HTMLAudioElement>("audio[data-tiger-voice]")); const next = audios[audios.indexOf(audioRef.current!) + 1]; if (next) void next.play().catch(() => undefined); }} className="hidden" />
             <button onClick={toggleAudio} className="shrink-0">
               {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
             </button>
