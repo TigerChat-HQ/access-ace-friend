@@ -111,6 +111,7 @@ internal class NativeWebRtcEngine(
 
     fun createOffer() = createDescription(offer = true)
     fun createAnswer() = createDescription(offer = false)
+    fun restartIce() { peerConnection?.restartIce() }
 
     private fun createDescription(offer: Boolean) {
         val pc = peerConnection ?: return emitError("sdp", IllegalStateException("Native call haijaanzishwa."))
