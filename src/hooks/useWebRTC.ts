@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { acquireMicrophone } from "@/lib/audioCapture";
+import { acquireSharedMicrophone } from "@/lib/audioCapture";
 
 type CallSignalData = {
   callId?: string;
@@ -239,7 +239,7 @@ export const useWebRTC = () => {
     }
 
     // A call owns the shared microphone until cleanupMedia stops its tracks.
-    audioCaptureReleaseRef.current = acquireMicrophone(video ? "video-call" : "voice-call");
+    audioCaptureReleaseRef.current = await acquireSharedMicrophone(video ? "video-call" : "voice-call");
 
     const preferred: MediaStreamConstraints = {
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
