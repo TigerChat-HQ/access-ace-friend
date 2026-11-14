@@ -7,6 +7,7 @@ import android.app.ApplicationExitInfo
 import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.net.Uri
 import android.media.AudioManager
 import android.media.MediaRecorder
@@ -26,6 +27,11 @@ import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.view.WindowManager
+import android.view.View
+import android.view.Gravity
+import android.widget.FrameLayout
+import org.webrtc.SurfaceViewRenderer
+import org.webrtc.RendererCommon
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -50,6 +56,12 @@ open class MainActivity : Activity() {
     private var nativeVoiceNoteFile: File? = null
     private var nativeVoiceNoteStartedAt: Long = 0L
     private var nativeWebRtcEngine: NativeWebRtcEngine? = null
+    private lateinit var appRoot: FrameLayout
+    private lateinit var nativeVideoLayer: FrameLayout
+    private var nativeRemoteRenderer: SurfaceViewRenderer? = null
+    private var nativeLocalRenderer: TextureViewRenderer? = null
+    private var pendingNativeWebRtcIceServers: String? = null
+    private var pendingNativeWebRtcWithVideo: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -204,7 +216,18 @@ open class MainActivity : Activity() {
             }
         }
         webView.addJavascriptInterface(NativeBridge(), "TigerNative")
-        setContentView(webView)
+        appRoot = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
+        nativeVideoLayer = FrameLayout(this).apply {
+            setBackgroundColor(Color.BLACK)
+            visibility = View.GONE
+        }
+        appRoot.addView(nativeVideoLayer, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT,
+        ))
+        appRoot.addView(webView, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT,
+        ))
+        setContentView(appRoot)
         // Use Android's measured WebView height as the authoritative viewport while the IME resizes the Activity.
         webView.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
             (view as? WebView)?.let(::applyNativeViewportHeight)
@@ -255,6 +278,17 @@ open class MainActivity : Activity() {
             publishContactsPermission(granted)
             return
         }
+        if (requestCode == NATIVE_WEBRTC_PERMISSION_REQUEST_CODE) {
+            val iceServers = pendingNativeWebRtcIceServers
+            val withVideo = pendingNativeWebRtcWithVideo
+            pendingNativeWebRtcIceServers = null
+            pendingNativeWebRtcWithVideo = false
+            val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED &&
+                (!withVideo || ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
+            if (granted && iceServers != null) startNativeWebRtcEngine(iceServers, withVideo)
+            else dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject().put("type", "error").put("stage", "permission").put("message", "Ruhusa ya microphone${if (withVideo) " na camera" else ""} imekataliwa. Ruhusu kwenye mipangilio ya TigerChats kisha jaribu tena."))
+            return
+        }
         if (requestCode == NATIVE_VOICE_PERMISSION_REQUEST_CODE) {
             val granted = grantResults.isNotEmpty() &&
                 grantResults[0] == PackageManager.PERMISSION_GRANTED &&
@@ -303,6 +337,74 @@ open class MainActivity : Activity() {
             }
         }
         if (denied) showMediaPermissionSettingsPrompt()
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun prepareNativeVideoRenderers(engine: NativeWebRtcEngine) {
+        releaseNativeVideoRenderers()
+        val remote = TextureViewRenderer(this).apply {
+            init(engine.eglContext, null)
+            setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL)
+            setEnableHardwareScaler(true)
+            setMirror(false)
+        }
+        val local = TextureViewRenderer(this).apply {
+            init(engine.eglContext, null)
+            setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL)
+            setEnableHardwareScaler(true)
+            setMirror(true)
+        }
+        nativeVideoLayer.removeAllViews()
+        nativeVideoLayer.addView(remote, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT,
+        ))
+        nativeVideoLayer.addView(local, FrameLayout.LayoutParams(dp(116), dp(164), Gravity.TOP or Gravity.END).apply {
+            setMargins(0, dp(16), dp(16), 0)
+        })
+        nativeRemoteRenderer = remote
+        nativeLocalRenderer = local
+        engine.attachRenderers(local, remote)
+        nativeVideoLayer.visibility = View.VISIBLE
+        webView.setBackgroundColor(Color.TRANSPARENT)
+    }
+
+    private fun releaseNativeVideoRenderers() {
+        nativeWebRtcEngine?.attachRenderers(null, null)
+        nativeRemoteRenderer?.release()
+        nativeLocalRenderer?.release()
+        nativeRemoteRenderer = null
+        nativeLocalRenderer = null
+        if (::nativeVideoLayer.isInitialized) {
+            nativeVideoLayer.removeAllViews()
+            nativeVideoLayer.visibility = View.GONE
+        }
+        if (::webView.isInitialized) webView.setBackgroundColor(Color.WHITE)
+    }
+
+    private fun disposeNativeWebRtcEngine() {
+        nativeWebRtcEngine?.dispose()
+        nativeWebRtcEngine = null
+        releaseNativeVideoRenderers()
+    }
+
+    private fun startNativeWebRtcEngine(iceServersJson: String, withVideo: Boolean) {
+        try {
+            disposeNativeWebRtcEngine()
+            val engine = NativeWebRtcEngine(this) { type, data ->
+                if (type == "error" && withVideo) runOnUiThread { nativeVideoLayer.visibility = View.GONE }
+                dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject(data.toString()).put("type", type))
+            }
+            nativeWebRtcEngine = engine
+            if (withVideo) prepareNativeVideoRenderers(engine)
+            engine.start(iceServersJson, withVideo)
+        } catch (error: Exception) {
+            disposeNativeWebRtcEngine()
+            dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject()
+                .put("type", "error")
+                .put("stage", "initialization")
+                .put("message", error.message ?: "Native WebRTC initialization failed"))
+        }
     }
 
     private fun publishContactsPermission(granted: Boolean) {
@@ -456,8 +558,7 @@ open class MainActivity : Activity() {
         pendingMediaPermissionRequests.clear()
         mediaPermissionDialogOpen = false
         stopNativeVoiceNote(deleteFile = true)
-        nativeWebRtcEngine?.dispose()
-        nativeWebRtcEngine = null
+        disposeNativeWebRtcEngine()
         if (::webView.isInitialized) {
             webView.stopLoading()
             webView.destroy()
@@ -596,22 +697,28 @@ open class MainActivity : Activity() {
         @JavascriptInterface
         fun nativeWebRtcStart(iceServersJson: String, withVideo: Boolean) {
             runOnUiThread {
-                val missing = mutableListOf<String>()
-                if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) missing += Manifest.permission.RECORD_AUDIO
-                if (withVideo && ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) missing += Manifest.permission.CAMERA
+                val required = buildList {
+                    add(Manifest.permission.RECORD_AUDIO)
+                    if (withVideo) add(Manifest.permission.CAMERA)
+                }
+                val missing = required.filter {
+                    ContextCompat.checkSelfPermission(this@MainActivity, it) != PackageManager.PERMISSION_GRANTED
+                }
                 if (missing.isNotEmpty()) {
-                    dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject().put("type", "error").put("stage", "permission").put("message", "Ruhusu microphone na camera kwenye mipangilio ya app."))
+                    // Match the native voice-note flow: request Android permission first,
+                    // then resume the exact pending call-engine startup after the user responds.
+                    pendingNativeWebRtcIceServers = iceServersJson
+                    pendingNativeWebRtcWithVideo = withVideo
+                    try {
+                        ActivityCompat.requestPermissions(this@MainActivity, missing.toTypedArray(), NATIVE_WEBRTC_PERMISSION_REQUEST_CODE)
+                    } catch (error: Exception) {
+                        pendingNativeWebRtcIceServers = null
+                        pendingNativeWebRtcWithVideo = false
+                        dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject().put("type", "error").put("stage", "permission").put("message", error.message ?: "Android haikuweza kuomba ruhusa za media."))
+                    }
                     return@runOnUiThread
                 }
-                try {
-                    nativeWebRtcEngine?.dispose()
-                    nativeWebRtcEngine = NativeWebRtcEngine(this@MainActivity) { type, data ->
-                        dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject(data.toString()).put("type", type))
-                    }
-                    nativeWebRtcEngine?.start(iceServersJson, withVideo)
-                } catch (error: Exception) {
-                    dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject().put("type", "error").put("stage", "initialization").put("message", error.message ?: "Native WebRTC initialization failed"))
-                }
+                startNativeWebRtcEngine(iceServersJson, withVideo)
             }
         }
 
@@ -637,8 +744,23 @@ open class MainActivity : Activity() {
         }
 
         @JavascriptInterface
+        fun nativeWebRtcSetRemoteAudioEnabled(enabled: Boolean) {
+            runOnUiThread { nativeWebRtcEngine?.setRemoteAudioEnabled(enabled) }
+        }
+
+        @JavascriptInterface
         fun nativeWebRtcSetVideoEnabled(enabled: Boolean) {
             runOnUiThread { nativeWebRtcEngine?.setVideoEnabled(enabled) }
+        }
+
+        @JavascriptInterface
+        fun nativeWebRtcSetVideoLayout(enabled: Boolean) {
+            runOnUiThread {
+                if (::nativeVideoLayer.isInitialized) {
+                    nativeVideoLayer.visibility = if (enabled) View.VISIBLE else View.GONE
+                    webView.setBackgroundColor(if (enabled) Color.TRANSPARENT else Color.WHITE)
+                }
+            }
         }
 
         @JavascriptInterface
@@ -649,8 +771,12 @@ open class MainActivity : Activity() {
         @JavascriptInterface
         fun nativeWebRtcClose() {
             runOnUiThread {
-                nativeWebRtcEngine?.dispose()
-                nativeWebRtcEngine = null
+                // A call may be cancelled while the Android permission dialog is open.
+                // Clear the pending request so a late grant cannot start a ghost call.
+                pendingNativeWebRtcIceServers = null
+                pendingNativeWebRtcWithVideo = false
+                disposeNativeWebRtcEngine()
+                dispatchNativeVoiceNoteEvent("tiger:native-webrtc", JSONObject().put("type", "cancelled"))
             }
         }
 
@@ -939,6 +1065,7 @@ open class MainActivity : Activity() {
         const val EXTRA_NATIVE_CALL_TYPE = "tiger_native_call_type"
         private const val MEDIA_PERMISSION_REQUEST_CODE = 7302
         private const val NATIVE_VOICE_PERMISSION_REQUEST_CODE = 7304
+        private const val NATIVE_WEBRTC_PERMISSION_REQUEST_CODE = 7305
         private const val CONTACTS_PERMISSION_REQUEST_CODE = 7303
         private const val TAG = "TigerChatMedia"
         private const val NATIVE_DIAGNOSTICS_PREFS = "tiger_native_diagnostics"
