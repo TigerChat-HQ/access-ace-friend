@@ -96,14 +96,29 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
       setIsRecording(true);
     } catch (cause) {
       releaseStream();
-      const name = cause instanceof DOMException ? cause.name : "";
+      const errorObject = cause as { name?: string; message?: string };
+      const name = typeof errorObject?.name === "string" ? errorObject.name : "UnknownError";
+      const nativeAudioState = (() => {
+        try { return window.TigerNative?.getActiveAudioRecordingApps?.() ?? "unavailable"; }
+        catch (diagnosticError) { return String(diagnosticError); }
+      })();
+      // Preserve the exact browser/Android failure and AudioManager state in Logcat.
+      console.error("[TigerChatMic] getUserMedia failed", JSON.stringify({
+        name,
+        message: typeof errorObject?.message === "string" ? errorObject.message : String(cause),
+        nativeAudioState,
+        appVersion: window.TigerNative?.getAppVersion?.() ?? "website",
+        secureContext: window.isSecureContext,
+        mediaDevicesAvailable: Boolean(navigator.mediaDevices?.getUserMedia),
+        timestamp: new Date().toISOString(),
+      }));
       const message = name === "NotAllowedError" || name === "PermissionDeniedError"
         ? "Ruhusa ya Microphone imekataliwa. Fungua App permissions za TigerChat, ruhusu Microphone, kisha bonyeza Jaribu tena."
         : name === "NotFoundError" ? "Hakuna kipaza sauti (Microphone) kilichopatikana."
         : name === "NotReadableError" || name === "AbortError"
           ? "Microphone haikuweza kuanzishwa. Funga app nyingine inayotumia sauti, hakikisha ruhusa ya Microphone ipo, kisha bonyeza Jaribu tena."
-          : cause instanceof Error ? cause.message : "Imeshindikana kuanza kurekodi sauti.";
-      if (mountedRef.current) { setError(message); setIsRecording(false); }
+          : errorObject?.message || "Imeshindikana kuanza kurekodi sauti.";
+      if (mountedRef.current) { setError(message + " (Msimbo: " + name + ")"); setIsRecording(false); }
     } finally {
       if (mountedRef.current) setIsStarting(false);
     }

@@ -150,10 +150,12 @@ open class MainActivity : Activity() {
         webView.webChromeClient = object : WebChromeClient() {
             override fun onConsoleMessage(message: ConsoleMessage): Boolean {
                 if (message.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                    val source = safeDiagnosticUrl(message.sourceId())
+                    android.util.Log.e(TAG, "WebView JS error at " + source + ":" + message.lineNumber() + ": " + message.message())
                     recordNativeDiagnostic(
                         source = "android_webview", category = "webview_console", title = "Website JavaScript console error",
                         message = message.message().take(1200), severity = "high",
-                        metadata = JSONObject().put("sourceId", safeDiagnosticUrl(message.sourceId())).put("lineNumber", message.lineNumber())
+                        metadata = JSONObject().put("sourceId", source).put("lineNumber", message.lineNumber())
                     )
                 }
                 return true
