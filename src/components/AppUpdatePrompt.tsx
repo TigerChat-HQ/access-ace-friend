@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
-declare global { interface Window { TigerNative?: { getAppVersion?: () => string }; } }
 type AppRelease = { id: string; version: string; title: string; summary: string; features: string[] | null; update_url: string | null };
 type PromptState = { version: string; day: string; shownToday: number; remindAt: number; seenVersion: string };
 const storageKey = (userId: string) => `tigerchat:release-prompt:${userId}`;
@@ -40,7 +39,7 @@ export const AppUpdatePrompt = () => {
 
   useEffect(() => {
     if (!user) return;
-    const installedVersion = window.TigerNative?.getAppVersion?.();
+    const installedVersion = (window as Window & { TigerNative?: { getAppVersion?: () => string } }).TigerNative?.getAppVersion?.();
     if (!installedVersion) return;
     let cancelled = false;
     const checkRelease = async () => {
