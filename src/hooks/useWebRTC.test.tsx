@@ -11,7 +11,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   from: () => ({ insert: mocks.insert, select: () => ({ eq: () => ({ maybeSingle: mocks.profile }) }) }),
   channel: () => {
     let presence: Record<string, unknown[]> = {};
-    let presenceSync: (() => void) | null = null;
+    let presenceSync: ((payload: unknown) => void) | null = null;
     const channel = {
       on: (event: string, _filter: unknown, cb: (p: unknown) => void) => {
         if (event === "presence") presenceSync = cb;
@@ -28,7 +28,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
       presenceState: () => presence,
       track: async (payload: unknown) => {
         presence = { client: [payload] };
-        queueMicrotask(() => presenceSync?.());
+        queueMicrotask(() => presenceSync?.({}));
         return "ok";
       },
       untrack: async () => { presence = {}; },
