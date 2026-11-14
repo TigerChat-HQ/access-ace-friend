@@ -254,6 +254,16 @@ open class MainActivity : Activity() {
             publishContactsPermission(granted)
             return
         }
+        if (requestCode == NATIVE_VOICE_PERMISSION_REQUEST_CODE) {
+            val granted = grantResults.isNotEmpty() &&
+                grantResults[0] == PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+            if (granted) NativeBridge().startVoiceNoteRecording()
+            else dispatchNativeVoiceNoteEvent("tiger:native-voice-note-error", JSONObject()
+                .put("message", "Ruhusa ya microphone imekataliwa kwenye Android.")
+                .put("code", "permission_denied"))
+            return
+        }
         if (requestCode != MEDIA_PERMISSION_REQUEST_CODE) return
         mediaPermissionDialogOpen = false
         val requests = pendingMediaPermissionRequests.toList()
@@ -584,7 +594,7 @@ open class MainActivity : Activity() {
         fun startVoiceNoteRecording() {
             runOnUiThread {
                 if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                    dispatchNativeVoiceNoteEvent("tiger:native-voice-note-error", JSONObject().put("message", "Ruhusa ya microphone haijatolewa kwenye Android.").put("code", "permission_denied"))
+                    ActivityCompat.requestPermissions(this@MainActivity, arrayOf(Manifest.permission.RECORD_AUDIO), NATIVE_VOICE_PERMISSION_REQUEST_CODE)
                     return@runOnUiThread
                 }
                 if (nativeVoiceNoteRecorder != null) {
@@ -856,6 +866,7 @@ open class MainActivity : Activity() {
         const val EXTRA_QUICK_REPLY = "tiger_quick_reply"
         const val EXTRA_NATIVE_CALL_TYPE = "tiger_native_call_type"
         private const val MEDIA_PERMISSION_REQUEST_CODE = 7302
+        private const val NATIVE_VOICE_PERMISSION_REQUEST_CODE = 7304
         private const val CONTACTS_PERMISSION_REQUEST_CODE = 7303
         private const val TAG = "TigerChatMedia"
         private const val NATIVE_DIAGNOSTICS_PREFS = "tiger_native_diagnostics"
