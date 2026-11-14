@@ -40,6 +40,7 @@ export interface TigerNativeWebRtcBridge {
   nativeWebRtcAddIceCandidate(candidateJson: string): void;
   nativeWebRtcSetMuted(muted: boolean): void;
   nativeWebRtcSetVideoEnabled(enabled: boolean): void;
+  nativeWebRtcSetVideoLayout(enabled: boolean): void;
   nativeWebRtcSwitchCamera(): void;
   nativeWebRtcClose(): void;
 }
@@ -143,6 +144,10 @@ export const setNativeWebRtcMuted = (muted: boolean): void => {
 
 export const setNativeWebRtcVideoEnabled = (enabled: boolean): void => {
   getNativeBridge()?.nativeWebRtcSetVideoEnabled(enabled);
+};
+
+export const setNativeWebRtcVideoLayout = (enabled: boolean): void => {
+  getNativeBridge()?.nativeWebRtcSetVideoLayout(enabled);
 };
 
 export const switchNativeWebRtcCamera = (): void => {
