@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Smartphone, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +31,7 @@ export const AdminReleaseManager = () => {
 
   useEffect(() => { void load(); }, [load]);
 
-  const publish = async (event: React.FormEvent<HTMLFormElement>) => {
+  const publish = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!/^\d+(\.\d+){1,3}$/.test(version.trim())) {
       toast({ title: "Toleo si sahihi", description: "Tumia muundo kama 1.0.37", variant: "destructive" });
