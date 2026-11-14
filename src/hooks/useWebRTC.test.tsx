@@ -124,7 +124,7 @@ describe("call signaling reliability", () => {
     act(() => { mocks.nativeListener?.({ type: "ice-state", state: "FAILED" }); });
 
     expect(result.current.callStatus).toBe("outgoing");
-    expect(mocks.rpc.mock.calls.filter(([, args]) => args.p_signal_type === "offer")).toHaveLength(1);
+    expect(mocks.rpc.mock.calls.filter(([name, args]) => name === "create_call_signal" && args?.p_signal_type === "offer")).toHaveLength(1);
     expect(mocks.rpc).toHaveBeenCalledWith("create_call_signal", expect.objectContaining({ p_signal_type: "offer" }));
     expect(mocks.rpc).not.toHaveBeenCalledWith("create_call_signal", expect.objectContaining({ p_signal_type: "hangup" }));
     unmount();
@@ -189,7 +189,7 @@ describe("call signaling reliability", () => {
     } };
     await act(async () => { mocks.handlers.forEach((handler) => handler(restartOffer)); });
     await waitFor(() => expect(mocks.nativeRemote).toHaveBeenCalledTimes(2));
-    expect(mocks.rpc.mock.calls.filter((call) => call[1].p_signal_type === "answer")).toHaveLength(2);
+    expect(mocks.rpc.mock.calls.filter(([name, args]) => name === "create_call_signal" && args?.p_signal_type === "answer")).toHaveLength(2);
     unmount();
   });
   it("keeps the provider hook order stable across rerenders and call transitions", async () => {
