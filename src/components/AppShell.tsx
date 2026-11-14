@@ -13,6 +13,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { NativePushRegistration } from "@/components/NativePushRegistration";
 import { FloatingChatWidget } from "@/components/chat/FloatingChatWidget";
+import { VoiceNotePlayerProvider } from "@/contexts/VoiceNotePlayerContext";
 
 export const AppShell = () => {
   const { user } = useAuth();
@@ -204,7 +205,7 @@ export const AppShell = () => {
   ];
 
   return (
-    <AppLockGate><CallProvider><AnnouncementGate>
+    <AppLockGate><CallProvider><AnnouncementGate><VoiceNotePlayerProvider key={user?.id ?? "signed-out"}>
       <div className="flex min-h-0 bg-background" style={{ height: "var(--tiger-viewport-height, 100dvh)" }}>
         <NativePushRegistration />
         <aside className={`hidden h-full w-56 shrink-0 flex-col gap-2 border-r border-border bg-card p-4 ${location.search.includes("bubble=1") ? "" : "lg:flex"}`}>
@@ -225,6 +226,6 @@ export const AppShell = () => {
           </nav>}
         </div>
       </div>
-    </AnnouncementGate></CallProvider></AppLockGate>
+    </VoiceNotePlayerProvider></AnnouncementGate></CallProvider></AppLockGate>
   );
 };

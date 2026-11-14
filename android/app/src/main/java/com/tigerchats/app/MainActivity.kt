@@ -55,6 +55,8 @@ open class MainActivity : Activity() {
     private var nativeVoiceNoteRecorder: MediaRecorder? = null
     private var nativeVoiceNoteFile: File? = null
     private var nativeVoiceNoteStartedAt: Long = 0L
+    private var nativeVoiceNotePausedAt: Long = 0L
+    private var nativeVoiceNotePausedDuration: Long = 0L
     private var nativeWebRtcEngine: NativeWebRtcEngine? = null
     private lateinit var appRoot: FrameLayout
     private lateinit var nativeVideoLayer: FrameLayout
@@ -690,7 +692,10 @@ open class MainActivity : Activity() {
         nativeVoiceNoteRecorder = null
         nativeVoiceNoteFile = null
         if (recorder != null) {
-            try { recorder.stop() } catch (error: Exception) {
+            try {
+                if (nativeVoiceNotePausedAt > 0L && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) recorder.resume()
+                recorder.stop()
+            } catch (error: Exception) {
                 android.util.Log.w(TAG, "Native voice note stop failed", error)
             } finally {
                 try { recorder.reset() } catch (_: Exception) { }
@@ -818,6 +823,8 @@ open class MainActivity : Activity() {
                     nativeVoiceNoteRecorder = createdRecorder
                     nativeVoiceNoteFile = output
                     nativeVoiceNoteStartedAt = System.currentTimeMillis()
+                    nativeVoiceNotePausedAt = 0L
+                    nativeVoiceNotePausedDuration = 0L
                     android.util.Log.i(TAG, "Native Android voice note recording started")
                     dispatchNativeVoiceNoteEvent("tiger:native-voice-note-started")
                 } catch (error: Exception) {
@@ -833,11 +840,65 @@ open class MainActivity : Activity() {
         }
 
         @JavascriptInterface
+        fun pauseVoiceNoteRecording() {
+            runOnUiThread {
+                val recorder = nativeVoiceNoteRecorder
+                if (recorder == null || nativeVoiceNotePausedAt > 0L) return@runOnUiThread
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+                    dispatchNativeVoiceNoteEvent("tiger:native-voice-note-error", JSONObject()
+                        .put("message", "Pause ya kurekodi inahitaji Android 7 au zaidi.")
+                        .put("code", "pause_not_supported"))
+                    return@runOnUiThread
+                }
+                try {
+                    recorder.pause()
+                    nativeVoiceNotePausedAt = System.currentTimeMillis()
+                    dispatchNativeVoiceNoteEvent("tiger:native-voice-note-paused")
+                } catch (error: Exception) {
+                    dispatchNativeVoiceNoteEvent("tiger:native-voice-note-error", JSONObject()
+                        .put("message", error.message ?: "Imeshindikana kusitisha kurekodi.")
+                        .put("code", error.javaClass.simpleName))
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun resumeVoiceNoteRecording() {
+            runOnUiThread {
+                val recorder = nativeVoiceNoteRecorder
+                val pausedAt = nativeVoiceNotePausedAt
+                if (recorder == null || pausedAt <= 0L) return@runOnUiThread
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return@runOnUiThread
+                try {
+                    recorder.resume()
+                    nativeVoiceNotePausedDuration += (System.currentTimeMillis() - pausedAt).coerceAtLeast(0L)
+                    nativeVoiceNotePausedAt = 0L
+                    dispatchNativeVoiceNoteEvent("tiger:native-voice-note-resumed")
+                } catch (error: Exception) {
+                    dispatchNativeVoiceNoteEvent("tiger:native-voice-note-error", JSONObject()
+                        .put("message", error.message ?: "Imeshindikana kuendelea kurekodi.")
+                        .put("code", error.javaClass.simpleName))
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun getVoiceNoteAmplitude(): Int {
+            return try {
+                nativeVoiceNoteRecorder?.maxAmplitude?.coerceIn(0, 32767) ?: 0
+            } catch (_: Exception) { 0 }
+        }
+
+        @JavascriptInterface
         fun stopVoiceNoteRecording() {
             runOnUiThread {
-                val duration = (System.currentTimeMillis() - nativeVoiceNoteStartedAt).coerceAtLeast(0L)
+                val now = System.currentTimeMillis()
+                val pausedNow = if (nativeVoiceNotePausedAt > 0L) (now - nativeVoiceNotePausedAt).coerceAtLeast(0L) else 0L
+                val duration = (now - nativeVoiceNoteStartedAt - nativeVoiceNotePausedDuration - pausedNow).coerceAtLeast(0L)
                 val file = stopNativeVoiceNote(deleteFile = false)
                 nativeVoiceNoteStartedAt = 0L
+                nativeVoiceNotePausedAt = 0L
+                nativeVoiceNotePausedDuration = 0L
                 if (file == null || !file.exists() || file.length() <= 0L) {
                     file?.delete()
                     dispatchNativeVoiceNoteEvent("tiger:native-voice-note-error", JSONObject()
@@ -882,6 +943,8 @@ open class MainActivity : Activity() {
             runOnUiThread {
                 stopNativeVoiceNote(deleteFile = true)
                 nativeVoiceNoteStartedAt = 0L
+                nativeVoiceNotePausedAt = 0L
+                nativeVoiceNotePausedDuration = 0L
                 dispatchNativeVoiceNoteEvent("tiger:native-voice-note-cancelled")
             }
         }

@@ -1,5 +1,7 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Message } from "@/types/chat";
+import { useVoiceNotePlayer } from "@/contexts/VoiceNotePlayerContext";
+import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { playChatEmojiSound } from "@/lib/chat-emoji";
 import { getMediaDisplayUrl, isDataSaverEnabled } from "@/lib/data-saver";
@@ -31,15 +33,25 @@ interface MessageBubbleProps {
 
 export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDelete, myBubbleClass, translatedText, onStatusClick, reactions = [], isPinned = false, onReact, onTogglePin, onEdit, isEdited = false }: MessageBubbleProps) => {
   const isMe = message.senderId === "me";
-  const [playing, setPlaying] = useState(false);
+  const { activeVoiceNoteId, isVoiceNotePlaying, currentTime, duration, playbackRate, registerVoiceNote, playVoiceNote, togglePlayback, seekTo, cyclePlaybackRate } = useVoiceNotePlayer();
+  const playing = activeVoiceNoteId === message.id && isVoiceNotePlaying;
+  const audioProgress = activeVoiceNoteId === message.id ? currentTime : 0;
+  const audioDuration = activeVoiceNoteId === message.id ? duration : 0;
+  const [transcriptVisible, setTranscriptVisible] = useState(false);
+  const [transcript, setTranscript] = useState<string | null>(null);
+  const [transcribing, setTranscribing] = useState(false);
+  const [transcriptionError, setTranscriptionError] = useState("");
+  const [showTranscriptionConsent, setShowTranscriptionConsent] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
   const hasTranslation = !isMe && !!translatedText && translatedText !== message.text;
   const displayText = hasTranslation && !showOriginal ? translatedText : message.text;
-  const audioRef = useRef<HTMLAudioElement>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const dataSaver = isDataSaverEnabled();
   const mediaUrl = message.mediaUrl ? getMediaDisplayUrl(message.mediaUrl, dataSaver) : undefined;
+  const isFile = message.type === "file";
+  const isImage = message.type === "image";
+  const isVoice = message.type === "voice";
   const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => { const touch = event.touches[0]; touchStartRef.current = { x: touch.clientX, y: touch.clientY }; };
   const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
     const start = touchStartRef.current; touchStartRef.current = null;
@@ -49,21 +61,58 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
     if (Math.abs(dx) >= 58 && Math.abs(dy) <= 48) onReply(message);
   };
 
-  const waveformHeights = useMemo(
-    () => Array.from({ length: 16 }, () => Math.random() * 12 + 4),
-    []
-  );
+  useEffect(() => {
+    if (!isVoice || !mediaUrl) return;
+    return registerVoiceNote({ id: message.id, src: mediaUrl, label: message.text || "Voice note" });
+  }, [isVoice, mediaUrl, message.id, message.text, registerVoiceNote]);
 
-  const toggleAudio = () => {
-    if (!audioRef.current) return;
-    if (playing) audioRef.current.pause();
-    else void audioRef.current.play();
-    setPlaying(!playing);
+  useEffect(() => {
+    if (!isVoice) return;
+    let current = true;
+    const loadTranscript = async () => {
+      try {
+        const { data } = await supabase.from("voice_note_transcripts").select("transcript").eq("message_id", message.id).maybeSingle();
+        if (current && data?.transcript) setTranscript(data.transcript);
+      } catch { /* transcript is optional and private */ }
+    };
+    void loadTranscript();
+    return () => { current = false; };
+  }, [isVoice, message.id]);
+
+  const handleTranscribe = async () => {
+    if (!mediaUrl) return;
+    setShowTranscriptionConsent(false);
+    setTranscribing(true);
+    setTranscriptionError("");
+    try {
+      const audioResponse = await fetch(mediaUrl);
+      if (!audioResponse.ok) throw new Error("Imeshindikana kupakua voice note.");
+      const audioBlob = await audioResponse.blob();
+      if (!audioBlob.size || audioBlob.size > 8 * 1024 * 1024) throw new Error("Voice note lazima iwe chini ya MB 8 ili kuandikwa.");
+      const form = new FormData();
+      form.append("messageId", message.id);
+      form.append("audio", audioBlob, audioBlob.type.includes("webm") ? "voice-note.webm" : "voice-note.m4a");
+      const { data, error } = await supabase.functions.invoke<{ transcript: string }>("transcribe-voice-note", { body: form });
+      if (error) throw error;
+      if (!data?.transcript) throw new Error("Hakuna maneno yaliyotambuliwa kwenye sauti hii.");
+      setTranscript(data.transcript);
+      setTranscriptVisible(true);
+    } catch (error) {
+      setTranscriptionError(error instanceof Error ? error.message : "Imeshindikana kuandika maneno ya sauti.");
+    } finally {
+      setTranscribing(false);
+    }
   };
 
-  const isFile = message.type === "file";
-  const isImage = message.type === "image";
-  const isVoice = message.type === "voice";
+  const formatAudioTime = (seconds: number) => Number.isFinite(seconds)
+    ? `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, "0")}`
+    : "0:00";
+
+  const toggleAudio = () => {
+    if (activeVoiceNoteId === message.id) togglePlayback();
+    else playVoiceNote(message.id);
+  };
+
   const isEmojiOnly = !!message.text && /^(?:\p{Extended_Pictographic}|\uFE0F|\u200D|\s)+$/u.test(message.text.trim()) && Array.from(message.text.trim()).length <= 8;
 
   return (
@@ -130,18 +179,35 @@ export const MessageBubble = ({ message, replyMessage, onReply, onForward, onDel
         )}
 
         {isVoice && message.mediaUrl ? (
+          <>
           <div className="flex items-center gap-3 min-w-[160px]">
-            <audio ref={audioRef} src={mediaUrl || message.mediaUrl} onEnded={() => setPlaying(false)} className="hidden" />
+            
             <button onClick={toggleAudio} className="shrink-0">
               {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
             </button>
-            <div className="flex-1 flex items-center gap-0.5">
-              {waveformHeights.map((height, index) => (
-                <div key={index} className={cn("w-1 rounded-full", isMe ? "bg-primary-foreground/60" : "bg-foreground/40")} style={{ height: `${height}px` }} />
-              ))}
+            <div className="flex-1 min-w-0 flex flex-col gap-1">
+              <input aria-label="Seek voice message" type="range" min={0} max={audioDuration || 0} step={0.1} value={Math.min(audioProgress, audioDuration || 0)} onChange={(event) => { const next = Number(event.target.value); seekTo(next); }} className="w-full h-1 accent-current cursor-pointer" />
+              <div className="flex items-center justify-between text-[10px] opacity-60"><span>{formatAudioTime(audioProgress)}</span><span>{formatAudioTime(audioDuration) || message.text || "0:00"}</span></div>
             </div>
-            <span className="text-[10px] opacity-60">{message.text || "0:00"}</span>
+            <button type="button" aria-label="Change playback speed" onClick={cyclePlaybackRate} className="shrink-0 rounded-full px-1.5 py-1 text-[10px] font-semibold bg-white/10 hover:bg-white/20">{playbackRate}×</button>
           </div>
+          <div className="mt-2">
+            <button type="button" onClick={() => transcript ? setTranscriptVisible((visible) => !visible) : setShowTranscriptionConsent((visible) => !visible)} disabled={transcribing} className="text-[11px] underline underline-offset-2 opacity-80 hover:opacity-100 disabled:opacity-50">
+              {transcribing ? "Inaandika sauti..." : transcript ? (transcriptVisible ? "Ficha maandishi" : "Onyesha maandishi") : showTranscriptionConsent ? "Ficha ruhusa" : "Andika maneno ya sauti"}
+            </button>
+            {showTranscriptionConsent && !transcript && (
+              <div className="mt-2 rounded-lg bg-white/10 p-2">
+                <p className="text-[11px] leading-relaxed">Sauti itatumwa kwa Google Gemini AI na itashughulikiwa chini ya masharti ya faragha ya mtoa huduma. TigerChat haihifadhi faili la sauti kwenye jedwali la transcript; maandishi yataonekana kwenye akaunti yako tu.</p>
+                <div className="mt-2 flex gap-2">
+                  <button type="button" onClick={() => void handleTranscribe()} disabled={transcribing} className="rounded-md bg-primary px-2 py-1 text-[10px] font-semibold text-primary-foreground">Kubali na endelea</button>
+                  <button type="button" onClick={() => setShowTranscriptionConsent(false)} className="rounded-md bg-white/10 px-2 py-1 text-[10px]">Ghairi</button>
+                </div>
+              </div>
+            )}
+            {transcriptionError && <p role="alert" className="mt-1 text-[11px] text-red-300">{transcriptionError}</p>}
+            {transcriptVisible && transcript && <p dir="auto" className="mt-2 rounded-lg bg-white/10 p-2 text-xs whitespace-pre-wrap">{transcript}</p>}
+          </div>
+          </>
         ) : isImage && message.mediaUrl ? (
           <div>
             <div className="relative overflow-hidden rounded-lg">

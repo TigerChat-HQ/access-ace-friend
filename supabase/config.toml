@@ -14,3 +14,6 @@ verify_jwt = true
 
 [functions.tiger-ai-daily-social-posts]
 verify_jwt = false
+
+[functions.transcribe-voice-note]
+verify_jwt = true
