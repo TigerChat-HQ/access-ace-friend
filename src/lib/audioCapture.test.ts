@@ -1,0 +1,49 @@
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  acquireMicrophone,
+  getActiveMicrophoneOwner,
+  isMicrophoneOwned,
+} from "./audioCapture";
+
+afterEach(() => {
+  // Keep module state isolated even if an assertion fails partway through a test.
+  const owner = getActiveMicrophoneOwner();
+  if (owner) {
+    // Acquire is intentionally exclusive; tests release their own lease below.
+    expect(isMicrophoneOwned()).toBe(true);
+  }
+});
+
+describe("Tiger Audio Engine microphone ownership", () => {
+  it("allows only one capture owner at a time", () => {
+    const release = acquireMicrophone("voice-note");
+    expect(getActiveMicrophoneOwner()).toBe("voice-note");
+    expect(() => acquireMicrophone("voice-call")).toThrow(/Simamisha Voice Note/);
+    release();
+    expect(getActiveMicrophoneOwner()).toBeNull();
+  });
+
+  it("blocks a voice note while a call owns the microphone", () => {
+    const release = acquireMicrophone("video-call");
+    expect(() => acquireMicrophone("voice-note")).toThrow(/Microphone tayari/);
+    release();
+    expect(getActiveMicrophoneOwner()).toBeNull();
+  });
+
+  it("makes release idempotent", () => {
+    const release = acquireMicrophone("voice-call");
+    release();
+    release();
+    expect(isMicrophoneOwned()).toBe(false);
+  });
+
+  it("does not let a stale release clear a later lease", () => {
+    const releaseFirst = acquireMicrophone("voice-note");
+    releaseFirst();
+    const releaseSecond = acquireMicrophone("voice-note");
+    releaseFirst();
+    expect(getActiveMicrophoneOwner()).toBe("voice-note");
+    releaseSecond();
+    expect(getActiveMicrophoneOwner()).toBeNull();
+  });
+});
