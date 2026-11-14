@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Camera, X, Upload, Type, Globe, Lock, Music, Mic, Square } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MusicPicker } from "./MusicPicker";
+import { acquireSharedMicrophone } from "@/lib/audioCapture";
 
 interface StoryUploadDialogProps {
   onUploaded: () => void;
@@ -58,6 +59,7 @@ export const StoryUploadDialog = ({ onUploaded, open, onOpenChange, hideTrigger 
   const [backgroundColor, setBackgroundColor] = useState(BACKGROUNDS[0]);
   const [recordingVoice, setRecordingVoice] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const audioReleaseRef = useRef<(() => void) | null>(null);
 
   useEffect(() => () => {
     if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
@@ -65,6 +67,8 @@ export const StoryUploadDialog = ({ onUploaded, open, onOpenChange, hideTrigger 
   
   useEffect(() => () => {
     if (recorderRef.current && recorderRef.current.state !== "inactive") recorderRef.current.stop();
+    audioReleaseRef.current?.();
+    audioReleaseRef.current = null;
   }, []);
 
   useEffect(() => () => {
@@ -112,8 +116,12 @@ export const StoryUploadDialog = ({ onUploaded, open, onOpenChange, hideTrigger 
       recorderRef.current?.stop();
       return;
     }
+    let release: (() => void) | null = null;
     try {
+      release = await acquireSharedMicrophone("voice-note");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioReleaseRef.current = release;
+      release = null;
       const recorder = new MediaRecorder(stream);
       const chunks: Blob[] = [];
       recorder.ondataavailable = (event) => {
@@ -143,12 +151,15 @@ export const StoryUploadDialog = ({ onUploaded, open, onOpenChange, hideTrigger 
           toast({ title: "Voice recording too large", description: "Please record a shorter voiceover.", variant: "destructive" });
         }
         stream.getTracks().forEach((track) => track.stop());
+        audioReleaseRef.current?.();
+        audioReleaseRef.current = null;
         recorderRef.current = null;
       };
       recorderRef.current = recorder;
       recorder.start();
       setRecordingVoice(true);
     } catch (error) {
+      release?.();
       toast({ title: "Microphone unavailable", description: error instanceof Error ? error.message : "Allow microphone access and try again.", variant: "destructive" });
     }
   };
