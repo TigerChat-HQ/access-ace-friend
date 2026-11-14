@@ -36,6 +36,7 @@ export interface TigerNativeWebRtcBridge {
   nativeWebRtcStart(iceServersJson: string, withVideo: boolean): void;
   nativeWebRtcCreateOffer(): void;
   nativeWebRtcCreateAnswer(): void;
+  nativeWebRtcRestartIce(): void;
   nativeWebRtcSetRemoteDescription(type: string, sdp: string): void;
   nativeWebRtcAddIceCandidate(candidateJson: string): void;
   nativeWebRtcSetMuted(muted: boolean): void;
@@ -122,6 +123,10 @@ export const createNativeWebRtcDescription = async (
     if (kind === "offer") bridge.nativeWebRtcCreateOffer();
     else bridge.nativeWebRtcCreateAnswer();
   });
+};
+
+export const restartNativeWebRtcIce = (): void => {
+  getNativeBridge()?.nativeWebRtcRestartIce();
 };
 
 export const setNativeRemoteDescription = async (
