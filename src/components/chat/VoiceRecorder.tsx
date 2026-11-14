@@ -148,7 +148,7 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
         if (mountedRef.current) {
           if (blob.size > 0) { setAudioBlob(blob); if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current); previewUrlRef.current = URL.createObjectURL(blob); }
           else setError("Hakuna sauti iliyorekodiwa. Ruhusu Microphone kisha ujaribu tena.");
-          setDuration(Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000)));
+          setDuration(Math.max(1, Math.round((Date.now() - startedAtRef.current - pausedAtRef.current - (pauseStartedRef.current ? Date.now() - pauseStartedRef.current : 0)) / 1000)));
           setIsRecording(false);
         }
         releaseStream();
@@ -224,6 +224,7 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
           else setError("Hakuna sauti iliyorekodiwa. Jaribu tena.");
           setDuration(Math.max(1, Math.round((detail.durationMs || 0) / 1000)));
           setIsRecording(false);
+          setIsPaused(false);
           setIsStarting(false);
         }
       } catch {
@@ -243,6 +244,7 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
       if (mountedRef.current) {
         setError(detail?.message || "Android imeshindwa kuanzisha microphone.");
         setIsRecording(false);
+        setIsPaused(false);
         setIsStarting(false);
       }
     };
@@ -297,8 +299,16 @@ export const VoiceRecorder = ({ onSend, onCancel }: VoiceRecorderProps) => {
       nativeBridge.stopVoiceNoteRecording();
       return;
     }
-    if (recorderRef.current?.state === "recording") {
-      try { if (recorderRef.current.state === "paused") recorderRef.current.resume(); recorderRef.current.stop(); } catch { setError("Imeshindikana kusimamisha kurekodi."); }
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      try {
+        if (recorder.state === "paused") {
+          if (pauseStartedRef.current) pausedAtRef.current += Date.now() - pauseStartedRef.current;
+          pauseStartedRef.current = 0;
+          recorder.resume();
+        }
+        recorder.stop();
+      } catch { setError("Imeshindikana kusimamisha kurekodi."); }
     }
     setIsRecording(false);
   };
