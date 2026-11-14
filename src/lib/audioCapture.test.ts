@@ -1,4 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    auth: { getSession: vi.fn() },
+    channel: vi.fn(),
+    removeChannel: vi.fn(),
+  },
+}));
 import {
   acquireMicrophone,
   getActiveMicrophoneOwner,
