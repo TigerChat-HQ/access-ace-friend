@@ -18,6 +18,8 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.math.abs
@@ -28,6 +30,9 @@ class TigerOverlayService : Service() {
     private var bubble: FrameLayout? = null
     private var avatar: ImageView? = null
     private var badge: TextView? = null
+    private var panel: FrameLayout? = null
+    private var panelWebView: WebView? = null
+    private var latestPath: String = "/chats"
     private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate() {
@@ -69,12 +74,7 @@ class TigerOverlayService : Service() {
         root.addView(count, badgeParams)
         avatar = image
         badge = count
-        root.setOnClickListener {
-            val launch = packageManager.getLaunchIntentForPackage(packageName)
-                ?: Intent(this@TigerOverlayService, MainActivity::class.java)
-            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            startActivity(launch)
-        }
+        root.setOnClickListener { toggleMiniWindow() }
 
         val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -122,10 +122,63 @@ class TigerOverlayService : Service() {
         if (intent?.action == ACTION_MESSAGE) {
             val count = intent.getIntExtra(EXTRA_UNREAD, 1)
             val avatarUrl = intent.getStringExtra(EXTRA_AVATAR).orEmpty()
+            latestPath = safeMiniPath(intent.getStringExtra(EXTRA_PATH))
             updateUnread(count)
             if (avatarUrl.isNotBlank()) loadSenderAvatar(avatarUrl)
+            panelWebView?.loadUrl(SITE_URL + latestPath)
         }
         return START_STICKY
+    }
+
+
+    private fun toggleMiniWindow() {
+        if (panel != null) { closeMiniWindow(); return }
+        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE
+        val root = FrameLayout(this).apply { setBackgroundColor(Color.rgb(12, 18, 17)); elevation = dp(16).toFloat() }
+        val header = FrameLayout(this).apply { setBackgroundColor(Color.rgb(0, 190, 135)) }
+        val title = TextView(this).apply {
+            text = "TigerChat • ujumbe"; textSize = 15f; setTextColor(Color.BLACK)
+            gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), 0, dp(8), 0)
+        }
+        header.addView(title, FrameLayout.LayoutParams(-1, dp(48)))
+        val close = TextView(this).apply {
+            text = "✕"; textSize = 20f; setTextColor(Color.BLACK); gravity = Gravity.CENTER
+            setOnClickListener { closeMiniWindow() }
+        }
+        header.addView(close, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.END))
+        root.addView(header, FrameLayout.LayoutParams(-1, dp(48), Gravity.TOP))
+        val web = WebView(this).apply {
+            settings.javaScriptEnabled = true; settings.domStorageEnabled = true
+            settings.loadsImagesAutomatically = true; webViewClient = WebViewClient()
+        }
+        root.addView(web, FrameLayout.LayoutParams(-1, -1).apply { topMargin = dp(48) })
+        val params = WindowManager.LayoutParams(
+            (resources.displayMetrics.widthPixels - dp(24)).coerceAtLeast(dp(280)),
+            (resources.displayMetrics.heightPixels * 0.68f).toInt().coerceAtMost(dp(620)),
+            type, WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN, PixelFormat.TRANSLUCENT
+        ).apply { gravity = Gravity.CENTER; softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE }
+        try {
+            windowManager?.addView(root, params); panel = root; panelWebView = web
+            web.loadUrl(SITE_URL + safeMiniPath(latestPath))
+        } catch (error: Exception) {
+            android.util.Log.e("TigerOverlay", "Could not open mini chat window", error); web.destroy()
+        }
+    }
+
+    private fun closeMiniWindow() {
+        panel?.let { try { windowManager?.removeView(it) } catch (_: Exception) { } }
+        panelWebView?.apply { stopLoading(); loadUrl("about:blank"); destroy() }
+        panel = null; panelWebView = null
+    }
+
+    private fun safeMiniPath(raw: String?): String {
+        val value = raw.orEmpty()
+        val chatId = Regex("[?&]c=([0-9a-fA-F-]{36})").find(value)?.groupValues?.getOrNull(1)
+        if (value.startsWith("/chats") && chatId != null) return "/chats?c=" + chatId + "&bubble=1"
+        val postId = Regex("^/post/([0-9a-fA-F-]{36})").find(value)?.groupValues?.getOrNull(1)
+        if (postId != null) return "/post/" + postId + "?bubble=1"
+        return "/chats?bubble=1"
     }
 
     private fun updateUnread(count: Int) {
@@ -167,6 +220,7 @@ class TigerOverlayService : Service() {
     }
 
     override fun onDestroy() {
+        closeMiniWindow()
         bubble?.let { view -> try { windowManager?.removeView(view) } catch (_: Exception) { } }
         bubble = null; avatar = null; badge = null; windowManager = null
         super.onDestroy()
@@ -177,6 +231,8 @@ class TigerOverlayService : Service() {
 
     companion object {
         const val ACTION_MESSAGE = "com.tigerchats.app.OVERLAY_MESSAGE"
+        const val EXTRA_PATH = "notification_path"
+        private const val SITE_URL = "https://tigerchat-hq.onrender.com"
         const val EXTRA_AVATAR = "avatar_url"
         const val EXTRA_UNREAD = "unread_count"
         const val PREFS = "tiger_overlay"
