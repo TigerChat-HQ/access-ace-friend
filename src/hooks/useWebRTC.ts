@@ -48,7 +48,20 @@ type SignalInsert = {
 
 const insertSignal = async (data: SignalInsert) => {
   const { error } = await db.from("call_signals").insert(data);
-  if (error) throw error;
+  if (error) {
+    // Supabase PostgREST errors are plain objects, not Error instances. Normalize
+    // them so call startup can show the real signaling failure instead of the
+    // generic network/permission fallback.
+    console.error("Call signaling insert failed:", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      signalType: data.signal_type,
+    });
+    const code = error.code ? ` (${error.code})` : "";
+    throw new Error(`Call signaling failed${code}: ${error.message || "Supabase rejected the call signal."}`);
+  }
 };
 
 const STUN_SERVERS: RTCIceServer[] = [
@@ -166,9 +179,10 @@ export const useWebRTC = () => {
   const nativeUnsubscribeRef = useRef<(() => void) | null>(null);
 
   const getSignalKey = useCallback((signal: CallSignal, fallbackCallId?: string) => {
-    // Each ICE candidate is a distinct signal; deduplicating by callId drops all but the first.
-    if (signal.signal_type === "ice-candidate") return signal.id;
-    const callId = signal?.signal_data?.callId || signal?.callId || fallbackCallId || signal?.id;
+    // Every inserted row is a distinct signal. In particular, ICE-restart offers
+    // reuse the callId but must not be deduplicated against the initial offer.
+    if (signal.id) return signal.id;
+    const callId = signal?.signal_data?.callId || signal?.callId || fallbackCallId;
     return callId ? `${signal?.signal_type ?? "signal"}:${callId}` : null;
   }, []);
 
@@ -278,7 +292,8 @@ export const useWebRTC = () => {
         else void sendSignal(info, "ice-candidate", { candidate }).catch((error) => console.error("Native ICE signal failed:", error));
       } else if (event.type === "renegotiation-needed") {
         // The caller owns offer generation to avoid offer glare during ICE recovery.
-        if (user?.id === info.callerId && statusRef.current === "connected") {
+        // A restart can happen before the first media packet, while the call is connecting.
+        if (user?.id === info.callerId && ["connecting", "connected"].includes(statusRef.current)) {
           void createNativeWebRtcDescription("offer")
             .then((offer) => sendSignal(info, "offer", { sdp: offer.sdp, type: offer.type, renegotiate: true }))
             .catch((error) => console.warn("Native ICE renegotiation failed:", error));
@@ -292,8 +307,23 @@ export const useWebRTC = () => {
             if (disconnectTimerRef.current) { clearTimeout(disconnectTimerRef.current); disconnectTimerRef.current = null; }
             if (!durationTimerRef.current) durationTimerRef.current = setInterval(() => setDuration((value) => value + 1), 1000);
           }
-        } else if (event.state === "FAILED") void endCall();
-        else if (event.state === "DISCONNECTED" && !disconnectTimerRef.current) {
+        } else if (event.state === "FAILED") {
+          // ICE can report FAILED locally before the callee has answered and before
+          // this peer has a remote description. That is not a failed call yet:
+          // keep ringing and let the normal no-answer timer decide the outcome.
+          if (!nativeRemoteReadyRef.current) {
+            console.warn("Native ICE failed before remote SDP; keeping the call pending.", {
+              callId: info.callId,
+              status: statusRef.current,
+            });
+          } else {
+            console.error("Native ICE failed after remote SDP; attempting recovery.", { callId: info.callId });
+            if (user?.id === info.callerId) restartNativeWebRtcIce();
+            if (!disconnectTimerRef.current) {
+              disconnectTimerRef.current = setTimeout(() => { void endCall(); }, 15000);
+            }
+          }
+        } else if (event.state === "DISCONNECTED" && nativeRemoteReadyRef.current && !disconnectTimerRef.current) {
           if (user?.id === info.callerId) restartNativeWebRtcIce();
           disconnectTimerRef.current = setTimeout(() => { void endCall(); }, 15000);
         }
@@ -743,12 +773,25 @@ export const useWebRTC = () => {
         }
         case "answer": {
           if (callId !== callIdRef.current) return;
+          // Native callers must enter CONNECTING as soon as the callee answers.
+          // Keep this transition shared with the browser path; otherwise the
+          // native call remains OUTGOING and skips connecting-state recovery.
+          if (statusRef.current !== "connected") {
+            statusRef.current = "connecting";
+            setCallStatus("connecting");
+            // Replace the unanswered-ring timer with a connection-establishment
+            // timeout. The original ring timer must not silently expire while
+            // the call is connecting after the callee has answered.
+            if (ringTimerRef.current) clearTimeout(ringTimerRef.current);
+            ringTimerRef.current = setTimeout(() => {
+              if (statusRef.current === "connecting") void endCall();
+            }, RING_TIMEOUT_MS);
+          }
           if (nativeCallRef.current) {
             if (typeof data.sdp === "string") await applyNativeRemoteDescription("answer", data.sdp);
             return;
           }
           if (!pcRef.current || pcRef.current.signalingState !== "have-local-offer") return;
-          if (statusRef.current !== "connected") { statusRef.current = "connecting"; setCallStatus("connecting"); }
           await pcRef.current.setRemoteDescription({ sdp: data.sdp, type: data.type });
           await flushRemoteIce();
           break;
