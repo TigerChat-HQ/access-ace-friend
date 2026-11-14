@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  insert: vi.fn(), handlers: [] as Array<(payload: unknown) => void>,
+  insert: vi.fn(), rpc: vi.fn(), handlers: [] as Array<(payload: unknown) => void>,
   media: vi.fn(), stop: vi.fn(), profile: vi.fn(), invoke: vi.fn(),
   nativeAvailable: false,
   nativeListener: null as null | ((event: { type: string; state?: string }) => void),
@@ -31,6 +31,7 @@ vi.mock("@/lib/nativeWebRtc", () => ({
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "receiver" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   auth: { getSession: async () => ({ data: { session: { user: { id: "receiver" } } }, error: null }) },
+  rpc: mocks.rpc,
   from: () => ({ insert: mocks.insert, select: () => ({ eq: () => ({ maybeSingle: mocks.profile }) }) }),
   channel: () => {
     let presence: Record<string, unknown[]> = {};
@@ -76,6 +77,7 @@ describe("call signaling reliability", () => {
   beforeEach(() => {
     mocks.handlers.length = 0;
     mocks.insert.mockReset().mockResolvedValue({ error: null });
+    mocks.rpc.mockReset().mockResolvedValue({ data: "signal-id", error: null });
     mocks.stop.mockClear();
     mocks.profile.mockReset().mockResolvedValue({ data: { display_name: "Caller" } });
     mocks.invoke.mockReset().mockResolvedValue({ data: null, error: new Error("TURN not configured in unit test") });
@@ -92,7 +94,7 @@ describe("call signaling reliability", () => {
     vi.spyOn(window, "alert").mockImplementation(() => {});
   });
   it("cleans up camera and returns idle when sending an offer fails", async () => {
-    mocks.insert.mockResolvedValue({ error: new Error("Network unavailable") });
+    mocks.rpc.mockResolvedValue({ error: new Error("Network unavailable") });
     const { result, unmount } = renderHook(() => useWebRTC());
     await act(async () => { await result.current.startCall("other", "chat", "video", "Other", "OT"); });
     expect(result.current.callStatus).toBe("idle");
@@ -106,7 +108,7 @@ describe("call signaling reliability", () => {
     act(() => { mocks.handlers[0]({ new: { caller_id: "other", callee_id: "receiver", conversation_id: "chat", call_type: "video", signal_type: "offer", signal_data: { from: "other", callId: "call", type: "offer", sdp: "sdp" } } }); });
     await waitFor(() => expect(result.current.callStatus).toBe("incoming"));
     await act(async () => { await result.current.endCall(); });
-    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({ signal_type: "hangup", signal_data: expect.objectContaining({ reason: "missed", callId: "call" }) }));
+    expect(mocks.rpc).toHaveBeenCalledWith("create_call_signal", expect.objectContaining({ p_signal_type: "hangup", p_signal_data: expect.objectContaining({ reason: "missed", callId: "call" }) }));
     expect(result.current.callStatus).toBe("ended");
     unmount();
   });
@@ -122,9 +124,9 @@ describe("call signaling reliability", () => {
     act(() => { mocks.nativeListener?.({ type: "ice-state", state: "FAILED" }); });
 
     expect(result.current.callStatus).toBe("outgoing");
-    expect(mocks.insert).toHaveBeenCalledTimes(1);
-    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({ signal_type: "offer" }));
-    expect(mocks.insert).not.toHaveBeenCalledWith(expect.objectContaining({ signal_type: "hangup" }));
+    expect(mocks.rpc.mock.calls.filter(([name, args]) => name === "create_call_signal" && args?.p_signal_type === "offer")).toHaveLength(1);
+    expect(mocks.rpc).toHaveBeenCalledWith("create_call_signal", expect.objectContaining({ p_signal_type: "offer" }));
+    expect(mocks.rpc).not.toHaveBeenCalledWith("create_call_signal", expect.objectContaining({ p_signal_type: "hangup" }));
     unmount();
   });
   it("moves native answered calls to connecting and restarts ICE after remote SDP", async () => {
@@ -187,7 +189,7 @@ describe("call signaling reliability", () => {
     } };
     await act(async () => { mocks.handlers.forEach((handler) => handler(restartOffer)); });
     await waitFor(() => expect(mocks.nativeRemote).toHaveBeenCalledTimes(2));
-    expect(mocks.insert.mock.calls.filter((call) => call[0].signal_type === "answer")).toHaveLength(2);
+    expect(mocks.rpc.mock.calls.filter(([name, args]) => name === "create_call_signal" && args?.p_signal_type === "answer")).toHaveLength(2);
     unmount();
   });
   it("keeps the provider hook order stable across rerenders and call transitions", async () => {

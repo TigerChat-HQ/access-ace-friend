@@ -47,17 +47,22 @@ type SignalInsert = {
 };
 
 const insertSignal = async (data: SignalInsert) => {
-  const { error } = await db.from("call_signals").insert(data);
+  // The server derives signal_data.from from auth.uid(), validates both
+  // participants against this exact conversation, and inserts atomically.
+  // This keeps call authorization server-side without weakening table RLS.
+  const { error } = await db.rpc("create_call_signal", {
+    p_caller_id: data.caller_id,
+    p_callee_id: data.callee_id,
+    p_conversation_id: data.conversation_id,
+    p_call_type: data.call_type,
+    p_signal_type: data.signal_type,
+    p_signal_data: data.signal_data ?? {},
+    p_status: data.status ?? "active",
+  });
   if (error) {
-    // Supabase PostgREST errors are plain objects, not Error instances. Normalize
-    // them so call startup can show the real signaling failure instead of the
-    // generic network/permission fallback.
-    console.error("Call signaling insert failed:", {
-      code: error.code,
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-      signalType: data.signal_type,
+    console.error("Call signaling RPC failed:", {
+      code: error.code, message: error.message, details: error.details,
+      hint: error.hint, signalType: data.signal_type,
     });
     const code = error.code ? ` (${error.code})` : "";
     throw new Error(`Call signaling failed${code}: ${error.message || "Supabase rejected the call signal."}`);
