@@ -36,7 +36,23 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
         val body = data["body"]?.takeIf { it.isNotBlank() } ?: "You have a new message"
         val path = safeConversationPath(data["path"])
         val kind = data["kind"] ?: "message"
-        showMessageNotification(title, body, path, kind == "message")
+        val overlayEnabled = kind == "message" && getSharedPreferences(TigerOverlayService.PREFS, Context.MODE_PRIVATE)
+            .getBoolean(TigerOverlayService.KEY_ENABLED, false)
+        if (overlayEnabled) {
+            val prefs = getSharedPreferences(TigerOverlayService.PREFS, Context.MODE_PRIVATE)
+            val unread = prefs.getInt(TigerOverlayService.KEY_UNREAD, 0) + 1
+            prefs.edit().putInt(TigerOverlayService.KEY_UNREAD, unread).apply()
+            try {
+                startService(Intent(this, TigerOverlayService::class.java).apply {
+                    action = TigerOverlayService.ACTION_MESSAGE
+                    putExtra(TigerOverlayService.EXTRA_AVATAR, data["avatar_url"].orEmpty())
+                    putExtra(TigerOverlayService.EXTRA_UNREAD, unread)
+                })
+            } catch (error: Exception) {
+                android.util.Log.w(TAG, "Could not update overlay bubble", error)
+            }
+        }
+        showMessageNotification(title, body, path, kind == "message", overlayEnabled)
     }
 
     private fun safeConversationPath(rawPath: String?): String {
@@ -120,7 +136,7 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
             .build()
     }
 
-    private fun showMessageNotification(title: String, body: String, path: String, allowReply: Boolean) {
+    private fun showMessageNotification(title: String, body: String, path: String, allowReply: Boolean, overlayEnabled: Boolean) {
         val conversationId = conversationShortcutId(path)?.removePrefix("tiger-chat-")
         val openIntent = Intent(this, MainActivity::class.java)
             .putExtra("path", path)
@@ -157,7 +173,7 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
         if (allowReply) builder.addAction(quickReplyAction(path))
 
         val shortcutId = if (allowReply) createConversationShortcut(title, path) else null
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && shortcutId != null) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && shortcutId != null && !overlayEnabled) {
             val bubbleIntent = Intent(openIntent)
             val bubblePendingIntent = PendingIntent.getActivity(
                 this,
