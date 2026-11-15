@@ -79,6 +79,9 @@ open class MainActivity : Activity() {
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.databaseEnabled = true
+        // Prefer locally cached app shell/assets when offline; the service worker
+        // supplies the last successful shell and static resources after first load.
+        webView.settings.cacheMode = android.webkit.WebSettings.LOAD_CACHE_ELSE_NETWORK
         webView.settings.mediaPlaybackRequiresUserGesture = false
         webView.webViewClient = object : WebViewClient() {
             override fun onReceivedError(view: WebView, request: android.webkit.WebResourceRequest, error: WebResourceError) {
