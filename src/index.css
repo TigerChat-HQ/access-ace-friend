@@ -433,3 +433,17 @@ html.tiger-keyboard-open .tiger-chat-composer {
 html.tiger-keyboard-open .tiger-message-editor {
   scroll-margin-bottom: 1rem;
 }
+
+@layer components {
+  .tiger-page-header {
+    align-items: center;
+  }
+  .tiger-page-header > :is(button, a, [role="button"]) {
+    align-self: center;
+    flex-shrink: 0;
+    margin-block: auto;
+  }
+  .tiger-page-header > :is(button, a, [role="button"]) svg {
+    display: block;
+  }
+}
