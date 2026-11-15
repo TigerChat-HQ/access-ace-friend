@@ -63,7 +63,12 @@ export const useMessages = (conversationId: string | null) => {
     const cached = readOfflineData<(Message & { sender_profile?: Profile })[]>(user?.id, "messages", conversationId || "none");
     if (cached) setMessages(cached);
     void fetchMessages();
-    return () => { requestRef.current += 1; };
+    const refreshWhenOnline = () => { void fetchMessages(); };
+    window.addEventListener("online", refreshWhenOnline);
+    return () => {
+      requestRef.current += 1;
+      window.removeEventListener("online", refreshWhenOnline);
+    };
   }, [fetchMessages]);
 
   useEffect(() => {
@@ -224,12 +229,15 @@ export const useConversations = () => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => { void fetchConversations(); }, 120);
     };
+    const refreshWhenOnline = () => { void fetchConversations(); };
+    window.addEventListener("online", refreshWhenOnline);
     const channel = supabase
       .channel(`conversations-messages:${user.id}:${crypto.randomUUID()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, scheduleRefresh)
       .subscribe();
     return () => {
       if (timer) clearTimeout(timer);
+      window.removeEventListener("online", refreshWhenOnline);
       void supabase.removeChannel(channel);
     };
   }, [user, fetchConversations]);
