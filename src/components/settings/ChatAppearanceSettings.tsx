@@ -20,6 +20,9 @@ const wallpapers = [
   { key: "black-wolf", label: "Wolf", className: "chat-wallpaper-wolf bg-gradient-to-br from-black to-blue-950" },
   { key: "black-eagle", label: "Eagle", className: "chat-wallpaper-eagle bg-gradient-to-br from-black to-zinc-900" },
   { key: "sunset", label: "Sunset", className: "bg-gradient-to-br from-orange-700 via-pink-800 to-purple-950" },
+  { key: "midnight", label: "Midnight", className: "bg-gradient-to-br from-slate-950 via-indigo-950 to-black" },
+  { key: "rose", label: "Rose", className: "bg-gradient-to-br from-rose-900 via-pink-800 to-fuchsia-950" },
+  { key: "emerald", label: "Emerald", className: "bg-gradient-to-br from-emerald-950 via-green-800 to-teal-950" },
   { key: "light", label: "Light", className: "bg-zinc-100" },
 ];
 
@@ -35,6 +38,10 @@ const colors = [
   { key: "purple", label: "Purple", className: "bg-purple-500" },
   { key: "pink", label: "Pink", className: "bg-pink-500" },
   { key: "orange", label: "Orange", className: "bg-orange-500" },
+  { key: "teal", label: "Teal", className: "bg-teal-500" },
+  { key: "red", label: "Red", className: "bg-red-500" },
+  { key: "indigo", label: "Indigo", className: "bg-indigo-500" },
+  { key: "slate", label: "Graphite", className: "bg-slate-600" },
 ];
 
 const defaults: ChatPrefs = { wallpaper: "default", bubble_color: "primary", font_size: "medium", theme: "default", muted_until: null };
