@@ -1,127 +1,100 @@
-// TIGERCHATS push notification & PWA offline cache service worker
-const CACHE_NAME = "tigerchats-cache-v3";
-const PRECACHE_ASSETS = [
-  "/",
-  "/index.html",
-  "/manifest.json",
-  "/favicon.ico",
-  "/pwa-icon-192.png",
-  "/pwa-icon-512.png",
-  "/placeholder.svg",
+// TIGERCHATS offline-first app shell and push notifications.
+const CACHE_NAME = "tigerchats-offline-v4";
+const SHELL_ASSETS = [
+  "/", "/index.html", "/manifest.json", "/favicon.ico",
+  "/pwa-icon-192.png", "/pwa-icon-512.png", "/placeholder.svg",
 ];
 
-// Pre-cache core shell resources on install
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE_ASSETS).catch((err) => console.warn("Pre-cache warning:", err)))
-      .then(() => self.skipWaiting())
-  );
-});
-
-// Clean up old caches on activate
-self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys.map((key) => {
-            if (key !== CACHE_NAME) {
-              return caches.delete(key);
-            }
-          })
-        )
-      )
-      .then(() => self.clients.claim())
-  );
-});
-
-// Fetch handler with offline resilience
-self.addEventListener("fetch", (event) => {
-  const { request } = event;
-
-  // Only handle GET requests
-  if (request.method !== "GET") return;
-
-  const url = new URL(request.url);
-
-  // Skip browser extensions or non-http protocols
-  if (!url.protocol.startsWith("http")) return;
-
-  // Do not cache live backend API calls (auth, realtime, rest, functions)
-  if (
-    url.hostname.includes("supabase.co") ||
-    url.pathname.startsWith("/rest/v1") ||
-    url.pathname.startsWith("/auth/v1") ||
-    url.pathname.startsWith("/realtime/v1") ||
-    url.pathname.startsWith("/functions/v1")
-  ) {
-    return;
-  }
-
-  // 1. Navigation requests (HTML pages) -> Network first, fall back to cached index.html / shell
-  if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.addAll(SHELL_ASSETS);
+    try {
+      const manifestResponse = await fetch("/precache-manifest.json", { cache: "no-store" });
+      if (manifestResponse.ok) {
+        const files = await manifestResponse.json();
+        if (Array.isArray(files)) {
+          // Cache every built route chunk and static asset so lazy-loaded pages
+          // remain available after the device goes offline.
+          for (let index = 0; index < files.length; index += 40) {
+            const batch = files.slice(index, index + 40).filter((file) => typeof file === "string");
+            await Promise.all(batch.map(async (file) => {
+              try { await cache.add(file); }
+              catch (error) { console.warn("Offline asset was not cached:", file, error); }
+            }));
           }
-          return response;
-        })
-        .catch(async () => {
-          const cached = await caches.match(request);
-          if (cached) return cached;
-          const indexCached = await caches.match("/index.html");
-          if (indexCached) return indexCached;
-          return caches.match("/");
-        })
-    );
-    return;
-  }
-
-  // 2. Static assets (JS, CSS, images, fonts, icons) -> Stale While Revalidate
-  const isStaticAsset =
-    request.destination === "style" ||
-    request.destination === "script" ||
-    request.destination === "image" ||
-    request.destination === "font" ||
-    url.pathname.match(/\.(js|css|png|jpg|jpeg|svg|webp|ico|woff2?|mp3|ogg)$/i);
-
-  if (isStaticAsset) {
-    event.respondWith(
-      caches.match(request).then((cachedResponse) => {
-        const fetchPromise = fetch(request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              const copy = networkResponse.clone();
-              caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-            }
-            return networkResponse;
-          })
-          .catch(() => cachedResponse);
-
-        return cachedResponse || fetchPromise;
-      })
-    );
-    return;
-  }
-
-  // Default: Network with cache fallback
-  event.respondWith(
-    fetch(request)
-      .then((res) => {
-        if (res && res.status === 200) {
-          const copy = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
         }
-        return res;
-      })
-      .catch(() => caches.match(request))
-  );
+      }
+    } catch (error) {
+      console.warn("Offline precache manifest unavailable; shell cache remains active.", error);
+    }
+    await self.skipWaiting();
+  })());
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((key) => key.startsWith("tigerchats-") && key !== CACHE_NAME).map((key) => caches.delete(key)));
+    await self.clients.claim();
+  })());
+});
+
+self.addEventListener("fetch", (event) => {
+  const request = event.request;
+  if (request.method !== "GET") return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+
+  // Supabase data, auth and realtime are never cached as HTTP responses.
+  if (/^\/(?:rest\/v1|auth\/v1|realtime\/v1|functions\/v1)(?:\/|$)/.test(url.pathname)) return;
+
+  if (request.mode === "navigate") {
+    event.respondWith((async () => {
+      try {
+        const response = await fetch(request);
+        if (response && response.ok) {
+          const cache = await caches.open(CACHE_NAME);
+          await cache.put("/index.html", response.clone());
+          await cache.put(request, response.clone());
+        }
+        return response;
+      } catch {
+        const cached = await caches.match(request) || await caches.match("/index.html") || await caches.match("/");
+        return cached || new Response("TIGERCHATS offline shell is not cached yet. Connect once to prepare offline use.", {
+          status: 503, headers: { "Content-Type": "text/plain; charset=utf-8" },
+        });
+      }
+    })());
+    return;
+  }
+
+  const isAppAsset = url.pathname.startsWith("/assets/") ||
+    /\.(?:js|css|woff2?|png|jpe?g|svg|webp|ico|mp3|ogg)$/i.test(url.pathname) ||
+    url.pathname === "/precache-manifest.json";
+
+  if (isAppAsset) {
+    event.respondWith((async () => {
+      const cache = await caches.open(CACHE_NAME);
+      const cached = await cache.match(request);
+      if (cached) {
+        // Revalidate quietly while continuing to serve the offline copy.
+        void fetch(request).then((response) => {
+          if (response.ok) return cache.put(request, response.clone());
+          return undefined;
+        }).catch(() => undefined);
+        return cached;
+      }
+      try {
+        const response = await fetch(request);
+        if (response.ok) await cache.put(request, response.clone());
+        return response;
+      } catch {
+        return new Response("", { status: 504, statusText: "Offline asset unavailable" });
+      }
+    })());
+    return;
+  }
 });
 
 const showAppNotification = (payload = {}) => {
@@ -144,26 +117,21 @@ self.addEventListener("message", (event) => {
 
 self.addEventListener("push", (event) => {
   let payload = {};
-  try {
-    payload = event.data ? event.data.json() : {};
-  } catch {
-    payload = { body: event.data?.text() || "You have a new notification." };
-  }
+  try { payload = event.data ? event.data.json() : {}; }
+  catch { payload = { body: event.data?.text() || "You have a new notification." }; }
   event.waitUntil(showAppNotification(payload));
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const targetUrl = new URL(event.notification.data?.url || "/", self.location.origin).href;
-  event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (list) => {
-      for (const client of list) {
-        if ("focus" in client) {
-          await client.navigate(targetUrl).catch(() => {});
-          return client.focus();
-        }
+  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (list) => {
+    for (const client of list) {
+      if ("focus" in client) {
+        await client.navigate(targetUrl).catch(() => {});
+        return client.focus();
       }
-      return self.clients.openWindow ? self.clients.openWindow(targetUrl) : undefined;
-    })
-  );
+    }
+    return self.clients.openWindow ? self.clients.openWindow(targetUrl) : undefined;
+  }));
 });
