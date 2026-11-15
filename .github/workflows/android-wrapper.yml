@@ -27,9 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
-      # Android v1.0.40 release build (keyboard, layout and chat composer fixes).
-      TIGER_VERSION_CODE: 40
-      TIGER_VERSION_NAME: 1.0.40
+      # Android v1.0.41 release build (offline-first app shell and cached chats).
+      TIGER_VERSION_CODE: 41
+      TIGER_VERSION_NAME: 1.0.41
     steps:
       - uses: actions/checkout@v4
         with:
