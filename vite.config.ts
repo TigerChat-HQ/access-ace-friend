@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => ({
       apply: "build",
       generateBundle(_options, bundle) {
         const bundledFiles = Object.keys(bundle)
-          .filter((file) => /\\.(?:js|css|woff2?|png|jpe?g|svg|webp|ico|mp3|ogg)$/i.test(file))
+          .filter((file) => /\.(?:js|css|woff2?|png|jpe?g|svg|webp|ico|mp3|ogg)$/i.test(file))
           .map((file) => "/" + file);
         const staticFiles = [
           "/", "/index.html", "/manifest.json", "/favicon.ico",
