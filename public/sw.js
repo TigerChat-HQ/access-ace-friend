@@ -8,7 +8,10 @@ const SHELL_ASSETS = [
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);
-    await cache.addAll(SHELL_ASSETS);
+    await Promise.all(SHELL_ASSETS.map(async (asset) => {
+      try { await cache.add(asset); }
+      catch (error) { console.warn("Offline shell asset was not cached:", asset, error); }
+    }));
     try {
       const manifestResponse = await fetch("/precache-manifest.json", { cache: "no-store" });
       if (manifestResponse.ok) {
@@ -44,7 +47,12 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return;
+  const isSupabaseStorageMedia =
+    url.hostname.endsWith(".supabase.co") &&
+    url.pathname.startsWith("/storage/v1/object/") &&
+    ["image", "audio", "video"].includes(request.destination);
+
+  if (url.origin !== self.location.origin && !isSupabaseStorageMedia) return;
 
   // Supabase data, auth and realtime are never cached as HTTP responses.
   if (/^\/(?:rest\/v1|auth\/v1|realtime\/v1|functions\/v1)(?:\/|$)/.test(url.pathname)) return;
@@ -69,7 +77,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  const isAppAsset = url.pathname.startsWith("/assets/") ||
+  const isAppAsset = isSupabaseStorageMedia || url.pathname.startsWith("/assets/") ||
     /\.(?:js|css|woff2?|png|jpe?g|svg|webp|ico|mp3|ogg)$/i.test(url.pathname) ||
     url.pathname === "/precache-manifest.json";
 
@@ -80,14 +88,14 @@ self.addEventListener("fetch", (event) => {
       if (cached) {
         // Revalidate quietly while continuing to serve the offline copy.
         void fetch(request).then((response) => {
-          if (response.ok) return cache.put(request, response.clone());
+          if (response.ok || response.type === "opaque") return cache.put(request, response.clone());
           return undefined;
         }).catch(() => undefined);
         return cached;
       }
       try {
         const response = await fetch(request);
-        if (response.ok) await cache.put(request, response.clone());
+        if (response.ok || response.type === "opaque") await cache.put(request, response.clone());
         return response;
       } catch {
         return new Response("", { status: 504, statusText: "Offline asset unavailable" });
