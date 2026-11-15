@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tables } from "@/integrations/supabase/types";
+import { readOfflineData, writeOfflineData } from "@/lib/offline-chat-cache";
 
 type Message = Tables<"messages">;
 type Profile = Tables<"profiles">;
@@ -12,7 +13,10 @@ type ConversationItem = Tables<"conversations"> & {
 };
 
 export const useMessages = (conversationId: string | null) => {
-  const [messages, setMessages] = useState<(Message & { sender_profile?: Profile })[]>([]);
+  const { user } = useAuth();
+  const [messages, setMessages] = useState<(Message & { sender_profile?: Profile })[]>(() =>
+    readOfflineData<(Message & { sender_profile?: Profile })[]>(user?.id, "messages", conversationId || "none") || []
+  );
   const [loading, setLoading] = useState(false);
   const requestRef = useRef(0);
 
@@ -24,7 +28,16 @@ export const useMessages = (conversationId: string | null) => {
       return;
     }
 
-    setLoading(true);
+    const cachedMessages = readOfflineData<(Message & { sender_profile?: Profile })[]>(user?.id, "messages", conversationId);
+    if (cachedMessages) {
+      setMessages(cachedMessages);
+      setLoading(false);
+    }
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setLoading(false);
+      return;
+    }
+    if (!cachedMessages) setLoading(true);
     try {
       const { data, error } = await supabase
         .from("messages")
@@ -32,16 +45,23 @@ export const useMessages = (conversationId: string | null) => {
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: true });
       if (error) throw error;
-      if (requestId === requestRef.current) setMessages(data || []);
+      if (requestId === requestRef.current) {
+        const nextMessages = data || [];
+        setMessages(nextMessages);
+        writeOfflineData(user?.id, "messages", nextMessages, conversationId);
+      }
     } catch (error) {
       console.error("Failed to load chat messages:", error);
-      if (requestId === requestRef.current) setMessages([]);
+      const fallback = readOfflineData<(Message & { sender_profile?: Profile })[]>(user?.id, "messages", conversationId);
+      if (requestId === requestRef.current && fallback) setMessages(fallback);
     } finally {
       if (requestId === requestRef.current) setLoading(false);
     }
-  }, [conversationId]);
+  }, [conversationId, user?.id]);
 
   useEffect(() => {
+    const cached = readOfflineData<(Message & { sender_profile?: Profile })[]>(user?.id, "messages", conversationId || "none");
+    if (cached) setMessages(cached);
     void fetchMessages();
     return () => { requestRef.current += 1; };
   }, [fetchMessages]);
@@ -102,7 +122,9 @@ export const useSendMessage = () => {
 
 export const useConversations = () => {
   const { user } = useAuth();
-  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+  const [conversations, setConversations] = useState<ConversationItem[]>(() =>
+    readOfflineData<ConversationItem[]>(user?.id, "conversations") || []
+  );
   const [loading, setLoading] = useState(true);
 
   const fetchConversations = useCallback(async () => {
@@ -112,7 +134,16 @@ export const useConversations = () => {
       return;
     }
 
-    setLoading(true);
+    const cachedConversations = readOfflineData<ConversationItem[]>(user.id, "conversations");
+    if (cachedConversations) {
+      setConversations(cachedConversations);
+      setLoading(false);
+    }
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setLoading(false);
+      return;
+    }
+    if (!cachedConversations) setLoading(true);
     try {
       const { data: memberData, error: memberError } = await supabase
         .from("conversation_members").select("conversation_id").eq("user_id", user.id);
@@ -120,6 +151,7 @@ export const useConversations = () => {
 
       if (!memberData?.length) {
         setConversations([]);
+        writeOfflineData(user.id, "conversations", []);
         return;
       }
 
@@ -163,9 +195,11 @@ export const useConversations = () => {
       });
 
       setConversations(enriched);
+      writeOfflineData(user.id, "conversations", enriched);
     } catch (error) {
       console.error("Failed to load conversations:", error);
-      setConversations([]);
+      const fallback = readOfflineData<ConversationItem[]>(user.id, "conversations");
+      if (fallback) setConversations(fallback);
     } finally {
       setLoading(false);
     }
