@@ -402,3 +402,34 @@ body {
   height: var(--tiger-viewport-height, 100dvh);
   min-height: 0;
 }
+
+
+/* Keep mobile chat controls inside the resized visual viewport when the keyboard opens. */
+@layer components {
+  .tiger-chat-composer {
+    position: relative;
+    z-index: 30;
+    width: 100%;
+    background-color: hsl(var(--card) / 0.96);
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  }
+  .tiger-message-editor {
+    display: block;
+    min-height: 2.5rem;
+    max-height: min(7.5rem, 24dvh);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+html.tiger-keyboard-open .tiger-chat-composer {
+  position: sticky;
+  bottom: 0;
+  flex-shrink: 0;
+}
+html.tiger-keyboard-open .tiger-message-editor {
+  scroll-margin-bottom: 1rem;
+}
