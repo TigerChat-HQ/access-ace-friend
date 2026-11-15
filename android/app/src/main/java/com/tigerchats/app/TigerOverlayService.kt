@@ -45,9 +45,12 @@ class TigerOverlayService : Service() {
         }
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         val root = FrameLayout(this).apply {
-            background = oval(Color.rgb(0, 190, 135))
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.rgb(0, 245, 165), Color.rgb(0, 130, 105))).apply {
+                shape = GradientDrawable.OVAL
+                setStroke(dp(2), Color.WHITE)
+            }
             clipToOutline = true
-            elevation = dp(8).toFloat()
+            elevation = dp(12).toFloat()
             contentDescription = "Open TigerChat"
         }
         val image = ImageView(this).apply {
@@ -82,7 +85,7 @@ class TigerOverlayService : Service() {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         else WindowManager.LayoutParams.TYPE_PHONE
         val layout = WindowManager.LayoutParams(
-            dp(58), dp(58), overlayType,
+            dp(64), dp(64), overlayType,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
@@ -137,8 +140,14 @@ class TigerOverlayService : Service() {
         if (panel != null) { closeMiniWindow(); return }
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE
-        val root = FrameLayout(this).apply { setBackgroundColor(Color.rgb(12, 18, 17)); elevation = dp(16).toFloat() }
-        val header = FrameLayout(this).apply { setBackgroundColor(Color.rgb(0, 190, 135)) }
+        val root = FrameLayout(this).apply {
+            background = GradientDrawable().apply { setColor(Color.rgb(10, 16, 20)); cornerRadius = dp(24).toFloat(); setStroke(dp(1), Color.rgb(0, 190, 135)) }
+            clipToOutline = true
+            elevation = dp(20).toFloat()
+        }
+        val header = FrameLayout(this).apply {
+            background = GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, intArrayOf(Color.rgb(0, 190, 135), Color.rgb(0, 130, 105)))
+        }
         val title = TextView(this).apply {
             text = "TigerChat • ujumbe"; textSize = 15f; setTextColor(Color.BLACK)
             gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), 0, dp(8), 0)
@@ -165,7 +174,7 @@ class TigerOverlayService : Service() {
         root.addView(web, FrameLayout.LayoutParams(-1, -1).apply { topMargin = dp(48) })
         val params = WindowManager.LayoutParams(
             (resources.displayMetrics.widthPixels - dp(24)).coerceAtLeast(dp(280)),
-            (resources.displayMetrics.heightPixels * 0.68f).toInt().coerceAtMost(dp(620)),
+            (resources.displayMetrics.heightPixels * 0.76f).toInt().coerceAtMost(dp(720)),
             type, WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN, PixelFormat.TRANSLUCENT
         ).apply { gravity = Gravity.CENTER; softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE }
         try {

@@ -48,7 +48,7 @@ export function useDraughtsAppearance() {
     "--piece-white": pieceTheme.white, "--piece-black": pieceTheme.black,
     "--piece-white-border": pieceTheme.whiteBorder, "--piece-black-border": pieceTheme.blackBorder,
   } as CSSProperties;
-  const boardSizeStyle = { width: `min(100%, ${520 * scale / 100}px)`, maxWidth: "100%" } as CSSProperties;
+  const boardSizeStyle = { width: `min(100%, ${520 * scale / 100}px, calc(100dvh - 330px))`, maxWidth: "100%", flexShrink: 0 } as CSSProperties;
   const board3dStyle = depth ? {
     transform: "perspective(1100px) rotateX(5deg) translateZ(8px)",
     transformOrigin: "center center",

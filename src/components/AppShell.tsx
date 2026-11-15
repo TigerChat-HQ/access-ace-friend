@@ -205,6 +205,7 @@ export const AppShell = () => {
     { to: "/books", icon: BookOpen, label: "Books", badge: 0 },
     { to: `/u/${user?.id ?? ""}`, icon: UserIcon, label: "Profile", badge: unreadNotifications },
     ...(!roleLoading && isAdmin ? [{ to: "/admin", icon: Crown, label: "Admin Panel", badge: 0 }] : []),
+    { to: "/settings", icon: Settings, label: "Settings", badge: 0 },
   ];
 
   return (
@@ -216,14 +217,14 @@ export const AppShell = () => {
           <div className="mb-4 flex items-center gap-2 py-4 font-bold"><img src={logo} alt="" className="h-9 w-9" />TIGERCHATS</div>
           {items.map(({ to, icon: Icon, label }) => <Button key={label} asChild variant={location.pathname === to ? "secondary" : "ghost"} className="justify-start"><NavLink to={to} end={to === "/"}><Icon className="mr-3 h-4 w-4" />{label}</NavLink></Button>)}
           <div className="my-3 border-t border-border" />
-          {[{ to: "/tiger-ai", icon: Bot, label: "Tiger AI" }, { to: "/contact", icon: Mail, label: "Contact admin" }, { to: "/notifications", icon: Bell, label: "Notifications" }, { to: "/settings", icon: Settings, label: "Settings" }].map(({ to, icon: Icon, label }) => <Button asChild variant="ghost" key={to} className="justify-start"><NavLink to={to}><Icon className="mr-3 h-4 w-4" />{label}</NavLink></Button>)}
+          {[{ to: "/tiger-ai", icon: Bot, label: "Tiger AI" }, { to: "/contact", icon: Mail, label: "Contact admin" }, { to: "/notifications", icon: Bell, label: "Notifications" }].map(({ to, icon: Icon, label }) => <Button asChild variant="ghost" key={to} className="justify-start"><NavLink to={to}><Icon className="mr-3 h-4 w-4" />{label}</NavLink></Button>)}
         </aside>
         <div className="tiger-app-safe-area flex min-h-0 min-w-0 flex-1 flex-col">
           <OfflineIndicator />
           <main className="min-h-0 min-w-0 flex-1 overflow-hidden"><div className="h-full min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-y-contain" style={{ WebkitOverflowScrolling: "touch" }}><Outlet /></div></main>
           {user && !(typeof window !== "undefined" && Boolean((window as Window & { TigerNative?: unknown }).TigerNative)) && <FloatingChatWidget unreadMessages={unreadMessages} />}
-          {!hideBar && <nav aria-label="Main navigation" className="flex shrink-0 items-center border-t border-border/50 bg-card/80 px-1 pt-1 backdrop-blur-md pb-[calc(0.375rem+env(safe-area-inset-bottom,0px))] lg:hidden">
-            {items.map(({ to, icon: Icon, label, badge }) => <NavLink key={label} to={to} end={to === "/"} className={({ isActive }) => `relative flex h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-lg px-0.5 transition-colors ${isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+          {!hideBar && <nav aria-label="Main navigation" className="flex shrink-0 items-center justify-start gap-1 overflow-x-auto border-t border-border/50 bg-card/80 px-1 pt-1 backdrop-blur-md pb-[calc(0.375rem+env(safe-area-inset-bottom,0px))] lg:hidden">
+            {items.map(({ to, icon: Icon, label, badge }) => <NavLink key={label} to={to} end={to === "/"} className={({ isActive }) => `relative flex h-12 w-16 flex-none flex-col items-center justify-center gap-1 rounded-lg px-0.5 transition-colors ${isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
               <span className="relative flex h-5 w-5 items-center justify-center"><Icon className="h-5 w-5" />{badge > 0 && <span className="absolute -right-2 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground shadow-[0_0_8px_hsl(var(--primary)/0.6)]">{badge > 99 ? "99+" : badge}</span>}</span>
               <span className="max-w-full truncate text-center text-[9px] font-medium leading-3">{label}</span>
             </NavLink>)}

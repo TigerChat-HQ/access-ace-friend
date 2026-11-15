@@ -34,7 +34,7 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [contactOpen, setContactOpen] = useState(false);
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
@@ -142,7 +142,7 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
     setPreview(null);
   };
 
-  const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setText(value);
     if (value.startsWith("@") && !nativeContactsAvailable) {
@@ -235,13 +235,24 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
           <DropdownMenuContent><DropdownMenuItem onSelect={() => fileRef.current?.click()}><FileText className="mr-2 w-4 h-4" />Photo, video or file</DropdownMenuItem><DropdownMenuItem onSelect={shareLocation}><MapPin className="mr-2 w-4 h-4" />Current location</DropdownMenuItem><DropdownMenuItem onSelect={openContactPicker}><Contact className="mr-2 w-4 h-4" />Search phone contacts</DropdownMenuItem></DropdownMenuContent>
         </DropdownMenu>
         <input ref={fileRef} type="file" accept="image/*,video/*,audio/*,.vcf,.pdf,.doc,.docx,.zip" onChange={handleFileChange} className="hidden" />
-        <input
+        <textarea
           ref={inputRef}
+          rows={1}
           value={text}
-          onChange={handleTextChange}
-          onKeyDown={(e) => e.key === "Enter" && handleSend()}
+          onChange={(e) => {
+            handleTextChange(e);
+            e.currentTarget.style.height = "auto";
+            e.currentTarget.style.height = Math.min(e.currentTarget.scrollHeight, 120) + "px";
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
           placeholder={editingMessage ? "Edit your message..." : "Type a message or @contact..."}
-          className="min-w-0 flex-1 bg-surface rounded-full px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary/50 transition-all"
+          aria-label="Message"
+          className="tiger-message-editor min-h-10 min-w-0 max-h-[120px] flex-1 resize-none overflow-y-auto bg-surface rounded-2xl px-4 py-2.5 text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary/50 transition-all"
         />
         {text.trim() || attachedFile ? (
           <button
