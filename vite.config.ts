@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import { fileURLToPath } from "node:url";
 import { componentTagger } from "lovable-tagger";
@@ -6,6 +6,26 @@ import { componentTagger } from "lovable-tagger";
 const localReact = fileURLToPath(new URL("./node_modules/react/index.js", import.meta.url));
 const localReactJsxRuntime = fileURLToPath(new URL("./node_modules/react/jsx-runtime.js", import.meta.url));
 const localReactJsxDevRuntime = fileURLToPath(new URL("./node_modules/react/jsx-dev-runtime.js", import.meta.url));
+
+const offlinePrecachePlugin: Plugin = {
+  name: "tigerchat-offline-precache-manifest",
+  apply: "build",
+  generateBundle(_options, bundle) {
+    const bundledFiles = Object.keys(bundle)
+      .filter((file) => /\.(?:js|css|woff2?|png|jpe?g|svg|webp|ico|mp3|ogg)$/i.test(file))
+      .map((file) => "/" + file);
+    const staticFiles = [
+      "/", "/index.html", "/manifest.json", "/favicon.ico",
+      "/pwa-icon-192.png", "/pwa-icon-512.png", "/placeholder.svg",
+      "/firebase-messaging-sw.js", "/assets/coca-cola-cap.png", "/assets/pepsi-cap.png",
+    ];
+    this.emitFile({
+      type: "asset",
+      fileName: "precache-manifest.json",
+      source: JSON.stringify([...new Set([...staticFiles, ...bundledFiles])]),
+    });
+  },
+};
 
 export default defineConfig(({ mode }) => ({
   server: {
@@ -16,25 +36,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     mode === "development" && componentTagger(),
-    {
-      name: "tigerchat-offline-precache-manifest",
-      apply: "build",
-      generateBundle(_options, bundle) {
-        const bundledFiles = Object.keys(bundle)
-          .filter((file) => /\.(?:js|css|woff2?|png|jpe?g|svg|webp|ico|mp3|ogg)$/i.test(file))
-          .map((file) => "/" + file);
-        const staticFiles = [
-          "/", "/index.html", "/manifest.json", "/favicon.ico",
-          "/pwa-icon-192.png", "/pwa-icon-512.png", "/placeholder.svg",
-          "/firebase-messaging-sw.js", "/assets/coca-cola-cap.png", "/assets/pepsi-cap.png",
-        ];
-        this.emitFile({
-          type: "asset",
-          fileName: "precache-manifest.json",
-          source: JSON.stringify([...new Set([...staticFiles, ...bundledFiles])]),
-        });
-      },
-    },
+    offlinePrecachePlugin,
   ].filter(Boolean),
   resolve: {
     alias: [
