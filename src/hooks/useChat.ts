@@ -66,6 +66,12 @@ export const useMessages = (conversationId: string | null) => {
     return () => { requestRef.current += 1; };
   }, [fetchMessages]);
 
+  useEffect(() => {
+    if (conversationId && user?.id) {
+      writeOfflineData(user.id, "messages", messages.slice(-300), conversationId);
+    }
+  }, [messages, conversationId, user?.id]);
+
   const deleteMessage = useCallback(async (messageId: string, mode: "me" | "everyone" = "everyone") => {
     if (mode === "me") {
       setMessages((prev) => prev.filter((message) => message.id !== messageId));
@@ -206,6 +212,10 @@ export const useConversations = () => {
   }, [user]);
 
   useEffect(() => { void fetchConversations(); }, [fetchConversations]);
+
+  useEffect(() => {
+    if (user?.id) writeOfflineData(user.id, "conversations", conversations.slice(0, 100));
+  }, [conversations, user?.id]);
 
   useEffect(() => {
     if (!user) return;
