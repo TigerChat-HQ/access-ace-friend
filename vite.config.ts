@@ -26,6 +26,7 @@ export default defineConfig(({ mode }) => ({
         const staticFiles = [
           "/", "/index.html", "/manifest.json", "/favicon.ico",
           "/pwa-icon-192.png", "/pwa-icon-512.png", "/placeholder.svg",
+          "/firebase-messaging-sw.js", "/assets/coca-cola-cap.png", "/assets/pepsi-cap.png",
         ];
         this.emitFile({
           type: "asset",
