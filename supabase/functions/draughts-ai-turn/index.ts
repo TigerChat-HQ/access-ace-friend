@@ -151,14 +151,32 @@ Deno.serve(async (req) => {
       status = won ? "finished" : "active";
       matchWinner = won === "w" ? "white" : won === "b" ? "black" : null;
     }
-    const { data: saved, error: saveError } = await admin.rpc("commit_draft_move", {
-      p_id: matchId, p_revision: revision, p_board: nextBoard,
-      p_turn: nextTurn, p_move: move, p_status: status, p_winner: matchWinner,
-    });
-    if (saveError) {
-      const conflict = /revision conflict|not active/i.test(saveError.message);
-      return json({ error: saveError.message }, conflict ? 409 : 400);
-    }
+    // The caller was authenticated above. Persist with the service client using
+    // an optimistic revision guard: auth.uid() is intentionally absent on a
+    // service-role request, so calling the user-facing RPC here would fail its
+    // participant check. The update remains restricted to this verified AI
+    // match and the exact revision/current turn we just evaluated.
+    const { data: saved, error: saveError } = await admin.from("draft_matches")
+      .update({
+        board: nextBoard,
+        current_turn: nextTurn,
+        last_move: move,
+        status,
+        winner: matchWinner,
+        draw_offer_by: null,
+        revision: revision + 1,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", matchId)
+      .eq("revision", revision)
+      .eq("status", "active")
+      .eq("current_turn", "b")
+      .eq("vs_ai", true)
+      .eq("player_white", authData.user.id)
+      .select("*")
+      .maybeSingle();
+    if (saveError) return json({ error: saveError.message }, 500);
+    if (!saved) return json({ error: "Board revision conflict; refresh the match." }, 409);
     return json({ match: saved, move });
   } catch (error) {
     console.error("draughts-ai-turn", error);
