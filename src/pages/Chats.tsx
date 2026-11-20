@@ -208,7 +208,7 @@ const Chats = () => {
         const { error } = await editMessage(editingMessage.id, text.trim());
         if (error) {
           toast({ title: "Edit failed", description: error.message, variant: "destructive" });
-          return;
+          throw error;
         }
         toast({ title: "Message updated" });
         setEditingMessage(null);
@@ -240,6 +240,7 @@ const Chats = () => {
         description: error instanceof Error ? error.message : "Jaribu tena. Ujumbe haukutumwa.",
         variant: "destructive",
       });
+      throw error;
     }
   };
 
