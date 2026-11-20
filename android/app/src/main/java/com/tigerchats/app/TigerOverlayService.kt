@@ -162,7 +162,9 @@ class TigerOverlayService : Service() {
             val avatarUrl = intent.getStringExtra(EXTRA_AVATAR).orEmpty()
             latestPath = safeMiniPath(intent.getStringExtra(EXTRA_PATH))
             updateUnread(count)
-            if (avatarUrl.isNotBlank()) loadSenderAvatar(avatarUrl)
+            val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+            if (prefs.getBoolean(KEY_SHOW_AVATAR, true) && avatarUrl.isNotBlank()) loadSenderAvatar(avatarUrl)
+            if (prefs.getBoolean(KEY_AUTO_OPEN, false) && panel == null) toggleMiniWindow()
             navigateMiniWindow()
         }
         return START_STICKY
@@ -299,8 +301,9 @@ class TigerOverlayService : Service() {
 
     private fun updateUnread(count: Int) {
         mainHandler.post {
+            val showBadge = getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_SHOW_BADGE, true)
             badge?.apply {
-                if (count > 0) {
+                if (showBadge && count > 0) {
                     text = if (count > 99) "99+" else count.toString()
                     visibility = View.VISIBLE
                 } else visibility = View.GONE
@@ -374,5 +377,8 @@ class TigerOverlayService : Service() {
         const val KEY_SHAPE = "bubble_shape"
         const val KEY_OPACITY = "bubble_opacity"
         const val KEY_SNAP = "bubble_snap"
+        const val KEY_SHOW_BADGE = "bubble_show_badge"
+        const val KEY_SHOW_AVATAR = "bubble_show_avatar"
+        const val KEY_AUTO_OPEN = "bubble_auto_open"
     }
 }
