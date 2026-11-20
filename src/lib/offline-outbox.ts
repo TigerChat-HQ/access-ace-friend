@@ -94,10 +94,9 @@ export const enqueueMessage = (
   list.push(queued);
   saveQueuedMessages(list);
 
-  // If online right now, attempt flush in background
-  if (typeof navigator !== "undefined" && navigator.onLine) {
-    void processOutbox();
-  }
+  // Try the real Supabase request instead of trusting navigator.onLine.
+  // Android WebViews can report offline while the device still has working data.
+  void processOutbox();
 
   return queued;
 };
@@ -110,9 +109,8 @@ export const removeQueuedMessage = (id: string) => {
 let isProcessing = false;
 
 export const processOutbox = async (force = false): Promise<number> => {
-  if (typeof navigator !== "undefined" && !navigator.onLine) {
-    return 0;
-  }
+  // navigator.onLine is only a browser hint, not a reliable connectivity test.
+  // Let Supabase determine reachability; failed requests stay queued for retry.
   if (isProcessing) return 0;
   isProcessing = true;
 
@@ -125,7 +123,6 @@ export const processOutbox = async (force = false): Promise<number> => {
     let sentCount = 0;
 
     for (const msg of list) {
-      if (typeof navigator !== "undefined" && !navigator.onLine) break;
       if (!force && msg.nextAttemptAt && new Date(msg.nextAttemptAt).getTime() > Date.now()) continue;
 
       msg.status = "sending";
@@ -159,7 +156,7 @@ export const processOutbox = async (force = false): Promise<number> => {
           const delayMs = Math.min(5 * 60 * 1000, 2000 * (2 ** Math.min(msg.retryCount, 7)));
           msg.nextAttemptAt = new Date(Date.now() + delayMs).toISOString();
           saveQueuedMessages(getQueuedMessages().map((queued) => queued.id === msg.id ? msg : queued));
-          if (!navigator.onLine || /fetch|network|timeout|connection/i.test(error.message || "")) {
+          if (/fetch|network|timeout|connection|offline/i.test(error.message || "")) {
             break;
           }
         } else {
@@ -196,13 +193,12 @@ if (typeof window !== "undefined") {
     }, 800);
   });
 
-  // Periodic flush every 15 seconds if items exist
+  // Periodic flush every 15 seconds if items exist. Do not gate this on
+  // navigator.onLine: some Android WebViews report false on a working network.
   setInterval(() => {
-    if (navigator.onLine) {
-      const pending = getQueuedMessages();
-      if (pending.length > 0) {
-        void processOutbox();
-      }
+    const pending = getQueuedMessages();
+    if (pending.length > 0) {
+      void processOutbox();
     }
   }, 15000);
 }
