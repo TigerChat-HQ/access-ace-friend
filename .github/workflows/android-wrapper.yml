@@ -27,9 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
-      # Android v1.0.41 release build (offline-first app shell and cached chats).
-      TIGER_VERSION_CODE: 41
-      TIGER_VERSION_NAME: 1.0.41
+      # Android v1.0.42 release build (PR #216 messaging/reconnect + PR #218 bubble and composer fixes).
+      TIGER_VERSION_CODE: 42
+      TIGER_VERSION_NAME: 1.0.42
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,6 +57,13 @@ jobs:
             echo "configured=true" >> "$GITHUB_OUTPUT"
           else
             echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Require release signing on main
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+        run: |
+          if [ "${{ steps.signing.outputs.configured }}" != "true" ]; then
+            echo "::error::Release blocked: configure the same Android signing keystore used for v1.0.41 (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD)."
+            exit 1
           fi
       - name: Configure and validate Firebase Android app
         env:
@@ -106,8 +113,8 @@ jobs:
       - name: Assemble signed release APK
         if: steps.signing.outputs.configured == 'true'
         run: gradle -p android :app:assembleRelease -PtigerVersionCode="$TIGER_VERSION_CODE" -PtigerVersionName="$TIGER_VERSION_NAME"
-      - name: Assemble debug APK
-        if: steps.signing.outputs.configured != 'true'
+      - name: Assemble debug APK for pull-request validation
+        if: github.event_name == 'pull_request'
         run: gradle -p android :app:assembleDebug -PtigerVersionCode="$TIGER_VERSION_CODE" -PtigerVersionName="$TIGER_VERSION_NAME"
       - name: Name APK for download
         run: |
@@ -128,9 +135,9 @@ jobs:
         if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && steps.signing.outputs.configured == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: android-latest
+          tag_name: android-v${{ env.TIGER_VERSION_NAME }}
           name: TIGERCHATS Android v${{ env.TIGER_VERSION_NAME }}
-          body: "Latest automatically built TIGERCHATS Android installer. Version: ${{ env.TIGER_VERSION_NAME }}. Signed release is used when the Android signing secrets are configured."
+          body: "Signed TIGERCHATS Android v${{ env.TIGER_VERSION_NAME }} release. Includes merged PR #216 and PR #218."
           files: ${{ env.APK_PATH }}
           make_latest: false
           fail_on_unmatched_files: true
