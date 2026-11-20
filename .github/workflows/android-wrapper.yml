@@ -27,9 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
-      # Android v1.0.44 release build (single background message bubble; no duplicate system bubbles).
-      TIGER_VERSION_CODE: 44
-      TIGER_VERSION_NAME: 1.0.44
+      # Android v1.0.45 release build (single background message bubble; no duplicate system bubbles).
+      TIGER_VERSION_CODE: 45
+      TIGER_VERSION_NAME: 1.0.45
     steps:
       - uses: actions/checkout@v4
         with:
