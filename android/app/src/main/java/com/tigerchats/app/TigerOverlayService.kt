@@ -156,7 +156,12 @@ class TigerOverlayService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_APPEARANCE) applyBubbleAppearance()
+        if (intent?.action == ACTION_APPEARANCE) {
+            applyBubbleAppearance()
+            val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+            updateUnread(prefs.getInt(KEY_UNREAD, 0))
+            if (!prefs.getBoolean(KEY_SHOW_AVATAR, true)) avatar?.setImageResource(R.drawable.tigerchats_logo)
+        }
         if (intent?.action == ACTION_MESSAGE) {
             val count = intent.getIntExtra(EXTRA_UNREAD, 1)
             val avatarUrl = intent.getStringExtra(EXTRA_AVATAR).orEmpty()
@@ -248,6 +253,17 @@ class TigerOverlayService : Service() {
             settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) settings.safeBrowsingEnabled = true
             webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest): Boolean {
+                    val uri = request.url
+                    return uri.scheme != "https" || uri.host != android.net.Uri.parse(SITE_URL).host
+                }
+
+                override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {
+                    android.util.Log.e("TigerOverlay", "Mini chat renderer exited; closing overlay panel only")
+                    if (panelWebView === view) closeMiniWindow()
+                    return true
+                }
+
                 override fun onPageFinished(view: WebView, url: String) {
                     super.onPageFinished(view, url)
                     if (android.net.Uri.parse(url).host != android.net.Uri.parse(SITE_URL).host) return
