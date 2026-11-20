@@ -176,7 +176,10 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
         if (allowReply) builder.addAction(quickReplyAction(path))
 
         val shortcutId = if (allowReply) createConversationShortcut(title, path) else null
-        // Publish one OS-managed conversation bubble per chat even when the app-wide\n        // overlay launcher is enabled. Android can then keep separate chat bubbles\n        // and falls back to the ordinary notification when bubbles are unavailable.\n        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && shortcutId != null) {
+        // Publish one OS-managed conversation bubble per chat even when the app-wide
+        // overlay launcher is enabled. Android can then keep separate chat bubbles
+        // and falls back to the ordinary notification when bubbles are unavailable.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && shortcutId != null) {
             val bubbleIntent = Intent(openIntent)
             val bubblePendingIntent = PendingIntent.getActivity(
                 this,
