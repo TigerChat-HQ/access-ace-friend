@@ -1011,6 +1011,24 @@ open class MainActivity : Activity() {
         }
 
         @JavascriptInterface
+        fun updateOverlayBubbleBehavior(showBadge: Boolean, showAvatar: Boolean, autoOpen: Boolean) {
+            getSharedPreferences(TigerOverlayService.PREFS, MODE_PRIVATE).edit()
+                .putBoolean(TigerOverlayService.KEY_SHOW_BADGE, showBadge)
+                .putBoolean(TigerOverlayService.KEY_SHOW_AVATAR, showAvatar)
+                .putBoolean(TigerOverlayService.KEY_AUTO_OPEN, autoOpen)
+                .apply()
+            if (getSharedPreferences(TigerOverlayService.PREFS, MODE_PRIVATE)
+                    .getBoolean(TigerOverlayService.KEY_ENABLED, false) && hasOverlayPermission()) {
+                try {
+                    startService(Intent(this@MainActivity, TigerOverlayService::class.java)
+                        .setAction(TigerOverlayService.ACTION_APPEARANCE))
+                } catch (error: Exception) {
+                    android.util.Log.w(TAG, "Could not update floating bubble behavior", error)
+                }
+            }
+        }
+
+        @JavascriptInterface
         fun hasContactsPermission(): Boolean =
             ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
 
