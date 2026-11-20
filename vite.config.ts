@@ -38,13 +38,13 @@ const offlinePrecachePlugin: Plugin = {
     const revision = revisionFor([...bundledFiles, normalizedWorker].join("|"));
     this.emitFile({
       type: "asset",
-      fileName: \`precache-manifest-\${revision}.json\`,
+      fileName: "precache-manifest-" + revision + ".json",
       source: JSON.stringify([...new Set([...staticFiles, ...bundledFiles])]),
     });
     if (serviceWorker?.type === "asset") {
       serviceWorker.source = workerSource
-        .replace(/const CACHE_NAME = "[^"]+";/, \`const CACHE_NAME = "tigerchats-offline-\${revision}";\`)
-        .replace("__PRECACHE_MANIFEST__", \`/precache-manifest-\${revision}.json\`);
+        .replace(/const CACHE_NAME = "[^"]+";/, "const CACHE_NAME = \"tigerchats-offline-" + revision + "\";")
+        .replace("__PRECACHE_MANIFEST__", "/precache-manifest-" + revision + ".json");
     }
   },
 };
