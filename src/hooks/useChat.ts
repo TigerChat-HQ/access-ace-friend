@@ -33,10 +33,8 @@ export const useMessages = (conversationId: string | null) => {
       setMessages(cachedMessages);
       setLoading(false);
     }
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      setLoading(false);
-      return;
-    }
+    // Always attempt the request. navigator.onLine can be inaccurate in Android WebViews;
+    // the Supabase request itself is the reliable connectivity check.
     if (!cachedMessages) setLoading(true);
     try {
       const { data, error } = await supabase
@@ -112,9 +110,17 @@ export const useMessages = (conversationId: string | null) => {
         const deletedId = (payload.old as { id?: string })?.id;
         if (deletedId) setMessages((prev) => prev.filter((message) => message.id !== deletedId));
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          // Reconcile after every successful (re)connection so messages missed
+          // during a dropped WebSocket are recovered from the database.
+          void fetchMessages();
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn("Chat realtime subscription unavailable:", status);
+        }
+      });
     return () => { void supabase.removeChannel(channel); };
-  }, [conversationId]);
+  }, [conversationId, fetchMessages]);
 
   return { messages, loading, refetch: fetchMessages, deleteMessage };
 };
@@ -150,10 +156,8 @@ export const useConversations = () => {
       setConversations(cachedConversations);
       setLoading(false);
     }
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      setLoading(false);
-      return;
-    }
+    // Always attempt the request. navigator.onLine can be inaccurate in Android WebViews;
+    // the Supabase request itself is the reliable connectivity check.
     if (!cachedConversations) setLoading(true);
     try {
       const { data: memberData, error: memberError } = await supabase
@@ -234,7 +238,12 @@ export const useConversations = () => {
     const channel = supabase
       .channel(`conversations-messages:${user.id}:${crypto.randomUUID()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, scheduleRefresh)
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") scheduleRefresh();
+        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn("Conversation realtime subscription unavailable:", status);
+        }
+      });
     return () => {
       if (timer) clearTimeout(timer);
       window.removeEventListener("online", refreshWhenOnline);
