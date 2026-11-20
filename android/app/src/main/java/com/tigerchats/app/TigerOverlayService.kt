@@ -92,8 +92,13 @@ class TigerOverlayService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_POSITION_X, dp(12)).coerceAtLeast(0)
-            y = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_POSITION_Y, dp(180)).coerceAtLeast(0)
+            val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+            val width = resources.displayMetrics.widthPixels
+            val height = resources.displayMetrics.heightPixels
+            x = (prefs.getFloat(KEY_POSITION_X_RATIO, -1f).takeIf { it >= 0f }?.let { (it * (width - initialSize)).toInt() }
+                ?: prefs.getInt(KEY_POSITION_X, dp(12))).coerceIn(0, (width - initialSize).coerceAtLeast(0))
+            y = (prefs.getFloat(KEY_POSITION_Y_RATIO, -1f).takeIf { it >= 0f }?.let { (it * (height - initialSize)).toInt() }
+                ?: prefs.getInt(KEY_POSITION_Y, dp(180))).coerceIn(0, (height - initialSize).coerceAtLeast(0))
         }
         bubbleLayoutParams = layout
         var downX = 0f
@@ -132,6 +137,8 @@ class TigerOverlayService : Service() {
                         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                             .putInt(KEY_POSITION_X, layout.x)
                             .putInt(KEY_POSITION_Y, layout.y)
+                            .putFloat(KEY_POSITION_X_RATIO, layout.x.toFloat() / (resources.displayMetrics.widthPixels - layout.width).coerceAtLeast(1))
+                            .putFloat(KEY_POSITION_Y_RATIO, layout.y.toFloat() / (resources.displayMetrics.heightPixels - layout.height).coerceAtLeast(1))
                             .apply()
                     } else if (abs(event.rawX - downX) < dp(8) && abs(event.rawY - downY) < dp(8)) {
                         target.performClick()
@@ -229,8 +236,15 @@ class TigerOverlayService : Service() {
         header.addView(close, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.END))
         root.addView(header, FrameLayout.LayoutParams(-1, dp(48), Gravity.TOP))
         val web = WebView(this).apply {
-            settings.javaScriptEnabled = true; settings.domStorageEnabled = true
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
             settings.loadsImagesAutomatically = true
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
+            settings.javaScriptCanOpenWindowsAutomatically = false
+            settings.setSupportMultipleWindows(false)
+            settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) settings.safeBrowsingEnabled = true
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView, url: String) {
                     super.onPageFinished(view, url)
@@ -343,6 +357,8 @@ class TigerOverlayService : Service() {
         const val KEY_UNREAD = "unread_count"
         private const val KEY_POSITION_X = "bubble_position_x"
         private const val KEY_POSITION_Y = "bubble_position_y"
+        private const val KEY_POSITION_X_RATIO = "bubble_position_x_ratio"
+        private const val KEY_POSITION_Y_RATIO = "bubble_position_y_ratio"
         const val KEY_SIZE = "bubble_size"
         const val KEY_COLOR = "bubble_color"
         const val KEY_SHAPE = "bubble_shape"
