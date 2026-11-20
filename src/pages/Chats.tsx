@@ -215,23 +215,60 @@ const Chats = () => {
         return;
       }
 
-      // Queue first for both online and offline sends. The outbox uses one stable
-      // message UUID, so a lost network response cannot create a duplicate.
-      // Keep all local queue/storage failures inside this handler so they cannot
-      // escape as an unhandled promise rejection from the composer callback.
+      // Send online directly. Reuse this UUID if a network failure forces an
+      // outbox retry: the outbox upsert is idempotent if the server committed
+      // the message but the response was lost.
+      const messageId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
+            const random = Math.random() * 16 | 0;
+            return (char === "x" ? random : (random & 0x3 | 0x8)).toString(16);
+          });
+      const messageText = text.trim();
+      const createdAt = new Date().toISOString();
+      toast({ title: "Inatuma ujumbe..." });
+      const { error } = await supabase.from("messages").insert({
+        id: messageId,
+        conversation_id: activeChat,
+        sender_id: user.id,
+        content: messageText,
+        message_type: "text",
+        reply_to_id: replyTo?.id || null,
+        created_at: createdAt,
+      });
+
+      if (!error) {
+        setReplyTo(null);
+        toast({ title: "Ujumbe umetumwa" });
+        void dispatchPush(activeChat);
+        return;
+      }
+
+      const networkFailure = /fetch|network|timeout|connection|offline|load failed/i.test(error.message || "");
+      if (!networkFailure) {
+        toast({
+          title: "Ujumbe umeshindwa kutumwa",
+          description: error.message || "Server imekataa ujumbe. Jaribu tena.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Only transport failures enter the offline queue. Keep the same ID so a
+      // retry cannot create a duplicate if the server accepted the first request.
       enqueueMessage({
         conversationId: activeChat,
         senderId: user.id,
-        content: text.trim(),
+        content: messageText,
         messageType: "text",
         replyToId: replyTo?.id || null,
+        messageId,
+        createdAt,
       });
       setReplyTo(null);
       toast({
-        title: typeof navigator !== "undefined" && !navigator.onLine
-          ? "Ujumbe umehifadhiwa (Offline)"
-          : "Ujumbe umewekwa kwenye foleni ya kutumwa",
-        description: "TigerChat itathibitisha utumaji na kujaribu tena mtandao ukirudi.",
+        title: "Inasubiri mtandao",
+        description: "Ujumbe umehifadhiwa na utatumwa tena mtandao utakaporejea.",
       });
     } catch (error) {
       console.error("Could not queue outgoing chat message:", error);
