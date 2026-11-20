@@ -78,13 +78,13 @@ const saveQueuedMessages = (list: QueuedMessage[]) => {
 };
 
 export const enqueueMessage = (
-  item: Omit<QueuedMessage, "id" | "createdAt" | "status" | "retryCount">
+  item: Omit<QueuedMessage, "id" | "createdAt" | "status" | "retryCount"> & { createdAt?: string }
 ): QueuedMessage => {
   const queued: QueuedMessage = {
     ...item,
     id: `queued_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    messageId: createMessageId(),
-    createdAt: new Date().toISOString(),
+    messageId: item.messageId || createMessageId(),
+    createdAt: item.createdAt || new Date().toISOString(),
     status: "pending",
     retryCount: 0,
     nextAttemptAt: null,
