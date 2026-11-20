@@ -233,7 +233,9 @@ Deno.serve(async (req) => {
               token: device.token,
               data: { title, body, kind, path, tag, avatar_url: senderAvatar },
               android: {
-                priority: kind === "call" ? "HIGH" : "NORMAL",
+                // Messages are time-sensitive user-visible alerts; HIGH priority avoids batching them
+                // while the Android app is backgrounded. Calls remain high priority too.
+                priority: "HIGH",
                 ttl: kind === "call" ? "45s" : "300s",
               },
             },
