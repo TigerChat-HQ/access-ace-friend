@@ -167,7 +167,7 @@ const Auth = () => {
         )}
 
         <a
-          href="https://github.com/TigerChat-HQ/access-ace-friend/releases/download/android-latest/TigerChats.apk"
+          href="https://github.com/TigerChat-HQ/access-ace-friend/releases/download/android-v1.0.42/TigerChats.apk"
           className="flex w-full items-center justify-center gap-3 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-primary/20"
         >
           <Smartphone className="h-5 w-5 text-primary" />

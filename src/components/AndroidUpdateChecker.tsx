@@ -10,7 +10,7 @@ declare global {
 }
 
 type ReleaseInfo = { name?: string; assets?: Array<{ name?: string; browser_download_url?: string }> };
-const RELEASE_API = "https://api.github.com/repos/TigerChat-HQ/access-ace-friend/releases/tags/android-latest";
+const RELEASE_API = "https://api.github.com/repos/TigerChat-HQ/access-ace-friend/releases/tags/android-v1.0.42";
 
 function compareVersions(a: string, b: string) {
   const left = a.split(".").map(Number);
