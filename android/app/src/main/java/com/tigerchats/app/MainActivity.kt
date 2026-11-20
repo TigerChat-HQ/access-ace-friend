@@ -988,6 +988,29 @@ open class MainActivity : Activity() {
         }
 
         @JavascriptInterface
+        fun updateOverlayBubbleAppearance(size: String, color: String, shape: String, opacity: Int, snap: Boolean) {
+            val safeSize = size.takeIf { it in setOf("small", "normal", "large") } ?: "normal"
+            val safeColor = color.takeIf { it in setOf("primary", "blue", "purple", "orange") } ?: "primary"
+            val safeShape = shape.takeIf { it in setOf("circle", "rounded") } ?: "circle"
+            getSharedPreferences(TigerOverlayService.PREFS, MODE_PRIVATE).edit()
+                .putString(TigerOverlayService.KEY_SIZE, safeSize)
+                .putString(TigerOverlayService.KEY_COLOR, safeColor)
+                .putString(TigerOverlayService.KEY_SHAPE, safeShape)
+                .putInt(TigerOverlayService.KEY_OPACITY, opacity.coerceIn(70, 100))
+                .putBoolean(TigerOverlayService.KEY_SNAP, snap)
+                .apply()
+            if (getSharedPreferences(TigerOverlayService.PREFS, MODE_PRIVATE)
+                    .getBoolean(TigerOverlayService.KEY_ENABLED, false) && hasOverlayPermission()) {
+                try {
+                    startService(Intent(this@MainActivity, TigerOverlayService::class.java)
+                        .setAction(TigerOverlayService.ACTION_APPEARANCE))
+                } catch (error: Exception) {
+                    android.util.Log.w(TAG, "Could not update floating bubble appearance", error)
+                }
+            }
+        }
+
+        @JavascriptInterface
         fun hasContactsPermission(): Boolean =
             ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
 
