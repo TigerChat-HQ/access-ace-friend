@@ -249,8 +249,10 @@ open class MainActivity : Activity() {
         webView.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
             (view as? WebView)?.let(::applyNativeViewportHeight)
         }
-        pendingPath = safePath(intent?.getStringExtra("path"))
-        pendingQuickReply = intent?.getStringExtra(EXTRA_QUICK_REPLY)
+        pendingPath = savedInstanceState?.getString(STATE_PENDING_PATH)
+            ?: safePath(intent?.getStringExtra("path"))
+        pendingQuickReply = savedInstanceState?.getString(STATE_PENDING_QUICK_REPLY)
+            ?: intent?.getStringExtra(EXTRA_QUICK_REPLY)
         pendingNativeCallType = intent?.getStringExtra(EXTRA_NATIVE_CALL_TYPE)?.takeIf { it == "voice" || it == "video" }
         webView.loadUrl(siteUrl + "/")
         warmFirebaseToken()
@@ -564,6 +566,18 @@ open class MainActivity : Activity() {
             val detail = error.message?.take(180) ?: error.javaClass.simpleName
             prefs.edit().putString("fcm_status", "Firebase setup failed: $detail").apply()
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        val currentPath = try {
+            Uri.parse(webView.url ?: siteUrl).let { uri ->
+                if (uri.host == Uri.parse(siteUrl).host) uri.encodedPath.orEmpty() +
+                    (uri.encodedQuery?.let { "?$it" } ?: "") else pendingPath
+            }
+        } catch (_: Exception) { pendingPath }
+        outState.putString(STATE_PENDING_PATH, safePath(currentPath))
+        outState.putString(STATE_PENDING_QUICK_REPLY, pendingQuickReply)
+        super.onSaveInstanceState(outState)
     }
 
     override fun onResume() {
@@ -1192,6 +1206,8 @@ open class MainActivity : Activity() {
     }
 
     companion object {
+        private const val STATE_PENDING_PATH = "state_pending_path"
+        private const val STATE_PENDING_QUICK_REPLY = "state_pending_quick_reply"
         const val EXTRA_QUICK_REPLY = "tiger_quick_reply"
         const val EXTRA_NATIVE_CALL_TYPE = "tiger_native_call_type"
         private const val MEDIA_PERMISSION_REQUEST_CODE = 7302
