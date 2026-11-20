@@ -27,9 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
-      # Android v1.0.42 release build (PR #216 messaging/reconnect + PR #218 bubble and composer fixes).
-      TIGER_VERSION_CODE: 42
-      TIGER_VERSION_NAME: 1.0.42
+      # Android v1.0.43 release build (PR #216 messaging/reconnect + PR #218 bubble and composer fixes).
+      TIGER_VERSION_CODE: 43
+      TIGER_VERSION_NAME: 1.0.43
     steps:
       - uses: actions/checkout@v4
         with:
