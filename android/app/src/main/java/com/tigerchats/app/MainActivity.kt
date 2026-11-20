@@ -126,7 +126,17 @@ open class MainActivity : Activity() {
                     message = "Android WebView renderer process exited unexpectedly.", severity = "critical",
                     metadata = JSONObject().put("didCrash", detail.didCrash()).put("priorityAtExit", detail.rendererPriorityAtExit())
                 )
-                runOnUiThread { if (!isFinishing) finish() }
+                // A renderer crash must not permanently close TigerChat. Preserve the
+                // current in-app route and let Activity recreation allocate a fresh WebView
+                // and renderer process. The dead WebView is discarded by onDestroy().
+                val currentPath = try {
+                    Uri.parse(view.url ?: siteUrl).let { uri ->
+                        if (uri.host == Uri.parse(siteUrl).host) uri.encodedPath.orEmpty() +
+                            (uri.encodedQuery?.let { "?$it" } ?: "") else "/"
+                    }
+                } catch (_: Exception) { "/" }
+                pendingPath = safePath(currentPath)
+                runOnUiThread { if (!isFinishing && !isDestroyed) recreate() }
                 return true
             }
 
