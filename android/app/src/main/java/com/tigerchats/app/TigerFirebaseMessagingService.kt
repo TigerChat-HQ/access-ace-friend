@@ -53,7 +53,7 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
                 android.util.Log.w(TAG, "Could not update overlay bubble", error)
             }
         }
-        showMessageNotification(title, body, path, kind == "message", overlayEnabled)
+        showMessageNotification(title, body, path, kind == "message")
     }
 
     private fun safeNotificationPath(rawPath: String?): String {
@@ -139,7 +139,7 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
             .build()
     }
 
-    private fun showMessageNotification(title: String, body: String, path: String, allowReply: Boolean, overlayEnabled: Boolean) {
+    private fun showMessageNotification(title: String, body: String, path: String, allowReply: Boolean) {
         val conversationId = conversationShortcutId(path)?.removePrefix("tiger-chat-")
         val openIntent = Intent(this, MainActivity::class.java)
             .putExtra("path", path)
@@ -176,7 +176,7 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
         if (allowReply) builder.addAction(quickReplyAction(path))
 
         val shortcutId = if (allowReply) createConversationShortcut(title, path) else null
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && shortcutId != null && !overlayEnabled) {
+        // Publish one OS-managed conversation bubble per chat even when the app-wide\n        // overlay launcher is enabled. Android can then keep separate chat bubbles\n        // and falls back to the ordinary notification when bubbles are unavailable.\n        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && shortcutId != null) {
             val bubbleIntent = Intent(openIntent)
             val bubblePendingIntent = PendingIntent.getActivity(
                 this,
