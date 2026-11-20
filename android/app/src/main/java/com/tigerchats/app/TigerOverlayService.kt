@@ -85,8 +85,9 @@ class TigerOverlayService : Service() {
         val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         else WindowManager.LayoutParams.TYPE_PHONE
+        val initialSize = bubbleSizePx()
         val layout = WindowManager.LayoutParams(
-            dp(64), dp(64), overlayType,
+            initialSize, initialSize, overlayType,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
@@ -123,7 +124,9 @@ class TigerOverlayService : Service() {
                     if (dragged) {
                         // Dock to the nearest horizontal edge and persist the final position.
                         val maxX = (resources.displayMetrics.widthPixels - layout.width).coerceAtLeast(0)
-                        layout.x = if (layout.x + layout.width / 2 < resources.displayMetrics.widthPixels / 2) 0 else maxX
+                        if (getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_SNAP, true)) {
+                            layout.x = if (layout.x + layout.width / 2 < resources.displayMetrics.widthPixels / 2) 0 else maxX
+                        }
                         layout.y = layout.y.coerceIn(0, (resources.displayMetrics.heightPixels - layout.height).coerceAtLeast(0))
                         try { windowManager?.updateViewLayout(target, layout) } catch (_: Exception) { }
                         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
@@ -139,12 +142,14 @@ class TigerOverlayService : Service() {
             }
         }
         bubble = root
+        applyBubbleAppearance()
         try { windowManager?.addView(root, layout) } catch (_: Exception) { stopSelf() }
         val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
         updateUnread(prefs.getInt(KEY_UNREAD, 0))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_APPEARANCE) applyBubbleAppearance()
         if (intent?.action == ACTION_MESSAGE) {
             val count = intent.getIntExtra(EXTRA_UNREAD, 1)
             val avatarUrl = intent.getStringExtra(EXTRA_AVATAR).orEmpty()
@@ -156,6 +161,49 @@ class TigerOverlayService : Service() {
         return START_STICKY
     }
 
+
+
+    private fun bubbleSizePx(): Int {
+        val size = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_SIZE, "normal")
+        return dp(when (size) { "small" -> 52; "large" -> 76; else -> 64 })
+    }
+
+    private fun applyBubbleAppearance() {
+        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+        val color = prefs.getString(KEY_COLOR, "primary") ?: "primary"
+        val shape = prefs.getString(KEY_SHAPE, "circle") ?: "circle"
+        val opacity = prefs.getInt(KEY_OPACITY, 100).coerceIn(50, 100) / 100f
+        val colors = when (color) {
+            "blue" -> intArrayOf(Color.rgb(96, 165, 250), Color.rgb(29, 78, 216))
+            "purple" -> intArrayOf(Color.rgb(192, 132, 252), Color.rgb(107, 33, 168))
+            "orange" -> intArrayOf(Color.rgb(251, 191, 36), Color.rgb(194, 65, 12))
+            else -> intArrayOf(Color.rgb(0, 245, 165), Color.rgb(0, 130, 105))
+        }
+        val background = GradientDrawable(GradientDrawable.Orientation.TL_BR, colors).apply {
+            this.shape = if (shape == "rounded") GradientDrawable.RECTANGLE else GradientDrawable.OVAL
+            cornerRadius = if (shape == "rounded") dp(20).toFloat() else dp(40).toFloat()
+            setStroke(dp(2), Color.WHITE)
+        }
+        bubble?.let { view ->
+            view.background = background
+            view.alpha = opacity
+        }
+        avatar?.let { image ->
+            image.background = GradientDrawable().apply {
+                this.shape = if (shape == "rounded") GradientDrawable.RECTANGLE else GradientDrawable.OVAL
+                cornerRadius = if (shape == "rounded") dp(16).toFloat() else dp(32).toFloat()
+                setColor(colors[1])
+            }
+        }
+        bubbleLayoutParams?.let { params ->
+            val size = bubbleSizePx()
+            params.width = size
+            params.height = size
+            params.x = params.x.coerceIn(0, (resources.displayMetrics.widthPixels - size).coerceAtLeast(0))
+            params.y = params.y.coerceIn(0, (resources.displayMetrics.heightPixels - size).coerceAtLeast(0))
+            try { bubble?.let { windowManager?.updateViewLayout(it, params) } } catch (_: Exception) { }
+        }
+    }
 
     private fun toggleMiniWindow() {
         if (panel != null) { closeMiniWindow(); return }
@@ -285,6 +333,7 @@ class TigerOverlayService : Service() {
 
     companion object {
         const val ACTION_MESSAGE = "com.tigerchats.app.OVERLAY_MESSAGE"
+        const val ACTION_APPEARANCE = "com.tigerchats.app.OVERLAY_APPEARANCE"
         const val EXTRA_PATH = "notification_path"
         private const val SITE_URL = "https://tigerchat-hq.onrender.com"
         const val EXTRA_AVATAR = "avatar_url"
@@ -294,5 +343,10 @@ class TigerOverlayService : Service() {
         const val KEY_UNREAD = "unread_count"
         private const val KEY_POSITION_X = "bubble_position_x"
         private const val KEY_POSITION_Y = "bubble_position_y"
+        const val KEY_SIZE = "bubble_size"
+        const val KEY_COLOR = "bubble_color"
+        const val KEY_SHAPE = "bubble_shape"
+        const val KEY_OPACITY = "bubble_opacity"
+        const val KEY_SNAP = "bubble_snap"
     }
 }
