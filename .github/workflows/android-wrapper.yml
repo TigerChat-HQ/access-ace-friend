@@ -27,9 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
-      # Android v1.0.43 release build (PR #216 messaging/reconnect + PR #218 bubble and composer fixes).
-      TIGER_VERSION_CODE: 43
-      TIGER_VERSION_NAME: 1.0.43
+      # Android v1.0.44 release build (single background message bubble; no duplicate system bubbles).
+      TIGER_VERSION_CODE: 44
+      TIGER_VERSION_NAME: 1.0.44
     steps:
       - uses: actions/checkout@v4
         with:
@@ -137,7 +137,7 @@ jobs:
         with:
           tag_name: android-v${{ env.TIGER_VERSION_NAME }}
           name: TIGERCHATS Android v${{ env.TIGER_VERSION_NAME }}
-          body: "Signed TIGERCHATS Android v${{ env.TIGER_VERSION_NAME }} release. Includes merged PR #216 and PR #218."
+          body: "Signed TIGERCHATS Android v${{ env.TIGER_VERSION_NAME }} release. Single background message bubble; no duplicate system conversation bubbles."
           files: ${{ env.APK_PATH }}
           make_latest: false
           fail_on_unmatched_files: true

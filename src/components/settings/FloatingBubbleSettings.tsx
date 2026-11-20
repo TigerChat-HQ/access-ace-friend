@@ -14,11 +14,10 @@ type BubblePrefs = {
   snap: boolean;
   showBadge: boolean;
   showAvatar: boolean;
-  autoOpen: boolean;
 };
 const DEFAULT_PREFS: BubblePrefs = {
   size: "normal", color: "primary", shape: "circle", opacity: 100, snap: true,
-  showBadge: true, showAvatar: true, autoOpen: false,
+  showBadge: true, showAvatar: true,
 };
 
 const readPrefs = (): BubblePrefs => {
@@ -36,7 +35,7 @@ export const FloatingBubbleSettings = () => {
   });
   const [prefs, setPrefs] = useState<BubblePrefs>(readPrefs);
   const [overlayPermission, setOverlayPermission] = useState(false);
-  const nativeBridge = (window as Window & { TigerNative?: { hasOverlayPermission?: () => boolean; requestOverlayPermission?: () => void; setOverlayBubbleEnabled?: (enabled: boolean) => void; updateOverlayBubbleAppearance?: (size: string, color: string, shape: string, opacity: number, snap: boolean) => void; updateOverlayBubbleBehavior?: (showBadge: boolean, showAvatar: boolean, autoOpen: boolean) => void } }).TigerNative;
+  const nativeBridge = (window as Window & { TigerNative?: { hasOverlayPermission?: () => boolean; requestOverlayPermission?: () => void; setOverlayBubbleEnabled?: (enabled: boolean) => void; updateOverlayBubbleAppearance?: (size: string, color: string, shape: string, opacity: number, snap: boolean) => void; updateOverlayBubbleBehavior?: (showBadge: boolean, showAvatar: boolean) => void } }).TigerNative;
   const refreshOverlayPermission = useCallback(() => setOverlayPermission(Boolean(nativeBridge?.hasOverlayPermission?.())), [nativeBridge]);
   useEffect(() => {
     refreshOverlayPermission();
@@ -53,8 +52,8 @@ export const FloatingBubbleSettings = () => {
   }, [nativeBridge, prefs.size, prefs.color, prefs.shape, prefs.opacity, prefs.snap]);
 
   useEffect(() => {
-    nativeBridge?.updateOverlayBubbleBehavior?.(prefs.showBadge, prefs.showAvatar, prefs.autoOpen);
-  }, [nativeBridge, prefs.showBadge, prefs.showAvatar, prefs.autoOpen]);
+    nativeBridge?.updateOverlayBubbleBehavior?.(prefs.showBadge, prefs.showAvatar);
+  }, [nativeBridge, prefs.showBadge, prefs.showAvatar]);
 
   useEffect(() => {
     const sync = () => {
@@ -150,12 +149,7 @@ export const FloatingBubbleSettings = () => {
           <span><span className="block font-medium">Sender avatar</span><span className="text-muted-foreground">Badilisha nembo kwa picha ya mtumaji wa ujumbe mpya.</span></span>
           <input type="checkbox" checked={prefs.showAvatar} onChange={(e) => updatePrefs({ showAvatar: e.target.checked })} />
         </label>
-        <label className="flex items-center justify-between gap-3 text-xs text-foreground">
-          <span><span className="block font-medium">Open mini chat automatically</span><span className="text-muted-foreground">Fungua dirisha dogo ujumbe mpya unapowasili. Zima kwa faragha zaidi.</span></span>
-          <input type="checkbox" checked={prefs.autoOpen} onChange={(e) => updatePrefs({ autoOpen: e.target.checked })} />
-        </label>
       </div>
-      {typeof window !== "undefined" && typeof window.TigerNative?.openMessageBubbleSettings === "function" && <button type="button" onClick={() => window.TigerNative?.openMessageBubbleSettings?.()} className="w-full rounded-lg border border-border px-3 py-2 text-left text-xs font-medium text-foreground hover:bg-muted">Manage Android system notification bubbles…</button>}
       {nativeBridge && <div className="rounded-lg border border-border p-3 space-y-2">
         <div><p className="text-sm font-medium text-foreground">Android overlay bubble</p><p className="text-xs text-muted-foreground">Huonekana juu ya programu nyingine baada ya kuruhusu Display over other apps kwenye Android Settings.</p></div>
         <p className={`text-xs ${overlayPermission ? "text-emerald-600" : "text-amber-600"}`}>{overlayPermission ? "Ruhusa ya overlay imeruhusiwa." : "Ruhusa ya overlay bado haijatolewa."}</p>
