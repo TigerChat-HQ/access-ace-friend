@@ -80,7 +80,14 @@ class TigerOverlayService : Service() {
         root.addView(count, badgeParams)
         avatar = image
         badge = count
-        root.setOnClickListener { toggleMiniWindow() }
+        root.setOnClickListener {
+            val openIntent = Intent(this, MainActivity::class.java)
+                .putExtra("path", latestPath)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            try { startActivity(openIntent) } catch (error: Exception) {
+                android.util.Log.w("TigerOverlay", "Could not open TigerChats from bubble", error)
+            }
+        }
 
         val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -169,8 +176,8 @@ class TigerOverlayService : Service() {
             updateUnread(count)
             val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
             if (prefs.getBoolean(KEY_SHOW_AVATAR, true) && avatarUrl.isNotBlank()) loadSenderAvatar(avatarUrl)
-            if (prefs.getBoolean(KEY_AUTO_OPEN, false) && panel == null) toggleMiniWindow()
-            navigateMiniWindow()
+            // Incoming messages only refresh the floating bubble. Never open a
+            // WebView mini-chat automatically; it can interrupt or destabilize chat.
         }
         return START_STICKY
     }
