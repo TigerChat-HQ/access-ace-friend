@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MessageCircle, X, Maximize2, Settings, Star, ChevronUp, ChevronDown, MessagesSquare } from "lucide-react";
 import { useConversations } from "@/hooks/useChat";
+import { movePinnedConversation, sortBubbleConversations, togglePinnedConversation } from "@/lib/floating-bubble-conversations";
 import { useLocation, useNavigate } from "react-router-dom";
 
 type BubblePosition = { left: number; top: number };
@@ -39,25 +40,13 @@ export const FloatingChatWidget = ({ unreadMessages = 0 }: { unreadMessages?: nu
   const [prefs, setPrefs] = useState<BubblePrefs>(() => { try { return { ...DEFAULT_PREFS, ...JSON.parse(window.localStorage.getItem(PREFS_KEY) || "{}") }; } catch { return DEFAULT_PREFS; } });
   const [launcherHidden, setLauncherHidden] = useState(() => { try { return window.localStorage.getItem(HIDDEN_KEY) === "true"; } catch { return false; } });
   const bubbleSize = bubbleSizes[prefs.size];
-  const orderedConversations = [...conversations].sort((a, b) => {
-    const aIndex = favoriteChatIds.indexOf(a.id), bIndex = favoriteChatIds.indexOf(b.id);
-    if (aIndex >= 0 && bIndex >= 0) return aIndex - bIndex;
-    if (aIndex >= 0) return -1;
-    if (bIndex >= 0) return 1;
-    return new Date(b.lastMessage?.created_at || b.updated_at || b.created_at || 0).getTime() - new Date(a.lastMessage?.created_at || a.updated_at || a.created_at || 0).getTime();
-  });
+  const orderedConversations = sortBubbleConversations(conversations, favoriteChatIds);
   const selectedConversation = conversations.find((conversation) => conversation.id === selectedChatId) || null;
   const embeddedChatUrl = selectedChatId ? "/?bubble=1&path=" + encodeURIComponent("/chats?c=" + selectedChatId) : "/?bubble=1&path=%2Fchats";
   useEffect(() => { if (selectedChatId && !conversations.some((conversation) => conversation.id === selectedChatId)) setSelectedChatId(null); }, [conversations, selectedChatId]);
   useEffect(() => { try { window.localStorage.setItem(FAVORITE_CHATS_STORAGE_KEY, JSON.stringify(favoriteChatIds)); } catch { /* storage may be unavailable */ } }, [favoriteChatIds]);
-  const toggleFavorite = (id: string) => setFavoriteChatIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
-  const moveFavorite = (id: string, direction: -1 | 1) => setFavoriteChatIds((current) => {
-    const next = [...current], index = next.indexOf(id);
-    if (index < 0) return [...next, id];
-    const target = Math.max(0, Math.min(next.length - 1, index + direction));
-    if (target !== index) [next[index], next[target]] = [next[target], next[index]];
-    return next;
-  });
+  const toggleFavorite = (id: string) => setFavoriteChatIds((current) => togglePinnedConversation(current, id));
+  const moveFavorite = (id: string, direction: -1 | 1) => setFavoriteChatIds((current) => movePinnedConversation(current, id, direction));
   const dragRef = useRef<{ pointerId: number; startX: number; startY: number; left: number; top: number; moved: boolean } | null>(null);
   const draggedClickRef = useRef(false);
   const location = useLocation();
