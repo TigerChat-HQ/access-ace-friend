@@ -4,6 +4,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.Person
 import androidx.core.app.RemoteInput
@@ -13,9 +14,8 @@ import com.google.firebase.messaging.RemoteMessage
 /**
  * Native message notifications.
  *
- * On Android 10+ message notifications are published as conversation bubbles when
- * the OS, app notification settings and conversation shortcut permit it. Android
- * remains free to fall back to a normal notification when bubbles are disabled.
+ * Incoming messages update one app-owned floating overlay. The Android notification
+ * remains a standard fallback and does not publish a second conversation bubble.
  */
 class TigerFirebaseMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
@@ -68,7 +68,7 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
             ).apply {
                 description = "New TIGERCHATS messages"
                 lockscreenVisibility = NotificationCompat.VISIBILITY_PRIVATE
-                setAllowBubbles(false)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) setAllowBubbles(false)
             }
             manager.createNotificationChannel(channel)
         }
