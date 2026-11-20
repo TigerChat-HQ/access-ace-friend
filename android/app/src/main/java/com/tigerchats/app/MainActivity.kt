@@ -1035,11 +1035,11 @@ open class MainActivity : Activity() {
         }
 
         @JavascriptInterface
-        fun updateOverlayBubbleBehavior(showBadge: Boolean, showAvatar: Boolean, autoOpen: Boolean) {
+        fun updateOverlayBubbleBehavior(showBadge: Boolean, showAvatar: Boolean) {
             getSharedPreferences(TigerOverlayService.PREFS, MODE_PRIVATE).edit()
                 .putBoolean(TigerOverlayService.KEY_SHOW_BADGE, showBadge)
                 .putBoolean(TigerOverlayService.KEY_SHOW_AVATAR, showAvatar)
-                .putBoolean(TigerOverlayService.KEY_AUTO_OPEN, autoOpen)
+                .putBoolean(TigerOverlayService.KEY_AUTO_OPEN, false)
                 .apply()
             if (getSharedPreferences(TigerOverlayService.PREFS, MODE_PRIVATE)
                     .getBoolean(TigerOverlayService.KEY_ENABLED, false) && hasOverlayPermission()) {
