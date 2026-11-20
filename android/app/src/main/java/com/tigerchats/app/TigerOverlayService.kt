@@ -238,6 +238,8 @@ class TigerOverlayService : Service() {
         header.addView(title, FrameLayout.LayoutParams(-1, dp(48)))
         val close = TextView(this).apply {
             text = "✕"; textSize = 20f; setTextColor(Color.BLACK); gravity = Gravity.CENTER
+            contentDescription = "Close chat window"
+            isFocusable = true
             setOnClickListener { closeMiniWindow() }
         }
         header.addView(close, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.END))
@@ -318,7 +320,12 @@ class TigerOverlayService : Service() {
     private fun updateUnread(count: Int) {
         mainHandler.post {
             val showBadge = getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_SHOW_BADGE, true)
+            bubble?.contentDescription = when {
+                count > 0 -> "TigerChat, $count unread messages. Double tap to open chat."
+                else -> "TigerChat. Double tap to open chat."
+            }
             badge?.apply {
+                contentDescription = if (count > 0) "$count unread messages" else "No unread messages"
                 if (showBadge && count > 0) {
                     text = if (count > 99) "99+" else count.toString()
                     visibility = View.VISIBLE
@@ -341,15 +348,35 @@ class TigerOverlayService : Service() {
                 }
                 val contentType = connection.contentType.orEmpty().lowercase()
                 val contentLength = connection.contentLength.toLong()
-                if (!contentType.startsWith("image/") || contentLength > 5L * 1024L * 1024L) {
+                val maxBytes = 5L * 1024L * 1024L
+                if (!contentType.startsWith("image/") || contentLength > maxBytes) {
                     throw IllegalArgumentException("Avatar response is not a supported small image")
                 }
+                // Enforce the byte limit while streaming too: servers may omit Content-Length.
+                val bytes = java.io.ByteArrayOutputStream()
                 connection.inputStream.use { stream ->
-                    val bitmap = BitmapFactory.decodeStream(stream)
-                    if (bitmap != null) mainHandler.post {
-                        if (avatar != null && bubble != null) avatar?.setImageBitmap(bitmap)
-                        else bitmap.recycle()
+                    val buffer = ByteArray(8192)
+                    var total = 0L
+                    while (true) {
+                        val read = stream.read(buffer)
+                        if (read < 0) break
+                        total += read
+                        if (total > maxBytes) throw IllegalArgumentException("Avatar image exceeds 5 MB")
+                        bytes.write(buffer, 0, read)
                     }
+                }
+                val imageBytes = bytes.toByteArray()
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size, bounds)
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0 ||
+                    bounds.outWidth > 4096 || bounds.outHeight > 4096) {
+                    throw IllegalArgumentException("Avatar dimensions are invalid or too large")
+                }
+                val sample = BitmapFactory.Options().apply { inSampleSize = 2 }
+                val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size, sample)
+                if (bitmap != null) mainHandler.post {
+                    if (avatar != null && bubble != null) avatar?.setImageBitmap(bitmap)
+                    else bitmap.recycle()
                 }
             } catch (error: Exception) {
                 android.util.Log.w("TigerOverlay", "Could not load sender avatar", error)
