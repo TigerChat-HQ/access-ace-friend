@@ -30,7 +30,7 @@ export const FloatingBubbleSettings = () => {
   });
   const [prefs, setPrefs] = useState<BubblePrefs>(readPrefs);
   const [overlayPermission, setOverlayPermission] = useState(false);
-  const nativeBridge = (window as Window & { TigerNative?: { hasOverlayPermission?: () => boolean; requestOverlayPermission?: () => void; setOverlayBubbleEnabled?: (enabled: boolean) => void } }).TigerNative;
+  const nativeBridge = (window as Window & { TigerNative?: { hasOverlayPermission?: () => boolean; requestOverlayPermission?: () => void; setOverlayBubbleEnabled?: (enabled: boolean) => void; updateOverlayBubbleAppearance?: (size: string, color: string, shape: string, opacity: number, snap: boolean) => void } }).TigerNative;
   const refreshOverlayPermission = useCallback(() => setOverlayPermission(Boolean(nativeBridge?.hasOverlayPermission?.())), [nativeBridge]);
   useEffect(() => {
     refreshOverlayPermission();
@@ -41,6 +41,10 @@ export const FloatingBubbleSettings = () => {
       window.removeEventListener("focus", refreshOverlayPermission);
     };
   }, [refreshOverlayPermission]);
+
+  useEffect(() => {
+    nativeBridge?.updateOverlayBubbleAppearance?.(prefs.size, prefs.color, prefs.shape, prefs.opacity, prefs.snap);
+  }, [nativeBridge, prefs.size, prefs.color, prefs.shape, prefs.opacity, prefs.snap]);
 
   useEffect(() => {
     const sync = () => {
