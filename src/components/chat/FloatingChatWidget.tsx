@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { MessageCircle, X, Maximize2, Settings } from "lucide-react";
+import { MessageCircle, X, Maximize2, Settings, Star, ChevronUp, ChevronDown, MessagesSquare } from "lucide-react";
+import { useConversations } from "@/hooks/useChat";
 import { useLocation, useNavigate } from "react-router-dom";
 
 type BubblePosition = { left: number; top: number };
@@ -11,6 +12,7 @@ const PREFS_KEY = "tigerchat-floating-bubble-prefs";
 const HIDDEN_KEY = "tigerchat-floating-bubble-hidden";
 const ENABLED_KEY = "tigerchat-floating-bubble-enabled";
 const BUBBLE_SETTINGS_EVENT = "tigerchat:bubble-settings-changed";
+const FAVORITE_CHATS_STORAGE_KEY = "tigerchats:favorite-chats";
 type BubblePrefs = { size: "small" | "normal" | "large"; color: "primary" | "blue" | "purple" | "orange"; shape: "circle" | "rounded"; opacity: 70 | 85 | 100; snap: boolean };
 const DEFAULT_PREFS: BubblePrefs = { size: "normal", color: "primary", shape: "circle", opacity: 100, snap: true };
 const bubbleSizes = { small: 48, normal: 56, large: 66 };
@@ -27,11 +29,35 @@ const clampPosition = (position: BubblePosition, size = BUBBLE_SIZE): BubblePosi
  */
 export const FloatingChatWidget = ({ unreadMessages = 0 }: { unreadMessages?: number }) => {
   const [open, setOpen] = useState(false);
+  const { conversations } = useConversations();
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const [favoriteChatIds, setFavoriteChatIds] = useState<string[]>(() => {
+    try { const value = JSON.parse(window.localStorage.getItem(FAVORITE_CHATS_STORAGE_KEY) || "[]"); return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : []; } catch { return []; }
+  });
   const [enabled, setEnabled] = useState(() => { try { return window.localStorage.getItem(ENABLED_KEY) !== "false"; } catch { return true; } });
   const [position, setPosition] = useState<BubblePosition | null>(null);
   const [prefs, setPrefs] = useState<BubblePrefs>(() => { try { return { ...DEFAULT_PREFS, ...JSON.parse(window.localStorage.getItem(PREFS_KEY) || "{}") }; } catch { return DEFAULT_PREFS; } });
   const [launcherHidden, setLauncherHidden] = useState(() => { try { return window.localStorage.getItem(HIDDEN_KEY) === "true"; } catch { return false; } });
   const bubbleSize = bubbleSizes[prefs.size];
+  const orderedConversations = [...conversations].sort((a, b) => {
+    const aIndex = favoriteChatIds.indexOf(a.id), bIndex = favoriteChatIds.indexOf(b.id);
+    if (aIndex >= 0 && bIndex >= 0) return aIndex - bIndex;
+    if (aIndex >= 0) return -1;
+    if (bIndex >= 0) return 1;
+    return new Date(b.lastMessage?.created_at || b.updated_at || b.created_at || 0).getTime() - new Date(a.lastMessage?.created_at || a.updated_at || a.created_at || 0).getTime();
+  });
+  const selectedConversation = conversations.find((conversation) => conversation.id === selectedChatId) || null;
+  const embeddedChatUrl = selectedChatId ? "/?bubble=1&path=" + encodeURIComponent("/chats?c=" + selectedChatId) : "/?bubble=1&path=%2Fchats";
+  useEffect(() => { if (selectedChatId && !conversations.some((conversation) => conversation.id === selectedChatId)) setSelectedChatId(null); }, [conversations, selectedChatId]);
+  useEffect(() => { try { window.localStorage.setItem(FAVORITE_CHATS_STORAGE_KEY, JSON.stringify(favoriteChatIds)); } catch { /* storage may be unavailable */ } }, [favoriteChatIds]);
+  const toggleFavorite = (id: string) => setFavoriteChatIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
+  const moveFavorite = (id: string, direction: -1 | 1) => setFavoriteChatIds((current) => {
+    const next = [...current], index = next.indexOf(id);
+    if (index < 0) return [...next, id];
+    const target = Math.max(0, Math.min(next.length - 1, index + direction));
+    if (target !== index) [next[index], next[target]] = [next[target], next[index]];
+    return next;
+  });
   const dragRef = useRef<{ pointerId: number; startX: number; startY: number; left: number; top: number; moved: boolean } | null>(null);
   const draggedClickRef = useRef(false);
   const location = useLocation();
@@ -185,9 +211,36 @@ export const FloatingChatWidget = ({ unreadMessages = 0 }: { unreadMessages?: nu
               </button>
             </div>
           </header>
-                    <iframe
-            title="TigerChat conversations"
-            src="/?bubble=1&path=%2Fchats"
+          {orderedConversations.length > 0 && <div className="shrink-0 border-b border-border/70 bg-card px-2 py-2">
+            <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <MessagesSquare className="h-3 w-3" />
+              <span>Recent & pinned chats</span>
+              <span className="ml-auto">{orderedConversations.length}</span>
+            </div>
+            <div className="flex max-h-24 flex-wrap gap-1 overflow-y-auto" aria-label="Switch conversation">
+              {orderedConversations.slice(0, 12).map((conversation) => {
+                const profile = conversation.otherProfile;
+                const label = profile?.display_name || profile?.username || "Conversation";
+                const active = selectedChatId === conversation.id;
+                const favorite = favoriteChatIds.includes(conversation.id);
+                return <div key={conversation.id} className={"flex max-w-full items-center gap-0.5 rounded-full border px-1 " + (active ? "border-primary bg-primary/10" : "border-border bg-background")}>
+                  <button type="button" onClick={() => setSelectedChatId(conversation.id)} aria-pressed={active} title={"Open chat with " + label} className="flex min-w-0 items-center gap-1 px-1.5 py-1 text-xs text-foreground">
+                    <span className="max-w-24 truncate">{label}</span>
+                    {conversation.unreadCount > 0 && <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground">{conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}</span>}
+                  </button>
+                  <button type="button" onClick={() => toggleFavorite(conversation.id)} aria-label={(favorite ? "Unpin " : "Pin ") + label} aria-pressed={favorite} title={favorite ? "Unpin chat" : "Pin chat"} className="rounded-full p-1 text-muted-foreground hover:text-primary"><Star className={"h-3 w-3 " + (favorite ? "fill-current text-primary" : "")} /></button>
+                  {favorite && <>
+                    <button type="button" onClick={() => moveFavorite(conversation.id, -1)} aria-label={"Move " + label + " earlier"} title="Move earlier" className="rounded-full p-0.5 text-muted-foreground hover:text-foreground"><ChevronUp className="h-3 w-3" /></button>
+                    <button type="button" onClick={() => moveFavorite(conversation.id, 1)} aria-label={"Move " + label + " later"} title="Move later" className="rounded-full p-0.5 text-muted-foreground hover:text-foreground"><ChevronDown className="h-3 w-3" /></button>
+                  </>}
+                </div>;
+              })}
+            </div>
+          </div>}
+          <iframe
+            key={selectedChatId || "all-conversations"}
+            title={selectedConversation ? "TigerChat conversation with " + (selectedConversation.otherProfile?.display_name || selectedConversation.otherProfile?.username || "contact") : "TigerChat conversations"}
+            src={embeddedChatUrl}
             className="min-h-0 w-full flex-1 border-0 bg-background"
             allow="camera; microphone; display-capture; geolocation"
           />
