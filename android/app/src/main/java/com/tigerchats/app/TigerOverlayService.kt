@@ -313,14 +313,24 @@ class TigerOverlayService : Service() {
             var connection: HttpURLConnection? = null
             try {
                 val url = URL(rawUrl)
+                if (url.protocol != "https") throw IllegalArgumentException("Avatar URL must use HTTPS")
                 connection = (url.openConnection() as HttpURLConnection).apply {
                     connectTimeout = 5000
                     readTimeout = 5000
-                    instanceFollowRedirects = true
+                    instanceFollowRedirects = false
+                    setRequestProperty("Accept", "image/*")
+                }
+                val contentType = connection.contentType.orEmpty().lowercase()
+                val contentLength = connection.contentLengthLong
+                if (!contentType.startsWith("image/") || contentLength > 5L * 1024L * 1024L) {
+                    throw IllegalArgumentException("Avatar response is not a supported small image")
                 }
                 connection.inputStream.use { stream ->
                     val bitmap = BitmapFactory.decodeStream(stream)
-                    if (bitmap != null) mainHandler.post { avatar?.setImageBitmap(bitmap) }
+                    if (bitmap != null) mainHandler.post {
+                        if (avatar != null && bubble != null) avatar?.setImageBitmap(bitmap)
+                        else bitmap.recycle()
+                    }
                 }
             } catch (error: Exception) {
                 android.util.Log.w("TigerOverlay", "Could not load sender avatar", error)
