@@ -321,7 +321,7 @@ class TigerOverlayService : Service() {
                     setRequestProperty("Accept", "image/*")
                 }
                 val contentType = connection.contentType.orEmpty().lowercase()
-                val contentLength = connection.contentLengthLong
+                val contentLength = connection.contentLength.toLong()
                 if (!contentType.startsWith("image/") || contentLength > 5L * 1024L * 1024L) {
                     throw IllegalArgumentException("Avatar response is not a supported small image")
                 }
