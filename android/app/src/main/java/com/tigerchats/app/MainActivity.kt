@@ -126,7 +126,17 @@ open class MainActivity : Activity() {
                     message = "Android WebView renderer process exited unexpectedly.", severity = "critical",
                     metadata = JSONObject().put("didCrash", detail.didCrash()).put("priorityAtExit", detail.rendererPriorityAtExit())
                 )
-                runOnUiThread { if (!isFinishing) finish() }
+                // A renderer crash must not permanently close TigerChat. Preserve the
+                // current in-app route and let Activity recreation allocate a fresh WebView
+                // and renderer process. The dead WebView is discarded by onDestroy().
+                val currentPath = try {
+                    Uri.parse(view.url ?: siteUrl).let { uri ->
+                        if (uri.host == Uri.parse(siteUrl).host) uri.encodedPath.orEmpty() +
+                            (uri.encodedQuery?.let { "?$it" } ?: "") else "/"
+                    }
+                } catch (_: Exception) { "/" }
+                pendingPath = safePath(currentPath)
+                runOnUiThread { if (!isFinishing && !isDestroyed) recreate() }
                 return true
             }
 
@@ -239,8 +249,10 @@ open class MainActivity : Activity() {
         webView.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
             (view as? WebView)?.let(::applyNativeViewportHeight)
         }
-        pendingPath = safePath(intent?.getStringExtra("path"))
-        pendingQuickReply = intent?.getStringExtra(EXTRA_QUICK_REPLY)
+        pendingPath = savedInstanceState?.getString(STATE_PENDING_PATH)
+            ?: safePath(intent?.getStringExtra("path"))
+        pendingQuickReply = savedInstanceState?.getString(STATE_PENDING_QUICK_REPLY)
+            ?: intent?.getStringExtra(EXTRA_QUICK_REPLY)
         pendingNativeCallType = intent?.getStringExtra(EXTRA_NATIVE_CALL_TYPE)?.takeIf { it == "voice" || it == "video" }
         webView.loadUrl(siteUrl + "/")
         warmFirebaseToken()
@@ -554,6 +566,18 @@ open class MainActivity : Activity() {
             val detail = error.message?.take(180) ?: error.javaClass.simpleName
             prefs.edit().putString("fcm_status", "Firebase setup failed: $detail").apply()
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        val currentPath = try {
+            Uri.parse(webView.url ?: siteUrl).let { uri ->
+                if (uri.host == Uri.parse(siteUrl).host) uri.encodedPath.orEmpty() +
+                    (uri.encodedQuery?.let { "?$it" } ?: "") else pendingPath
+            }
+        } catch (_: Exception) { pendingPath }
+        outState.putString(STATE_PENDING_PATH, safePath(currentPath))
+        outState.putString(STATE_PENDING_QUICK_REPLY, pendingQuickReply)
+        super.onSaveInstanceState(outState)
     }
 
     override fun onResume() {
@@ -988,6 +1012,47 @@ open class MainActivity : Activity() {
         }
 
         @JavascriptInterface
+        fun updateOverlayBubbleAppearance(size: String, color: String, shape: String, opacity: Int, snap: Boolean) {
+            val safeSize = size.takeIf { it in setOf("small", "normal", "large") } ?: "normal"
+            val safeColor = color.takeIf { it in setOf("primary", "blue", "purple", "orange") } ?: "primary"
+            val safeShape = shape.takeIf { it in setOf("circle", "rounded") } ?: "circle"
+            getSharedPreferences(TigerOverlayService.PREFS, MODE_PRIVATE).edit()
+                .putString(TigerOverlayService.KEY_SIZE, safeSize)
+                .putString(TigerOverlayService.KEY_COLOR, safeColor)
+                .putString(TigerOverlayService.KEY_SHAPE, safeShape)
+                .putInt(TigerOverlayService.KEY_OPACITY, opacity.coerceIn(70, 100))
+                .putBoolean(TigerOverlayService.KEY_SNAP, snap)
+                .apply()
+            if (getSharedPreferences(TigerOverlayService.PREFS, MODE_PRIVATE)
+                    .getBoolean(TigerOverlayService.KEY_ENABLED, false) && hasOverlayPermission()) {
+                try {
+                    startService(Intent(this@MainActivity, TigerOverlayService::class.java)
+                        .setAction(TigerOverlayService.ACTION_APPEARANCE))
+                } catch (error: Exception) {
+                    android.util.Log.w(TAG, "Could not update floating bubble appearance", error)
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun updateOverlayBubbleBehavior(showBadge: Boolean, showAvatar: Boolean, autoOpen: Boolean) {
+            getSharedPreferences(TigerOverlayService.PREFS, MODE_PRIVATE).edit()
+                .putBoolean(TigerOverlayService.KEY_SHOW_BADGE, showBadge)
+                .putBoolean(TigerOverlayService.KEY_SHOW_AVATAR, showAvatar)
+                .putBoolean(TigerOverlayService.KEY_AUTO_OPEN, autoOpen)
+                .apply()
+            if (getSharedPreferences(TigerOverlayService.PREFS, MODE_PRIVATE)
+                    .getBoolean(TigerOverlayService.KEY_ENABLED, false) && hasOverlayPermission()) {
+                try {
+                    startService(Intent(this@MainActivity, TigerOverlayService::class.java)
+                        .setAction(TigerOverlayService.ACTION_APPEARANCE))
+                } catch (error: Exception) {
+                    android.util.Log.w(TAG, "Could not update floating bubble behavior", error)
+                }
+            }
+        }
+
+        @JavascriptInterface
         fun hasContactsPermission(): Boolean =
             ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
 
@@ -1141,6 +1206,8 @@ open class MainActivity : Activity() {
     }
 
     companion object {
+        private const val STATE_PENDING_PATH = "state_pending_path"
+        private const val STATE_PENDING_QUICK_REPLY = "state_pending_quick_reply"
         const val EXTRA_QUICK_REPLY = "tiger_quick_reply"
         const val EXTRA_NATIVE_CALL_TYPE = "tiger_native_call_type"
         private const val MEDIA_PERMISSION_REQUEST_CODE = 7302

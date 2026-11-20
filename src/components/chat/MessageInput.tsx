@@ -15,7 +15,7 @@ type DeviceContact = { id: string; name: string; phone: string };
 type ContactsBridgeWindow = Window & { TigerNative?: { hasContactsPermission?: () => boolean; requestContactsPermission?: () => void; searchContacts?: (query: string) => string } };
 
 interface MessageInputProps {
-  onSend: (text: string) => void;
+  onSend: (text: string) => void | Promise<void>;
   onSendVoice?: (blob: Blob, duration: number) => void;
   onSendFile?: (file: File) => void;
   onTyping?: () => void;
@@ -27,6 +27,7 @@ interface MessageInputProps {
 
 export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyTo, onCancelReply, editingMessage, onCancelEdit }: MessageInputProps) => {
   const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
   useEffect(() => { setText(editingMessage?.text || ""); }, [editingMessage?.id]);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [emojiSound, setEmojiSound] = useState(() => localStorage.getItem(CHAT_EMOJI_SOUND_KEY) !== "false");
@@ -112,15 +113,23 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
     setEmojiOpen(false);
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
+    if (sending) return;
     if (attachedFile && onSendFile) {
       onSendFile(attachedFile);
       setAttachedFile(null);
       setPreview(null);
     }
     if (text.trim()) {
-      onSend(text.trim());
-      setText("");
+      setSending(true);
+      try {
+        await onSend(text.trim());
+        setText("");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Ujumbe haukutumwa. Jaribu tena.");
+      } finally {
+        setSending(false);
+      }
     }
   };
 
@@ -256,8 +265,10 @@ export const MessageInput = ({ onSend, onSendVoice, onSendFile, onTyping, replyT
         />
         {text.trim() || attachedFile ? (
           <button
-            onClick={handleSend}
-            className="p-2.5 rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-all neon-glow"
+            onClick={() => void handleSend()}
+            disabled={sending}
+            aria-label={sending ? "Sending message" : "Send message"}
+            className="p-2.5 rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-all neon-glow disabled:opacity-50"
           >
             {editingMessage ? <Check className="w-4 h-4" /> : <Send className="w-4 h-4" />}
           </button>

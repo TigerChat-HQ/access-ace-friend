@@ -33,6 +33,7 @@ class TigerOverlayService : Service() {
     private var badge: TextView? = null
     private var panel: FrameLayout? = null
     private var panelWebView: WebView? = null
+    private var bubbleLayoutParams: WindowManager.LayoutParams? = null
     private var miniWindowReady = false
     private var latestPath: String = "/chats"
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -84,57 +85,139 @@ class TigerOverlayService : Service() {
         val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         else WindowManager.LayoutParams.TYPE_PHONE
+        val initialSize = bubbleSizePx()
         val layout = WindowManager.LayoutParams(
-            dp(64), dp(64), overlayType,
+            initialSize, initialSize, overlayType,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = dp(12)
-            y = dp(180)
+            val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+            val width = resources.displayMetrics.widthPixels
+            val height = resources.displayMetrics.heightPixels
+            x = (prefs.getFloat(KEY_POSITION_X_RATIO, -1f).takeIf { it >= 0f }?.let { (it * (width - initialSize)).toInt() }
+                ?: prefs.getInt(KEY_POSITION_X, dp(12))).coerceIn(0, (width - initialSize).coerceAtLeast(0))
+            y = (prefs.getFloat(KEY_POSITION_Y_RATIO, -1f).takeIf { it >= 0f }?.let { (it * (height - initialSize)).toInt() }
+                ?: prefs.getInt(KEY_POSITION_Y, dp(180))).coerceIn(0, (height - initialSize).coerceAtLeast(0))
         }
+        bubbleLayoutParams = layout
         var downX = 0f
         var downY = 0f
         var startX = 0
         var startY = 0
+        var dragged = false
         root.setOnTouchListener { target: View, event: MotionEvent ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     downX = event.rawX; downY = event.rawY
                     startX = layout.x; startY = layout.y
+                    dragged = false
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    layout.x = startX + (event.rawX - downX).toInt()
-                    layout.y = startY + (event.rawY - downY).toInt()
+                    val dx = (event.rawX - downX).toInt()
+                    val dy = (event.rawY - downY).toInt()
+                    if (abs(dx) > dp(4) || abs(dy) > dp(4)) dragged = true
+                    val maxX = (resources.displayMetrics.widthPixels - layout.width).coerceAtLeast(0)
+                    val maxY = (resources.displayMetrics.heightPixels - layout.height).coerceAtLeast(0)
+                    layout.x = (startX + dx).coerceIn(0, maxX)
+                    layout.y = (startY + dy).coerceIn(0, maxY)
                     try { windowManager?.updateViewLayout(target, layout) } catch (_: Exception) { }
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (abs(event.rawX - downX) < dp(8) && abs(event.rawY - downY) < dp(8)) target.performClick()
+                    if (dragged) {
+                        // Dock to the nearest horizontal edge and persist the final position.
+                        val maxX = (resources.displayMetrics.widthPixels - layout.width).coerceAtLeast(0)
+                        if (getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_SNAP, true)) {
+                            layout.x = if (layout.x + layout.width / 2 < resources.displayMetrics.widthPixels / 2) 0 else maxX
+                        }
+                        layout.y = layout.y.coerceIn(0, (resources.displayMetrics.heightPixels - layout.height).coerceAtLeast(0))
+                        try { windowManager?.updateViewLayout(target, layout) } catch (_: Exception) { }
+                        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                            .putInt(KEY_POSITION_X, layout.x)
+                            .putInt(KEY_POSITION_Y, layout.y)
+                            .putFloat(KEY_POSITION_X_RATIO, layout.x.toFloat() / (resources.displayMetrics.widthPixels - layout.width).coerceAtLeast(1))
+                            .putFloat(KEY_POSITION_Y_RATIO, layout.y.toFloat() / (resources.displayMetrics.heightPixels - layout.height).coerceAtLeast(1))
+                            .apply()
+                    } else if (abs(event.rawX - downX) < dp(8) && abs(event.rawY - downY) < dp(8)) {
+                        target.performClick()
+                    }
                     true
                 }
                 else -> false
             }
         }
         bubble = root
+        applyBubbleAppearance()
         try { windowManager?.addView(root, layout) } catch (_: Exception) { stopSelf() }
         val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
         updateUnread(prefs.getInt(KEY_UNREAD, 0))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_APPEARANCE) {
+            applyBubbleAppearance()
+            val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+            updateUnread(prefs.getInt(KEY_UNREAD, 0))
+            if (!prefs.getBoolean(KEY_SHOW_AVATAR, true)) avatar?.setImageResource(R.drawable.tigerchats_logo)
+        }
         if (intent?.action == ACTION_MESSAGE) {
             val count = intent.getIntExtra(EXTRA_UNREAD, 1)
             val avatarUrl = intent.getStringExtra(EXTRA_AVATAR).orEmpty()
             latestPath = safeMiniPath(intent.getStringExtra(EXTRA_PATH))
             updateUnread(count)
-            if (avatarUrl.isNotBlank()) loadSenderAvatar(avatarUrl)
+            val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+            if (prefs.getBoolean(KEY_SHOW_AVATAR, true) && avatarUrl.isNotBlank()) loadSenderAvatar(avatarUrl)
+            if (prefs.getBoolean(KEY_AUTO_OPEN, false) && panel == null) toggleMiniWindow()
             navigateMiniWindow()
         }
         return START_STICKY
     }
 
+
+
+    private fun bubbleSizePx(): Int {
+        val size = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_SIZE, "normal")
+        return dp(when (size) { "small" -> 52; "large" -> 76; else -> 64 })
+    }
+
+    private fun applyBubbleAppearance() {
+        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+        val color = prefs.getString(KEY_COLOR, "primary") ?: "primary"
+        val shape = prefs.getString(KEY_SHAPE, "circle") ?: "circle"
+        val opacity = prefs.getInt(KEY_OPACITY, 100).coerceIn(50, 100) / 100f
+        val colors = when (color) {
+            "blue" -> intArrayOf(Color.rgb(96, 165, 250), Color.rgb(29, 78, 216))
+            "purple" -> intArrayOf(Color.rgb(192, 132, 252), Color.rgb(107, 33, 168))
+            "orange" -> intArrayOf(Color.rgb(251, 191, 36), Color.rgb(194, 65, 12))
+            else -> intArrayOf(Color.rgb(0, 245, 165), Color.rgb(0, 130, 105))
+        }
+        val background = GradientDrawable(GradientDrawable.Orientation.TL_BR, colors).apply {
+            this.shape = if (shape == "rounded") GradientDrawable.RECTANGLE else GradientDrawable.OVAL
+            cornerRadius = if (shape == "rounded") dp(20).toFloat() else dp(40).toFloat()
+            setStroke(dp(2), Color.WHITE)
+        }
+        bubble?.let { view ->
+            view.background = background
+            view.alpha = opacity
+        }
+        avatar?.let { image ->
+            image.background = GradientDrawable().apply {
+                this.shape = if (shape == "rounded") GradientDrawable.RECTANGLE else GradientDrawable.OVAL
+                cornerRadius = if (shape == "rounded") dp(16).toFloat() else dp(32).toFloat()
+                setColor(colors[1])
+            }
+        }
+        bubbleLayoutParams?.let { params ->
+            val size = bubbleSizePx()
+            params.width = size
+            params.height = size
+            params.x = params.x.coerceIn(0, (resources.displayMetrics.widthPixels - size).coerceAtLeast(0))
+            params.y = params.y.coerceIn(0, (resources.displayMetrics.heightPixels - size).coerceAtLeast(0))
+            try { bubble?.let { windowManager?.updateViewLayout(it, params) } } catch (_: Exception) { }
+        }
+    }
 
     private fun toggleMiniWindow() {
         if (panel != null) { closeMiniWindow(); return }
@@ -155,14 +238,34 @@ class TigerOverlayService : Service() {
         header.addView(title, FrameLayout.LayoutParams(-1, dp(48)))
         val close = TextView(this).apply {
             text = "✕"; textSize = 20f; setTextColor(Color.BLACK); gravity = Gravity.CENTER
+            contentDescription = "Close chat window"
+            isFocusable = true
             setOnClickListener { closeMiniWindow() }
         }
         header.addView(close, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.END))
         root.addView(header, FrameLayout.LayoutParams(-1, dp(48), Gravity.TOP))
         val web = WebView(this).apply {
-            settings.javaScriptEnabled = true; settings.domStorageEnabled = true
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
             settings.loadsImagesAutomatically = true
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
+            settings.javaScriptCanOpenWindowsAutomatically = false
+            settings.setSupportMultipleWindows(false)
+            settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) settings.safeBrowsingEnabled = true
             webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest): Boolean {
+                    val uri = request.url
+                    return uri.scheme != "https" || uri.host != android.net.Uri.parse(SITE_URL).host
+                }
+
+                override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {
+                    android.util.Log.e("TigerOverlay", "Mini chat renderer exited; closing overlay panel only")
+                    if (panelWebView === view) closeMiniWindow()
+                    return true
+                }
+
                 override fun onPageFinished(view: WebView, url: String) {
                     super.onPageFinished(view, url)
                     if (android.net.Uri.parse(url).host != android.net.Uri.parse(SITE_URL).host) return
@@ -216,8 +319,14 @@ class TigerOverlayService : Service() {
 
     private fun updateUnread(count: Int) {
         mainHandler.post {
+            val showBadge = getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_SHOW_BADGE, true)
+            bubble?.contentDescription = when {
+                count > 0 -> "TigerChat, $count unread messages. Double tap to open chat."
+                else -> "TigerChat. Double tap to open chat."
+            }
             badge?.apply {
-                if (count > 0) {
+                contentDescription = if (count > 0) "$count unread messages" else "No unread messages"
+                if (showBadge && count > 0) {
                     text = if (count > 99) "99+" else count.toString()
                     visibility = View.VISIBLE
                 } else visibility = View.GONE
@@ -230,14 +339,44 @@ class TigerOverlayService : Service() {
             var connection: HttpURLConnection? = null
             try {
                 val url = URL(rawUrl)
+                if (url.protocol != "https") throw IllegalArgumentException("Avatar URL must use HTTPS")
                 connection = (url.openConnection() as HttpURLConnection).apply {
                     connectTimeout = 5000
                     readTimeout = 5000
-                    instanceFollowRedirects = true
+                    instanceFollowRedirects = false
+                    setRequestProperty("Accept", "image/*")
                 }
+                val contentType = connection.contentType.orEmpty().lowercase()
+                val contentLength = connection.contentLength.toLong()
+                val maxBytes = 5L * 1024L * 1024L
+                if (!contentType.startsWith("image/") || contentLength > maxBytes) {
+                    throw IllegalArgumentException("Avatar response is not a supported small image")
+                }
+                // Enforce the byte limit while streaming too: servers may omit Content-Length.
+                val bytes = java.io.ByteArrayOutputStream()
                 connection.inputStream.use { stream ->
-                    val bitmap = BitmapFactory.decodeStream(stream)
-                    if (bitmap != null) mainHandler.post { avatar?.setImageBitmap(bitmap) }
+                    val buffer = ByteArray(8192)
+                    var total = 0L
+                    while (true) {
+                        val read = stream.read(buffer)
+                        if (read < 0) break
+                        total += read
+                        if (total > maxBytes) throw IllegalArgumentException("Avatar image exceeds 5 MB")
+                        bytes.write(buffer, 0, read)
+                    }
+                }
+                val imageBytes = bytes.toByteArray()
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size, bounds)
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0 ||
+                    bounds.outWidth > 4096 || bounds.outHeight > 4096) {
+                    throw IllegalArgumentException("Avatar dimensions are invalid or too large")
+                }
+                val sample = BitmapFactory.Options().apply { inSampleSize = 2 }
+                val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size, sample)
+                if (bitmap != null) mainHandler.post {
+                    if (avatar != null && bubble != null) avatar?.setImageBitmap(bitmap)
+                    else bitmap.recycle()
                 }
             } catch (error: Exception) {
                 android.util.Log.w("TigerOverlay", "Could not load sender avatar", error)
@@ -264,6 +403,7 @@ class TigerOverlayService : Service() {
 
     companion object {
         const val ACTION_MESSAGE = "com.tigerchats.app.OVERLAY_MESSAGE"
+        const val ACTION_APPEARANCE = "com.tigerchats.app.OVERLAY_APPEARANCE"
         const val EXTRA_PATH = "notification_path"
         private const val SITE_URL = "https://tigerchat-hq.onrender.com"
         const val EXTRA_AVATAR = "avatar_url"
@@ -271,5 +411,17 @@ class TigerOverlayService : Service() {
         const val PREFS = "tiger_overlay"
         const val KEY_ENABLED = "enabled"
         const val KEY_UNREAD = "unread_count"
+        private const val KEY_POSITION_X = "bubble_position_x"
+        private const val KEY_POSITION_Y = "bubble_position_y"
+        private const val KEY_POSITION_X_RATIO = "bubble_position_x_ratio"
+        private const val KEY_POSITION_Y_RATIO = "bubble_position_y_ratio"
+        const val KEY_SIZE = "bubble_size"
+        const val KEY_COLOR = "bubble_color"
+        const val KEY_SHAPE = "bubble_shape"
+        const val KEY_OPACITY = "bubble_opacity"
+        const val KEY_SNAP = "bubble_snap"
+        const val KEY_SHOW_BADGE = "bubble_show_badge"
+        const val KEY_SHOW_AVATAR = "bubble_show_avatar"
+        const val KEY_AUTO_OPEN = "bubble_auto_open"
     }
 }

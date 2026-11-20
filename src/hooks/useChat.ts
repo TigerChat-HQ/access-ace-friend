@@ -6,7 +6,7 @@ import { readOfflineData, writeOfflineData } from "@/lib/offline-chat-cache";
 
 type Message = Tables<"messages">;
 type Profile = Tables<"profiles">;
-type ConversationItem = Tables<"conversations"> & {
+export type ConversationItem = Tables<"conversations"> & {
   lastMessage: Message | null;
   otherProfile: Profile | null;
   unreadCount: number;

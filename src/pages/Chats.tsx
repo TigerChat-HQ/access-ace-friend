@@ -203,30 +203,45 @@ const Chats = () => {
 
   const handleSend = async (text: string) => {
     if (!activeChat || !user || !text.trim()) return;
-    if (editingMessage) {
-      const { error } = await editMessage(editingMessage.id, text.trim());
-      if (error) toast({ title: "Edit failed", description: error.message, variant: "destructive" });
-      else toast({ title: "Message updated" });
-      setEditingMessage(null);
-      return;
-    }
+    try {
+      if (editingMessage) {
+        const { error } = await editMessage(editingMessage.id, text.trim());
+        if (error) {
+          toast({ title: "Edit failed", description: error.message, variant: "destructive" });
+          throw error;
+        }
+        toast({ title: "Message updated" });
+        setEditingMessage(null);
+        return;
+      }
 
-    // Queue first for both online and offline sends. The outbox uses one stable
-    // message UUID, so a lost network response cannot create a duplicate.
-    enqueueMessage({
-      conversationId: activeChat,
-      senderId: user.id,
-      content: text.trim(),
-      messageType: "text",
-      replyToId: replyTo?.id || null,
-    });
-    setReplyTo(null);
-    toast({
-      title: typeof navigator !== "undefined" && !navigator.onLine
-        ? "Ujumbe umehifadhiwa (Offline)"
-        : "Ujumbe umewekwa kwenye foleni ya kutumwa",
-      description: "TigerChat itathibitisha utumaji na kujaribu tena mtandao ukirudi.",
-    });
+      // Queue first for both online and offline sends. The outbox uses one stable
+      // message UUID, so a lost network response cannot create a duplicate.
+      // Keep all local queue/storage failures inside this handler so they cannot
+      // escape as an unhandled promise rejection from the composer callback.
+      enqueueMessage({
+        conversationId: activeChat,
+        senderId: user.id,
+        content: text.trim(),
+        messageType: "text",
+        replyToId: replyTo?.id || null,
+      });
+      setReplyTo(null);
+      toast({
+        title: typeof navigator !== "undefined" && !navigator.onLine
+          ? "Ujumbe umehifadhiwa (Offline)"
+          : "Ujumbe umewekwa kwenye foleni ya kutumwa",
+        description: "TigerChat itathibitisha utumaji na kujaribu tena mtandao ukirudi.",
+      });
+    } catch (error) {
+      console.error("Could not queue outgoing chat message:", error);
+      toast({
+        title: "Ujumbe haujahifadhiwa",
+        description: error instanceof Error ? error.message : "Jaribu tena. Ujumbe haukutumwa.",
+        variant: "destructive",
+      });
+      throw error;
+    }
   };
 
   useEffect(() => {
