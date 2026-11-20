@@ -1,19 +1,12 @@
 package com.tigerchats.app
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ShortcutInfo
-import android.content.pm.ShortcutManager
-import android.graphics.drawable.Icon
-import android.net.Uri
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.Person
 import androidx.core.app.RemoteInput
-import androidx.core.graphics.drawable.IconCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
@@ -68,56 +61,18 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
     private fun ensureMessageChannel(): String {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = getSystemService(NotificationManager::class.java)
-            val channel = NotificationChannel(
+            val channel = android.app.NotificationChannel(
                 CHANNEL_MESSAGES,
                 "Messages",
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
-                description = "New TIGERCHATS conversations"
+                description = "New TIGERCHATS messages"
                 lockscreenVisibility = NotificationCompat.VISIBILITY_PRIVATE
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) setAllowBubbles(true)
+                setAllowBubbles(false)
             }
             manager.createNotificationChannel(channel)
         }
         return CHANNEL_MESSAGES
-    }
-
-    private fun conversationShortcutId(path: String): String? =
-        Regex("[?&]c=([0-9a-fA-F-]{36})")
-            .find(path)?.groupValues?.getOrNull(1)?.let { "tiger-chat-$it" }
-
-    private fun createConversationShortcut(title: String, path: String): String? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
-        val shortcutId = conversationShortcutId(path) ?: return null
-        val conversationId = shortcutId.removePrefix("tiger-chat-")
-        val launchIntent = Intent(this, MainActivity::class.java)
-            .setAction(Intent.ACTION_VIEW)
-            .setData(Uri.parse("tigerchats://chat?c=$conversationId"))
-            .putExtra("path", path)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-
-        val person = android.app.Person.Builder()
-            .setName(title)
-            .setIcon(Icon.createWithResource(this, R.drawable.tigerchats_logo))
-            .build()
-        val shortcutBuilder = ShortcutInfo.Builder(this, shortcutId)
-            .setShortLabel(title.take(25).ifBlank { "TigerChat" })
-            .setLongLabel("Chat with $title")
-            .setIcon(Icon.createWithResource(this, R.drawable.tigerchats_logo))
-            .setIntent(launchIntent)
-            .setPerson(person)
-            .setCategories(setOf(SHORTCUT_CATEGORY))
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            shortcutBuilder.setLongLived(true)
-        }
-        return try {
-            getSystemService(ShortcutManager::class.java)
-                .pushDynamicShortcut(shortcutBuilder.build())
-            shortcutId
-        } catch (error: Exception) {
-            android.util.Log.w(TAG, "Could not publish conversation shortcut", error)
-            null
-        }
     }
 
     private fun quickReplyAction(path: String): NotificationCompat.Action {
@@ -140,15 +95,8 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     private fun showMessageNotification(title: String, body: String, path: String, allowReply: Boolean) {
-        val conversationId = conversationShortcutId(path)?.removePrefix("tiger-chat-")
         val openIntent = Intent(this, MainActivity::class.java)
             .putExtra("path", path)
-            .apply {
-                if (conversationId != null) {
-                    action = Intent.ACTION_VIEW
-                    data = Uri.parse("tigerchats://chat?c=$conversationId")
-                }
-            }
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         val contentPendingIntent = PendingIntent.getActivity(
             this,
@@ -175,36 +123,15 @@ class TigerFirebaseMessagingService : FirebaseMessagingService() {
 
         if (allowReply) builder.addAction(quickReplyAction(path))
 
-        val shortcutId = if (allowReply) createConversationShortcut(title, path) else null
-        // Publish one OS-managed conversation bubble per chat even when the app-wide
-        // overlay launcher is enabled. Android can then keep separate chat bubbles
-        // and falls back to the ordinary notification when bubbles are unavailable.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && shortcutId != null) {
-            val bubbleIntent = Intent(openIntent)
-            val bubblePendingIntent = PendingIntent.getActivity(
-                this,
-                shortcutId.hashCode(),
-                bubbleIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-            val bubble = NotificationCompat.BubbleMetadata.Builder(
-                bubblePendingIntent,
-                IconCompat.createWithResource(this, R.drawable.tigerchats_logo),
-            )
-                .setDesiredHeight(640)
-                .setAutoExpandBubble(false)
-                .setSuppressNotification(false)
-                .build()
-            builder.setShortcutId(shortcutId).setBubbleMetadata(bubble)
-        }
-
+        // The floating overlay is the only bubble UI. This remains a normal
+        // notification fallback; Android conversation bubbles are not published.
         getSystemService(NotificationManager::class.java)
             .notify(path.hashCode(), builder.build())
     }
 
     companion object {
         private const val TAG = "TigerChatPush"
-        private const val CHANNEL_MESSAGES = "messages"
+        private const val CHANNEL_MESSAGES = "messages_bubble_only_v2"
         private const val SHORTCUT_CATEGORY = "com.tigerchats.app.category.CONVERSATION"
     }
 }
