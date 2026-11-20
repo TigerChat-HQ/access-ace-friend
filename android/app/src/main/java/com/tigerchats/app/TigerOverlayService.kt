@@ -33,6 +33,7 @@ class TigerOverlayService : Service() {
     private var badge: TextView? = null
     private var panel: FrameLayout? = null
     private var panelWebView: WebView? = null
+    private var bubbleLayoutParams: WindowManager.LayoutParams? = null
     private var miniWindowReady = false
     private var latestPath: String = "/chats"
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -90,28 +91,48 @@ class TigerOverlayService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = dp(12)
-            y = dp(180)
+            x = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_POSITION_X, dp(12)).coerceAtLeast(0)
+            y = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(KEY_POSITION_Y, dp(180)).coerceAtLeast(0)
         }
+        bubbleLayoutParams = layout
         var downX = 0f
         var downY = 0f
         var startX = 0
         var startY = 0
+        var dragged = false
         root.setOnTouchListener { target: View, event: MotionEvent ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     downX = event.rawX; downY = event.rawY
                     startX = layout.x; startY = layout.y
+                    dragged = false
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    layout.x = startX + (event.rawX - downX).toInt()
-                    layout.y = startY + (event.rawY - downY).toInt()
+                    val dx = (event.rawX - downX).toInt()
+                    val dy = (event.rawY - downY).toInt()
+                    if (abs(dx) > dp(4) || abs(dy) > dp(4)) dragged = true
+                    val maxX = (resources.displayMetrics.widthPixels - layout.width).coerceAtLeast(0)
+                    val maxY = (resources.displayMetrics.heightPixels - layout.height).coerceAtLeast(0)
+                    layout.x = (startX + dx).coerceIn(0, maxX)
+                    layout.y = (startY + dy).coerceIn(0, maxY)
                     try { windowManager?.updateViewLayout(target, layout) } catch (_: Exception) { }
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (abs(event.rawX - downX) < dp(8) && abs(event.rawY - downY) < dp(8)) target.performClick()
+                    if (dragged) {
+                        // Dock to the nearest horizontal edge and persist the final position.
+                        val maxX = (resources.displayMetrics.widthPixels - layout.width).coerceAtLeast(0)
+                        layout.x = if (layout.x + layout.width / 2 < resources.displayMetrics.widthPixels / 2) 0 else maxX
+                        layout.y = layout.y.coerceIn(0, (resources.displayMetrics.heightPixels - layout.height).coerceAtLeast(0))
+                        try { windowManager?.updateViewLayout(target, layout) } catch (_: Exception) { }
+                        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                            .putInt(KEY_POSITION_X, layout.x)
+                            .putInt(KEY_POSITION_Y, layout.y)
+                            .apply()
+                    } else if (abs(event.rawX - downX) < dp(8) && abs(event.rawY - downY) < dp(8)) {
+                        target.performClick()
+                    }
                     true
                 }
                 else -> false
@@ -271,5 +292,7 @@ class TigerOverlayService : Service() {
         const val PREFS = "tiger_overlay"
         const val KEY_ENABLED = "enabled"
         const val KEY_UNREAD = "unread_count"
+        private const val KEY_POSITION_X = "bubble_position_x"
+        private const val KEY_POSITION_Y = "bubble_position_y"
     }
 }
